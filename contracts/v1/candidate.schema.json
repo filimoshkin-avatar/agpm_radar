@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://radar.aipractice.space/contracts/v1/candidate.schema.json",
+  "title": "Radar V2 Project Manager candidate",
+  "oneOf": [
+    {"$ref": "#/$defs/dailyCandidate"},
+    {"$ref": "#/$defs/correctionCandidate"},
+    {"$ref": "#/$defs/gazetteCandidate"}
+  ],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$"},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "relativePath": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$", "maxLength": 512},
+    "initiator": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "actorId", "requestId"],
+      "properties": {
+        "kind": {"enum": ["project-manager", "owner-request"]},
+        "actorId": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+        "requestId": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9._:-]{1,128}$"}
+      }
+    },
+    "base": {
+      "type": "object", "additionalProperties": false,
+      "required": ["releaseId", "sequence", "logicalStateHash"],
+      "properties": {
+        "releaseId": {"$ref": "#/$defs/id"},
+        "sequence": {"type": "integer", "minimum": 0},
+        "logicalStateHash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["snapshotId", "manifestSha256", "payloadSha256", "itemCount"],
+      "properties": {
+        "snapshotId": {"$ref": "#/$defs/id"},
+        "manifestSha256": {"$ref": "#/$defs/sha256"},
+        "payloadSha256": {"$ref": "#/$defs/sha256"},
+        "itemCount": {"type": "integer", "minimum": 0}
+      }
+    },
+    "thesis": {
+      "type": "object", "additionalProperties": false, "required": ["lead", "rest"],
+      "properties": {"lead": {"type": "string", "minLength": 1, "maxLength": 500}, "rest": {"type": "string", "maxLength": 2000}}
+    },
+    "analysisBlock": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "title", "text"],
+      "properties": {
+        "kind": {"enum": ["overview", "signals", "risks", "actions"]},
+        "title": {"type": "string", "minLength": 1, "maxLength": 300},
+        "text": {"type": "string", "minLength": 1, "maxLength": 10000}
+      }
+    },
+    "issueAnalysis": {
+      "type": "object", "additionalProperties": false, "required": ["headline", "brief", "blocks", "theses"],
+      "properties": {
+        "headline": {"type": ["string", "null"], "maxLength": 500},
+        "brief": {"type": ["string", "null"], "maxLength": 4000},
+        "blocks": {"type": "array", "maxItems": 20, "items": {"$ref": "#/$defs/analysisBlock"}},
+        "theses": {"type": "array", "maxItems": 10, "items": {"$ref": "#/$defs/thesis"}}
+      }
+    },
+    "stats": {
+      "type": "object", "additionalProperties": false,
+      "required": ["viewed", "included", "cut", "near", "mid", "far", "core", "adjacent"],
+      "properties": {
+        "viewed": {"type": "integer", "minimum": 0}, "included": {"type": "integer", "minimum": 0},
+        "cut": {"type": "integer", "minimum": 0}, "near": {"type": "integer", "minimum": 0},
+        "mid": {"type": "integer", "minimum": 0}, "far": {"type": "integer", "minimum": 0},
+        "core": {"type": "integer", "minimum": 0}, "adjacent": {"type": "integer", "minimum": 0}
+      }
+    },
+    "material": {
+      "type": "object", "additionalProperties": false,
+      "required": ["materialId", "position", "title", "url", "canonicalUrl", "sourceName", "publishedAt", "publicationDateStatus", "perimeter", "verdict", "summary", "agpmTakeaway", "brief", "keyMaterial", "signalScore", "signalStrength", "theses", "trendNotes", "flags", "rubrics", "llmStatus", "llmShortText", "llmAgpmAngle"],
+      "properties": {
+        "materialId": {"$ref": "#/$defs/id"}, "position": {"type": "integer", "minimum": 1},
+        "title": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+        "canonicalUrl": {"type": ["string", "null"], "format": "uri", "pattern": "^https?://"},
+        "sourceName": {"type": ["string", "null"], "maxLength": 500},
+        "publishedAt": {"type": ["string", "null"], "format": "date-time"},
+        "publicationDateStatus": {"enum": ["resolved", "low_confidence", "unresolved"]},
+        "perimeter": {"enum": ["near", "mid", "far"]}, "verdict": {"enum": ["core", "adjacent"]},
+        "summary": {"type": ["string", "null"], "maxLength": 20000}, "agpmTakeaway": {"type": ["string", "null"], "maxLength": 20000},
+        "brief": {"type": ["string", "null"], "maxLength": 4000}, "keyMaterial": {"type": "boolean"},
+        "signalScore": {"type": ["integer", "null"]}, "signalStrength": {"enum": ["strong", "context", "watch"]},
+        "theses": {"type": "array", "maxItems": 20, "items": {"type": "string", "maxLength": 2000}},
+        "trendNotes": {"type": ["string", "null"], "maxLength": 4000},
+        "flags": {"type": "array", "uniqueItems": true, "items": {"enum": ["governance", "security", "human_in_the_loop", "pmo", "isup", "mcp"]}},
+        "rubrics": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z0-9._-]{1,80}$"}},
+        "llmStatus": {"enum": ["success", "fallback", "unavailable"]},
+        "llmShortText": {"type": ["string", "null"], "maxLength": 4000},
+        "llmAgpmAngle": {"type": ["string", "null"], "maxLength": 4000}
+      }
+    },
+    "desiredIssue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["issueId", "issueDate", "issueNumber", "title", "brief", "lifecycleStatus", "publishedAt", "publicationOrigin", "emptyReason", "materials", "analysis", "stats"],
+      "properties": {
+        "issueId": {"$ref": "#/$defs/id"}, "issueDate": {"type": "string", "format": "date"},
+        "issueNumber": {"type": ["integer", "null"], "minimum": 1}, "title": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "brief": {"type": ["string", "null"], "maxLength": 4000}, "lifecycleStatus": {"const": "published"},
+        "publishedAt": {"type": ["string", "null"], "format": "date-time"},
+        "publicationOrigin": {"enum": ["v2", "legacy_inferred"]}, "emptyReason": {"type": ["string", "null"], "maxLength": 1000},
+        "materials": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/material"}},
+        "analysis": {"$ref": "#/$defs/issueAnalysis"}, "stats": {"$ref": "#/$defs/stats"}
+      }
+    },
+    "queueChange": {
+      "type": "object", "additionalProperties": false, "required": ["action", "queueId", "materialId", "state", "targetIssueDate", "priority", "reason"],
+      "properties": {
+        "action": {"enum": ["upsert", "delete"]}, "queueId": {"$ref": "#/$defs/id"}, "materialId": {"$ref": "#/$defs/id"},
+        "state": {"enum": ["manual", "deferred", "review"]}, "targetIssueDate": {"type": ["string", "null"], "format": "date"},
+        "priority": {"type": "integer"}, "reason": {"type": ["string", "null"], "maxLength": 2000}
+      }
+    },
+    "commonProperties": {
+      "type": "object"
+    },
+    "dailyCandidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "candidateId", "idempotencyKey", "operation", "schemaVersion", "createdAt", "initiator", "reason", "expectedBase", "snapshot", "expectedIssueAbsent", "desiredIssue", "queueChanges", "llmOutcome"],
+      "properties": {
+        "contractVersion": {"const": "1.0.0"}, "candidateId": {"$ref": "#/$defs/id"}, "idempotencyKey": {"$ref": "#/$defs/id"},
+        "operation": {"const": "daily"}, "schemaVersion": {"const": 1}, "createdAt": {"type": "string", "format": "date-time"},
+        "initiator": {"$ref": "#/$defs/initiator"}, "reason": {"type": "string", "minLength": 3, "maxLength": 2000},
+        "expectedBase": {"$ref": "#/$defs/base"}, "snapshot": {"$ref": "#/$defs/snapshot"}, "expectedIssueAbsent": {"const": true},
+        "desiredIssue": {"$ref": "#/$defs/desiredIssue"}, "queueChanges": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/queueChange"}},
+        "llmOutcome": {"$ref": "llm-outcome.schema.json"}
+      }
+    },
+    "correctionCandidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "candidateId", "idempotencyKey", "operation", "schemaVersion", "createdAt", "initiator", "reason", "expectedBase", "targetIssueDate", "expectedIssueStateHash", "sharedMaterialPreconditions", "desiredIssue", "llmOutcome"],
+      "properties": {
+        "contractVersion": {"const": "1.0.0"}, "candidateId": {"$ref": "#/$defs/id"}, "idempotencyKey": {"$ref": "#/$defs/id"},
+        "operation": {"const": "correction"}, "schemaVersion": {"const": 1}, "createdAt": {"type": "string", "format": "date-time"},
+        "initiator": {"$ref": "#/$defs/initiator"}, "reason": {"type": "string", "minLength": 3, "maxLength": 2000},
+        "expectedBase": {"$ref": "#/$defs/base"}, "targetIssueDate": {"type": "string", "format": "date"}, "expectedIssueStateHash": {"$ref": "#/$defs/sha256"},
+        "sharedMaterialPreconditions": {"type": "array", "maxItems": 100, "items": {"type": "object", "additionalProperties": false, "required": ["materialId", "expectedRowHash"], "properties": {"materialId": {"$ref": "#/$defs/id"}, "expectedRowHash": {"$ref": "#/$defs/sha256"}}}},
+        "desiredIssue": {"$ref": "#/$defs/desiredIssue"}, "llmOutcome": {"$ref": "llm-outcome.schema.json"}
+      }
+    },
+    "inputAsset": {
+      "type": "object", "additionalProperties": false, "required": ["relativePath", "sha256", "bytes", "mediaType"],
+      "properties": {"relativePath": {"$ref": "#/$defs/relativePath"}, "sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 52428800}, "mediaType": {"enum": ["text/html", "text/css", "image/png", "image/jpeg", "image/webp", "image/svg+xml", "font/ttf", "font/woff2"]}}
+    },
+    "gazetteCandidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "candidateId", "idempotencyKey", "operation", "schemaVersion", "createdAt", "initiator", "reason", "expectedBase", "gazetteId", "expectedGazette", "period", "title", "ownerRequestDigest", "htmlEntrypoint", "inputAssets", "llmOutcome"],
+      "properties": {
+        "contractVersion": {"const": "1.0.0"}, "candidateId": {"$ref": "#/$defs/id"}, "idempotencyKey": {"$ref": "#/$defs/id"},
+        "operation": {"const": "gazette"}, "schemaVersion": {"const": 1}, "createdAt": {"type": "string", "format": "date-time"},
+        "initiator": {"$ref": "#/$defs/initiator"}, "reason": {"type": "string", "minLength": 3, "maxLength": 2000}, "expectedBase": {"$ref": "#/$defs/base"},
+        "gazetteId": {"$ref": "#/$defs/id"}, "expectedGazette": {"oneOf": [{"type": "object", "additionalProperties": false, "required": ["state"], "properties": {"state": {"const": "absent"}}}, {"type": "object", "additionalProperties": false, "required": ["state", "contentHash"], "properties": {"state": {"const": "present"}, "contentHash": {"$ref": "#/$defs/sha256"}}}]},
+        "period": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$"}, "title": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "ownerRequestDigest": {"$ref": "#/$defs/sha256"}, "htmlEntrypoint": {"$ref": "#/$defs/relativePath"},
+        "inputAssets": {"type": "array", "minItems": 1, "maxItems": 1000, "items": {"$ref": "#/$defs/inputAsset"}},
+        "llmOutcome": {"$ref": "llm-outcome.schema.json"}
+      }
+    }
+  }
+}

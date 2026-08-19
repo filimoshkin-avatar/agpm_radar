@@ -1,0 +1,63 @@
+contractVersion: 1.0.0
+contractFamily: radar-v2/1
+baseline:
+  report: docs/legacy-baseline-2026-08-19.md
+  gitCommit: 2734949
+  databaseSha256: 481d5d6c9b54a58f78f288fb29c0eb072d43e74d6c2db8b14044a3153cd8f7f7
+  firstIssueDate: 2026-06-07
+  lastIssueDate: 2026-08-19
+  expectedPublicIssueCount: 74
+  issueEvidenceManifest: fixtures/legacy-baseline/all-issues-evidence.json
+  issueEvidenceManifestSha256: 9f6c488bbddd2975fa89a75d35348990814a85f79dcee0bd15a2fa513043f121
+  exactIssueDateAllowlistSource: issueEvidenceManifest
+principles:
+  legacyStatusIsAuthority: false
+  legacyPublishedAtIsAuthority: false
+  preserveLegacyFieldsAsProvenance: true
+  ambiguousDefaultsTo: draft
+requiredEvidence:
+  - id: baseline_issue_row
+    description: Issue row exists in the frozen Stage 0 database.
+  - id: canonical_report
+    description: Canonical Legacy Markdown report exists for issue date and its SHA-256 is recorded; 2026-06-07 uses explicit weekly-name mapping.
+  - id: raw_docx
+    description: Raw daily/weekly DOCX exists and its SHA-256 is recorded.
+  - id: normalized_json
+    description: Normalized issue JSON exists and its SHA-256 is recorded.
+  - id: generated_public_json
+    description: Generated json-cache issues/<date>.json exists and parses.
+  - id: integrity
+    description: Issue/material/daily-stats invariants pass, including an explicit valid empty issue.
+  - id: baseline_range
+    description: Issue date is inside the frozen Stage 0 baseline range.
+publicationDecision:
+  whenAllRequiredEvidencePass:
+    lifecycle_status: published
+    publication_origin: legacy_inferred
+    published_at: null
+    provenanceRequired: true
+  whenAnyRequiredEvidenceFails:
+    lifecycle_status: draft
+    publication_origin: legacy_inferred
+    review_required: true
+provenanceRecord:
+  requiredFields:
+    - legacy_status
+    - legacy_published_at
+    - baseline_database_sha256
+    - report_relative_path
+    - report_sha256
+    - public_json_relative_path
+    - public_json_sha256
+    - evidence_results
+  forbiddenFields:
+    - absolute filesystem paths
+    - secrets
+    - raw provider payloads
+acceptance:
+  inferredPublishedCount: 74
+  ambiguousCount: 0
+  explicitEmptyIssueDates:
+    - 2026-07-26
+  notes:
+    - Import must discover all other empty issues from baseline data; the listed fixture is the required regression example.

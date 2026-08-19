@@ -1,0 +1,87 @@
+{
+  "candidateId": "cand_correction_20260819_01",
+  "contractVersion": "1.0.0",
+  "createdAt": "2026-08-20T09:00:00Z",
+  "desiredIssue": {
+    "analysis": {
+      "blocks": [
+        {
+          "kind": "overview",
+          "text": "После отбора материалов нет.",
+          "title": "Итог"
+        }
+      ],
+      "brief": "No qualifying materials.",
+      "headline": null,
+      "theses": []
+    },
+    "brief": "No qualifying materials.",
+    "emptyReason": "no_qualifying_materials",
+    "issueDate": "2026-08-19",
+    "issueId": "issue_20260819",
+    "issueNumber": 74,
+    "lifecycleStatus": "published",
+    "materials": [],
+    "publicationOrigin": "legacy_inferred",
+    "publishedAt": null,
+    "stats": {
+      "adjacent": 0,
+      "core": 0,
+      "cut": 42,
+      "far": 0,
+      "included": 0,
+      "mid": 0,
+      "near": 0,
+      "viewed": 42
+    },
+    "title": "AgPM daily radar 2026-08-19"
+  },
+  "expectedBase": {
+    "logicalStateHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "releaseId": "rel_content_20260820_01",
+    "sequence": 2
+  },
+  "expectedIssueStateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+  "idempotencyKey": "idem_correction_20260819_01",
+  "initiator": {
+    "actorId": "ivan",
+    "kind": "owner-request",
+    "requestId": "req_duplicate_20260820"
+  },
+  "llmOutcome": {
+    "attempts": [
+      {
+        "accepted": false,
+        "errorCode": "PROVIDER_UNAVAILABLE",
+        "model": "gpt-5.5",
+        "order": 1,
+        "provider": "openai",
+        "status": "error"
+      },
+      {
+        "accepted": true,
+        "errorCode": null,
+        "model": "MiniMax-M3",
+        "order": 2,
+        "provider": "minimax",
+        "status": "success"
+      }
+    ],
+    "deterministicFallback": null,
+    "effective": {
+      "model": "MiniMax-M3",
+      "provider": "minimax"
+    },
+    "effectiveAttemptOrder": 2,
+    "requested": {
+      "model": "gpt-5.5",
+      "provider": "openai"
+    },
+    "status": "fallback"
+  },
+  "operation": "correction",
+  "reason": "Remove confirmed duplicate",
+  "schemaVersion": 1,
+  "sharedMaterialPreconditions": [],
+  "targetIssueDate": "2026-08-19"
+}

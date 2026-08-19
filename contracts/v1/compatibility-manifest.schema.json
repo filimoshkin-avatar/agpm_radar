@@ -1,0 +1,232 @@
+{
+  "$defs": {
+    "application": {
+      "additionalProperties": false,
+      "properties": {
+        "applicationReleaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "artifacts": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "kind": {
+                "enum": [
+                  "api",
+                  "web",
+                  "migration-bundle"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "sha256",
+              "bytes"
+            ],
+            "type": "object"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "candidateContractVersions": {
+          "const": [
+            "1.0.0"
+          ]
+        },
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "deltaContractVersions": {
+          "const": [
+            "1.0.0"
+          ]
+        },
+        "gazetteContractVersions": {
+          "const": [
+            "1.0.0"
+          ]
+        },
+        "gitCommit": {
+          "pattern": "^[a-f0-9]{40}$",
+          "type": "string"
+        },
+        "manifestKind": {
+          "const": "application"
+        },
+        "publicApiVersion": {
+          "const": "1.0.0"
+        },
+        "resultContractVersions": {
+          "const": [
+            "1.0.0"
+          ]
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sqliteRuntime": {
+          "additionalProperties": false,
+          "properties": {
+            "compileOptions": {
+              "contains": {
+                "const": "ENABLE_FTS5"
+              },
+              "type": "array",
+              "uniqueItems": true
+            },
+            "sourceId": {
+              "type": "string"
+            },
+            "version": {
+              "const": "3.45.1"
+            }
+          },
+          "required": [
+            "version",
+            "sourceId",
+            "compileOptions"
+          ],
+          "type": "object"
+        },
+        "tableContractVersion": {
+          "const": "1.0.0"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "manifestKind",
+        "applicationReleaseId",
+        "gitCommit",
+        "createdAt",
+        "schemaVersion",
+        "tableContractVersion",
+        "candidateContractVersions",
+        "deltaContractVersions",
+        "resultContractVersions",
+        "gazetteContractVersions",
+        "publicApiVersion",
+        "sqliteRuntime",
+        "artifacts"
+      ],
+      "type": "object"
+    },
+    "content": {
+      "additionalProperties": false,
+      "properties": {
+        "afterStateHash": {
+          "$ref": "#/$defs/sha"
+        },
+        "applicationReleaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "beforeStateHash": {
+          "$ref": "#/$defs/sha"
+        },
+        "candidateContractVersion": {
+          "const": "1.0.0"
+        },
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "deltaContractVersion": {
+          "const": "1.0.0"
+        },
+        "manifestKind": {
+          "const": "content"
+        },
+        "releaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "sequence": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "manifestKind",
+        "releaseId",
+        "applicationReleaseId",
+        "sequence",
+        "schemaVersion",
+        "candidateContractVersion",
+        "deltaContractVersion",
+        "beforeStateHash",
+        "afterStateHash"
+      ],
+      "type": "object"
+    },
+    "gazette": {
+      "additionalProperties": false,
+      "properties": {
+        "applicationReleaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "assetManifestSha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "gazetteContractVersion": {
+          "const": "1.0.0"
+        },
+        "gazetteReleaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "manifestKind": {
+          "const": "gazette"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "manifestKind",
+        "gazetteReleaseId",
+        "applicationReleaseId",
+        "gazetteContractVersion",
+        "assetManifestSha256"
+      ],
+      "type": "object"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$",
+      "type": "string"
+    },
+    "sha": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://radar.aipractice.space/contracts/v1/compatibility-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/application"
+    },
+    {
+      "$ref": "#/$defs/content"
+    },
+    {
+      "$ref": "#/$defs/gazette"
+    }
+  ],
+  "title": "Radar V2 compatibility manifest"
+}

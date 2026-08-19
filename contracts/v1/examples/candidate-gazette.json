@@ -1,0 +1,43 @@
+{
+  "candidateId": "cand_gazette_202608_01",
+  "contractVersion": "1.0.0",
+  "createdAt": "2026-08-20T10:00:00Z",
+  "expectedBase": {
+    "logicalStateHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "releaseId": "rel_content_20260820_02",
+    "sequence": 3
+  },
+  "expectedGazette": {
+    "state": "absent"
+  },
+  "gazetteId": "gazette_2026_08",
+  "htmlEntrypoint": "gazettes/2026-08/index.html",
+  "idempotencyKey": "idem_gazette_202608_01",
+  "initiator": {
+    "actorId": "ivan",
+    "kind": "owner-request",
+    "requestId": "req_gazette_202608"
+  },
+  "inputAssets": [
+    {
+      "bytes": 36000,
+      "mediaType": "text/html",
+      "relativePath": "gazettes/2026-08/index.html",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ],
+  "llmOutcome": {
+    "attempts": [],
+    "deterministicFallback": null,
+    "effective": null,
+    "effectiveAttemptOrder": null,
+    "requested": null,
+    "status": "not_requested"
+  },
+  "operation": "gazette",
+  "ownerRequestDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "period": "2026-08",
+  "reason": "Publish owner-provided gazette",
+  "schemaVersion": 1,
+  "title": "Новости агентного управления — август 2026"
+}

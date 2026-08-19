@@ -1,0 +1,71 @@
+{
+  "activeReleaseId": "rel_content_20260820_01",
+  "candidateId": "cand_correction_20260819_01",
+  "checks": [
+    {
+      "id": "public.smoke",
+      "message": "Public smoke failed after activation.",
+      "status": "failed"
+    }
+  ],
+  "contractVersion": "1.0.0",
+  "durationMs": 180000,
+  "error": {
+    "category": "smoke",
+    "code": "PUBLIC_SMOKE_FAILED_ROLLED_BACK",
+    "message": "New release failed public smoke and previous release was restored.",
+    "nextAction": "Diagnose candidate while previous release remains active.",
+    "retryable": false
+  },
+  "exitCode": 34,
+  "finishedAt": "2026-08-20T09:03:00Z",
+  "idempotencyDisposition": "executed",
+  "issueDate": "2026-08-19",
+  "llmOutcome": {
+    "attempts": [
+      {
+        "accepted": false,
+        "errorCode": "PROVIDER_UNAVAILABLE",
+        "model": "gpt-5.5",
+        "order": 1,
+        "provider": "openai",
+        "status": "error"
+      },
+      {
+        "accepted": true,
+        "errorCode": null,
+        "model": "MiniMax-M3",
+        "order": 2,
+        "provider": "minimax",
+        "status": "success"
+      }
+    ],
+    "deterministicFallback": null,
+    "effective": {
+      "model": "MiniMax-M3",
+      "provider": "minimax"
+    },
+    "effectiveAttemptOrder": 2,
+    "requested": {
+      "model": "gpt-5.5",
+      "provider": "openai"
+    },
+    "status": "fallback"
+  },
+  "operation": "correction",
+  "productionStateHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "publicationSucceeded": false,
+  "publishingBlocked": false,
+  "releaseId": "rel_content_20260820_02",
+  "rollback": {
+    "attempted": true,
+    "required": true,
+    "restoredReleaseId": "rel_content_20260820_01",
+    "restoredStateHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "succeeded": true
+  },
+  "sourceStateHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "startedAt": "2026-08-20T09:00:00Z",
+  "status": "rolled_back",
+  "warnings": []
+}

@@ -39,3 +39,5 @@ Schema migrations никогда не запускаются обычной dail
 Read-only снимок Legacy перед началом реализации V2: `docs/legacy-baseline-2026-08-19.md`; обезличенные regression fixtures находятся в `fixtures/legacy-baseline/`.
 
 Stage 0A containment публичных Legacy backup/temp/source-map artifacts: `docs/radar-stage0a-caddy-containment-2026-08-19.md`.
+
+Stage 1 accepted ADRs and machine-readable contract family: `docs/radar-stage1-contracts-2026-08-19.md`, `docs/adr/`, `contracts/v1/`.

@@ -1,0 +1,84 @@
+{
+  "candidateId": "cand_daily_20260820_01",
+  "contractVersion": "1.0.0",
+  "createdAt": "2026-08-20T05:05:00Z",
+  "desiredIssue": {
+    "analysis": {
+      "blocks": [
+        {
+          "kind": "overview",
+          "text": "После отбора материалов нет.",
+          "title": "Итог"
+        }
+      ],
+      "brief": "No qualifying materials.",
+      "headline": null,
+      "theses": []
+    },
+    "brief": "No qualifying materials.",
+    "emptyReason": "no_qualifying_materials",
+    "issueDate": "2026-08-20",
+    "issueId": "issue_20260820",
+    "issueNumber": 75,
+    "lifecycleStatus": "published",
+    "materials": [],
+    "publicationOrigin": "v2",
+    "publishedAt": "2026-08-20T05:10:00Z",
+    "stats": {
+      "adjacent": 0,
+      "core": 0,
+      "cut": 42,
+      "far": 0,
+      "included": 0,
+      "mid": 0,
+      "near": 0,
+      "viewed": 42
+    },
+    "title": "AgPM daily radar 2026-08-20"
+  },
+  "expectedBase": {
+    "logicalStateHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "releaseId": "rel_content_20260819_01",
+    "sequence": 1
+  },
+  "expectedIssueAbsent": true,
+  "idempotencyKey": "idem_daily_20260820_01",
+  "initiator": {
+    "actorId": "project-manager",
+    "kind": "project-manager",
+    "requestId": null
+  },
+  "llmOutcome": {
+    "attempts": [
+      {
+        "accepted": false,
+        "errorCode": "PROVIDER_UNAVAILABLE",
+        "model": "gpt-5.5",
+        "order": 1,
+        "provider": "openai",
+        "status": "error"
+      }
+    ],
+    "deterministicFallback": {
+      "implementation": "rules-daily",
+      "version": "1"
+    },
+    "effective": null,
+    "effectiveAttemptOrder": null,
+    "requested": {
+      "model": "gpt-5.5",
+      "provider": "openai"
+    },
+    "status": "unavailable"
+  },
+  "operation": "daily",
+  "queueChanges": [],
+  "reason": "Scheduled daily publish",
+  "schemaVersion": 1,
+  "snapshot": {
+    "itemCount": 0,
+    "manifestSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "payloadSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "snapshotId": "snap_20260820_01"
+  }
+}

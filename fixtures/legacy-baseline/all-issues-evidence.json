@@ -1,0 +1,2301 @@
+{
+  "baselineDatabaseSha256": "481d5d6c9b54a58f78f288fb29c0eb072d43e74d6c2db8b14044a3153cd8f7f7",
+  "contractVersion": "1.0.0",
+  "issueCount": 74,
+  "issues": [
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_weekly_radar_2026-06-07.md",
+          "sha256": "9b630aacd1fb73e8cf51d77909d24ad49b4525b510818416515dc12b94f49d08"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_weekly_radar_2026-06-07.docx",
+          "sha256": "bbf40cedd6585dbce1b60108003da329da167854784d1f894bfe6328de7b0900"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-07.json",
+          "sha256": "a5123a8d99e9195722fd96b963050b0f3198ddc6e9960e6f727e2ecbcfed95da"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-07.json",
+          "sha256": "89b3a4ffd519e5e86aba4c5a41a4144210900b2dd3ba6ea3cf4e8bbefc2fb323"
+        }
+      ],
+      "issueDate": "2026-06-07",
+      "issueNumber": 1,
+      "legacyIssueRowSha256": "28e6ccaa500c92771b0e2bd41751a99442e12502c860871086759705cfdc6135",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 15,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-08.md",
+          "sha256": "a0d15c87978ebc4b1ea881a0aaebbad8e4358072a9c725f7a87c069b21897112"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-08.docx",
+          "sha256": "56e41eb1132dd999626eea40106d6d00f3df43e406fa1be04b0a703124bd86f5"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-08.json",
+          "sha256": "11848d5ed5cb1b66ffc1bc3b66a6a92fc43a5766ace648cc272a72d0c682d7f4"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-08.json",
+          "sha256": "021a5a0f4d854e7908d2d5cbf488810d2b0c3cd5d266f57354d7dff6dc9c6603"
+        }
+      ],
+      "issueDate": "2026-06-08",
+      "issueNumber": 2,
+      "legacyIssueRowSha256": "b23b999360e1d9ea812d611b4a5e39eacabb6a57837b0a19de8af458f8469c04",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 15,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-09.md",
+          "sha256": "022b6bc186d1b4a3caea130aaefeb8c770d392305e81366cfe62e0db1d943222"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-09.docx",
+          "sha256": "d8da7a71399aaa70d43d9bbac5a2602170bd0c8ef5d93d2d37f57b80ee90458e"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-09.json",
+          "sha256": "9a2868a0d803fa234af063f31ae97376df5179cea25607192864a451ab0e5d9f"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-09.json",
+          "sha256": "e23acbe3700910e37e10b5dc7a2cc4bf2439441802b36567695c57ff13d23ee4"
+        }
+      ],
+      "issueDate": "2026-06-09",
+      "issueNumber": 3,
+      "legacyIssueRowSha256": "a79c9e44490223f9b709bf8fae7dd2f2a61a5fbc500b0c22b2f6fda7b6a259c2",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 12,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-10.md",
+          "sha256": "98c01e8f7289bc6a51e6e4b24ca5f3d55c6421f534c42531516ff711f2e6c0d9"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-10.docx",
+          "sha256": "59b04e7e223d4784cf8d2551df5c215698592b7c8da640b8dcf341a79eda75e2"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-10.json",
+          "sha256": "3d7ed644e4b876748fa64b1e80d9d1dffd436c05f97637e75af7b8b40e7e78b1"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-10.json",
+          "sha256": "00406e1cba4e716ce4552d0e4d2b054b8f7b021e2d97ae150079871f0a52b6b9"
+        }
+      ],
+      "issueDate": "2026-06-10",
+      "issueNumber": 4,
+      "legacyIssueRowSha256": "14a19acade5d29b4a9beee04fffb62c3bfff6521debaf46f3a414b17442882df",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-11.md",
+          "sha256": "ee2e5e3637c95977b9538f097f590073513da6638da9cfe1ff3638cbef1fd461"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-11.docx",
+          "sha256": "2ce49df9ed2547d038ee48be7b7c846d90ae4bfb16b0ef5885155a03cfb031b9"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-11.json",
+          "sha256": "8f8abf79e263876a161dcd9be570b5a2f1932a3bb0fd2de3c90c786f53a8547a"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-11.json",
+          "sha256": "33811949b49fd3e6188c0599829f895f5f9f8d33c0677b5ddd7f8e2cf02529f9"
+        }
+      ],
+      "issueDate": "2026-06-11",
+      "issueNumber": 5,
+      "legacyIssueRowSha256": "3985619ffa5f0cc477f27c52fa857fd461705a293c6629f7417826817c7a7fae",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-12.md",
+          "sha256": "02e9d6f948e579794ac2b186a81fb6276bb0f35912f8dbb8812bfd8868b898ca"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-12.docx",
+          "sha256": "cc465aa7542fec2e32d50cf88dee1ba6448e67ffcd6650083d1c392b0b36a8d8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-12.json",
+          "sha256": "5f2b781cf7dcb8d5b874a8b9c97cb4e51cfce5b7c8b7cd2d3c8db6c597362959"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-12.json",
+          "sha256": "2ea332de7199fce8fdd4c401f3f743ab20b92a051c2366f5444d57bb6ba4cfd4"
+        }
+      ],
+      "issueDate": "2026-06-12",
+      "issueNumber": 6,
+      "legacyIssueRowSha256": "f2154da8b4871559c22604702788eb392a85007482cd8cf86de05b5121b4e547",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-13.md",
+          "sha256": "18de30ebc902bdb847bd07ac9ae98d06114413ffc45e1750b2ff2341e7f41c1b"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-13.docx",
+          "sha256": "a956237f998a2d5fdfbc8e25aa17cac517840f0cae3e2ce1f9cbf282d02c0e90"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-13.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-13.json",
+          "sha256": "ab37a05573d3fe3bf7d8e81cd95d23a3c458cac4dfa73536fe0f8a910e78d064"
+        }
+      ],
+      "issueDate": "2026-06-13",
+      "issueNumber": 7,
+      "legacyIssueRowSha256": "dd9554bd02598070c259d0753249a32be21f535fffb643b8d1f74c893648a601",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-14.md",
+          "sha256": "6f53ba8e3c988e15e2b4dc63454a589b4bdbec10240fdf6519476a8e1e0e2c56"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-14.docx",
+          "sha256": "2bc88b5f1cb1bfab04e995c16eb2554529cd102b77a32d28f7bbcd3e530d3634"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-14.json",
+          "sha256": "3166295644a111349f4f72303513d32fcd0e6723f33c913073ec4ce7904e7b56"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-14.json",
+          "sha256": "57aa83a1356d1149291a478e13e097673b084a654b9f3469f9499cb7ffab52b9"
+        }
+      ],
+      "issueDate": "2026-06-14",
+      "issueNumber": 8,
+      "legacyIssueRowSha256": "34e451d13f4148c307c94fb9eb74546718f6c7b9f8d709fb280fca2e76408546",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-15.md",
+          "sha256": "830bef68fc901f28dc9563d08c6bf2a8f50b4093582fc0d663621b108bfa8451"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-15.docx",
+          "sha256": "7d42f1357b887b5a8a35dbb422168ed0638582c15794281f45cd517d6e528189"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-15.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-15.json",
+          "sha256": "b0db88acef2819505cabe41f7fab382da62761017e71867a3630fa47fde5eb49"
+        }
+      ],
+      "issueDate": "2026-06-15",
+      "issueNumber": 9,
+      "legacyIssueRowSha256": "6a450d0e717dac4cff0679b23798f8f655adcff240a09c3b4bdb443743e88477",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-16.md",
+          "sha256": "6ff3ccd98c71795f25c805861a07694f60d33fe740344bb8d7f25bb006fda032"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-16.docx",
+          "sha256": "5f64019819d7ee04fe917714275b6ff4a8e329ded24e763fac3243822aba9b5f"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-16.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-16.json",
+          "sha256": "3b49767cf1d631e6d197c6caf3ef8f30444a8586fd2860150387a84c61292b03"
+        }
+      ],
+      "issueDate": "2026-06-16",
+      "issueNumber": 10,
+      "legacyIssueRowSha256": "a890a2bf99b12a327b5a0c8c521744acb8e99a300d6816ca8a617317ec9fe4c5",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-17.md",
+          "sha256": "dfce5e1f7e4eb8786e6f582f4b4799b4673cdb40c8ae63a1164d5be3f47642f7"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-17.docx",
+          "sha256": "c7aaa6f3f195b15fad8dcd2cd54ce47d9c1dff8c0a93702f57b0333e50e4c3e3"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-17.json",
+          "sha256": "36ff0a121b9d20bf05041b1229707c83d1fe37300ba03fdfcc6af6f5b3886050"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-17.json",
+          "sha256": "53a5f609c8c11d39e3196a9144542fffda694f316b46b7dab65c210e3c3006b0"
+        }
+      ],
+      "issueDate": "2026-06-17",
+      "issueNumber": 11,
+      "legacyIssueRowSha256": "9b6d651dc1a303082681d35cb7a2a60723081f2fde90369d349ea53376ff608c",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-18.md",
+          "sha256": "82488385113a16046678da4a96d3f67af7dbbc79a5cd0bbda8961b77cd577c1a"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-18.docx",
+          "sha256": "503e093d9b7fd40c6f7f42a84032acd92117d068ad78759f6a6966f63194b160"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-18.json",
+          "sha256": "0dc2d1763d2c66cb3ff07a69906cf2ef82c3e7df99804231c67c66a9a31ea918"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-18.json",
+          "sha256": "d19b1933fb0220f7e2032d36c5a6aaa37a8f9ac9bf692b18234e3ef514fe316d"
+        }
+      ],
+      "issueDate": "2026-06-18",
+      "issueNumber": 12,
+      "legacyIssueRowSha256": "cb9cbf58ad5a5d8f2df491de25240de29d0fe326694af3ded6f5549cbe25726a",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 1,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-19.md",
+          "sha256": "1a7d190eba4e6fd3ba154765e26a53c8d5d15501fd561c3ca92a1350083eb416"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-19.docx",
+          "sha256": "9cc248769cb8850467b43b4335c902d7d25c0f3a336b8177704e254bb33bbc81"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-19.json",
+          "sha256": "3b275cb98ef1e9496e2c5fd71577692e92789942967159ef80f2af7e06f7108c"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-19.json",
+          "sha256": "90fdf0c006eeef2782ac2651cb5b3f4fcc1a7de3eabbcf029cb4bde658de6994"
+        }
+      ],
+      "issueDate": "2026-06-19",
+      "issueNumber": 13,
+      "legacyIssueRowSha256": "4a33f579572bb0c8c7926af1263af709f28f0120e56966315aff873f1d293204",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 10,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-20.md",
+          "sha256": "9dc7115180466cb951d3411f241079b5b315196d7b2ab0100e78bcbc4b225cf1"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-20.docx",
+          "sha256": "6a326630d7e9b15d183e7abe610bc40bf42753d6ca2d87ddb0161742d6525c25"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-20.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-20.json",
+          "sha256": "f29072c343881e2d92b0a5980e47fe9fedf8b46247be391b30b18b4f3079fda9"
+        }
+      ],
+      "issueDate": "2026-06-20",
+      "issueNumber": 14,
+      "legacyIssueRowSha256": "409ddc6e00ab71a324ce270a10bf0aabf999dfb88e673a22f040eea9afa31e00",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-21.md",
+          "sha256": "4eee2ac40b2ba08be93b88ef0a0066b06ce21e40eab721bff7cefc01779d0008"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-21.docx",
+          "sha256": "f65f306cd5916142959f8f763f0f570b41d0178cfeb39e898211b1daa4233998"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-21.json",
+          "sha256": "9bb225c4d79c2512667c41487649f1023ce49c7a48abf0c26ff2f7a2e5c65f70"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-21.json",
+          "sha256": "e69e5d68864f2d1ab0b5e2d02f2d0d695e2b1cd30d5b90943dc24a66466238a1"
+        }
+      ],
+      "issueDate": "2026-06-21",
+      "issueNumber": 15,
+      "legacyIssueRowSha256": "32138460f09368c26243216852e65da3900566900842b57871f0934f197698f8",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-22.md",
+          "sha256": "73ba93090ee2f9f12388165196a087344f401802da4555fdbcd0ce1c7db2e72c"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-22.docx",
+          "sha256": "4374c3d03719cecd035e55fade773e7a4d41064dc9b5d256df90a9fd1f7d1d29"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-22.json",
+          "sha256": "bd6c1ce35e501ac6839bec7b7d330a7e839b90acee127bbccc5f6fcaf8c3957f"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-22.json",
+          "sha256": "f5e7ba718abc1dfb7b180b474c42218579c327b6c020dc750c03bc2fa1deec99"
+        }
+      ],
+      "issueDate": "2026-06-22",
+      "issueNumber": 16,
+      "legacyIssueRowSha256": "0747be313b80387c1cca51e24996ce6fc37d8c281a1bd296637325aa4518c4ac",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-23.md",
+          "sha256": "ff3e0fc89830eee4ccf00e79c152af5e3a26ad4c0c6cc9882720108e4e199fe3"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-23.docx",
+          "sha256": "5c08ae25571232462d0f8bdf758b3ffa18c3b0427bb373e09509a17650fa6941"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-23.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-23.json",
+          "sha256": "b5170f87e2cb7db3a3b1fb5c57e2cc0d60d5b9f1ff1c0d6220f1ddfeb7004fc5"
+        }
+      ],
+      "issueDate": "2026-06-23",
+      "issueNumber": 17,
+      "legacyIssueRowSha256": "067998e907f544c42832ef340f36e230778fb22e95ac18177b5e1d251a47bbbf",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-24.md",
+          "sha256": "ef7b281b320161a58d6c8fa559942dc5e43111ee0ecf0f5d37a845cf897a5fcc"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-24.docx",
+          "sha256": "1f0738cb78c6e71c6d5488355bfc6503b6d2f8afdea9292dfa1279dcd5954c4e"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-24.json",
+          "sha256": "07d689b33a563952a25cdb427fe6aefdd5d63bf8d244e8ad6fb11156a992d169"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-24.json",
+          "sha256": "e091dcff5284b42775d7cb1f8d70cee8538935f3f7807688d2659859ee05cef7"
+        }
+      ],
+      "issueDate": "2026-06-24",
+      "issueNumber": 18,
+      "legacyIssueRowSha256": "ae78813467a70fb1cd0e35aa770b7cef38a4342a259be7728a3f8528b8bc868e",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-25.md",
+          "sha256": "0404c3b71bfba203dd31a2d0e92bca8032709ac1c8d28a69628920a01b80dd5f"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-25.docx",
+          "sha256": "5921b54d328c95d98867a0eb7caa58536b93ce4d2dae5c565a5d363d0e433c17"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-25.json",
+          "sha256": "2de06b14ec2f7a7b4a6305281ed94b41ae3895b2166ca055ebf4482c4e1b9eee"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-25.json",
+          "sha256": "a14496de3b1acd3bdfba1ad92ce204c076a58808377f2d31b8c414a65cf06cea"
+        }
+      ],
+      "issueDate": "2026-06-25",
+      "issueNumber": 19,
+      "legacyIssueRowSha256": "90990456597f3dcdbaa344f12f23487f30917521cf968b7e5475ad670787f3d4",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 1,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-26.md",
+          "sha256": "83fa92a698c7a5f539f89a2aac8876c012e01a942c428366ed8df507e9a12ba0"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-26.docx",
+          "sha256": "a1a9c3696051d64ffb0e65e4384cb171666b2b1ebb606b6e420faba16cbd21ed"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-26.json",
+          "sha256": "2b6455d3b5c482db4e568f0bcc4e5259be5238599ee9946d9faf9a426704306a"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-26.json",
+          "sha256": "2e2762df7b71bf96f3fa72c8b1d541af0f459af38b415c34f926136b11dd8a5a"
+        }
+      ],
+      "issueDate": "2026-06-26",
+      "issueNumber": 20,
+      "legacyIssueRowSha256": "692b86d2e01f3aa3ac7770ddf4c6e008fa05d91f20b707bf3f377a334389c467",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-27.md",
+          "sha256": "36691f6d275cad16e746f245c33400d5323ae24eb449f01982a8a65a2bfd6662"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-27.docx",
+          "sha256": "383d8abb150961a73ece3d3c84d98e9d2ac4db4fa393ae601f759a2d8ccddda8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-27.json",
+          "sha256": "0fadab42da96e7834f1bba046e5401e72477875ce089cc50b6026d7014bbe1ce"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-27.json",
+          "sha256": "02fdf4757e108e88b2918b24fc78a5f036bac70e81843caa6b0944ccd2beeafa"
+        }
+      ],
+      "issueDate": "2026-06-27",
+      "issueNumber": 21,
+      "legacyIssueRowSha256": "06476cd9a0a23d076a49e9fc3a4d6631f8e7355575f820c7f63e804b64663db2",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 1,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-28.md",
+          "sha256": "1cf9ef13938ac8c75dc0250cac1f16c53e560355f419b356d7b99a1e4f3ddd07"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-28.docx",
+          "sha256": "77598802a2fc2259efcea13badda004f96f0405c2b9bdd3daa0c452c89da298e"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-28.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-28.json",
+          "sha256": "764687aa797f2dfc48342fd5227ec38efdd329602a6498ac55b40624a924f432"
+        }
+      ],
+      "issueDate": "2026-06-28",
+      "issueNumber": 22,
+      "legacyIssueRowSha256": "8ed73441c3b4d140e4e8f7b92c4616781b3521c15518fd012fbca16023fa7679",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-29.md",
+          "sha256": "3203ea2fbb0fb29326efe807842da0c0d1cbd51eaa32348f3f440ecd006fb71a"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-29.docx",
+          "sha256": "cc00649bbe8578e6620b0772217dc4da35e69eb1956c10e9e4520130266a26b2"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-29.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-29.json",
+          "sha256": "3cef18e9a9e357026f4b2e6ed9957498719021a05bab6764e8d65e311a56b0d5"
+        }
+      ],
+      "issueDate": "2026-06-29",
+      "issueNumber": 23,
+      "legacyIssueRowSha256": "b0b91f1abf046700ffa48b6615ed227bfac5fe29200f547953ce80ae07a9e6b4",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-06-30.md",
+          "sha256": "e4563c466c1620f5f7030aaa25cfb202ae957dd84a4de1465fea7751c4b17b20"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-06-30.docx",
+          "sha256": "d7a1fa09527489f835456f6811a320e012689715721b26a02f9911d4853a8e62"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-06-30.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-06-30.json",
+          "sha256": "bd7597dd72dc3190d2272ebaf55e9f2ec495b33b30c3c85117ecb5829d61a40a"
+        }
+      ],
+      "issueDate": "2026-06-30",
+      "issueNumber": 24,
+      "legacyIssueRowSha256": "6aa21bbdd166d0d986fe4b223c4da536fb7893c4bff2871ea51780da0260cd10",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-01.md",
+          "sha256": "dc1d3b38167dc030bfb7a9b0fdec73a3ad6f0b0ca3e910ab37f67d67794cda7f"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-01.docx",
+          "sha256": "3025b59f7534ff4bcaa53bcefe33f2998eb1a269932d770f690f3f8272d1e475"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-01.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-01.json",
+          "sha256": "9ee8785e408f94d87ce5a6c5bc4d1d5388d0400fb21701b7f25d78d7ffbb7c5c"
+        }
+      ],
+      "issueDate": "2026-07-01",
+      "issueNumber": 25,
+      "legacyIssueRowSha256": "c877be8e71590ddd2421634b271f1455df94e0f389074eebebe4484e3919517d",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-02.md",
+          "sha256": "2dc390904346262860372c27d408dcde51fd1c8b568c0f930c28f7f1523f26f0"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-02.docx",
+          "sha256": "8020bc938115614bac3d96bd405510ce6d99159289dfe02beca4c4db57daa4db"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-02.json",
+          "sha256": "b986a30fd9115e37f12324ae6af5ec99c1b14323d52e8ea79dcefb467f35525f"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-02.json",
+          "sha256": "3880792fb140fb6bd4067deeb06bf748cc548fb69319572921452ec216f216c7"
+        }
+      ],
+      "issueDate": "2026-07-02",
+      "issueNumber": 26,
+      "legacyIssueRowSha256": "2bccfb0ae3de1ea05724ba887b4cfbff1b43796dc4ddbb191e0bd14e5898bef0",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 1,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-03.md",
+          "sha256": "b5101e00bb1435cc2823938cff14aa29886353ce47197bfc70917a75204be31e"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-03.docx",
+          "sha256": "c2b23b5615c6a8bd05ac77e9910a9b5da6ac24addecf0b343f88ee7ce2766d44"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-03.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-03.json",
+          "sha256": "9c82280ca09dfc6ad8a8a05feada25acb230083e6ca4859a1e14d0ef8388b9c1"
+        }
+      ],
+      "issueDate": "2026-07-03",
+      "issueNumber": 27,
+      "legacyIssueRowSha256": "d4ff1ddcbc1d9b8c93928bae20067dd08ab6f9b13778d2c1c91c2f5a3f70d865",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-04.md",
+          "sha256": "557f23b64213523e0af2ddbc79414a50ae63f24f05307088887ec74deaa4f07b"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-04.docx",
+          "sha256": "a937409488606ab90b635f1572baae3084eaab91e8a87af8d27a414177ef71c5"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-04.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-04.json",
+          "sha256": "4a0f02cff3335092ff78df9e890b4c2212f5eeaf90d9506ef726235fa9622de6"
+        }
+      ],
+      "issueDate": "2026-07-04",
+      "issueNumber": 28,
+      "legacyIssueRowSha256": "4cbeadd0accab9a034b5a1fd6d1f053052a785e708f7228001b55c9cff1687f7",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-05.md",
+          "sha256": "be7a6a49e602fb1d27f2f46d239662eb7e9db8b55cb95bfde855640d1203464a"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-05.docx",
+          "sha256": "307fa42ffc92fe5a4e07ab9fbddd4328e7084fe6b86aa0e1c51216e51f8be1df"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-05.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-05.json",
+          "sha256": "ddfae7a0e10b3e8dae8478256fe0e50ee3592e73151da5794ea14c64c0907d21"
+        }
+      ],
+      "issueDate": "2026-07-05",
+      "issueNumber": 29,
+      "legacyIssueRowSha256": "104cd930c546147014c4fdd4b51d3fd548d04178423271b4ca5b3236a68b2c34",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-06.md",
+          "sha256": "c91e12a9cc17d974a75fc331d789fd057c626cee57fee5648780675fffbe1f91"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-06.docx",
+          "sha256": "50e60d31c1f55fc5aa613be203090bd5408be6632cce599b65881840ef0362d7"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-06.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-06.json",
+          "sha256": "76491e58b0c0664f26e6ec0b74fbda90ff7ddb00a81ae80453677e0a81e103f1"
+        }
+      ],
+      "issueDate": "2026-07-06",
+      "issueNumber": 30,
+      "legacyIssueRowSha256": "e7a610ab8b76abda270c847cb13dd1b6a22726d041e0218172c219e4ff463d30",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-07.md",
+          "sha256": "12ed5d791cfe444ceeb57142e71717814d4dcb339cf651ecb42846841b910466"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-07.docx",
+          "sha256": "d197e89c8a7654ad6a761982375cdb13c3b46c6713de98681f5c3f000974fa54"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-07.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-07.json",
+          "sha256": "f9aa815be81d4860788363a980a4706934a44dcae4d79fecc20abae93abda975"
+        }
+      ],
+      "issueDate": "2026-07-07",
+      "issueNumber": 31,
+      "legacyIssueRowSha256": "e01eb7fe823158a8612e74794fea9a0fca2650bc9cac8d63c24d781edc76ae14",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-08.md",
+          "sha256": "bd594e994c95deb23e248695d01c383840b64886539c9c5ba43593e3ea283857"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-08.docx",
+          "sha256": "7fe8402ae079a5c66a964eeb5ca74a77ff190c31c65da452508f501163741201"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-08.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-08.json",
+          "sha256": "40c8c6a128ce13b1ab4b6caf815debce389df3231dca9fa051b5104fe72ffe7f"
+        }
+      ],
+      "issueDate": "2026-07-08",
+      "issueNumber": 32,
+      "legacyIssueRowSha256": "8c2c8a942c7ad1c4a71060ca4c31c1192894d8ab1eeff8ba937a4f4af14b1ac3",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-09.md",
+          "sha256": "6bf1a3852619eb911e23a1c2847b869d9f01be501463a276cffde2d4dcf5cd8e"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-09.docx",
+          "sha256": "efaf69fdc9a6caa4f8767d79c2840d58113508cefaf21ce1d95723943741a96b"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-09.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-09.json",
+          "sha256": "36c8e11d23b490dd7e75fefe8af702b120269a63b13f96d0051015a1dade19ab"
+        }
+      ],
+      "issueDate": "2026-07-09",
+      "issueNumber": 33,
+      "legacyIssueRowSha256": "e18f2ae3b4e02f6d984193ebe2eb64e5c6712f76a7817b368622da97deddd93f",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-10.md",
+          "sha256": "38adebeaa89e3ce1cad27b30cc80e2388b57ebdc78dff160674cfbc3f93fc098"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-10.docx",
+          "sha256": "fb50b45a58df7fedd767d1bb8a88ff6ca33157fffd0dbb05455618d5dd0e089d"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-10.json",
+          "sha256": "64193198cc999ae0fe59887b4a9f079f9b1032b0483ab5a7a0eb741a9726f5e0"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-10.json",
+          "sha256": "15773c1102e916bf4e93cf1b67ed58495fe4ce450c76513eee702ea71a31f2e6"
+        }
+      ],
+      "issueDate": "2026-07-10",
+      "issueNumber": 34,
+      "legacyIssueRowSha256": "12975b8efa96c683bfe3e644208c9749be89247706c56c47397db85e899d6728",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 1,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-11.md",
+          "sha256": "92ba513bee96f394ac33331d2a66a32fd68fd465654e53a7d72aa30585e5136c"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-11.docx",
+          "sha256": "477f138926de71ddd7bc413a9e57263fa12e136306eaa5356d47c8679fe8f5fa"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-11.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-11.json",
+          "sha256": "86d68f17045a717b5435c47e961458eeb1108085eb22f14d95810a6c759642ce"
+        }
+      ],
+      "issueDate": "2026-07-11",
+      "issueNumber": 35,
+      "legacyIssueRowSha256": "71f7d312530eea0f8103d8b1d165c0cd69f76545959b3dc28428edffeac78fb2",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-12.md",
+          "sha256": "a312cc2dfad33164b08c033ef32ac5b90243aca0851bdb8039d5aa1c84bf8da1"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-12.docx",
+          "sha256": "35d7c3bfebe37e8b82e07b524c5bb990815de0382bef41c82532a8215c9470ce"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-12.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-12.json",
+          "sha256": "5f5949f7eaa77224ebc6cd2d3f42c706b0e2facd336710abacbbed2d44ab3c19"
+        }
+      ],
+      "issueDate": "2026-07-12",
+      "issueNumber": 36,
+      "legacyIssueRowSha256": "71d609021f1a22346a83f694ffaaf075b5e7291bf0f355fe7f40f24412f70e80",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-13.md",
+          "sha256": "1e4b996a2825f4ebd8fed31a49f9838440cb23e5523c68cad9c91c85419e15ee"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-13.docx",
+          "sha256": "557fd4a1f3636144c86bf93d3dcf84e3a5b57b9bbbb5543b06071194aff2d3b7"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-13.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-13.json",
+          "sha256": "3c8259c96d1b9a06e40a0072c1c32fe9aad6dca46df326ed774005359cdd5211"
+        }
+      ],
+      "issueDate": "2026-07-13",
+      "issueNumber": 37,
+      "legacyIssueRowSha256": "0b577a7c717412a66132e30c93b9f22dd2843f656e35739a59dce0843c654916",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-14.md",
+          "sha256": "5fd8307cce345cf944115570d1ada245b4c6faa85d4122ba7f967ce829b8d435"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-14.docx",
+          "sha256": "cc205381c1191b5d729ef01183007c8dfb671b0c67e9cd80ed5683be4d699aaf"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-14.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-14.json",
+          "sha256": "9a5c47bbdd4d3584a9ff284884a9faa6e676aa8866a193c1932b2ba3a8926176"
+        }
+      ],
+      "issueDate": "2026-07-14",
+      "issueNumber": 38,
+      "legacyIssueRowSha256": "3b6f83bffaf3f7aa0ff56815bc08c11c8106087b7db0df98b469985ac0db635a",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-15.md",
+          "sha256": "2e91648daf7c03d2f5e3b9abed9ee6e5ef4bdfe8e9cfec7fd945300ef115e20e"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-15.docx",
+          "sha256": "89eafe916f7f206c107b4286eafee9b9a83076843b6a16b3e888487ddca8841c"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-15.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-15.json",
+          "sha256": "dca1468c8cee818a3bac13d785d58b45748f60892dc08d262d64090b5fadf529"
+        }
+      ],
+      "issueDate": "2026-07-15",
+      "issueNumber": 39,
+      "legacyIssueRowSha256": "f83943e4ea68fbfe1a43a116c319a00fefcc42d1aca205d0e84b86c32944ff94",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-16.md",
+          "sha256": "615a018e98e2744480a32b011c9e5e0ba6b5de6305ec78bdf9a394b4e1af77e6"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-16.docx",
+          "sha256": "73f20cd464126e8ca5d27bd7dda21898dea24ac43708b80d0186b3f010d4b1d5"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-16.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-16.json",
+          "sha256": "588728cd93ba90d9d247a9337ca205f2ed5ce827322e20b47677529b41f36ffd"
+        }
+      ],
+      "issueDate": "2026-07-16",
+      "issueNumber": 40,
+      "legacyIssueRowSha256": "e3d566d6c3942203a6c69808f73446f09a5d810bf1016fcc74e3b536488d0378",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-17.md",
+          "sha256": "eaa5720422abc56baf9ebeb053a26a872089c0b8d2b149b294be8a2526b880d1"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-17.docx",
+          "sha256": "1300b34ba4bb30d575c1596288af15eaadbd902aeae466ff1b21a134dfefc7b0"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-17.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-17.json",
+          "sha256": "98e36209cdd21ff507fd3cbc61f6ab50d66a5cff1b4015b9d51fcef5b7cc798a"
+        }
+      ],
+      "issueDate": "2026-07-17",
+      "issueNumber": 41,
+      "legacyIssueRowSha256": "60a9301e523279298a603401bff1ee9bc702b138d26ee03c5058e5465c6658db",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-18.md",
+          "sha256": "95fe66975365b5be079e91274bc8c3613c1e8cabc4f0d798121833ffd808ef26"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-18.docx",
+          "sha256": "9df8a9f23200ee61a27c854711219ab3bed4ea45f7f92ec1ef0a86b9d4ad48e1"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-18.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-18.json",
+          "sha256": "4a021eb2dade8e147b3bc3af5096e68390fbbf8dd976bd3508c5ecd97f9697a3"
+        }
+      ],
+      "issueDate": "2026-07-18",
+      "issueNumber": 42,
+      "legacyIssueRowSha256": "4ef57c87958035f07e2c0fe05c37999b5497c184671e83a476c005895183834b",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-19.md",
+          "sha256": "466ec6ff3923d4950fe93e148242b0ea2919549a831d531af9e821c4305249b1"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-19.docx",
+          "sha256": "543eeeb40940f40c6992eda7dbfdf4a757380bf7c6735f438359d8dee1ab2f71"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-19.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-19.json",
+          "sha256": "977885f3144de191ebe2605d1bf51067a2174468d8d360cf50b6027c172a5122"
+        }
+      ],
+      "issueDate": "2026-07-19",
+      "issueNumber": 43,
+      "legacyIssueRowSha256": "2d22562cf41917acef5e55874f76a636de04474f89708cb9f9dba919c7ce4d61",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-20.md",
+          "sha256": "19feb82108846feaed1285f8bc4f29107c5db66f0173430003bdaf20a8214a32"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-20.docx",
+          "sha256": "3e9ed4a731fe92bdc6dd7441d0b5ed5d771c692a1a6abde1dda9b201bb979e77"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-20.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-20.json",
+          "sha256": "7f33dca750790ec4707f2fc2ecdc681fb9fec51437a5b7b8b7ce11214c4e3ae8"
+        }
+      ],
+      "issueDate": "2026-07-20",
+      "issueNumber": 44,
+      "legacyIssueRowSha256": "0adbed76cc24d49ebbe87930308465f3a002a6f3ab1e3db9ec696c3567459222",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-21.md",
+          "sha256": "ce47340fb68adec96a296f7ce5cd32e5ab3076272625403f82a09c0e8613143c"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-21.docx",
+          "sha256": "48cbc8316a1985b3ed6cada0671dcb5bc94c716d726c78eb023e225927356fa8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-21.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-21.json",
+          "sha256": "d404cedc519b41bc14023a90ed2fd17177b13e5c97775428a3fae4a9e827d701"
+        }
+      ],
+      "issueDate": "2026-07-21",
+      "issueNumber": 45,
+      "legacyIssueRowSha256": "8242b0a3e1933489d63f32d7294aa458dde1a77f069b1f4dfb2676c8fb2f5ccc",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-22.md",
+          "sha256": "353b48de841e80d0b97ac68aa1d341a485677dd1bb425abfad71221c4edb1665"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-22.docx",
+          "sha256": "250893124d7fcf02a292150c88808562e6c785c4f239dadf81fcd455791025b1"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-22.json",
+          "sha256": "5481f32b20fa1e97985b308a4a897055a4e04f0a2d6d160eaecf5f18911c65e6"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-22.json",
+          "sha256": "ef551baaa7cd1a8d22a442b9db721dc1a1f9e9fc8b0d6dd26a7d71a0ebca5064"
+        }
+      ],
+      "issueDate": "2026-07-22",
+      "issueNumber": 46,
+      "legacyIssueRowSha256": "cdc62fed564a1d3f54cb7c53af3d2a68142768be143d9cd2ec5d89455b02853a",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-23.md",
+          "sha256": "c6d0dbff642da81c9350aeca40ba9599b44aff23d5044f16caa64ac1dee71e34"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-23.docx",
+          "sha256": "e56c0431576bdb0d03ce6a381250913a180290e1741648de1e85499e762845ca"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-23.json",
+          "sha256": "e5959b2e0f5939f721e56efdb50b3975a5c40cda43cfcbc28a8d52d28d2afdd9"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-23.json",
+          "sha256": "5a9f97ee37548e0ca29b5e68469248edb1f446e132ef4ce8d671f6309531f55a"
+        }
+      ],
+      "issueDate": "2026-07-23",
+      "issueNumber": 47,
+      "legacyIssueRowSha256": "eaf2cb9ebe6779af273d7132a3bfafe7310c1884e0e1373dcb068cdac3c5787a",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-24.md",
+          "sha256": "acf6c4661b8ee92b032c4bd8f1f5fb6f819e71fe3ea6f24f43f78fa6cd20d8da"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-24.docx",
+          "sha256": "1c0cf866e1d77c810e6d9e0f058bbf2ba86a4269a1ae9589f9923ae85c953f42"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-24.json",
+          "sha256": "fee7df836797148ad584af2d39a758d01526460fa238bbd1ce44fb1484c7b0f0"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-24.json",
+          "sha256": "7020e6b89829237769cfe52e055b853944ad551a333ad6b95d7c1298a6c57086"
+        }
+      ],
+      "issueDate": "2026-07-24",
+      "issueNumber": 48,
+      "legacyIssueRowSha256": "7a62f47140303f5327cdd377b7ed9046bb0ddec4620133acaf0d4479360596e6",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 11,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-25.md",
+          "sha256": "d7e454e2f8788c44dce017659b6659a0dd695f73366a59bc5b84bd9a291df1f2"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-25.docx",
+          "sha256": "8186790efe28f5369a52cb255f1fce6d30c745f813dfd299f72f95b039f1b98e"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-25.json",
+          "sha256": "e713f963f63663d7e97d053ab44994c7a771e455ff9f327047d775bf7596e3ab"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-25.json",
+          "sha256": "308d13e4ba763843198006f4c3265b4da2a5bff85bd38567b1b368683c2b7e57"
+        }
+      ],
+      "issueDate": "2026-07-25",
+      "issueNumber": 49,
+      "legacyIssueRowSha256": "28f8eb2fae8de342229c6b9935f66cc2f882e50e854362469c42b6b730ba310d",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-26.md",
+          "sha256": "aa74544f20c2a77bef339015408ee8943805b543a90fb63c6d9c6c290fa12e84"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-26.docx",
+          "sha256": "eaab888041c4ad7f8969b5fd1e8f933db93370cd5af7cbf4200726ac3d6c19b0"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-26.json",
+          "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-26.json",
+          "sha256": "0aa6a775ecf0d70f817a75ae00ca9181115532d0fcbfc20a6e5eb572724196e7"
+        }
+      ],
+      "issueDate": "2026-07-26",
+      "issueNumber": 50,
+      "legacyIssueRowSha256": "d024767b889c5dd42feebddd5ccec40e8f916d941e96af5bd3f3f25d8b35ef39",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 0,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-27.md",
+          "sha256": "b8e297e83316b64f653f4febfa9e6f344cabb827c205a047b90d54c21caf33ec"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-27.docx",
+          "sha256": "a801dd7a75bf9b189bc610af9f817c70bdb2ac466527fd749f8d99ff1313b4f7"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-27.json",
+          "sha256": "47322d29cf0c9e4b61533b595f105086b377789a168bcd3997961440679740fd"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-27.json",
+          "sha256": "69cd78bee799c72bae64218394cfd908e1bda4d66c4127952201a6790b3d2618"
+        }
+      ],
+      "issueDate": "2026-07-27",
+      "issueNumber": 51,
+      "legacyIssueRowSha256": "3f93da3a3a778dbb1b5f7be06f1e550bac4f9e2653249621b5d934b3fa0af18f",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-28.md",
+          "sha256": "61c775e7ed2dbf6b0c31a3287254837fc5dc4a4b15725253ab0eaa9299c7bdb8"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-28.docx",
+          "sha256": "edfb6acd7b4f54a03abf4f63e1e1d96e73e778b4cac56f9d10ac206f90362591"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-28.json",
+          "sha256": "fb2914092e30f9b10a1fedd153274ba6193911a74caba977e124152f6b690f85"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-28.json",
+          "sha256": "2cb187d37b8a6eb523a1d6c6016369bde100825360b2b464de1cd6ed66f7fd9d"
+        }
+      ],
+      "issueDate": "2026-07-28",
+      "issueNumber": 52,
+      "legacyIssueRowSha256": "aee0d77fd121f9d67fe9ee809326059b5ecff94cfdc117ae408bad1833e0fe59",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-29.md",
+          "sha256": "2fdece99922aab82974b6e76df971dec843c704ab3919e79c6f238c9ee30c2a5"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-29.docx",
+          "sha256": "d15c848d9c06532e5018736893ebca0198026197c5958cc0854e054e67173ba4"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-29.json",
+          "sha256": "beb3250a24410b2d609ad2284aa6525cd5275923cad378fbf368ce5e218a01ce"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-29.json",
+          "sha256": "56e8d061ba0c80313365450776b8b404ef31ebbfaf86a1536bd761eb3fc07936"
+        }
+      ],
+      "issueDate": "2026-07-29",
+      "issueNumber": 53,
+      "legacyIssueRowSha256": "7ea8b67a88dc4c4cbcde14ac58d2d080c267e54e974cf4aa01c9fff4ffac7fb9",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-30.md",
+          "sha256": "85137a6868a84bb928a2b709821dbf32bc98acaea9b11de8957804a33148360d"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-30.docx",
+          "sha256": "081ca3d9f54517ca2c7e89de393237f135667bfb98fb54b2c6b2f470dd1f1153"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-30.json",
+          "sha256": "cc8870957fa847fe929f767aa0c4641bb61e017216575939eeca98a9517d67b1"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-30.json",
+          "sha256": "4437463d7a74a26a4518f5e66ea4a591c64dd6123948f53409417fb46790cf56"
+        }
+      ],
+      "issueDate": "2026-07-30",
+      "issueNumber": 54,
+      "legacyIssueRowSha256": "123910fb606f807e08861f7338ee32363f4416513f99118c9a1718e7b981cba2",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 13,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-07-31.md",
+          "sha256": "30fd524ea26fd2054be2d02d6f9e08ce12a0ed4b3c16c7a07ca1ff9964c8520c"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-07-31.docx",
+          "sha256": "c9d12c01037efe51ece69daa7d6a1fc3767c07ecd7f5761ae919b55eb5ed6aad"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-07-31.json",
+          "sha256": "ac9871740fe558c6b7aa29000c5304fe32e2fc1bb8113e8671aee26eec230415"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-07-31.json",
+          "sha256": "145fc75604b9ba67cc350a45d7d17a8505383b393edf63ccc3afc862be0bc09f"
+        }
+      ],
+      "issueDate": "2026-07-31",
+      "issueNumber": 55,
+      "legacyIssueRowSha256": "031fbe515fcf09bcb7a60279a3d28198eeb3c423a76d423989283cd7e6edbb33",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 12,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-01.md",
+          "sha256": "fe4cbd466e5ddadefe700fdc191304f00bb2005b1e7adf74203c7f767ba03a85"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-01.docx",
+          "sha256": "3d3070e1f77cd4de8b6b286c2569e8bf312e9654a3af76478caeaec6dd56b4a8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-01.json",
+          "sha256": "e3a2ee766af9587a48fbb4d32d2a2b5c05f924a304617ddb54a45dcc04e187dd"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-01.json",
+          "sha256": "40852936ca5ecad29da36e17d5754b3e2ca8679cd3dbda40ab76f78b9d4d52cf"
+        }
+      ],
+      "issueDate": "2026-08-01",
+      "issueNumber": 56,
+      "legacyIssueRowSha256": "4283d144e316574f381bd8a82156c89c9f843e9aaad18e7086f7b7dce5000910",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-02.md",
+          "sha256": "2e69ebdef5410fbf12ccd48081fc8af642eee4a433543f0cc584021719ac5553"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-02.docx",
+          "sha256": "46a56cf232738920dd58cdb777172150edebf52cb6c05989f304f37641483be2"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-02.json",
+          "sha256": "e32f69ac96fe2072539799f75347ac69d24cc3f8212676529f95f14f751fd2db"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-02.json",
+          "sha256": "9d215b91813a38a257465682956125a397bdd8e13c5c195fd01a1551a9396205"
+        }
+      ],
+      "issueDate": "2026-08-02",
+      "issueNumber": 57,
+      "legacyIssueRowSha256": "126ba3ae54e865a61f4f5e953fd2d1561741e728c5e2a03c879d51dc25e286c3",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 2,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-03.md",
+          "sha256": "3424c8e09bd9d9c9b3db7b293098de4f62407f94bb3afcd3a5a448bd4a36b3c4"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-03.docx",
+          "sha256": "5786995f981710fc11c6fc3cebb5571115651bfc3e442aba46dd03bc62cf67f8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-03.json",
+          "sha256": "fc6f49c7023f18e0e7a7196178b49962a756ac61669bb302f70c994361b2b115"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-03.json",
+          "sha256": "052dbffb1d84eba81475f7c034b493060affbe278a2db57f68ddf0edeec02797"
+        }
+      ],
+      "issueDate": "2026-08-03",
+      "issueNumber": 58,
+      "legacyIssueRowSha256": "5ba791ef8a3ad494fb23f5693473ccdfc1e1cd40d9b57c1447e02dddb1a2a50a",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-04.md",
+          "sha256": "a6c49cc300ea90f8e8f33a56152435aefc330c304af773584755a3cdf0e31dfc"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-04.docx",
+          "sha256": "eee062f7b1b87a97ac3e4e40437333339e25fedffad5288e8fd3dadf23c65a9b"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-04.json",
+          "sha256": "306264d6c459d04214f8588d8cdae71a1b806673c8c184260798f95e3e826928"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-04.json",
+          "sha256": "d375fba65974d0032cb6bb5af9bc32ba2c40f872265c01c0c5507ed0c1f27ba7"
+        }
+      ],
+      "issueDate": "2026-08-04",
+      "issueNumber": 59,
+      "legacyIssueRowSha256": "ec80641f25d9d5a6002c7c19544afd78e6c2584e4f40ae6e5ea1f1dd035c5335",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 16,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-05.md",
+          "sha256": "13ffb7cca3279a7ae61ed4095eae18f49e890bc1c512deae20aff584d806887d"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-05.docx",
+          "sha256": "588e728f33253965db30b962569d8900dbd7b05a118dba242768be65ffebd4df"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-05.json",
+          "sha256": "ff5d034383b0e0d8fa08224b5e4c4b16f6f09d215ebbef1164eccc3329aaf46f"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-05.json",
+          "sha256": "496fc3ed4e9b677eab3609f75df84a7464fe7fd26f91bc7d3d5ad01ace702308"
+        }
+      ],
+      "issueDate": "2026-08-05",
+      "issueNumber": 60,
+      "legacyIssueRowSha256": "67c1071de534991071ad21ddc6aef5f37d67786ea4df8c81fd2121f12b2009e8",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 9,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-06.md",
+          "sha256": "08598567b7a29297481e3d8b97bbfb4b9a5a1c3a8c2416a73181774c65b75d92"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-06.docx",
+          "sha256": "4f3185941723e0d7a1180e51caa5e02b085d03492c97a848b219cc3cf65ed3a2"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-06.json",
+          "sha256": "6a19568e134613ee5b82384ef7bce4052c0e8300dae519f69bb1a4f8d5972cb3"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-06.json",
+          "sha256": "310c71cfebb0775d83d20c912ca87107cb4c9ddcfed4889312baac28223575e2"
+        }
+      ],
+      "issueDate": "2026-08-06",
+      "issueNumber": 61,
+      "legacyIssueRowSha256": "0c307ff4ca01c01c97983711bcfa3f9d4900bec33ece84c940cdbbbeebc35305",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 11,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-07.md",
+          "sha256": "4a9967e90fb10440c1530f823c2a17c619af6d6ff2eefd967d2b56517a04922d"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-07.docx",
+          "sha256": "92bc20fbabc6790b349ce0a30e9a786a7602af9b456e945f36f7980a6b72d12c"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-07.json",
+          "sha256": "cce1f2a01329b13acf2a9b91a36cbcd4d22cb3bd532b7bc4210365a9e17fc739"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-07.json",
+          "sha256": "f8d42a58bb42451123df5ecde8cb680138aa133e97414ceb78309094c4cb470b"
+        }
+      ],
+      "issueDate": "2026-08-07",
+      "issueNumber": 62,
+      "legacyIssueRowSha256": "641c2165e5e0655e0517d75d6e9c6b7eff4d2a07bb07bdd6b4d6e4075dd172be",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 12,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-08.md",
+          "sha256": "3dcd9e805a88fc17f302fcb541768e07af51bff5d64144d7660f929cb240f3f5"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-08.docx",
+          "sha256": "a5b9a396d69e827545e1921396f39838a22d1a2203fd93a1effddbff8f393c1f"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-08.json",
+          "sha256": "44d19c107d5a87ad97c4ac97a9cfaac43223ae24129abf363a17011e9251c52f"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-08.json",
+          "sha256": "59454996dbb3d7f59a7468d7496e1a59fb14469f5932bc6341195fea53486714"
+        }
+      ],
+      "issueDate": "2026-08-08",
+      "issueNumber": 63,
+      "legacyIssueRowSha256": "705bab78ebaf53561b769ed0bf5067ef3122ee3a58f3064ab4150cd876aa2791",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-09.md",
+          "sha256": "e243d84f0ee76fab9f89fefb1135b90ebdac3fe10b9af55883a01f5d093f6ca0"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-09.docx",
+          "sha256": "bd5941378cc90242d99bc33f07df0741809acaf83fe833e5b3faad6cbc280a1b"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-09.json",
+          "sha256": "a9cea3588c23ad47af737f7798b3bdbd1548721e2e3d923c81f283b7f75a2616"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-09.json",
+          "sha256": "9d6c882a563ad00439c7b542a984e84c1843b878ae3d8afc988f2f5e3bab446f"
+        }
+      ],
+      "issueDate": "2026-08-09",
+      "issueNumber": 64,
+      "legacyIssueRowSha256": "6a1efb9a210c213b9340d1f88de2331335b9d02143b1eee26d31dadd8804561f",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-10.md",
+          "sha256": "486b5d2a8e1272020701303a2e03ed568fadf7be1382b49ab6d06f6887021717"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-10.docx",
+          "sha256": "47739a4b6e513b282479bc3d697c688d7b937ab330a78d5b735e4447b9a02b85"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-10.json",
+          "sha256": "e5243176248c16cf57a69694648f050f0486ae7586099a2fd2769586b24968c4"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-10.json",
+          "sha256": "10e7879365cc87f590c5ca7a3914f3e44c18493e7df026108313e24142efc30d"
+        }
+      ],
+      "issueDate": "2026-08-10",
+      "issueNumber": 65,
+      "legacyIssueRowSha256": "f66a0a4f6c482fa6265ab13ff14d8da5b70877a1f00ead5b0d08a26412e6f995",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-11.md",
+          "sha256": "f9485174dbc192d2197e36b5d4f9b33e33be8c37a72291d36d4daff346fa776a"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-11.docx",
+          "sha256": "293c28afe087bf1d8cb2f9d4e3c1270f3629793a4529cac59afe4227dd47755c"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-11.json",
+          "sha256": "68773e1acae77084e6df1b0003fa68465ced02f195dd43af733e873a0824299c"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-11.json",
+          "sha256": "7bfb2074cd8c885352e38b2d17316566d45c431ceb28df43871c0274b2d4b11c"
+        }
+      ],
+      "issueDate": "2026-08-11",
+      "issueNumber": 66,
+      "legacyIssueRowSha256": "9901a3a44cc5bd6f0f1489f6319551cfa2085fb975f8bb568835590ecf0c882c",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 4,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-12.md",
+          "sha256": "962216675d9b6191145a3d6f5d589d31aa1e775e020ecfe995d408ef73b12c48"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-12.docx",
+          "sha256": "cb1dc337a0602e31633088279dfc204378c31c73791af4e5760073c51f8724d8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-12.json",
+          "sha256": "e15cfd154ada5969ec10924f958ad4929aafa5863b8dc6bfa62702b0c7999072"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-12.json",
+          "sha256": "3215eb8ad1eaf95299f9c12c8e3e43a8158d6f7325fe6999240fcd4623c11e0e"
+        }
+      ],
+      "issueDate": "2026-08-12",
+      "issueNumber": 67,
+      "legacyIssueRowSha256": "7382ca15f273917df2a0dae3d46993c2bce589c52db4d13feabe511c9cf6c4ff",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-13.md",
+          "sha256": "8da68a65c06d0b4c33b832b86197e8b6ebb256147c81d62fbd4e1d259da6b8da"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-13.docx",
+          "sha256": "2c97efa54ae5327629874c7ba7cc6b02f1989cfc3e1a77436cde2e3a6e5d023e"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-13.json",
+          "sha256": "6575cbbfee5d74082f78e25b9e9fd9aabf3f51bf4feb66b3378d553c02a6a2f6"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-13.json",
+          "sha256": "2ad4e8353bc20d8e82248a8e4437a2964df713039b668d014e542d279a01372c"
+        }
+      ],
+      "issueDate": "2026-08-13",
+      "issueNumber": 68,
+      "legacyIssueRowSha256": "f266c7cefb660b68aa8e63215d40f085325538fbbf3419647687b7a20599c697",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 8,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-14.md",
+          "sha256": "3a2434e32c3c465e0b337031c413fa1ba08b7c8d072663708d8ca1d562ad5dc3"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-14.docx",
+          "sha256": "6bc616ce84ef3878d955aa20314d39063f7de918a1d85f7a9fafbdb6531285e8"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-14.json",
+          "sha256": "26188f8a8da2feb973ade9bed45f5b2166a7f8b1c489fe30ce5d68eb3e9a8363"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-14.json",
+          "sha256": "6a83c73ac809aeebf4a5daa698b0d37d61a031f1cb6a06f442bbaf21b6cf0067"
+        }
+      ],
+      "issueDate": "2026-08-14",
+      "issueNumber": 69,
+      "legacyIssueRowSha256": "800c76ca719d8fdbaf31f3d9221678a24e01397f3b1bacc1bc85ef6bf272c659",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 5,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-15.md",
+          "sha256": "2db9cd0cef4fec338d828054ac8b68ca48295f6d0e0986a3825e1ee5cda4441a"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-15.docx",
+          "sha256": "6e47118d1a587792881596c88c469d9268a1d4fc87f2bf62c777bdef40901d9f"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-15.json",
+          "sha256": "0173321e947e5727cc01d41c10a3ae41d68d1ccabcf5233951fe044e55dfe44b"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-15.json",
+          "sha256": "3f22c754186b4b2790d61b40bdeb42525159e0225f7e25b730f1f6ed5f9980d1"
+        }
+      ],
+      "issueDate": "2026-08-15",
+      "issueNumber": 70,
+      "legacyIssueRowSha256": "5e2e26d712e0aafbeb889a4ca0b29ca5107bb012a158c9ec0950578d2cb666f4",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 6,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-16.md",
+          "sha256": "9bf4548b3c4a9fc5e49d5c0a122ecadecd2737db2e82b78a6c0e3e2686db3a66"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-16.docx",
+          "sha256": "66eeb29812be468d47e207e8a8da0075e0c0088274c1b44580dc36997c89605d"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-16.json",
+          "sha256": "980a152ef225de8a15890fcaeef516e59edf5a25f857d270cbefec115cd1135b"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-16.json",
+          "sha256": "d8bf1165e042dad5b99da38bf0ea1e199953951ee907736c0acb1e7d3849c845"
+        }
+      ],
+      "issueDate": "2026-08-16",
+      "issueNumber": 71,
+      "legacyIssueRowSha256": "f759e48414d5e92633faef3c0827ad1ce6e6a99e7f8797e2a99b562102c2eb72",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 9,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-17.md",
+          "sha256": "c2e36400e7a445658733a41b1e9cfebc33c55495e3faf19f6d011b96154005c2"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-17.docx",
+          "sha256": "0e1bedea57458d6ff101c64ff024e74bb33e337e30400c4682c21a70b02744fd"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-17.json",
+          "sha256": "4f1f2a4408cc9e1ecbd700fd82107470ad349957485a54f2e6bc6a8d643c51fa"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-17.json",
+          "sha256": "543d88c241dd807cde69b3d139ecd5a681cb83e520e2cc445d659ea8f4e20b11"
+        }
+      ],
+      "issueDate": "2026-08-17",
+      "issueNumber": 72,
+      "legacyIssueRowSha256": "f154bb3687ea920bacae6e4ff152df90830242995c19777fb81d4106f4f4eae6",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 6,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-18.md",
+          "sha256": "e66c8a94ff18eb3763c7ee842c27862c7a2406489ce008a7ac8c51c42696ee93"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-18.docx",
+          "sha256": "b9ff52c2224c20e3cd7b48f84994207502a58b19f7b43a39ea51587f1f489a03"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-18.json",
+          "sha256": "d3d798a52ba7a3a722da5ac298ea90d3d58a7aae48d9663ab28e06e76021075a"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-18.json",
+          "sha256": "500d9f24053bd436df1dc0c47270b543590a67dbb49e483fbd0820bc9e04619c"
+        }
+      ],
+      "issueDate": "2026-08-18",
+      "issueNumber": 73,
+      "legacyIssueRowSha256": "a9d13ceb14530f52947cf37ae38a73758df126d8b5d6aeac901ea18405266397",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 7,
+      "statsInvariantPassed": true
+    },
+    {
+      "evidence": [
+        {
+          "kind": "canonical_report",
+          "relativePath": "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-19.md",
+          "sha256": "c5a0785b130f2aade987ad8bd6a3c719a7567bcc0edb16b943a057f43b5c5ea3"
+        },
+        {
+          "kind": "raw_docx",
+          "relativePath": "data/corpus/raw-docx/AgPM_daily_radar_2026-08-19.docx",
+          "sha256": "e67ac9c78c3a6635d91d6fca28bb064d9d81c07143de567a61bd584e5be14253"
+        },
+        {
+          "kind": "normalized_json",
+          "relativePath": "data/corpus/normalized-issues/2026-08-19.json",
+          "sha256": "3b9e75b7f7d88366e69d0dbe0e7e401eab9e3b13354990e0d26bd072fa33e114"
+        },
+        {
+          "kind": "public_json",
+          "relativePath": "data/exports/json-cache/issues/2026-08-19.json",
+          "sha256": "ed8eb188a61b5a4a388c36328fc5294fcedea3fadf3258b1021a1ba3ac0c7a16"
+        }
+      ],
+      "issueDate": "2026-08-19",
+      "issueNumber": 74,
+      "legacyIssueRowSha256": "80262dfa9d619d0c82af45aae8088d03e7b2adcedb9ae7171ae156fae886db4c",
+      "legacyPublishedAt": null,
+      "legacyStatus": "draft",
+      "materialCount": 3,
+      "statsInvariantPassed": true
+    }
+  ]
+}

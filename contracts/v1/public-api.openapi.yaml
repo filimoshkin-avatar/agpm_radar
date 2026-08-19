@@ -1,0 +1,340 @@
+openapi: 3.1.0
+info:
+  title: Radar V2 Public API
+  version: 1.0.0
+  description: Read-only, published-only public API. Draft/editorial/internal data is outside this contract.
+servers:
+  - url: /
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      responses:
+        "200": {description: Healthy, content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+  /api/latest:
+    get:
+      operationId: getLatestIssue
+      responses:
+        "200": {description: Latest published issue, content: {application/json: {schema: {$ref: "#/components/schemas/IssueDetail"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/issues:
+    get:
+      operationId: listIssues
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+      responses:
+        "200":
+          description: Published issues only
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, nextCursor]
+                properties:
+                  items: {type: array, items: {$ref: "#/components/schemas/IssueSummary"}}
+                  nextCursor: {type: [string, "null"]}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/issues/{issueDate}:
+    get:
+      operationId: getIssue
+      parameters:
+        - name: issueDate
+          in: path
+          required: true
+          schema: {type: string, format: date}
+      responses:
+        "200": {description: Published issue, content: {application/json: {schema: {$ref: "#/components/schemas/IssueDetail"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/materials:
+    get:
+      operationId: listMaterials
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Period"}
+        - {name: perimeter, in: query, schema: {type: string, enum: [near, mid, far]}}
+        - {name: rubric, in: query, schema: {type: string, maxLength: 80}}
+      responses:
+        "200": {$ref: "#/components/responses/MaterialList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/search:
+    get:
+      operationId: searchMaterials
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 200}
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Period"}
+      responses:
+        "200": {$ref: "#/components/responses/MaterialList"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "429": {description: Rate limited, content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+  /api/stats:
+    get:
+      operationId: getStats
+      parameters:
+        - {$ref: "#/components/parameters/PeriodRequired"}
+      responses:
+        "200": {description: Published statistics, content: {application/json: {schema: {$ref: "#/components/schemas/Stats"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/timeseries:
+    get:
+      operationId: getTimeseries
+      parameters:
+        - name: days
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 90, default: 30}
+        - name: basis
+          in: query
+          schema: {type: string, enum: [issue, publication], default: issue}
+      responses:
+        "200":
+          description: Published timeseries
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items: {type: array, maxItems: 90, items: {$ref: "#/components/schemas/TimeseriesPoint"}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/rubrics:
+    get:
+      operationId: listRubrics
+      parameters:
+        - {$ref: "#/components/parameters/Period"}
+      responses:
+        "200":
+          description: Rubrics for published materials
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Rubric"}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/sources:
+    get:
+      operationId: listSources
+      parameters:
+        - {$ref: "#/components/parameters/Period"}
+      responses:
+        "200":
+          description: Sources for published materials
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Source"}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+  /api/gazettes:
+    get:
+      operationId: listGazettes
+      parameters:
+        - {$ref: "#/components/parameters/Limit"}
+        - {$ref: "#/components/parameters/Cursor"}
+      responses:
+        "200":
+          description: Published gazettes only
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, nextCursor]
+                properties:
+                  items: {type: array, items: {$ref: "#/components/schemas/Gazette"}}
+                  nextCursor: {type: [string, "null"]}
+        "400": {$ref: "#/components/responses/BadRequest"}
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string, maxLength: 256}
+    Period:
+      name: period
+      in: query
+      schema: {type: string, enum: [day, yesterday, 7d, 30d], default: 30d}
+    PeriodRequired:
+      name: period
+      in: query
+      required: true
+      schema: {type: string, enum: [day, yesterday, 7d, 30d]}
+  responses:
+    BadRequest:
+      description: Invalid bounded input
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    NotFound:
+      description: Published resource not found
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    MaterialList:
+      description: Published material projections only
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [items, nextCursor]
+            properties:
+              items: {type: array, items: {$ref: "#/components/schemas/Material"}}
+              nextCursor: {type: [string, "null"]}
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId]
+      properties:
+        code: {type: string, pattern: "^[A-Z0-9_]{3,80}$"}
+        message: {type: string, maxLength: 1000}
+        requestId: {type: string, maxLength: 128}
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, releaseId, schemaVersion, databaseStateHash]
+      properties:
+        status: {const: ok}
+        releaseId: {type: string}
+        schemaVersion: {type: integer}
+        databaseStateHash: {type: string, pattern: "^[a-f0-9]{64}$"}
+    LlmPublicOutcome:
+      type: object
+      additionalProperties: false
+      required: [status, effectiveModel]
+      properties:
+        status: {type: string, enum: [success, fallback, unavailable]}
+        effectiveModel: {type: [string, "null"]}
+    IssueSummary:
+      type: object
+      additionalProperties: false
+      required: [issueDate, issueNumber, title, brief, publishedAt, materialCount, llm]
+      properties:
+        issueDate: {type: string, format: date}
+        issueNumber: {type: [integer, "null"]}
+        title: {type: string}
+        brief: {type: [string, "null"]}
+        publishedAt: {type: [string, "null"], format: date-time}
+        materialCount: {type: integer, minimum: 0}
+        llm: {$ref: "#/components/schemas/LlmPublicOutcome"}
+    IssueDetail:
+      type: object
+      additionalProperties: false
+      required: [issueDate, issueNumber, title, brief, publishedAt, materialCount, llm, analysis, theses, stats, materials]
+      properties:
+        issueDate: {type: string, format: date}
+        issueNumber: {type: [integer, "null"]}
+        title: {type: string}
+        brief: {type: [string, "null"]}
+        publishedAt: {type: [string, "null"], format: date-time}
+        materialCount: {type: integer, minimum: 0}
+        llm: {$ref: "#/components/schemas/LlmPublicOutcome"}
+        analysis: {$ref: "#/components/schemas/Analysis"}
+        theses: {type: array, items: {$ref: "#/components/schemas/Thesis"}}
+        stats: {$ref: "#/components/schemas/Stats"}
+        materials: {type: array, items: {$ref: "#/components/schemas/Material"}}
+    Material:
+      type: object
+      additionalProperties: false
+      required: [id, issueDate, title, url, sourceName, publishedAt, publicationDateStatus, perimeter, verdict, brief, summary, agpmTakeaway, signalStrength, rubrics, llm]
+      properties:
+        id: {type: string}
+        issueDate: {type: string, format: date}
+        title: {type: string}
+        url: {type: string, format: uri, pattern: "^https?://"}
+        canonicalUrl: {type: [string, "null"], format: uri, pattern: "^https?://"}
+        sourceName: {type: [string, "null"]}
+        publishedAt: {type: [string, "null"], format: date-time}
+        publicationDateStatus: {type: string, enum: [resolved, low_confidence, unresolved]}
+        perimeter: {type: string, enum: [near, mid, far]}
+        verdict: {type: string, enum: [core, adjacent]}
+        brief: {type: [string, "null"]}
+        summary: {type: [string, "null"]}
+        agpmTakeaway: {type: [string, "null"]}
+        keyMaterial: {type: boolean}
+        signalScore: {type: [integer, "null"]}
+        signalStrength: {type: string, enum: [strong, context, watch]}
+        theses: {type: array, items: {type: string}}
+        trendNotes: {type: [string, "null"]}
+        rubrics: {type: array, items: {type: string}}
+        llm: {$ref: "#/components/schemas/LlmPublicOutcome"}
+    Thesis:
+      type: object
+      additionalProperties: false
+      required: [lead, rest]
+      properties:
+        lead: {type: string, maxLength: 500}
+        rest: {type: string, maxLength: 2000}
+    AnalysisBlock:
+      type: object
+      additionalProperties: false
+      required: [kind, title, text]
+      properties:
+        kind: {type: string, enum: [overview, signals, risks, actions]}
+        title: {type: string, maxLength: 300}
+        text: {type: string, maxLength: 10000}
+    Analysis:
+      type: object
+      additionalProperties: false
+      required: [headline, brief, blocks]
+      properties:
+        headline: {type: [string, "null"], maxLength: 500}
+        brief: {type: [string, "null"], maxLength: 4000}
+        blocks: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/AnalysisBlock"}}
+    Stats:
+      type: object
+      additionalProperties: false
+      required: [viewed, included, cut, near, mid, far, core, adjacent]
+      properties:
+        viewed: {type: integer, minimum: 0}
+        included: {type: integer, minimum: 0}
+        cut: {type: integer, minimum: 0}
+        near: {type: integer, minimum: 0}
+        mid: {type: integer, minimum: 0}
+        far: {type: integer, minimum: 0}
+        core: {type: integer, minimum: 0}
+        adjacent: {type: integer, minimum: 0}
+    TimeseriesPoint:
+      type: object
+      additionalProperties: false
+      required: [date, viewed, included, cut, near, mid, far, core, adjacent]
+      properties:
+        date: {type: string, format: date}
+        viewed: {type: integer, minimum: 0}
+        included: {type: integer, minimum: 0}
+        cut: {type: integer, minimum: 0}
+        near: {type: integer, minimum: 0}
+        mid: {type: integer, minimum: 0}
+        far: {type: integer, minimum: 0}
+        core: {type: integer, minimum: 0}
+        adjacent: {type: integer, minimum: 0}
+    Rubric:
+      type: object
+      additionalProperties: false
+      required: [id, title, count]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        count: {type: integer, minimum: 0}
+    Source:
+      type: object
+      additionalProperties: false
+      required: [name, included]
+      properties:
+        name: {type: string}
+        included: {type: integer, minimum: 0}
+    Gazette:
+      type: object
+      additionalProperties: false
+      required: [id, period, title, publishedAt, url]
+      properties:
+        id: {type: string}
+        period: {type: string}
+        title: {type: string}
+        publishedAt: {type: [string, "null"], format: date-time}
+        url: {type: string, format: uri-reference, pattern: "^/"}

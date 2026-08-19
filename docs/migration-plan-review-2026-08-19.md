@@ -1060,6 +1060,8 @@ Project Manager обязан преобразовать результат в п
 
 ## Этап 1. Архитектурные контракты и ADR
 
+Статус: completed 2026-08-19. Evidence: `docs/radar-stage1-contracts-2026-08-19.md`.
+
 ### Работы
 
 1. Создать architecture/data model ADR.
@@ -1080,6 +1082,14 @@ Project Manager обязан преобразовать результат в п
 - примеры проходят schema validators;
 - нет абсолютных production paths в domain contracts;
 - нет неоднозначных writer roles.
+
+### Результат
+
+- приняты ADR-0001/0002;
+- создан contract family `contracts/v1` с closed candidate branches, generated typed delta, exhaustive result/report conditions, compatibility variants, SQLite/state/error/history/OpenAPI contracts;
+- заморожен per-artifact evidence manifest всех 74 Legacy-выпусков;
+- positive/cross-contract/negative validation проходит;
+- runtime и production не менялись.
 
 ## Этап 2. Создать изолированный Radar V2 repository skeleton
 
@@ -1516,14 +1526,8 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-Stage 0 и urgent Stage 0A завершены. Следующий последовательный шаг — **Stage 1: архитектурные контракты и ADR**.
+Stage 0, urgent Stage 0A и Stage 1 завершены. Следующий последовательный шаг — **Stage 2: изолированный Radar V2 repository skeleton**.
 
-Stage 0A не изменил целевую архитектуру. Stage 1 обязан использовать уже найденные baseline constraints:
+Stage 2 обязан сделать contract generator/validator обязательным local/CI gate, закрепить exact SQLite build profile и не подключаться к Legacy cron/runtime. Stage 3 использует frozen 74-issue evidence manifest; Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
 
-- исторически публичный выпуск нельзя определять по Legacy `status`;
-- requested/attempted/effective LLM outcome фиксируется отдельно от publication success;
-- публичная граница строится через explicit DTO и published-only contract;
-- mutable worktree никогда не используется как V2 public release root;
-- generic missing assets, path/draft/internal leakage и invalid query 4xx остаются обязательными Stage 8 regressions.
-
-До завершения Stage 1 не создаются Local Ru Radar services, не меняется Project Manager cron, не меняется DNS и не переносится production data.
+До завершения Stage 2 не создаются Local Ru Radar services, не меняется Project Manager cron, не меняется DNS и не переносится production data.

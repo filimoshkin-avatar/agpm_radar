@@ -1,0 +1,43 @@
+{
+  "applicationReleaseId": "app_release_20260819_01",
+  "artifacts": [
+    {
+      "bytes": 1000000,
+      "kind": "api",
+      "name": "radar-v2-api.tar.zst",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "bytes": 500000,
+      "kind": "web",
+      "name": "radar-v2-web.tar.zst",
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+    }
+  ],
+  "candidateContractVersions": [
+    "1.0.0"
+  ],
+  "contractVersion": "1.0.0",
+  "createdAt": "2026-08-19T13:30:00Z",
+  "deltaContractVersions": [
+    "1.0.0"
+  ],
+  "gazetteContractVersions": [
+    "1.0.0"
+  ],
+  "gitCommit": "1111111111111111111111111111111111111111",
+  "manifestKind": "application",
+  "publicApiVersion": "1.0.0",
+  "resultContractVersions": [
+    "1.0.0"
+  ],
+  "schemaVersion": 1,
+  "sqliteRuntime": {
+    "compileOptions": [
+      "ENABLE_FTS5"
+    ],
+    "sourceId": "2024-01-30 16:01:20 e876e51a0ed5c5b3126f52e532044363a014bc594cfefa87ffb5b82257ccalt1",
+    "version": "3.45.1"
+  },
+  "tableContractVersion": "1.0.0"
+}

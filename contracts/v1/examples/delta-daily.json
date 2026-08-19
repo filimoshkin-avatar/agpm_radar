@@ -1,0 +1,274 @@
+{
+  "afterStateHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "applicationReleaseId": "app_release_20260819_01",
+  "assets": [
+    {
+      "bytes": 2048,
+      "mediaType": "application/json",
+      "relativePath": "daily/2026-08-20/issue.json",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  ],
+  "baseReleaseId": "rel_content_20260819_01",
+  "baseSequence": 1,
+  "beforeStateHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidateId": "cand_daily_20260820_01",
+  "contractVersion": "1.0.0",
+  "createdAt": "2026-08-20T05:10:00Z",
+  "expectedTables": [
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "schema_migrations"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "application_compatibility"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "content_releases"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "source_snapshots"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "sources"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "materials"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "material_sources"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "material_evidence"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "editorial_queue"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "issues"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "legacy_issue_provenance"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "legacy_publication_evidence"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "issue_materials"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "issue_analysis"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "material_analysis"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "llm_attempts"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "source_rules"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "material_quality"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "rubrics"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "material_rubrics"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "daily_stats"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "gazettes"
+    },
+    {
+      "afterLogicalSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "afterRowCount": 0,
+      "beforeLogicalSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "beforeRowCount": 0,
+      "table": "gazette_assets"
+    }
+  ],
+  "operation": "daily",
+  "operations": [
+    {
+      "action": "insert",
+      "expectedBefore": "absent",
+      "key": {
+        "snapshot_id": "snap_20260820_01"
+      },
+      "rowAfterHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "sequence": 1,
+      "table": "source_snapshots",
+      "values": {
+        "collected_at": "2026-08-20T05:01:00Z",
+        "item_count": 0,
+        "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "payload_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "snapshot_id": "snap_20260820_01"
+      }
+    },
+    {
+      "action": "upsert",
+      "expectedBefore": "8888888888888888888888888888888888888888888888888888888888888888",
+      "key": {
+        "issue_id": "issue_20260820"
+      },
+      "rowAfterHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "sequence": 2,
+      "table": "issues",
+      "values": {
+        "brief": "No qualifying materials.",
+        "content_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "created_at": "2026-08-20T05:05:00Z",
+        "empty_reason": "no_qualifying_materials",
+        "issue_date": "2026-08-20",
+        "issue_id": "issue_20260820",
+        "issue_number": 75,
+        "lifecycle_status": "published",
+        "publication_origin": "v2",
+        "published_at": "2026-08-20T05:10:00Z",
+        "title": "AgPM daily radar 2026-08-20",
+        "updated_at": "2026-08-20T05:10:00Z"
+      }
+    },
+    {
+      "action": "upsert",
+      "expectedBefore": "9999999999999999999999999999999999999999999999999999999999999999",
+      "key": {
+        "issue_id": "issue_20260820"
+      },
+      "rowAfterHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "sequence": 3,
+      "table": "daily_stats",
+      "values": {
+        "adjacent": 0,
+        "core": 0,
+        "cut": 42,
+        "far": 0,
+        "included": 0,
+        "issue_id": "issue_20260820",
+        "mid": 0,
+        "near": 0,
+        "updated_at": "2026-08-20T05:10:00Z",
+        "viewed": 42
+      }
+    },
+    {
+      "action": "insert",
+      "expectedBefore": "absent",
+      "key": {
+        "release_id": "rel_content_20260820_01"
+      },
+      "rowAfterHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "sequence": 4,
+      "table": "content_releases",
+      "values": {
+        "activated_at": "2026-08-20T05:11:00Z",
+        "after_state_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "base_release_id": "rel_content_20260819_01",
+        "before_state_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "candidate_id": "cand_daily_20260820_01",
+        "created_at": "2026-08-20T05:10:00Z",
+        "operation": "daily",
+        "release_id": "rel_content_20260820_01",
+        "schema_version": 1,
+        "sequence": 2
+      }
+    }
+  ],
+  "releaseId": "rel_content_20260820_01",
+  "schemaVersionAfter": 1,
+  "schemaVersionBefore": 1,
+  "tableContractVersion": "1.0.0",
+  "targetSequence": 2
+}

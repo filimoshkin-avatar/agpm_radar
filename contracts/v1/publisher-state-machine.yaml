@@ -1,0 +1,72 @@
+contractVersion: 1.0.0
+contractFamily: radar-v2/1
+journal: external-append-only
+initialState: RECEIVED
+states:
+  RECEIVED: {terminal: false}
+  VALIDATED: {terminal: false}
+  SOURCE_STAGED: {terminal: false}
+  ARTIFACTS_BUILT: {terminal: false}
+  DELTA_BUILT: {terminal: false}
+  REMOTE_STAGED: {terminal: false}
+  REMOTE_VERIFIED: {terminal: false}
+  REMOTE_ACTIVE: {terminal: false}
+  API_REOPENED: {terminal: false}
+  LOOPBACK_VERIFIED: {terminal: false}
+  PUBLIC_VERIFIED: {terminal: false}
+  SOURCE_COMMITTED: {terminal: false}
+  SUCCEEDED: {terminal: true, resultStatus: published}
+  REJECTED: {terminal: true, resultStatus: rejected}
+  FAILED_PRE_ACTIVATION: {terminal: true, resultStatus: failed}
+  FAILED_POST_REMOTE_ACTIVATION: {terminal: false}
+  ROLLED_BACK: {terminal: true, resultStatus: rolled_back}
+  NEEDS_RECONCILIATION: {terminal: true, resultStatus: needs_reconciliation, blocksFuturePublishing: true}
+transitions:
+  - {from: RECEIVED, to: VALIDATED, on: validation_passed}
+  - {from: RECEIVED, to: REJECTED, on: validation_rejected}
+  - {from: VALIDATED, to: SOURCE_STAGED, on: source_staging_passed}
+  - {from: SOURCE_STAGED, to: ARTIFACTS_BUILT, on: artifact_build_passed}
+  - {from: ARTIFACTS_BUILT, to: DELTA_BUILT, on: delta_build_passed}
+  - {from: DELTA_BUILT, to: REMOTE_STAGED, on: transport_and_remote_stage_passed}
+  - {from: REMOTE_STAGED, to: REMOTE_VERIFIED, on: remote_verification_passed}
+  - {from: REMOTE_VERIFIED, to: REMOTE_ACTIVE, on: remote_pointer_activated}
+  - {from: REMOTE_ACTIVE, to: API_REOPENED, on: api_connections_reopened}
+  - {from: API_REOPENED, to: LOOPBACK_VERIFIED, on: loopback_release_and_hash_verified}
+  - {from: LOOPBACK_VERIFIED, to: PUBLIC_VERIFIED, on: public_release_and_hash_verified}
+  - {from: PUBLIC_VERIFIED, to: SOURCE_COMMITTED, on: source_pointer_committed}
+  - {from: SOURCE_COMMITTED, to: SUCCEEDED, on: result_persisted}
+  - {from: VALIDATED, to: FAILED_PRE_ACTIVATION, on: source_staging_failed}
+  - {from: SOURCE_STAGED, to: FAILED_PRE_ACTIVATION, on: artifact_build_failed}
+  - {from: ARTIFACTS_BUILT, to: FAILED_PRE_ACTIVATION, on: delta_build_failed}
+  - {from: DELTA_BUILT, to: FAILED_PRE_ACTIVATION, on: transport_or_remote_stage_failed}
+  - {from: REMOTE_STAGED, to: FAILED_PRE_ACTIVATION, on: remote_verification_failed}
+  - {from: REMOTE_ACTIVE, to: FAILED_POST_REMOTE_ACTIVATION, on: api_reopen_failed}
+  - {from: API_REOPENED, to: FAILED_POST_REMOTE_ACTIVATION, on: loopback_verification_failed}
+  - {from: LOOPBACK_VERIFIED, to: FAILED_POST_REMOTE_ACTIVATION, on: public_verification_failed}
+  - {from: PUBLIC_VERIFIED, to: FAILED_POST_REMOTE_ACTIVATION, on: source_commit_failed}
+  - {from: FAILED_POST_REMOTE_ACTIVATION, to: ROLLED_BACK, on: previous_pointer_and_hash_verified}
+  - {from: FAILED_POST_REMOTE_ACTIVATION, to: NEEDS_RECONCILIATION, on: rollback_not_proven}
+idempotency:
+  succeededCandidate: return_saved_success
+  inProgressCandidate: reject_duplicate_in_progress
+  recoverableCandidate: resume_from_last_verified_checkpoint
+  ambiguousJournal: fail_to_needs_reconciliation
+exitCodes:
+  0: PUBLISHED
+  10: CANDIDATE_INVALID
+  11: BASE_RELEASE_CONFLICT
+  12: COMPATIBILITY_MISMATCH
+  13: SECURITY_REJECTED
+  20: SOURCE_STAGING_FAILED
+  21: ARTIFACT_BUILD_FAILED
+  22: DELTA_BUILD_FAILED
+  30: TRANSPORT_FAILED
+  31: REMOTE_STAGING_FAILED
+  32: REMOTE_VERIFICATION_FAILED
+  33: ACTIVATION_FAILED
+  34: PUBLIC_SMOKE_FAILED_ROLLED_BACK
+  35: ROLLBACK_NOT_PROVEN
+  40: PUBLISH_LOCK_BUSY
+  41: CANDIDATE_ALREADY_IN_PROGRESS
+  42: RETRYABLE_EXTERNAL_FAILURE
+  50: INTERNAL_ERROR

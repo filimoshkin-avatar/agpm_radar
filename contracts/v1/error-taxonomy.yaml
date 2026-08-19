@@ -1,0 +1,116 @@
+contractVersion: 1.0.0
+contractFamily: radar-v2/1
+errors:
+  CANDIDATE_INVALID:
+    category: validation
+    severity: error
+    retryable: false
+    exitCode: 10
+    nextAction: Fix candidate against schema and create a new candidate id.
+  BASE_RELEASE_CONFLICT:
+    category: conflict
+    severity: error
+    retryable: false
+    exitCode: 11
+    nextAction: Refresh source/production state and rebuild candidate from current base.
+  COMPATIBILITY_MISMATCH:
+    category: compatibility
+    severity: error
+    retryable: false
+    exitCode: 12
+    nextAction: Deploy an explicitly approved compatible application release or rebuild package.
+  SECURITY_REJECTED:
+    category: security
+    severity: critical
+    retryable: false
+    exitCode: 13
+    nextAction: Quarantine package and review paths, URLs, scripts, secrets and checksums.
+  SOURCE_STAGING_FAILED:
+    category: storage
+    severity: error
+    retryable: true
+    exitCode: 20
+    nextAction: Preserve evidence, fix source staging storage and retry same candidate if journal permits.
+  ARTIFACT_BUILD_FAILED:
+    category: artifact
+    severity: error
+    retryable: true
+    exitCode: 21
+    nextAction: Fix deterministic renderer or input and retry under idempotency rules.
+  DELTA_BUILD_FAILED:
+    category: artifact
+    severity: error
+    retryable: false
+    exitCode: 22
+    nextAction: Investigate undeclared drift or delta defect before rebuilding candidate.
+  TRANSPORT_FAILED:
+    category: transport
+    severity: error
+    retryable: true
+    exitCode: 30
+    nextAction: Verify dedicated SSH transport and resume from preserved checkpoint.
+  REMOTE_STAGING_FAILED:
+    category: storage
+    severity: error
+    retryable: true
+    exitCode: 31
+    nextAction: Inspect remote staging evidence; active release remains unchanged.
+  REMOTE_VERIFICATION_FAILED:
+    category: compatibility
+    severity: error
+    retryable: false
+    exitCode: 32
+    nextAction: Reconcile schema, table contract, row counts and logical hashes.
+  ACTIVATION_FAILED:
+    category: activation
+    severity: critical
+    retryable: false
+    exitCode: 33
+    nextAction: Verify current pointer and active release; rollback if activation may have occurred.
+  PUBLIC_SMOKE_FAILED_ROLLED_BACK:
+    category: smoke
+    severity: critical
+    retryable: false
+    exitCode: 34
+    nextAction: Diagnose release while verified previous release remains active.
+  ROLLBACK_NOT_PROVEN:
+    category: rollback
+    severity: critical
+    retryable: false
+    exitCode: 35
+    blocksFuturePublishing: true
+    nextAction: Stop publishing and perform manual reconciliation/restore.
+  PUBLISH_LOCK_BUSY:
+    category: lock
+    severity: warning
+    retryable: true
+    exitCode: 40
+    nextAction: Wait for the current verified job or inspect stale-lock journal evidence.
+  CANDIDATE_ALREADY_IN_PROGRESS:
+    category: lock
+    severity: warning
+    retryable: true
+    exitCode: 41
+    nextAction: Query status of the existing candidate job; do not duplicate it.
+  RETRYABLE_EXTERNAL_FAILURE:
+    category: transport
+    severity: warning
+    retryable: true
+    exitCode: 42
+    nextAction: Retry from the last verified checkpoint with bounded policy.
+  INTERNAL_ERROR:
+    category: internal
+    severity: critical
+    retryable: false
+    exitCode: 50
+    nextAction: Preserve journal/evidence and require code review before retry.
+warnings:
+  LLM_FALLBACK_USED:
+    ownerVisible: true
+    publicationBlocking: false
+  LLM_UNAVAILABLE:
+    ownerVisible: true
+    publicationBlocking: false
+  LEGACY_PUBLICATION_TIME_UNKNOWN:
+    ownerVisible: false
+    publicationBlocking: false

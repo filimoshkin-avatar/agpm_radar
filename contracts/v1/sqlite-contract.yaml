@@ -1,0 +1,495 @@
+contractVersion: 1.0.0
+contractFamily: radar-v2/1
+sqlite:
+  requiredRuntimeVersion: 3.45.1
+  requiredSourceId: "2024-01-30 16:01:20 e876e51a0ed5c5b3126f52e532044363a014bc594cfefa87ffb5b82257ccalt1"
+  requiredCompileOptions:
+    - ENABLE_FTS5
+    - THREADSAFE=1
+  applicationId: 1380009010
+  applicationIdAscii: RAD2
+  userVersion: 1
+  activeReader:
+    uriMode: ro
+    immutable: true
+    reopenAfterPointerSwitch: true
+    pragmas:
+      query_only: 1
+      foreign_keys: 1
+      trusted_schema: 0
+      busy_timeout_ms: 5000
+  stagingWriter:
+    transaction: BEGIN IMMEDIATE
+    explicitIdsAndTimestamps: true
+    forbiddenGenerators: [AUTOINCREMENT, sqlite_sequence, random, local-now]
+    pragmas:
+      foreign_keys: 1
+      journal_mode: DELETE
+      synchronous: FULL
+      secure_delete: 1
+      temp_store: MEMORY
+      trusted_schema: 0
+      busy_timeout_ms: 5000
+  sealedArtifact:
+    journalMode: DELETE
+    forbiddenSidecars: [wal, shm, journal]
+    requiredChecks:
+      - integrity_check
+      - foreign_key_check
+      - schema_version
+      - logical_state_hash
+      - fts_rebuild_and_parity
+writers:
+  project_manager:
+    directSql: false
+    produces: [candidate]
+  source_publisher:
+    directSql: true
+    scope: staging_copy_only
+    lock: radar_mutation
+  application_migrator:
+    directSql: true
+    scope: staging_copy_only
+    lock: radar_mutation
+    mayChangeSchema: true
+  bootstrap_importer:
+    directSql: true
+    scope: source_staging_before_release_zero_only
+    permanentlyDisabledAfterReleaseZero: true
+    lock: radar_mutation
+  remote_activator:
+    directSql: true
+    authority: mirror_only
+    acceptedInput: validated_typed_delta
+    scope: production_staging_copy_only
+    lock: radar_mutation
+  public_api:
+    directSql: false
+    readOnly: true
+    scope: versioned_published_public_views_only
+locks:
+  perHost: radar_mutation
+  implementation: fd-backed-flock
+  acquisitionOrder: [source, remote]
+  fences: [base_release, logical_state_hash, schema_version, release_sequence]
+  ambiguousOperationLatch: needs_reconciliation
+hashing:
+  algorithm: sha256
+  encoding: canonical-json-lines-utf8
+  tableOrder: lexical
+  rowOrder: primary-key
+  normalize:
+    "null": json-null
+    integers: base10-no-leading-zero
+    reals: shortest-roundtrip-json-number
+    text: unicode-nfc
+    jsonTextColumns: parse-sort-keys-compact
+  excludes:
+    - derived FTS5 virtual/internal tables
+    - host-local journals
+    - SQLite page layout and freelist
+    - schema_migrations metadata table
+    - application_compatibility metadata table
+    - content_releases self-referential release marker table
+  replicaEquality:
+    - logical domain state hash
+    - per-table hashes for excluded replicated metadata tables
+    - schema version and table contract version
+contentMutationTables:
+  - content_releases
+  - source_snapshots
+  - sources
+  - materials
+  - material_sources
+  - material_evidence
+  - editorial_queue
+  - issues
+  - issue_materials
+  - issue_analysis
+  - material_analysis
+  - llm_attempts
+  - source_rules
+  - material_quality
+  - material_rubrics
+  - daily_stats
+  - gazettes
+  - gazette_assets
+tables:
+  schema_migrations:
+    replicated: true
+    contentMutations: []
+    primaryKey: [version]
+    columns:
+      version: {type: TEXT, nullable: false}
+      checksum: {type: TEXT, nullable: false, format: sha256}
+      applied_at: {type: TEXT, nullable: false, format: date-time}
+  application_compatibility:
+    replicated: true
+    contentMutations: []
+    primaryKey: [application_release_id]
+    columns:
+      application_release_id: {type: TEXT, nullable: false}
+      schema_version: {type: INTEGER, nullable: false}
+      table_contract_version: {type: TEXT, nullable: false}
+      candidate_contract_version: {type: TEXT, nullable: false}
+      delta_contract_version: {type: TEXT, nullable: false}
+      result_contract_version: {type: TEXT, nullable: false}
+      gazette_contract_version: {type: TEXT, nullable: false}
+      public_api_version: {type: TEXT, nullable: false}
+      sqlite_runtime_version: {type: TEXT, nullable: false}
+      activated_at: {type: TEXT, nullable: false, format: date-time}
+  content_releases:
+    replicated: true
+    immutableRows: true
+    contentMutations: [insert]
+    primaryKey: [release_id]
+    uniqueKeys: [[candidate_id], [sequence]]
+    logicalHashExcludes: [after_state_hash]
+    columns:
+      release_id: {type: TEXT, nullable: false}
+      sequence: {type: INTEGER, nullable: false, minimum: 0}
+      base_release_id: {type: TEXT, nullable: true}
+      candidate_id: {type: TEXT, nullable: false}
+      operation: {type: TEXT, nullable: false, enum: [daily, correction, gazette]}
+      schema_version: {type: INTEGER, nullable: false}
+      before_state_hash: {type: TEXT, nullable: false, format: sha256}
+      after_state_hash: {type: TEXT, nullable: false, format: sha256}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      activated_at: {type: TEXT, nullable: false, format: date-time}
+  source_snapshots:
+    replicated: true
+    immutableRows: true
+    contentMutations: [insert]
+    primaryKey: [snapshot_id]
+    columns:
+      snapshot_id: {type: TEXT, nullable: false}
+      manifest_sha256: {type: TEXT, nullable: false, format: sha256}
+      payload_sha256: {type: TEXT, nullable: false, format: sha256}
+      collected_at: {type: TEXT, nullable: false, format: date-time}
+      item_count: {type: INTEGER, nullable: false, minimum: 0}
+  sources:
+    replicated: true
+    contentMutations: [upsert]
+    primaryKey: [source_id]
+    columns:
+      source_id: {type: TEXT, nullable: false}
+      name: {type: TEXT, nullable: false}
+      url: {type: TEXT, nullable: true, format: uri}
+      source_type: {type: TEXT, nullable: false}
+      enabled: {type: INTEGER, nullable: false, enum: [0, 1]}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  materials:
+    replicated: true
+    contentMutations: [upsert]
+    primaryKey: [material_id]
+    columns:
+      material_id: {type: TEXT, nullable: false}
+      title: {type: TEXT, nullable: false}
+      url: {type: TEXT, nullable: false, format: uri}
+      canonical_url: {type: TEXT, nullable: true, format: uri}
+      source_name: {type: TEXT, nullable: true}
+      published_at: {type: TEXT, nullable: true, format: date-time}
+      publication_date_status: {type: TEXT, nullable: false, enum: [resolved, low_confidence, unresolved]}
+      summary: {type: TEXT, nullable: true}
+      agpm_takeaway: {type: TEXT, nullable: true}
+      brief: {type: TEXT, nullable: true}
+      content_hash: {type: TEXT, nullable: false, format: sha256}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  material_sources:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [material_id, source_id]
+    foreignKeys:
+      - {columns: [material_id], references: materials, referencedColumns: [material_id], onDelete: CASCADE}
+      - {columns: [source_id], references: sources, referencedColumns: [source_id], onDelete: RESTRICT}
+    columns:
+      material_id: {type: TEXT, nullable: false}
+      source_id: {type: TEXT, nullable: false}
+      source_url: {type: TEXT, nullable: true, format: uri}
+      provider: {type: TEXT, nullable: true}
+      first_seen_at: {type: TEXT, nullable: true, format: date-time}
+      last_seen_at: {type: TEXT, nullable: true, format: date-time}
+  material_evidence:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [evidence_id]
+    foreignKeys:
+      - {columns: [material_id], references: materials, referencedColumns: [material_id], onDelete: CASCADE}
+    columns:
+      evidence_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      kind: {type: TEXT, nullable: false}
+      content_sha256: {type: TEXT, nullable: false, format: sha256}
+      media_type: {type: TEXT, nullable: false}
+      public_url: {type: TEXT, nullable: true, format: uri}
+      metadata_json: {type: TEXT, nullable: false, format: json-text}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+  editorial_queue:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [queue_id]
+    foreignKeys:
+      - {columns: [material_id], references: materials, referencedColumns: [material_id], onDelete: CASCADE}
+    columns:
+      queue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      state: {type: TEXT, nullable: false, enum: [manual, deferred, review]}
+      target_issue_date: {type: TEXT, nullable: true, format: date}
+      priority: {type: INTEGER, nullable: false}
+      reason: {type: TEXT, nullable: true}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  issues:
+    replicated: true
+    contentMutations: [upsert]
+    primaryKey: [issue_id]
+    uniqueKeys: [[issue_date]]
+    lifecycleChecks:
+      - draft_has_no_publication_origin_or_published_at
+      - v2_published_has_published_at_and_content_hash
+      - legacy_inferred_published_allows_null_published_at_and_requires_provenance
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      issue_date: {type: TEXT, nullable: false, format: date}
+      issue_number: {type: INTEGER, nullable: true}
+      title: {type: TEXT, nullable: false}
+      brief: {type: TEXT, nullable: true}
+      lifecycle_status: {type: TEXT, nullable: false, enum: [draft, published]}
+      published_at: {type: TEXT, nullable: true, format: date-time}
+      publication_origin: {type: TEXT, nullable: true, enum: [v2, legacy_inferred]}
+      empty_reason: {type: TEXT, nullable: true}
+      content_hash: {type: TEXT, nullable: false, format: sha256}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  legacy_issue_provenance:
+    replicated: true
+    immutableRows: true
+    writerRole: bootstrap_importer
+    contentMutations: []
+    primaryKey: [issue_id]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: RESTRICT}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      legacy_status: {type: TEXT, nullable: true}
+      legacy_published_at: {type: TEXT, nullable: true, format: date-time}
+      baseline_database_sha256: {type: TEXT, nullable: false, format: sha256}
+      legacy_issue_row_sha256: {type: TEXT, nullable: false, format: sha256}
+      imported_at: {type: TEXT, nullable: false, format: date-time}
+  legacy_publication_evidence:
+    replicated: true
+    immutableRows: true
+    writerRole: bootstrap_importer
+    contentMutations: []
+    primaryKey: [issue_id, evidence_kind]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: RESTRICT}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      evidence_kind: {type: TEXT, nullable: false}
+      relative_path: {type: TEXT, nullable: false, format: relative-path}
+      sha256: {type: TEXT, nullable: false, format: sha256}
+      evidence_status: {type: TEXT, nullable: false, enum: [passed, failed]}
+      details_json: {type: TEXT, nullable: false, format: json-text}
+  issue_materials:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [issue_id, material_id]
+    uniqueKeys: [[issue_id, sort_order]]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: CASCADE}
+      - {columns: [material_id], references: materials, referencedColumns: [material_id], onDelete: RESTRICT}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      sort_order: {type: INTEGER, nullable: false}
+      perimeter: {type: TEXT, nullable: false, enum: [near, mid, far]}
+      verdict: {type: TEXT, nullable: false, enum: [core, adjacent]}
+      summary: {type: TEXT, nullable: true}
+      agpm_takeaway: {type: TEXT, nullable: true}
+      brief: {type: TEXT, nullable: true}
+      theses_json: {type: TEXT, nullable: false, format: json-text}
+      trend_notes: {type: TEXT, nullable: true}
+      flags_json: {type: TEXT, nullable: false, format: json-text}
+      key_material: {type: INTEGER, nullable: false, enum: [0, 1]}
+      signal_score: {type: INTEGER, nullable: true}
+      signal_strength: {type: TEXT, nullable: false, enum: [strong, context, watch]}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  issue_analysis:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [issue_id]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: CASCADE}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      headline: {type: TEXT, nullable: true}
+      analysis_json: {type: TEXT, nullable: false, format: json-text}
+      theses_json: {type: TEXT, nullable: false, format: json-text}
+      brief: {type: TEXT, nullable: true}
+      llm_status: {type: TEXT, nullable: false, enum: [success, fallback, unavailable]}
+      requested_model: {type: TEXT, nullable: true}
+      effective_model: {type: TEXT, nullable: true}
+      provider: {type: TEXT, nullable: true}
+      prompt_version: {type: TEXT, nullable: false}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  material_analysis:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [issue_id, material_id]
+    foreignKeys:
+      - {columns: [issue_id, material_id], references: issue_materials, referencedColumns: [issue_id, material_id], onDelete: CASCADE}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      short_text: {type: TEXT, nullable: true}
+      agpm_angle: {type: TEXT, nullable: true}
+      llm_status: {type: TEXT, nullable: false, enum: [success, fallback, unavailable]}
+      requested_model: {type: TEXT, nullable: true}
+      effective_model: {type: TEXT, nullable: true}
+      provider: {type: TEXT, nullable: true}
+      prompt_version: {type: TEXT, nullable: false}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  llm_attempts:
+    replicated: true
+    immutableRows: true
+    contentMutations: [insert]
+    primaryKey: [attempt_id]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: CASCADE}
+    columns:
+      attempt_id: {type: TEXT, nullable: false}
+      scope: {type: TEXT, nullable: false, enum: [issue, material]}
+      issue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: true}
+      requested_model: {type: TEXT, nullable: true}
+      attempted_model: {type: TEXT, nullable: true}
+      provider: {type: TEXT, nullable: true}
+      attempt_order: {type: INTEGER, nullable: false, minimum: 1}
+      status: {type: TEXT, nullable: false, enum: [success, error, invalid, skipped]}
+      error_code: {type: TEXT, nullable: true}
+      started_at: {type: TEXT, nullable: false, format: date-time}
+      finished_at: {type: TEXT, nullable: false, format: date-time}
+  source_rules:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [host]
+    columns:
+      host: {type: TEXT, nullable: false}
+      date_strategy: {type: TEXT, nullable: false}
+      notes: {type: TEXT, nullable: true}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  material_quality:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [issue_id, material_id]
+    foreignKeys:
+      - {columns: [issue_id, material_id], references: issue_materials, referencedColumns: [issue_id, material_id], onDelete: CASCADE}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      publication_date_status: {type: TEXT, nullable: false, enum: [resolved, low_confidence, unresolved]}
+      issue_date_delta_days: {type: INTEGER, nullable: true}
+      severity: {type: TEXT, nullable: false, enum: [ok, low, medium, high]}
+      review_status: {type: TEXT, nullable: false, enum: [ok, monitor, queued]}
+      reason: {type: TEXT, nullable: true}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  rubrics:
+    replicated: true
+    writerRole: application_migrator
+    contentMutations: []
+    primaryKey: [rubric_id]
+    columns:
+      rubric_id: {type: TEXT, nullable: false}
+      title: {type: TEXT, nullable: false}
+      sort_order: {type: INTEGER, nullable: false}
+  material_rubrics:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [issue_id, material_id, rubric_id]
+    foreignKeys:
+      - {columns: [issue_id, material_id], references: issue_materials, referencedColumns: [issue_id, material_id], onDelete: CASCADE}
+      - {columns: [rubric_id], references: rubrics, referencedColumns: [rubric_id], onDelete: RESTRICT}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      material_id: {type: TEXT, nullable: false}
+      rubric_id: {type: TEXT, nullable: false}
+      confidence: {type: REAL, nullable: true}
+      source: {type: TEXT, nullable: false}
+  daily_stats:
+    replicated: true
+    contentMutations: [upsert]
+    primaryKey: [issue_id]
+    foreignKeys:
+      - {columns: [issue_id], references: issues, referencedColumns: [issue_id], onDelete: CASCADE}
+    columns:
+      issue_id: {type: TEXT, nullable: false}
+      viewed: {type: INTEGER, nullable: false, minimum: 0}
+      included: {type: INTEGER, nullable: false, minimum: 0}
+      cut: {type: INTEGER, nullable: false, minimum: 0}
+      near: {type: INTEGER, nullable: false, minimum: 0}
+      mid: {type: INTEGER, nullable: false, minimum: 0}
+      far: {type: INTEGER, nullable: false, minimum: 0}
+      core: {type: INTEGER, nullable: false, minimum: 0}
+      adjacent: {type: INTEGER, nullable: false, minimum: 0}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  gazettes:
+    replicated: true
+    contentMutations: [upsert]
+    primaryKey: [gazette_id]
+    columns:
+      gazette_id: {type: TEXT, nullable: false}
+      period: {type: TEXT, nullable: false}
+      title: {type: TEXT, nullable: false}
+      lifecycle_status: {type: TEXT, nullable: false, enum: [draft, published]}
+      published_at: {type: TEXT, nullable: true, format: date-time}
+      asset_manifest_sha256: {type: TEXT, nullable: false, format: sha256}
+      content_hash: {type: TEXT, nullable: false, format: sha256}
+      created_at: {type: TEXT, nullable: false, format: date-time}
+      updated_at: {type: TEXT, nullable: false, format: date-time}
+  gazette_assets:
+    replicated: true
+    contentMutations: [upsert, delete]
+    primaryKey: [gazette_id, relative_path]
+    foreignKeys:
+      - {columns: [gazette_id], references: gazettes, referencedColumns: [gazette_id], onDelete: CASCADE}
+    columns:
+      gazette_id: {type: TEXT, nullable: false}
+      relative_path: {type: TEXT, nullable: false, format: relative-path}
+      sha256: {type: TEXT, nullable: false, format: sha256}
+      bytes: {type: INTEGER, nullable: false, minimum: 0}
+      media_type: {type: TEXT, nullable: false}
+publicViews:
+  pub_health_v1: {publishedOnly: true}
+  pub_issues_v1: {publishedOnly: true, source: issues}
+  pub_issue_materials_v1: {publishedOnly: true, source: issue_materials}
+  pub_issue_analysis_v1: {publishedOnly: true, source: issue_analysis}
+  pub_material_analysis_v1: {publishedOnly: true, source: material_analysis}
+  pub_stats_v1: {publishedOnly: true, source: daily_stats}
+  pub_gazettes_v1: {publishedOnly: true, source: gazettes}
+  pub_search_documents_v1: {publishedOnly: true, source: issue_materials_join_materials}
+apiReadAllowlist:
+  - pub_health_v1
+  - pub_issues_v1
+  - pub_issue_materials_v1
+  - pub_issue_analysis_v1
+  - pub_material_analysis_v1
+  - pub_stats_v1
+  - pub_gazettes_v1
+  - pub_search_documents_v1
+  - published_materials_fts
+derivedTables:
+  published_materials_fts:
+    engine: fts5
+    source: pub_search_documents_v1
+    tokenize: "unicode61 remove_diacritics 2"
+    triggersAllowed: false
+    replicatedByDelta: false
+    includedInLogicalStateHash: false
+    rebuildAfterApply: true
+    parityChecks:
+      - source_projection_count_equals_fts_count
+      - fts_integrity_check
+      - fixture_search_results_match

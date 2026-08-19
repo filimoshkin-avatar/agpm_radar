@@ -1,0 +1,513 @@
+{
+  "$defs": {
+    "check": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9._-]{3,80}$",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "message"
+      ],
+      "type": "object"
+    },
+    "error": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "validation",
+            "security",
+            "conflict",
+            "compatibility",
+            "storage",
+            "artifact",
+            "transport",
+            "activation",
+            "smoke",
+            "rollback",
+            "lock",
+            "internal"
+          ]
+        },
+        "code": {
+          "pattern": "^[A-Z0-9_]{3,80}$",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "nextAction": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "category",
+        "retryable",
+        "message",
+        "nextAction"
+      ],
+      "type": "object"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$",
+      "type": "string"
+    },
+    "llmAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "errorCode": {
+          "pattern": "^[A-Z0-9_]{3,80}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "order": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "success",
+            "error",
+            "invalid",
+            "skipped"
+          ]
+        }
+      },
+      "required": [
+        "order",
+        "model",
+        "provider",
+        "status"
+      ],
+      "type": "object"
+    },
+    "llmOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "$ref": "#/$defs/llmAttempt"
+          },
+          "maxItems": 20,
+          "type": "array"
+        },
+        "effectiveModel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effectiveProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requestedModel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "success",
+            "fallback",
+            "unavailable"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "requestedModel",
+        "attempts",
+        "effectiveModel",
+        "effectiveProvider"
+      ],
+      "type": "object"
+    },
+    "rollback": {
+      "additionalProperties": false,
+      "properties": {
+        "attempted": {
+          "type": "boolean"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "restoredReleaseId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "restoredStateHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "succeeded": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "required",
+        "attempted",
+        "succeeded",
+        "restoredReleaseId",
+        "restoredStateHash"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "warning": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Z0-9_]{3,80}$",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "ownerVisible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "ownerVisible"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://radar.aipractice.space/contracts/v1/publisher-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "published",
+              "already_succeeded"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "type": "null"
+          },
+          "exitCode": {
+            "const": 0
+          },
+          "publicationSucceeded": {
+            "const": true
+          },
+          "publishingBlocked": {
+            "const": false
+          }
+        },
+        "required": [
+          "releaseId",
+          "sourceStateHash",
+          "productionStateHash",
+          "activeReleaseId"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "rejected",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "$ref": "#/$defs/error"
+          },
+          "exitCode": {
+            "minimum": 1
+          },
+          "publicationSucceeded": {
+            "const": false
+          },
+          "publishingBlocked": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "rolled_back"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "error": {
+            "$ref": "#/$defs/error"
+          },
+          "exitCode": {
+            "const": 34
+          },
+          "publicationSucceeded": {
+            "const": false
+          },
+          "publishingBlocked": {
+            "const": false
+          },
+          "rollback": {
+            "properties": {
+              "attempted": {
+                "const": true
+              },
+              "required": {
+                "const": true
+              },
+              "restoredReleaseId": {
+                "type": "string"
+              },
+              "restoredStateHash": {
+                "type": "string"
+              },
+              "succeeded": {
+                "const": true
+              }
+            },
+            "required": [
+              "required",
+              "attempted",
+              "succeeded",
+              "restoredReleaseId",
+              "restoredStateHash"
+            ],
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "needs_reconciliation"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "activeReleaseId": {
+            "type": "null"
+          },
+          "error": {
+            "$ref": "#/$defs/error"
+          },
+          "exitCode": {
+            "const": 35
+          },
+          "publicationSucceeded": {
+            "const": false
+          },
+          "publishingBlocked": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "activeReleaseId": {
+      "maxLength": 128,
+      "minLength": 8,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "candidateId": {
+      "$ref": "#/$defs/id"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/check"
+      },
+      "type": "array"
+    },
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "durationMs": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/error"
+        }
+      ]
+    },
+    "exitCode": {
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "finishedAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "idempotencyDisposition": {
+      "enum": [
+        "executed",
+        "replayed",
+        "resumed"
+      ]
+    },
+    "issueDate": {
+      "format": "date",
+      "type": "string"
+    },
+    "llmOutcome": {
+      "$ref": "llm-outcome.schema.json"
+    },
+    "operation": {
+      "enum": [
+        "daily",
+        "correction",
+        "gazette"
+      ]
+    },
+    "productionStateHash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "publicationSucceeded": {
+      "type": "boolean"
+    },
+    "publishingBlocked": {
+      "type": "boolean"
+    },
+    "releaseId": {
+      "$ref": "#/$defs/id"
+    },
+    "rollback": {
+      "$ref": "#/$defs/rollback"
+    },
+    "sourceStateHash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "startedAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "published",
+        "already_succeeded",
+        "rejected",
+        "failed",
+        "rolled_back",
+        "needs_reconciliation"
+      ]
+    },
+    "warnings": {
+      "items": {
+        "$ref": "#/$defs/warning"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "candidateId",
+    "operation",
+    "status",
+    "publicationSucceeded",
+    "exitCode",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "llmOutcome",
+    "checks",
+    "warnings",
+    "error",
+    "rollback",
+    "idempotencyDisposition",
+    "publishingBlocked"
+  ],
+  "title": "Radar V2 authoritative publisher result",
+  "type": "object"
+}

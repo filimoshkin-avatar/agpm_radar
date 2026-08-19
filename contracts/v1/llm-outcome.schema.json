@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://radar.aipractice.space/contracts/v1/llm-outcome.schema.json",
+  "title": "Radar V2 LLM outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "requested", "attempts", "effectiveAttemptOrder", "effective", "deterministicFallback"],
+  "properties": {
+    "status": {"enum": ["success", "fallback", "unavailable", "not_requested"]},
+    "requested": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["provider", "model"],
+          "properties": {"provider": {"type": "string", "minLength": 1, "maxLength": 128}, "model": {"type": "string", "minLength": 1, "maxLength": 256}}
+        }
+      ]
+    },
+    "attempts": {
+      "type": "array", "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["order", "provider", "model", "status", "accepted", "errorCode"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1},
+          "provider": {"type": "string", "minLength": 1, "maxLength": 128},
+          "model": {"type": "string", "minLength": 1, "maxLength": 256},
+          "status": {"enum": ["success", "error", "invalid", "skipped"]},
+          "accepted": {"type": "boolean"},
+          "errorCode": {"type": ["string", "null"], "pattern": "^[A-Z0-9_]{3,80}$"}
+        }
+      }
+    },
+    "effectiveAttemptOrder": {"type": ["integer", "null"], "minimum": 1},
+    "effective": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["provider", "model"],
+          "properties": {"provider": {"type": "string"}, "model": {"type": "string"}}
+        }
+      ]
+    },
+    "deterministicFallback": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["implementation", "version"],
+          "properties": {"implementation": {"type": "string", "pattern": "^[a-z0-9._-]{3,100}$"}, "version": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,80}$"}}
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"enum": ["success", "fallback"]}}, "required": ["status"]}, "then": {"properties": {"requested": {"type": "object"}, "effective": {"type": "object"}, "effectiveAttemptOrder": {"type": "integer"}, "deterministicFallback": {"type": "null"}}}},
+    {"if": {"properties": {"status": {"const": "unavailable"}}, "required": ["status"]}, "then": {"properties": {"effective": {"type": "null"}, "effectiveAttemptOrder": {"type": "null"}, "deterministicFallback": {"type": "object"}}}},
+    {"if": {"properties": {"status": {"const": "not_requested"}}, "required": ["status"]}, "then": {"properties": {"requested": {"type": "null"}, "attempts": {"maxItems": 0}, "effective": {"type": "null"}, "effectiveAttemptOrder": {"type": "null"}, "deterministicFallback": {"type": "null"}}}}
+  ]
+}

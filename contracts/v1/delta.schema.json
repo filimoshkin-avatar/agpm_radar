@@ -1,0 +1,2710 @@
+{
+  "$id": "https://radar.aipractice.space/contracts/v1/delta.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "afterStateHash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "applicationReleaseId": {
+      "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$",
+      "type": "string"
+    },
+    "assets": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "relativePath": {
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "relativePath",
+          "sha256",
+          "bytes",
+          "mediaType"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1000,
+      "type": "array"
+    },
+    "baseReleaseId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "baseSequence": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "beforeStateHash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "candidateId": {
+      "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$",
+      "type": "string"
+    },
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "expectedTables": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "afterLogicalSha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "afterRowCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "beforeLogicalSha256": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "beforeRowCount": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "table": {
+            "enum": [
+              "schema_migrations",
+              "application_compatibility",
+              "content_releases",
+              "source_snapshots",
+              "sources",
+              "materials",
+              "material_sources",
+              "material_evidence",
+              "editorial_queue",
+              "issues",
+              "legacy_issue_provenance",
+              "legacy_publication_evidence",
+              "issue_materials",
+              "issue_analysis",
+              "material_analysis",
+              "llm_attempts",
+              "source_rules",
+              "material_quality",
+              "rubrics",
+              "material_rubrics",
+              "daily_stats",
+              "gazettes",
+              "gazette_assets"
+            ]
+          }
+        },
+        "required": [
+          "table",
+          "beforeRowCount",
+          "afterRowCount",
+          "beforeLogicalSha256",
+          "afterLogicalSha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 23,
+      "minItems": 23,
+      "type": "array"
+    },
+    "operation": {
+      "enum": [
+        "daily",
+        "correction",
+        "gazette"
+      ]
+    },
+    "operations": {
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "insert"
+              },
+              "expectedBefore": {
+                "const": "absent"
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "release_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "release_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "content_releases"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "activated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "after_state_hash": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "base_release_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "before_state_hash": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "candidate_id": {
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "operation": {
+                    "enum": [
+                      "daily",
+                      "correction",
+                      "gazette"
+                    ],
+                    "type": "string"
+                  },
+                  "release_id": {
+                    "type": "string"
+                  },
+                  "schema_version": {
+                    "type": "integer"
+                  },
+                  "sequence": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "release_id",
+                  "sequence",
+                  "base_release_id",
+                  "candidate_id",
+                  "operation",
+                  "schema_version",
+                  "before_state_hash",
+                  "after_state_hash",
+                  "created_at",
+                  "activated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "insert"
+              },
+              "expectedBefore": {
+                "const": "absent"
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "snapshot_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "snapshot_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "source_snapshots"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "collected_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "item_count": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "manifest_sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "payload_sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "snapshot_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "snapshot_id",
+                  "manifest_sha256",
+                  "payload_sha256",
+                  "collected_at",
+                  "item_count"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "source_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "sources"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "enum": [
+                      0,
+                      1
+                    ],
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "source_id": {
+                    "type": "string"
+                  },
+                  "source_type": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "source_id",
+                  "name",
+                  "url",
+                  "source_type",
+                  "enabled",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "materials"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "agpm_takeaway": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "brief": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "canonical_url": {
+                    "format": "uri",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "content_hash": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "publication_date_status": {
+                    "enum": [
+                      "resolved",
+                      "low_confidence",
+                      "unresolved"
+                    ],
+                    "type": "string"
+                  },
+                  "published_at": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "source_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "url": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "material_id",
+                  "title",
+                  "url",
+                  "canonical_url",
+                  "source_name",
+                  "published_at",
+                  "publication_date_status",
+                  "summary",
+                  "agpm_takeaway",
+                  "brief",
+                  "content_hash",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "source_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "material_id",
+                  "source_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_sources"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "first_seen_at": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "last_seen_at": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "source_id": {
+                    "type": "string"
+                  },
+                  "source_url": {
+                    "format": "uri",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "material_id",
+                  "source_id",
+                  "source_url",
+                  "provider",
+                  "first_seen_at",
+                  "last_seen_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "source_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "material_id",
+                  "source_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_sources"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "evidence_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_evidence"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "evidence_id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "media_type": {
+                    "type": "string"
+                  },
+                  "metadata_json": {
+                    "type": "string"
+                  },
+                  "public_url": {
+                    "format": "uri",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "evidence_id",
+                  "material_id",
+                  "kind",
+                  "content_sha256",
+                  "media_type",
+                  "public_url",
+                  "metadata_json",
+                  "created_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "evidence_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "evidence_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_evidence"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "queue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "queue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "editorial_queue"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "integer"
+                  },
+                  "queue_id": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "state": {
+                    "enum": [
+                      "manual",
+                      "deferred",
+                      "review"
+                    ],
+                    "type": "string"
+                  },
+                  "target_issue_date": {
+                    "format": "date",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "queue_id",
+                  "material_id",
+                  "state",
+                  "target_issue_date",
+                  "priority",
+                  "reason",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "queue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "queue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "editorial_queue"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "issues"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "brief": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "content_hash": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "empty_reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "issue_date": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "issue_number": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "lifecycle_status": {
+                    "enum": [
+                      "draft",
+                      "published"
+                    ],
+                    "type": "string"
+                  },
+                  "publication_origin": {
+                    "enum": [
+                      "v2",
+                      "legacy_inferred",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "published_at": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "issue_date",
+                  "issue_number",
+                  "title",
+                  "brief",
+                  "lifecycle_status",
+                  "published_at",
+                  "publication_origin",
+                  "empty_reason",
+                  "content_hash",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "issue_materials"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "agpm_takeaway": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "brief": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "flags_json": {
+                    "type": "string"
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "key_material": {
+                    "enum": [
+                      0,
+                      1
+                    ],
+                    "type": "integer"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "perimeter": {
+                    "enum": [
+                      "near",
+                      "mid",
+                      "far"
+                    ],
+                    "type": "string"
+                  },
+                  "signal_score": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "signal_strength": {
+                    "enum": [
+                      "strong",
+                      "context",
+                      "watch"
+                    ],
+                    "type": "string"
+                  },
+                  "sort_order": {
+                    "type": "integer"
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "theses_json": {
+                    "type": "string"
+                  },
+                  "trend_notes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "verdict": {
+                    "enum": [
+                      "core",
+                      "adjacent"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "sort_order",
+                  "perimeter",
+                  "verdict",
+                  "summary",
+                  "agpm_takeaway",
+                  "brief",
+                  "theses_json",
+                  "trend_notes",
+                  "flags_json",
+                  "key_material",
+                  "signal_score",
+                  "signal_strength",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "issue_materials"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "issue_analysis"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "analysis_json": {
+                    "type": "string"
+                  },
+                  "brief": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "effective_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "headline": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "llm_status": {
+                    "enum": [
+                      "success",
+                      "fallback",
+                      "unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "prompt_version": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requested_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "theses_json": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "headline",
+                  "analysis_json",
+                  "theses_json",
+                  "brief",
+                  "llm_status",
+                  "requested_model",
+                  "effective_model",
+                  "provider",
+                  "prompt_version",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "issue_analysis"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_analysis"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "agpm_angle": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "effective_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "llm_status": {
+                    "enum": [
+                      "success",
+                      "fallback",
+                      "unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "prompt_version": {
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requested_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "short_text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "short_text",
+                  "agpm_angle",
+                  "llm_status",
+                  "requested_model",
+                  "effective_model",
+                  "provider",
+                  "prompt_version",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_analysis"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "insert"
+              },
+              "expectedBefore": {
+                "const": "absent"
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "attempt_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "attempt_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "llm_attempts"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "attempt_id": {
+                    "type": "string"
+                  },
+                  "attempt_order": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "attempted_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "error_code": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "finished_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "provider": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "requested_model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "scope": {
+                    "enum": [
+                      "issue",
+                      "material"
+                    ],
+                    "type": "string"
+                  },
+                  "started_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "success",
+                      "error",
+                      "invalid",
+                      "skipped"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "attempt_id",
+                  "scope",
+                  "issue_id",
+                  "material_id",
+                  "requested_model",
+                  "attempted_model",
+                  "provider",
+                  "attempt_order",
+                  "status",
+                  "error_code",
+                  "started_at",
+                  "finished_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "host": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "host"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "source_rules"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "date_strategy": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "notes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "host",
+                  "date_strategy",
+                  "notes",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "host": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "host"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "source_rules"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_quality"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_date_delta_days": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "publication_date_status": {
+                    "enum": [
+                      "resolved",
+                      "low_confidence",
+                      "unresolved"
+                    ],
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "review_status": {
+                    "enum": [
+                      "ok",
+                      "monitor",
+                      "queued"
+                    ],
+                    "type": "string"
+                  },
+                  "severity": {
+                    "enum": [
+                      "ok",
+                      "low",
+                      "medium",
+                      "high"
+                    ],
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "publication_date_status",
+                  "issue_date_delta_days",
+                  "severity",
+                  "review_status",
+                  "reason",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_quality"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "rubric_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "rubric_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_rubrics"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "confidence": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "rubric_id": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "rubric_id",
+                  "confidence",
+                  "source"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "material_id": {
+                    "type": "string"
+                  },
+                  "rubric_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "material_id",
+                  "rubric_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "material_rubrics"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "issue_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "daily_stats"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "adjacent": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "core": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "cut": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "far": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "included": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issue_id": {
+                    "type": "string"
+                  },
+                  "mid": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "near": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "viewed": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "issue_id",
+                  "viewed",
+                  "included",
+                  "cut",
+                  "near",
+                  "mid",
+                  "far",
+                  "core",
+                  "adjacent",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "gazette_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gazette_id"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "gazettes"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "asset_manifest_sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "content_hash": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  },
+                  "created_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "gazette_id": {
+                    "type": "string"
+                  },
+                  "lifecycle_status": {
+                    "enum": [
+                      "draft",
+                      "published"
+                    ],
+                    "type": "string"
+                  },
+                  "period": {
+                    "type": "string"
+                  },
+                  "published_at": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gazette_id",
+                  "period",
+                  "title",
+                  "lifecycle_status",
+                  "published_at",
+                  "asset_manifest_sha256",
+                  "content_hash",
+                  "created_at",
+                  "updated_at"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "upsert"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "gazette_id": {
+                    "type": "string"
+                  },
+                  "relative_path": {
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gazette_id",
+                  "relative_path"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "gazette_assets"
+              },
+              "values": {
+                "additionalProperties": false,
+                "properties": {
+                  "bytes": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "gazette_id": {
+                    "type": "string"
+                  },
+                  "media_type": {
+                    "type": "string"
+                  },
+                  "relative_path": {
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gazette_id",
+                  "relative_path",
+                  "sha256",
+                  "bytes",
+                  "media_type"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash",
+              "values"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "expectedBefore": {
+                "oneOf": [
+                  {
+                    "const": "absent"
+                  },
+                  {
+                    "pattern": "^[a-f0-9]{64}$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "key": {
+                "additionalProperties": false,
+                "properties": {
+                  "gazette_id": {
+                    "type": "string"
+                  },
+                  "relative_path": {
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gazette_id",
+                  "relative_path"
+                ],
+                "type": "object"
+              },
+              "rowAfterHash": {
+                "type": "null"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "table": {
+                "const": "gazette_assets"
+              }
+            },
+            "required": [
+              "sequence",
+              "action",
+              "table",
+              "key",
+              "expectedBefore",
+              "rowAfterHash"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "type": "array"
+    },
+    "releaseId": {
+      "pattern": "^[a-z0-9][a-z0-9._:-]{7,127}$",
+      "type": "string"
+    },
+    "schemaVersionAfter": {
+      "const": 1
+    },
+    "schemaVersionBefore": {
+      "const": 1
+    },
+    "tableContractVersion": {
+      "const": "1.0.0"
+    },
+    "targetSequence": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "contractVersion",
+    "releaseId",
+    "candidateId",
+    "operation",
+    "applicationReleaseId",
+    "baseReleaseId",
+    "baseSequence",
+    "targetSequence",
+    "schemaVersionBefore",
+    "schemaVersionAfter",
+    "tableContractVersion",
+    "beforeStateHash",
+    "afterStateHash",
+    "createdAt",
+    "operations",
+    "expectedTables",
+    "assets"
+  ],
+  "title": "Radar V2 publisher-generated typed delta",
+  "type": "object"
+}
