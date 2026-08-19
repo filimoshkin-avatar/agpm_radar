@@ -76,3 +76,6 @@ Stage 9 clean-commit application release, role-separated immutable artifacts, co
 manifest, shared deploy/publisher lock, identical two-target migrations and proven coordinated
 rollback/re-activation:
 `docs/radar-stage9-application-release-2026-08-19.md`.
+
+Stage 10 Local Ru read-only capacity/security/runtime preflight and approval boundary:
+`docs/radar-stage10-local-ru-preflight-2026-08-19.md`.

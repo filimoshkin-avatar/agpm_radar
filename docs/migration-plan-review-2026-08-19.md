@@ -1418,6 +1418,22 @@ Legacy/production, services, cron, Caddy, DNS и Local Ru не менялись.
 - NRD services не деградировали;
 - reboot persistence проверена позднее отдельным stage.
 
+### Read-only preflight
+
+Read-only аудит зафиксирован в `docs/radar-stage10-local-ru-preflight-2026-08-19.md`. На Local Ru
+достаточно RAM/disk/inodes, порты 8765–8767 свободны, UFW deny-by-default, Caddy valid/active и все
+внутренние NRD ports loopback-only/externally closed. Все семь canonical NRD units active+enabled,
+`NRestarts=0`, `/api/health` green, error-priority journal rows отсутствуют. Radar users, paths,
+units и vhost ещё не существуют; удалённых изменений не выполнялось.
+
+До deploy выявлен обязательный runtime blocker: target имеет Python 3.14.4/SQLite 3.46.1, а contract
+требует exact Python 3.12.3/SQLite 3.45.1 profile. Системный Python менять нельзя; нужен отдельный
+immutable Radar runtime под `/opt/radar-v2-runtime`, его portability/hash/rollback proof и отдельное
+явное подтверждение установки. Hardened clean candidate `app_release_20260819_545bf2e` (commit
+`545bf2e11db924b0bacf3b5ac71092495fd8052b`, package SHA-256
+`85accde8b8c77c1fb8d10e84c267be77e7ca7af8e7fdc7e24e3dfcee02a727eb`) прошёл полный gate и local
+rollback rehearsal; на Local Ru не передавался и не устанавливался.
+
 ## Этап 11. Initial seed и историческая acceptance
 
 ### Работы
@@ -1650,7 +1666,8 @@ Stage 0, urgent Stage 0A и Stage 1–9 завершены.
 Stage 9 закрепил clean-commit provenance, role-separated immutable artifacts, frozen compatibility
 manifest, общий application/content lock, одинаковые source/production staging migrations,
 dependency-ordered activation и доказанный coordinated rollback. Stage 10 начинается с read-only
-аудита disk/RAM/ports/Caddy/UFW/NRD load; users/paths/units и loopback deployment создаются только
-после отдельного явного подтверждения владельца.
+аудита disk/RAM/ports/Caddy/UFW/NRD load; аудит завершён. Следующая граница — отдельный exact
+Python 3.12.3/SQLite 3.45.1 runtime и затем users/paths/units/loopback deployment, всё только после
+отдельного явного подтверждения владельца.
 
 До отдельного явного подтверждения владельца в Stage 10 не создаются Local Ru Radar users/paths/services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.
