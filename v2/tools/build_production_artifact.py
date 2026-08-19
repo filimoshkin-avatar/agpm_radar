@@ -202,7 +202,11 @@ def main() -> int:
     print("Radar V2 production artifact: PASS")
     print(f"Runtime files: {len(files)}")
     print(f"Artifact SHA-256: {digest}")
-    print(f"Manifest: {manifest_path.relative_to(V2_ROOT)}")
+    try:
+        displayed_manifest_path = manifest_path.relative_to(V2_ROOT)
+    except ValueError:
+        displayed_manifest_path = manifest_path
+    print(f"Manifest: {displayed_manifest_path}")
     return 0
 
 

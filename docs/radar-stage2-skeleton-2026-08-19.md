@@ -39,16 +39,16 @@ It ran to completion on CPython 3.12.3, uv 0.11.14 and Node 22.23.2:
 Created a fresh temporary virtual environment; resolved 16 packages; installed 14 packages
 
 [verify] Ruff format check
-19 files already formatted
+21 files already formatted
 
 [verify] Ruff lint
 All checks passed!
 
 [verify] strict mypy
-Success: no issues found in 18 source files
+Success: no issues found in 20 source files
 
 [verify] pytest
-16 passed
+17 passed
 
 [verify] parent Stage 1 contract validator
 Radar V2 contracts validation: PASS
@@ -62,7 +62,7 @@ JavaScript syntax: PASS (1 module)
 
 [verify] secret and Legacy-isolation scan
 Radar V2 secret/isolation scan: PASS
-Files scanned: 28
+Files scanned: 30
 Synthetic fixtures: 1
 Runtime imports: Python stdlib/local only; browser module dependency-free
 
@@ -95,6 +95,10 @@ The artifact contains no `tests`, `tools`, fixtures, docs, virtual environment, 
 metadata, OpenClaw material, credentials, databases, SQLite sidecars, migrations or raw corpus. The
 generated artifact and caches remain ignored local verification output under `v2/dist/` and
 `v2/.venv/`; they are not repository inputs.
+
+An independent acceptance rerun also builds into an absolute directory outside `v2/`. A regression
+test guarantees that this supported `--output-dir` form completes successfully and reports the
+external manifest path without assuming it is repository-relative.
 
 ## Isolation audit
 
