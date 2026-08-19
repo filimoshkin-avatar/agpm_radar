@@ -71,3 +71,8 @@ activation/rollback simulation:
 Stage 8 pointer-aware read-only API, public-view SQLite authorizer, bounded OpenAPI DTOs, responsive
 same-origin frontend, empty/no-LLM states, safe gazette/static routing and historical acceptance:
 `docs/radar-stage8-readonly-api-frontend-2026-08-19.md`.
+
+Stage 9 clean-commit application release, role-separated immutable artifacts, compatibility
+manifest, shared deploy/publisher lock, identical two-target migrations and proven coordinated
+rollback/re-activation:
+`docs/radar-stage9-application-release-2026-08-19.md`.

@@ -1,4 +1,4 @@
-# Radar V2 through Stage 8
+# Radar V2 through Stage 9
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
@@ -8,8 +8,10 @@ artifact invariants, and immutable gazette validation. Stage 7 adds exact full s
 all-table deltas, transactional staging apply and a durable two-root local publisher simulation.
 Stage 8 adds a pointer-aware published-only API, strict SQLite authorizer, bounded public DTO
 queries, loopback HTTP transport and responsive same-origin frontend with gazette routing.
-Normal V2 runtime access to Legacy remains disabled. Real production hosts, cron and service
-integration are deliberately absent.
+Stage 9 adds clean-commit provenance, role-separated immutable application artifacts, a frozen
+compatibility manifest, staging-only migrations, atomic activation and coordinated rollback.
+Normal V2 runtime access to Legacy remains disabled. Real production hosts, cron and installed
+service integration are deliberately absent.
 
 ## Stack
 
@@ -40,6 +42,10 @@ the locked development group and do not enter the production artifact.
 - `packages/legacy_bridge/` — explicit bootstrap-only, read-only Legacy importer;
 - `packages/publisher/` — audit/result adapters, durable state machine and local activation/rollback
   simulation;
+- `packages/deployment/` — canonical application artifacts, compatibility manifest, versioned
+  staging migrations and manual-approved two-target activation/rollback;
+- `apps/migration_runner/` — standalone staging-only migration entrypoint;
+- `deploy/templates/` — inert hardened systemd/Caddy templates for later approved deployment;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
 - `tests/` — contract, runtime, publication, API/frontend, security and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
@@ -168,3 +174,22 @@ smoke and headless DOM console smoke are part of the mandatory gate.
 
 Stage 8 remains local/disposable. It installs no application release or service and changes no
 production pointer, cron, Caddy, DNS or Local Ru state. Application automation begins at Stage 9.
+
+## Stage 9 boundary
+
+An application release can be built only from a completely clean tracked `HEAD` (or an exact tag)
+and contains separate canonical API, web and migration archives. The compatibility manifest binds
+the commit, source-tree digest, schema/table/public API and package contract versions, exact SQLite
+runtime profile and every role hash. Archive readers reject noncanonical bytes, unexpected members,
+links, traversal, unsafe modes, bounds violations and provenance or nested-artifact tampering.
+
+The migration runner operates only on an inactive private staging database and preserves logical
+content state. Source and production copies receive the same ordered migration bundle, then content,
+API and web pointers activate in dependency order with smokes. Any fault restores and proves both
+previous targets before another deploy may proceed. Application deployment and content publishing
+share the same `radar-mutation.lock`; candidates still cannot carry SQL, DDL or migrations.
+
+Stage 9 acceptance used a clean commit and test-only approval against two retained `/tmp` roots,
+proved rollback and re-activation, and did not install the inert templates or touch Legacy, cron,
+Caddy, DNS, Local Ru or a real production pointer. Those external changes start only after the
+read-only Stage 10 audit and explicit owner approval.

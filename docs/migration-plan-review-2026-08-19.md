@@ -1375,6 +1375,27 @@ services, Caddy, DNS и Local Ru не менялись.
 - production artifact excludes publisher/OpenClaw/LLM code where not needed;
 - local staging deploy/rollback green.
 
+### Результат
+
+Stage 9 завершён и зафиксирован в
+`docs/radar-stage9-application-release-2026-08-19.md`. Clean commit
+`d45069d8639019da02bfb7927484d32d7c327331` собран в побайтово воспроизводимый release
+`app_release_20260819_d45069d`; внешний package SHA-256 —
+`81b7c26802c6f82e23ae8f502366405a610b810eb4c8c498a3dc630a882eee78`.
+
+API, web и migration bundle разделены, хешированы и связаны strict compatibility/provenance
+manifest. Public API artifact содержит только published read path и исключает publisher,
+candidate builder, editorial/LLM orchestration, OpenClaw, tests и fixtures. Application deployment
+и content publisher используют общий no-follow `radar-mutation.lock`; content candidate по-прежнему
+не может передавать SQL/DDL/migrations.
+
+Test-only local rehearsal независимо мигрировала source/production staging copies миграциями
+`0001 -> 0002`, получила одинаковый schema SHA-256
+`5c7e6e66afc7fd814f25c5bb7b441e22131db8ffc35cf00fd2d81760ccbc6266`, выполнила dependency-ordered
+activation, доказанный rollback и повторную активацию. Полный gate: 142 tests, Ruff, strict mypy,
+contracts, JavaScript, console smoke, isolation/secret scan и 21-file public artifact PASS.
+Legacy/production, services, cron, Caddy, DNS и Local Ru не менялись.
+
 ## Этап 10. Подготовить Local Ru без public activation
 
 ### Работы
@@ -1623,12 +1644,13 @@ services, Caddy, DNS и Local Ru не менялись.
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4, Stage 5, Stage 6 и Stage 7 завершены.
-Следующий последовательный шаг — **Stage 8: read-only API и frontend V2**.
+Stage 0, urgent Stage 0A и Stage 1–9 завершены.
+Следующий последовательный шаг — **Stage 10: подготовить Local Ru без public activation**.
 
-Stage 7 закрепил exact full seed, typed all-table delta, transactional staging apply, durable
-state-machine и local source/disposable-production activation/rollback simulation. Stage 8 строит
-read-only API и frontend только поверх frozen published DTO/public views, включая safe release
-markers, connection reopen contract, bounded query validation, no-LLM/empty UI и gazette routes.
+Stage 9 закрепил clean-commit provenance, role-separated immutable artifacts, frozen compatibility
+manifest, общий application/content lock, одинаковые source/production staging migrations,
+dependency-ordered activation и доказанный coordinated rollback. Stage 10 начинается с read-only
+аудита disk/RAM/ports/Caddy/UFW/NRD load; users/paths/units и loopback deployment создаются только
+после отдельного явного подтверждения владельца.
 
-До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.
+До отдельного явного подтверждения владельца в Stage 10 не создаются Local Ru Radar users/paths/services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.
