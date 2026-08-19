@@ -1,0 +1,22 @@
+[Unit]
+Description=AgPM Radar API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/mnt/vdd/Radar/backend/radar-api
+Environment=RADAR_ROOT=/mnt/vdd/Radar
+Environment=RADAR_DB=/mnt/vdd/Radar/data/db/radar.sqlite
+Environment=RADAR_BACKEND_HOST=127.0.0.1
+Environment=RADAR_BACKEND_PORT=8765
+ExecStart=/usr/bin/python3 /mnt/vdd/Radar/backend/radar-api/server.py
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/mnt/vdd/Radar/data/logs/backend/radar-api.log
+StandardError=append:/mnt/vdd/Radar/data/logs/backend/radar-api.err.log
+
+[Install]
+WantedBy=multi-user.target

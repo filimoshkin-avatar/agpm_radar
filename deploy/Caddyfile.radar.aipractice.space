@@ -1,0 +1,33 @@
+radar.aipractice.space {
+	root * /mnt/vdd/Radar/work/radar-app
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8765
+	}
+
+	handle {
+		try_files {path} {path}/ /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), local-network-access=()"
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	@html path / /index.html
+	header @html Cache-Control "no-store"
+
+	@app_assets path *.css *.js
+	header @app_assets Cache-Control "no-cache, max-age=0, must-revalidate"
+
+	@static path *.svg *.ttf *.png *.jpg *.jpeg *.webp
+	header @static Cache-Control "public, max-age=604800"
+
+	log {
+		output file /mnt/vdd/Radar/data/logs/backend/caddy-access.log
+		format console
+	}
+}

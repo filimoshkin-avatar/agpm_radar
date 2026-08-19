@@ -1,0 +1,13 @@
+[Unit]
+Description=AgPM Radar daily pipeline
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/mnt/vdd/Radar/pipeline/scripts
+Environment=RADAR_ROOT=/mnt/vdd/Radar
+Environment=RADAR_DB=/mnt/vdd/Radar/data/db/radar.sqlite
+ExecStart=/mnt/vdd/Radar/pipeline/bin/radar_daily_publish.sh

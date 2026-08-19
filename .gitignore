@@ -1,0 +1,52 @@
+# Local environment and secrets
+.env
+*.env
+*.env.local
+pipeline/config/radar.env
+config/
+
+# Runtime data
+data/db/*.sqlite
+data/db/*.sqlite-*
+data/db/backups/
+data/exports/json-cache/
+data/exports/public-snapshots/
+data/logs/
+
+# Corpus and raw materials
+data/corpus/
+inbox/
+materials/
+
+# Generated and temporary files
+__pycache__/
+*.py[cod]
+*.bak
+*.bak.*
+*.before-*
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Frontend dependencies and build output
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# QA artifacts
+work/qa/node_modules/
+work/qa-screenshots/
+
+# Design handoff and generated standalone pages
+work/design_handoff_radar_agpm/
+work/widget-handoff-*/
+work/radar-app/gazette-*.html
+
+# Large local backups
+backups/
+
+# Deploy runtime markers
+deploy/last-production-ts.txt

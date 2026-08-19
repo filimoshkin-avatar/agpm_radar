@@ -1,0 +1,10 @@
+[Unit]
+Description=Run AgPM Radar daily pipeline at 08:00 Moscow time
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Moscow
+Persistent=true
+Unit=radar-daily-publish.service
+
+[Install]
+WantedBy=timers.target

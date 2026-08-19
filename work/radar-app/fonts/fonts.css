@@ -1,0 +1,16 @@
+/* Самостоятельный хостинг шрифтов Радара AgPM (вместо Google Fonts CDN).
+   Golos Text — вариативный (вес 400–600 используется в UI), PT Mono — только для данных. Лицензии OFL рядом. */
+@font-face {
+  font-family: 'Golos Text';
+  src: url('GolosText[wght].ttf') format('truetype-variations');
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PT Mono';
+  src: url('PTMono-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

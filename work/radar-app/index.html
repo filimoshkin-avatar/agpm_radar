@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgPM Radar — сигналы для агентного управления</title>
+  <meta name="description" content="Ежедневный радар управленческой агентности: governance, оркестрация, примеры использования и риски внедрения.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:site_name" content="AgPM Radar">
+  <meta property="og:url" content="https://radar.aipractice.space/">
+  <meta property="og:title" content="AgPM Radar — сигналы для агентного управления">
+  <meta property="og:description" content="Ежедневный радар управленческой агентности: governance, оркестрация, примеры использования и риски внедрения.">
+  <meta property="og:image" content="https://radar.aipractice.space/og-image-20260803.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AgPM Radar — сигналы для агентного управления">
+  <meta name="twitter:description" content="Ежедневный радар управленческой агентности: governance, оркестрация, примеры использования и риски внедрения.">
+  <meta name="twitter:image" content="https://radar.aipractice.space/og-image-20260803.png">
+  <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
+  <link rel="icon" href="./favicon.svg?v=20260729-1734">
+  <link rel="stylesheet" href="./styles.css?v=20260818-analysis-layout">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="Радар AgPM">
+      <span class="brand__mark" aria-hidden="true">
+        <svg width="27" height="27" viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="11.5"></circle>
+          <circle cx="14" cy="14" r="6"></circle>
+          <g class="brand__sweep" data-anim>
+            <path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z"></path>
+            <line x1="14" y1="14" x2="14" y2="2.5"></line>
+          </g>
+          <circle class="brand__blip b1" data-anim cx="17.8" cy="17.2" r="1.5"></circle>
+          <circle class="brand__blip b2" data-anim cx="6" cy="16.9" r="1.5"></circle>
+          <circle class="brand__blip b3" data-anim cx="17.9" cy="3.2" r="1.5"></circle>
+        </svg>
+      </span>
+      <span>
+        <span class="brand__title">Радар AgPM</span>
+        <span class="brand__subtitle">Агентное управление проектами</span>
+      </span>
+    </a>
+    <div class="topbar__right">
+      <div id="issueDate" class="mono issue-date">загрузка выпуска</div>
+      <div class="segments" role="tablist" aria-label="Период">
+        <button class="segment is-active" data-period="issue">Выпуск</button>
+        <button class="segment" data-period="yesterday">Вчера</button>
+        <button class="segment" data-period="7d">7 дней</button>
+        <button class="segment" data-period="30d">30 дней</button>
+      </div>
+      <label class="search">
+        <span aria-hidden="true">⌖</span>
+        <input id="search" type="search" placeholder="Поиск по радару">
+      </label>
+    </div>
+  </header>
+
+  <main id="top" class="page">
+    <section class="filters" aria-label="Фильтры">
+      <div class="filter-row">
+        <span class="filter-label">Периметр</span>
+        <button class="chip is-active" data-perimeter="all">Все периметры</button>
+        <button class="chip chip-near" data-perimeter="near">Близкий <span id="nearChip">0</span></button>
+        <button class="chip chip-mid" data-perimeter="mid">Средний <span id="midChip">0</span></button>
+        <button class="chip chip-far" data-perimeter="far">Дальний <span id="farChip">0</span></button>
+        <button id="resetFilters" class="reset" disabled>Снять все фильтры</button>
+      </div>
+      <div id="activeFilter" class="active-filter" hidden></div>
+    </section>
+
+    <section class="summary-grid" aria-label="Сводка выпуска">
+      <div><span class="summary-label">Просмотрено</span><strong id="viewed" class="summary-number">0</strong></div>
+      <div><span class="summary-label">Включено в радар</span><strong id="included" class="summary-number">0</strong><small id="includedShare">0% от просмотренного</small></div>
+      <div><span class="summary-label">Отсечено</span><strong id="cut" class="summary-number">0</strong><small>дубли, реклама, agent-washing</small></div>
+      <div><span class="summary-label">Б / С / Д</span><strong id="perimeters" class="summary-number perimeters">0 / 0 / 0</strong></div>
+      <div><span class="summary-label">Доля близкого</span><strong id="nearShare" class="summary-number">0%</strong></div>
+      <div><span class="summary-label">Радар исправен · Статистика</span><div id="sparkline" class="sparkline"></div></div>
+    </section>
+
+    <section class="today">
+      <div>
+        <h1 id="thesesTitle">Что важно для AgPM сегодня</h1>
+        <div id="theses" class="theses"></div>
+      </div>
+      <div class="radar-panel">
+        <h2 id="radarTitle">Сонар</h2>
+        <div id="radarViz" class="radar-viz" aria-hidden="true"></div>
+      </div>
+      <details id="dailyAnalysis" class="daily-analysis" hidden>
+        <summary>
+          <span>Аналитический разбор выпуска</span>
+          <b id="dailyAnalysisHeadline"></b>
+        </summary>
+        <div id="dailyAnalysisBody" class="daily-analysis__body"></div>
+      </details>
+    </section>
+
+    <section id="columns" class="columns loading" aria-label="Материалы по периметрам"></section>
+
+    <section class="trend-section" aria-label="Динамика трендов">
+      <div class="section-heading">
+        <h2>Динамика трендов</h2>
+        <span id="trendRange" class="section-note">30 дней · агрегаты радара</span>
+      </div>
+      <div class="trend-grid">
+      <article class="panel panel-wide trend-panel">
+        <div class="panel-heading">
+          <h2>Материалы в разрезе по дням</h2>
+          <div class="trend-legend" aria-label="Легенда графика">
+            <span><i class="legend-dot near"></i>близкий</span>
+            <span><i class="legend-dot mid"></i>средний</span>
+            <span><i class="legend-dot far"></i>дальний</span>
+            <span class="legend-line">┄ включено, % от просмотренного</span>
+          </div>
+        </div>
+        <div id="trendBars" class="trend-bars"></div>
+      </article>
+      <article class="panel">
+        <h2>Календарь 30 дней</h2>
+        <div id="heatmap" class="heatmap"></div>
+      </article>
+      <article class="panel">
+        <h2>Рубрики за 30 дней</h2>
+        <div id="rubrics" class="bar-list"></div>
+      </article>
+      <article class="panel">
+        <h2>Источники</h2>
+        <div id="sources" class="bar-list"></div>
+      </article>
+      </div>
+    </section>
+
+    <section class="timeline-section">
+      <h2>Хронология выпусков</h2>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <section class="rubricator-section">
+      <h2>Рубрикатор</h2>
+      <div id="rubricator" class="rubricator"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <section>
+        <h2>Как радар отбирает материалы</h2>
+        <p>Радар проверяет первоисточник, полноту и управленческий контекст материала. Дубли, пересказы без новой фактуры, реклама и agent-washing остаются во внутреннем слое отсечения.</p>
+        <p>В публичный выпуск попадают материалы, полезные для AgPM: governance, ответственность человека, портфельная видимость, ИСУП, риски, ресурсы, workflow и операционная модель агентной работы.</p>
+      </section>
+      <section>
+        <h2>Источники наблюдения</h2>
+        <div id="footerSources" class="footer-sources"></div>
+      </section>
+    </div>
+    <div class="footer__bottom">© 2026 · radar.aipractice.space · обновление ежедневно в 08:00 МСК</div>
+  </footer>
+
+  <section id="gazetteView" class="gazette-view" aria-label="Газета AgPM" hidden>
+    <iframe
+      class="gazette-frame"
+      src="./gazette-20260803.html"
+      title="Новости Агентного управления — выпуск от 3 августа 2026"
+      sandbox="allow-same-origin allow-modals">
+    </iframe>
+  </section>
+
+  <div class="gazette-print-control" aria-label="Действия с газетой">
+    <button id="printGazette" class="gazette-print-control__button" type="button">Печать</button>
+  </div>
+
+  <nav class="view-switcher" aria-label="Переключение режима просмотра">
+    <button class="view-switcher__button is-active" type="button" data-view-mode="radar" aria-pressed="true">Радар</button>
+    <button class="view-switcher__button" type="button" data-view-mode="gazette" aria-pressed="false">Газета</button>
+  </nav>
+
+  <script src="./app.js?v=20260818-issue-stats"></script>
+</body>
+</html>
