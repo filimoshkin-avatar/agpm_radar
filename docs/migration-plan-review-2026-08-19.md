@@ -1225,6 +1225,16 @@ V2 publication и Stage 5 candidate builder не реализованы.
 - Project Manager может сформировать candidate без прямого SQL.
 - успешный fallback и no-LLM candidate дают однозначный machine-readable result и не маскируются как primary-model success.
 
+### Результат
+
+Stage 5 завершён и зафиксирован в `docs/radar-stage5-candidate-builder-2026-08-19.md`.
+Реализованы dependency-free daily/correction/gazette builders, строгая runtime-валидация frozen
+contract v1, Project Manager CLI/playbooks, типизированные full-row mutations с optimistic
+preconditions и completeness counts, перенос текущих drafts/editorial queue/snapshot evidence,
+replay в новую staging SQLite, immutable nested package с preview/checksums и final-report adapter.
+Candidate не может авторить `content_releases`, SQL/DDL, migrations, schema metadata или FTS.
+Publication, production integration и Stage 6 renderers не реализованы.
+
 ## Этап 6. Детерминированные renderers и validators
 
 ### Работы
@@ -1565,13 +1575,13 @@ V2 publication и Stage 5 candidate builder не реализованы.
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3 и Stage 4 завершены. Следующий
-последовательный шаг — **Stage 5: Candidate builder и Project Manager adapter**.
+Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4 и Stage 5 завершены. Следующий
+последовательный шаг — **Stage 6: детерминированные renderers и validators**.
 
-Stage 4 закрепил один creation-sealed immutable collected-input snapshot, отдельные verified copies и
-consumption attestations для Legacy/V2, disjoint queues/corpus/DB/logs, exact Legacy baseline gate и
-daily comparison без V2 publication. Stage 5 реализует closed desired-state candidates и adapter,
-не ослабляя manifest/checksum/payload identity; Stage 7 принимает только generated typed deltas с
-full replicated-table expectations.
+Stage 5 закрепил closed desired-state candidates, immutable packages, typed replicated-row
+mutations, exact snapshot/issue/base preconditions, drafts/queue completeness, disposable staging
+replay и Project Manager reporting без publication capability. Stage 6 строит только
+детерминированные renderers/validators; Stage 7 принимает generated typed deltas с full
+replicated-table expectations.
 
 До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.

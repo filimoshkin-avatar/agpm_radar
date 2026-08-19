@@ -53,3 +53,8 @@ replica equivalence and locked external audit journal:
 Stage 4 creation-sealed input snapshots, independent Legacy/V2 copies and attestations, fail-closed
 Legacy baseline gate, branch isolation and canonical daily comparison:
 `docs/radar-stage4-snapshot-fork-2026-08-19.md`.
+
+Stage 5 closed daily/correction/gazette candidates, typed desired-state mutations, disposable
+SQLite replay, immutable packages, Project Manager playbooks and final-result adapter:
+`docs/radar-stage5-candidate-builder-2026-08-19.md` and
+`docs/radar-stage5-project-manager-playbooks-2026-08-19.md`.

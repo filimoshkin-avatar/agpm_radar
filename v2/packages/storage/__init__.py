@@ -16,7 +16,7 @@ from packages.storage.sqlite_profile import (
 )
 
 COMPONENT_NAME = "storage"
-COMPONENT_STATUS = "stage-3-implemented"
+COMPONENT_STATUS = "stage-5-implemented"
 
 __all__ = [
     "COMPONENT_NAME",

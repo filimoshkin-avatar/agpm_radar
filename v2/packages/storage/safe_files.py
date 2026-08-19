@@ -261,6 +261,110 @@ def publish_flat_directory(
         os.close(root_descriptor)
 
 
+def _validated_tree_files(files: Mapping[str, bytes]) -> tuple[tuple[tuple[str, ...], bytes], ...]:
+    if not files:
+        raise SafeFilesystemError("immutable directory must contain at least one file")
+    validated: list[tuple[tuple[str, ...], bytes]] = []
+    file_paths: set[tuple[str, ...]] = set()
+    for relative, content in files.items():
+        if not isinstance(relative, str) or not isinstance(content, bytes):
+            raise SafeFilesystemError("immutable tree entries must be relative strings and bytes")
+        parts = relative_parts(relative)
+        if parts in file_paths:
+            raise SafeFilesystemError(f"duplicate immutable tree path: {relative}")
+        file_paths.add(parts)
+        validated.append((parts, content))
+    for parts in file_paths:
+        for index in range(1, len(parts)):
+            if parts[:index] in file_paths:
+                raise SafeFilesystemError(
+                    f"immutable tree file is also a directory prefix: {'/'.join(parts[:index])}"
+                )
+    return tuple(sorted(validated, key=lambda item: item[0]))
+
+
+def _open_or_create_private_child(parent: int, name: str) -> int:
+    with suppress(FileExistsError):
+        os.mkdir(_simple_name(name), mode=0o700, dir_fd=parent)
+    child = os.open(_simple_name(name), _DIRECTORY_FLAGS | _NOFOLLOW, dir_fd=parent)
+    _require_private_directory(child, name)
+    return child
+
+
+def _remove_private_tree(descriptor: int) -> None:
+    """Remove only an unpublished temporary tree created by this module."""
+    os.fchmod(descriptor, 0o700)
+    for name in sorted(os.listdir(descriptor), reverse=True):
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        if stat.S_ISDIR(metadata.st_mode):
+            child = os.open(name, _DIRECTORY_FLAGS | _NOFOLLOW, dir_fd=descriptor)
+            try:
+                _remove_private_tree(child)
+            finally:
+                os.close(child)
+            os.rmdir(name, dir_fd=descriptor)
+        elif stat.S_ISREG(metadata.st_mode):
+            os.unlink(name, dir_fd=descriptor)
+        else:
+            raise SafeFilesystemError(f"special file appeared in temporary tree: {name}")
+
+
+def publish_tree_directory(
+    root: Path,
+    name: str,
+    files: Mapping[str, bytes],
+    *,
+    directory_mode: int = 0o500,
+    file_mode: int = 0o400,
+) -> Path:
+    """Atomically publish a nested immutable directory without following symlinks."""
+    if directory_mode != 0o500 or file_mode != 0o400:
+        raise SafeFilesystemError("immutable package modes must be exactly 0500/0400")
+    final_name = _simple_name(name)
+    validated_files = _validated_tree_files(files)
+    root_descriptor = open_directory_nofollow(root)
+    temporary = _temporary_name(final_name)
+    temporary_descriptor: int | None = None
+    temporary_exists = False
+    try:
+        _require_private_directory(root_descriptor, str(root))
+        os.mkdir(temporary, mode=0o700, dir_fd=root_descriptor)
+        temporary_exists = True
+        temporary_descriptor = os.open(
+            temporary,
+            _DIRECTORY_FLAGS | _NOFOLLOW,
+            dir_fd=root_descriptor,
+        )
+        for parts, content in validated_files:
+            descriptor = temporary_descriptor
+            opened: list[int] = []
+            try:
+                for component in parts[:-1]:
+                    child = _open_or_create_private_child(descriptor, component)
+                    opened.append(child)
+                    descriptor = child
+                _write_new_file_at(descriptor, parts[-1], content, 0o600)
+            finally:
+                for opened_descriptor in reversed(opened):
+                    os.close(opened_descriptor)
+        _seal_tree_descriptor(temporary_descriptor)
+        os.fchmod(temporary_descriptor, directory_mode)
+        os.fsync(temporary_descriptor)
+        _rename_noreplace(root_descriptor, temporary, root_descriptor, final_name)
+        temporary_exists = False
+        os.fsync(root_descriptor)
+        return root / final_name
+    finally:
+        if temporary_exists and temporary_descriptor is not None:
+            _remove_private_tree(temporary_descriptor)
+        if temporary_descriptor is not None:
+            os.close(temporary_descriptor)
+        if temporary_exists:
+            with suppress(FileNotFoundError):
+                os.rmdir(temporary, dir_fd=root_descriptor)
+        os.close(root_descriptor)
+
+
 def _stable_regular_file(
     descriptor: int,
     label: str,
@@ -344,6 +448,100 @@ def read_regular_file(path: Path, *, expected_mode: int | None = None) -> bytes:
         )
     finally:
         os.close(parent_descriptor)
+
+
+def open_regular_file_nofollow(path: Path, *, expected_mode: int | None = None) -> int:
+    """Pin a private single-link regular file without following any path component."""
+    parent_descriptor: int | None = None
+    descriptor: int | None = None
+    try:
+        parent_descriptor = open_directory_nofollow(path.parent)
+        descriptor = os.open(
+            _simple_name(path.name),
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | _NOFOLLOW,
+            dir_fd=parent_descriptor,
+        )
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise SafeFilesystemError(f"file must be regular and single-link: {path}")
+        mode = stat.S_IMODE(metadata.st_mode)
+        if expected_mode is not None and mode != expected_mode:
+            raise SafeFilesystemError(
+                f"file mode differs from required {expected_mode:#05o}: {path}"
+            )
+        if expected_mode is None and mode & 0o077:
+            raise SafeFilesystemError(f"file permissions are broader than private: {path}")
+        result = descriptor
+        descriptor = None
+        return result
+    except OSError as error:
+        raise SafeFilesystemError(
+            f"cannot pin regular file without symlinks: {path}: {error}"
+        ) from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if parent_descriptor is not None:
+            os.close(parent_descriptor)
+
+
+def _read_tree_into(files: dict[str, bytes], descriptor: int, prefix: PurePosixPath) -> None:
+    before = os.fstat(descriptor)
+    if not stat.S_ISDIR(before.st_mode) or stat.S_IMODE(before.st_mode) != 0o500:
+        raise SafeFilesystemError(f"immutable directory mode must be exactly 0500: {prefix}")
+    initial_names = tuple(sorted(os.listdir(descriptor)))
+    for name in initial_names:
+        _simple_name(name)
+        metadata = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        relative = prefix / name
+        if stat.S_ISDIR(metadata.st_mode):
+            child = os.open(name, _DIRECTORY_FLAGS | _NOFOLLOW, dir_fd=descriptor)
+            try:
+                _read_tree_into(files, child, relative)
+            finally:
+                os.close(child)
+        elif stat.S_ISREG(metadata.st_mode):
+            files[relative.as_posix()] = read_regular_file_at(
+                descriptor,
+                name,
+                label=relative.as_posix(),
+                expected_mode=0o400,
+            )
+        else:
+            raise SafeFilesystemError(f"special file in immutable tree: {relative}")
+    final_names = tuple(sorted(os.listdir(descriptor)))
+    after = os.fstat(descriptor)
+    signature_before = (
+        before.st_dev,
+        before.st_ino,
+        before.st_mode,
+        before.st_nlink,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    signature_after = (
+        after.st_dev,
+        after.st_ino,
+        after.st_mode,
+        after.st_nlink,
+        after.st_mtime_ns,
+        after.st_ctime_ns,
+    )
+    if initial_names != final_names or signature_before != signature_after:
+        raise SafeFilesystemError(f"immutable directory changed while read: {prefix}")
+
+
+def read_tree_files(root: Path) -> dict[str, bytes]:
+    """Read a complete exact-mode immutable tree while every directory stays pinned."""
+    descriptor = open_directory_nofollow(root)
+    try:
+        files: dict[str, bytes] = {}
+        _read_tree_into(files, descriptor, PurePosixPath())
+        if not files:
+            raise SafeFilesystemError("immutable tree contains no files")
+        return files
+    finally:
+        os.close(descriptor)
 
 
 def write_new_relative(
@@ -480,10 +678,13 @@ __all__ = [
     "create_private_directory",
     "ensure_private_directory",
     "open_directory_nofollow",
+    "open_regular_file_nofollow",
     "private_tree_sha256",
     "publish_flat_directory",
+    "publish_tree_directory",
     "read_regular_file",
     "read_regular_file_at",
+    "read_tree_files",
     "relative_parts",
     "seal_private_tree",
     "write_new_relative",

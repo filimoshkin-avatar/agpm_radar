@@ -1,10 +1,10 @@
-# Radar V2 through Stage 4
+# Radar V2 through Stage 5
 
-This directory is the isolated Radar V2 application workspace. In addition to the accepted Stage 3
-SQLite/importer boundary, Stage 4 adds the post-collection immutable input snapshot, independent
-Legacy/V2 branch copies and consumption attestations, capability-scoped branch state, isolated
-runner outcomes and a canonical daily comparison report. Normal V2 runtime access to Legacy
-remains disabled. V2 publication, candidate construction, production hosts, cron and service
+This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
+contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
+daily/correction/gazette candidate construction, typed replicated-row mutations, disposable SQLite
+replay, immutable machine packages, human previews and the Project Manager report adapter. Normal
+V2 runtime access to Legacy remains disabled. V2 publication, production hosts, cron and service
 integration are deliberately absent.
 
 ## Stack
@@ -21,13 +21,17 @@ the locked development group and do not enter the production artifact.
 ## Layout
 
 - `apps/api/` — inert API application identity and runtime-profile preflight;
+- `apps/candidate_builder/` — explicit daily/correction/gazette/status/retry/report CLI;
 - `apps/web/` — dependency-free static web shell;
 - `packages/storage/` — strict SQLite schema, migration runner, FTS and canonical hashing;
 - `packages/storage/safe_files.py` — no-follow, private, fsynced, atomic no-replace artifacts;
 - `packages/domain/snapshot.py` — canonical four-file snapshot creation and consumption checks;
 - `packages/domain/dual_run.py` — separate branch workspaces, attestations and daily comparison;
+- `packages/domain/candidates.py` — closed contract-v1 candidate builders/runtime validation;
+- `packages/domain/candidate_mutations.py` — database-derived typed desired-state mutations;
+- `packages/domain/candidate_package.py` — replayed, previewed and immutable candidate packages;
 - `packages/legacy_bridge/` — explicit bootstrap-only, read-only Legacy importer;
-- `packages/publisher/` — external append-only audit journal; Stage 7 publication is still absent;
+- `packages/publisher/` — audit journal and Project Manager result adapter; publication is absent;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
 - `tests/` — skeleton, runtime-profile and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
@@ -70,3 +74,25 @@ the exact exception type and message for a failure baseline, must match. Any suc
 fails closed as `LegacyBaselineMismatch` while retaining the observed result for diagnosis. Runtime
 branch objects validate types and LLM relationships instead of trusting annotations. V2 failure is
 recorded independently and cannot replace the Legacy outcome.
+
+## Stage 5 boundary
+
+The candidate builder accepts only the frozen contract-v1 manifest. It derives full-row mutations
+from a private, single-link source SQLite opened through a pinned file descriptor; the caller never
+supplies SQL. Every mutation has an optimistic row precondition, full typed values, canonical row
+hash and deterministic sequence. The completeness declaration is bound to exact affected-table
+counts. Project Manager candidates cannot author `content_releases`, migrations, schema metadata or
+derived FTS rows.
+
+Daily candidates must reproduce the exact Stage 4 V2 snapshot identity and immutable consumption
+attestation. Correction candidates must match the current issue-aggregate hash and shared-material
+preconditions. Gazette candidates must match every asset byte/hash and pass secret/path/executable
+scrubbing. Current drafts and editorial queue rows are carried explicitly, replayed into a newly
+reserved disposable staging database, and checked through integrity, foreign keys, FTS parity and
+logical-state hashing.
+
+Packages are published atomically as nested `0500` directories with `0400` single-link files,
+canonical JSON, exact membership and checksums. `status` and `retry` only re-verify immutable bytes;
+they do not publish. The Project Manager adapter preserves requested/attempted/effective LLM
+semantics and emits owner-visible fallback or complete-outage warnings. Stage 6 renderers and every
+publication capability remain deliberately out of scope.

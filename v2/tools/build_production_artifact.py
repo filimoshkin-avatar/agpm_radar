@@ -18,6 +18,7 @@ MANIFEST_NAME: Final = "MANIFEST.json"
 RUNTIME_GLOBS: Final = (
     "apps/__init__.py",
     "apps/api/**/*.py",
+    "apps/candidate_builder/**/*.py",
     "apps/web/**/*.css",
     "apps/web/**/*.html",
     "apps/web/**/*.js",

@@ -1,7 +1,7 @@
 [project]
 name = "radar-v2"
 version = "0.0.0"
-description = "Isolated Radar V2 through the Stage 4 immutable snapshot fork"
+description = "Isolated Radar V2 through the Stage 5 candidate-builder boundary"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 
@@ -26,10 +26,11 @@ target-version = "py312"
 select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
+"packages/storage/replication_mutations.py" = ["S608"]
 "tests/**" = ["E501", "S101"]
 
 [tool.mypy]
-files = ["apps/api", "packages", "tests", "tools"]
+files = ["apps", "packages", "tests", "tools"]
 mypy_path = "."
 python_version = "3.12"
 strict = true

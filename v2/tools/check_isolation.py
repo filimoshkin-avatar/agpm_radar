@@ -15,6 +15,7 @@ IGNORED_PARTS: Final = frozenset(
 )
 REQUIRED_DIRECTORIES: Final = (
     "apps/api",
+    "apps/candidate_builder",
     "apps/web",
     "packages/contracts",
     "packages/domain",
@@ -68,6 +69,7 @@ RUNTIME_FORBIDDEN_FRAGMENTS: Final = (
 ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
     {
         "__future__",
+        "argparse",
         "apps",
         "collections",
         "contextlib",
