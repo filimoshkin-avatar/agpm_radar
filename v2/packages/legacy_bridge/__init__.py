@@ -3,7 +3,7 @@
 from typing import Final
 
 COMPONENT_NAME: Final = "legacy_bridge"
-COMPONENT_STATUS: Final = "stage-2-skeleton"
+COMPONENT_STATUS: Final = "stage-3-implemented"
 RUNTIME_ACCESS_ENABLED: Final = False
 
 __all__ = ["COMPONENT_NAME", "COMPONENT_STATUS", "RUNTIME_ACCESS_ENABLED"]

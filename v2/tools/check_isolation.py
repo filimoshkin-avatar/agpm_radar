@@ -66,7 +66,23 @@ RUNTIME_FORBIDDEN_FRAGMENTS: Final = (
     "work/",
 )
 ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
-    {"__future__", "apps", "dataclasses", "json", "packages", "sqlite3", "typing"}
+    {
+        "__future__",
+        "apps",
+        "dataclasses",
+        "fcntl",
+        "hashlib",
+        "json",
+        "os",
+        "packages",
+        "pathlib",
+        "re",
+        "sqlite3",
+        "stat",
+        "typing",
+        "unicodedata",
+        "urllib",
+    }
 )
 
 

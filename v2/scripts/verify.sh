@@ -46,4 +46,4 @@ uv run --no-sync python tools/check_isolation.py
 step "deterministic production artifact and manifest"
 uv run --no-sync python tools/build_production_artifact.py --check
 
-printf '\nRadar V2 Stage 2 verification: PASS\n'
+printf '\nRadar V2 verification: PASS\n'

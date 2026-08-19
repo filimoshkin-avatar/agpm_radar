@@ -1,9 +1,10 @@
-# Radar V2 Stage 2 skeleton
+# Radar V2 through Stage 3
 
-This directory is the isolated Radar V2 application workspace. Stage 2 establishes only
-repository boundaries, locked development gates, runtime build metadata and inert component
-skeletons. It does not connect to Legacy runtime state, production hosts, cron, databases or raw
-corpora.
+This directory is the isolated Radar V2 application workspace. Stage 3 adds the contract-complete
+SQLite schema, deterministic migration and hashing layers, bootstrap-only Legacy importer,
+published-only views/FTS, full projection equivalence tooling and an inter-process locked external
+publisher audit journal. Normal V2 runtime access to Legacy remains disabled. No production host,
+cron or service integration is included.
 
 ## Stack
 
@@ -20,8 +21,9 @@ the locked development group and do not enter the production artifact.
 
 - `apps/api/` — inert API application identity and runtime-profile preflight;
 - `apps/web/` — dependency-free static web shell;
-- `packages/` — Stage 2 boundaries for contracts, domain, storage, publisher, delta, renderers,
-  validation and Legacy bridge;
+- `packages/storage/` — strict SQLite schema, migration runner, FTS and canonical hashing;
+- `packages/legacy_bridge/` — explicit bootstrap-only, read-only Legacy importer;
+- `packages/publisher/` — external append-only audit journal; Stage 7 publication is still absent;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
 - `tests/` — skeleton, runtime-profile and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
@@ -39,4 +41,6 @@ The entrypoint performs locked sync, format check, lint, strict type checking, t
 Stage 1 contract validator, JavaScript syntax checks, isolation/secret scanning and a two-build
 determinism plus manifest audit. Generated output is written to ignored `v2/dist/`.
 
-Stage 3 may implement SQLite and the importer only after this Stage 2 boundary remains green.
+For a disposable bootstrap import, use `python -m tools.legacy_import`; for replica comparison, use
+`python -m tools.compare_databases`. Both commands require explicit paths and the importer requires
+an explicit evidence-manifest hash and import timestamp.

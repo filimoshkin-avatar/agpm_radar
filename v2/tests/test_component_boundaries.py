@@ -27,9 +27,9 @@ COMPONENTS: tuple[tuple[str, str], ...] = (
 
 
 @pytest.mark.parametrize(("name", "status"), COMPONENTS)
-def test_component_is_an_explicit_stage_2_skeleton(name: str, status: str) -> None:
+def test_component_has_an_explicit_implementation_status(name: str, status: str) -> None:
     assert name
-    assert status == "stage-2-skeleton"
+    assert status in {"stage-2-skeleton", "stage-3-implemented"}
 
 
 def test_legacy_bridge_has_no_runtime_access() -> None:

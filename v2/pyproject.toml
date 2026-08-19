@@ -26,7 +26,7 @@ target-version = "py312"
 select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["E501", "S101"]
 
 [tool.mypy]
 files = ["apps/api", "packages", "tests", "tools"]

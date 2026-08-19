@@ -24,6 +24,7 @@ RUNTIME_GLOBS: Final = (
     "apps/web/**/*.mjs",
     "packages/__init__.py",
     "packages/**/*.py",
+    "packages/**/*.sql",
 )
 FORBIDDEN_ARTIFACT_ROOTS: Final = frozenset(
     {".github", ".venv", "docs", "fixtures", "tests", "tools"}

@@ -1122,6 +1122,9 @@ Project Manager обязан преобразовать результат в п
 
 ## Этап 3. Реализовать V2 SQLite и Legacy importer
 
+Статус: completed and accepted 2026-08-19. Evidence:
+`docs/radar-stage3-sqlite-importer-2026-08-19.md`.
+
 ### Работы
 
 1. Реализовать migration runner.
@@ -1146,6 +1149,22 @@ Project Manager обязан преобразовать результат в п
 - drafts не попадают в public views;
 - 74 исторически публичных Legacy-выпуска распознаны по inference contract, а не по ошибочному Legacy status;
 - повторный import идемпотентен либо явно запрещён после bootstrap.
+
+### Результат
+
+- реализованы 23 replicated tables, 8 published-only views, FTS5, deterministic migrations/IDs,
+  logical hashing, bootstrap seal и source/replica equivalence;
+- frozen Legacy corpus импортирован в две disposable DB: 74 published issues, 254 issue materials,
+  280 materials, 128 queue rows, 483 normalized outcome rows и 1 gazette/asset;
+- обе DB mode `0600`, побайтно идентичны; logical state SHA-256
+  `ef5b4c3ef7ddfcda05c5aad331043bcc576ec641683e05d74ce1162e1e7c7f41`, file SHA-256
+  `e285e439df3ebaef777b35e7e26b1a49c89a99f5ce8a0db7988310a6af906f1c`;
+- integrity/FK, per-table count/hash, complete FTS projection and FTS integrity checks green;
+- external audit journal uses a locked, append-only, hash-chained and fsynced write path; thread and
+  process concurrency regressions green;
+- 472 deterministic Legacy fallbacks no longer masquerade as LLM success; 11 accepted model calls
+  remain `success`;
+- Legacy production DB remained byte-identical; runtime, cron, Caddy, Local Ru and DNS unchanged.
 
 ## Этап 4. Реализовать immutable input snapshot и Legacy/V2 fork
 
@@ -1537,8 +1556,8 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1 и Stage 2 завершены. Следующий последовательный шаг — **Stage 3: V2 SQLite и Legacy importer**.
+Stage 0, urgent Stage 0A, Stage 1, Stage 2 и Stage 3 завершены. Следующий последовательный шаг — **Stage 4: immutable input snapshot и Legacy/V2 fork**.
 
-Stage 2 сделал contract validator обязательным local/CI gate, закрепил exact SQLite build profile и не подключён к Legacy cron/runtime. Stage 3 использует frozen 74-issue evidence manifest и начинает только с synthetic/import validation; Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
+Stage 3 закрепил contract-complete SQLite, доказал deterministic bootstrap import frozen 74-issue corpus и сохранил Legacy read-only. Stage 4 обязан создать один immutable collected-input snapshot для независимых Legacy/V2 веток, не объединяя их state, queues, selection rules, databases или publication paths. Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
 
 До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.

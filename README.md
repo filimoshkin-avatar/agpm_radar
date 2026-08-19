@@ -45,3 +45,7 @@ Stage 1 accepted ADRs and machine-readable contract family: `docs/radar-stage1-c
 
 Stage 2 isolated Python/web skeleton, locked local/CI gates and deterministic production artifact:
 `docs/radar-stage2-skeleton-2026-08-19.md`, `docs/adr/0003-radar-v2-python-stack-and-isolated-skeleton.md`, `v2/`.
+
+Stage 3 contract-complete SQLite, deterministic Legacy bootstrap importer, public-view/FTS boundary,
+replica equivalence and locked external audit journal:
+`docs/radar-stage3-sqlite-importer-2026-08-19.md`.
