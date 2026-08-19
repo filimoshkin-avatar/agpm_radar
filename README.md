@@ -35,3 +35,5 @@ Schema migrations никогда не запускаются обычной dail
 Историческая модель первого выделения репозитория сохранена в `docs/development-production-model-2026-08-19.md`.
 
 Согласованный master plan полной пересборки Radar V2, dual-run и миграции на Local Ru: `docs/migration-plan-review-2026-08-19.md`.
+
+Read-only снимок Legacy перед началом реализации V2: `docs/legacy-baseline-2026-08-19.md`; обезличенные regression fixtures находятся в `fixtures/legacy-baseline/`.

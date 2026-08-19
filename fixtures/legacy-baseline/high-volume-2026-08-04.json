@@ -1,0 +1,1084 @@
+{
+  "dailyAnalysis": {
+    "analysis": {
+      "evidence_titles": [
+        "1600 AI Agents Per Enterprise: The Governance Gap",
+        "Agentic Enterprise: AI Governance",
+        "China's first policy framework for AI agents",
+        "Gartner Says Applying Uniform Governance Across AI Agents Will Lead to Enterprise AI Agent Failure",
+        "Gartner Says General Counsel Should Assess AI Insurance to Mitigate AI Risks"
+      ],
+      "headline": "Главный сигнал выпуска — управляемая агентность",
+      "signal": "В выпуске 16 материалов: близкий периметр — 0, средний — 1, дальний — 15. Доминирующие рубрики: human-in-the-loop и ответственность, governance и контроль агентов, безопасность и права доступа.",
+      "watch_next": "В следующих выпусках стоит отслеживать кейсы, где агент включён в статус, риск, поручение, ресурсное решение, портфельную видимость или эскалацию.",
+      "why_agpm": "Для AgPM это материал для прикладной операционализации: важно смотреть не на автономность агента саму по себе, а на управленческий процесс, границы прав, журнал действий, точки человеческого подтверждения и проверяемость результата."
+    },
+    "created_at": "2026-08-16 05:38:23",
+    "error": "",
+    "headline": "Главный сигнал выпуска — управляемая агентность",
+    "issue_date": "2026-08-04",
+    "model": "rules-daily-analysis-v1",
+    "prompt_version": "issue-daily-analysis-ru-v1",
+    "provider": "fallback",
+    "status": "fallback",
+    "updated_at": "2026-08-16 05:38:23"
+  },
+  "fixtureContractVersion": 1,
+  "issue": {
+    "brief": "Главный сигнал выпуска — управляемая агентность. В выпуске 16 материалов: близкий периметр — 0, средний — 1, дальний — 15.",
+    "created_at": "2026-08-04 05:05:16",
+    "issue_date": "2026-08-04",
+    "issue_number": 59,
+    "published_at": null,
+    "status": "draft",
+    "theses": [
+      {
+        "lead": "Главный сигнал выпуска — управляемая агентность.",
+        "rest": "В 16 материалах чаще всего повторяются права, политики, безопасность, журналирование и контроль действий; для AgPM это подтверждает приоритет governance-слоя над простой демонстрацией автономности."
+      },
+      {
+        "lead": "Рубрики выпуска показывают смещение к управленческой инфраструктуре.",
+        "rest": "Доминируют human-in-the-loop и ответственность, governance и контроль агентов, безопасность и права доступа; это полезный материал не для пересмотра канона AgPM, а для уточнения практик внедрения и контроля."
+      },
+      {
+        "lead": "Ответственность человека остаётся ограничителем автономии.",
+        "rest": "Даже в инфраструктурных и security-сюжетах агент рассматривается как исполнитель в заданных границах; решения, риск-аппетит и эскалации должны оставаться в человеческом контуре."
+      },
+      {
+        "lead": "Доказательная цепочка становится условием доверия.",
+        "rest": "Темы durable execution, monitoring, audit trail и разрешения конфликтов важны для агентного проектного офиса: действие агента должно быть воспроизводимым, объяснимым и проверяемым."
+      }
+    ],
+    "title": "AgPM daily radar 2026-08-04",
+    "updated_at": "2026-08-19 05:03:34"
+  },
+  "issueLlmTheses": null,
+  "materials": [
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «1600 AI Agents Per Enterprise: The Governance Gap» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://beam.ai/agentic-insights/ibm-says-enterprises-will-run-1600-ai-agents-by-year-end-70-cant-govern-the-ones-they-have",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -82,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "beam.ai"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "6a702536400da06c",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.75,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-05-14",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 26,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «1600 AI Agents Per Enterprise: The Governance Gap» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "1600 AI Agents Per Enterprise: The Governance Gap",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:30",
+      "url": "https://beam.ai/agentic-insights/ibm-says-enterprises-will-run-1600-ai-agents-by-year-end-70-cant-govern-the-ones-they-have",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Agentic AI Goes Mainstream in the Enterprise, but 94% Raise Concern About Sprawl, OutSystems Research Finds» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://finance.yahoo.com/sectors/technology/articles/agentic-ai-goes-mainstream-enterprise-000000271.html",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -113,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "finance.yahoo.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "6afbf44f113d1b34",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "mid",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.75,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-04-13",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 25,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_middle",
+      "source_name": "Perplexity fresh web research: middle",
+      "summary": "Материал «Agentic AI Goes Mainstream in the Enterprise, but 94% Raise Concern About Sprawl, OutSystems Research Finds» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Agentic AI Goes Mainstream in the Enterprise, but 94% Raise Concern About Sprawl, OutSystems Research Finds",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:31",
+      "url": "https://finance.yahoo.com/sectors/technology/articles/agentic-ai-goes-mainstream-enterprise-000000271.html",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Agentic Enterprise: AI Governance» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "canonical_url": "https://cloudsecurityalliance.org/blog/2026/07/17/the-hidden-risks-of-the-agentic-enterprise-bridging-the-ai-governance-gap",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -19,
+        "publication_date_status": "low_confidence",
+        "reason": "Дата найдена с низкой уверенностью.",
+        "review_status": "queued",
+        "severity": "medium",
+        "source_host": "cloudsecurityalliance.org"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "53810bef77316678",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.45,
+      "publication_date_source": "materials_jsonl",
+      "publication_date_status": "low_confidence",
+      "published_at": "2026-07-16",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 30,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «Agentic Enterprise: AI Governance» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Agentic Enterprise: AI Governance",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:26",
+      "url": "https://cloudsecurityalliance.org/blog/2026/07/17/the-hidden-risks-of-the-agentic-enterprise-bridging-the-ai-governance-gap",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «China's first policy framework for AI agents» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://geopolitechs.org/p/chinas-first-policy-framework-for",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -88,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "geopolitechs.org"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "188c5dfb2e92ea10",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.75,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-05-08",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 30,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «China's first policy framework for AI agents» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "China's first policy framework for AI agents",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:30",
+      "url": "https://www.geopolitechs.org/p/chinas-first-policy-framework-for",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата. - Дополнительные ссылки по тому же событию: https://securitypointbreak.com/2026/05/26/gartner-ai-agent-governance-enterprise-failure/; https://www.theregister.com/ai-ml/2026/05/27/4-in-10-ai-agents-headed-for-demotion-or-the-rubbish-bin/5246964; https://www.beri.net/article/ai-agents-governance-gap-enterprise-2026",
+      "brief": "Материал «Gartner Says Applying Uniform Governance Across AI Agents Will Lead to Enterprise AI Agent Failure» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -70,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "gartner.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "5ff321eb672bab49",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.9,
+      "publication_date_source": "human_description",
+      "publication_date_status": "resolved",
+      "published_at": "2026-05-26",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 25,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «Gartner Says Applying Uniform Governance Across AI Agents Will Lead to Enterprise AI Agent Failure» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Gartner Says Applying Uniform Governance Across AI Agents Will Lead to Enterprise AI Agent Failure",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:29",
+      "url": "https://www.gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Gartner Says General Counsel Should Assess AI Insurance to Mitigate AI Risks» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": null,
+        "publication_date_status": "unresolved",
+        "reason": "Дата публикации первоисточника не найдена.",
+        "review_status": "queued",
+        "severity": "high",
+        "source_host": "gartner.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "cd44d5723e485d05",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.0,
+      "publication_date_source": null,
+      "publication_date_status": "unresolved",
+      "published_at": null,
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 22,
+      "signal_strength": "strong",
+      "source_id": "web_openclaw_far",
+      "source_name": "OpenClaw web research: far",
+      "summary": "Материал «Gartner Says General Counsel Should Assess AI Insurance to Mitigate AI Risks» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Gartner Says General Counsel Should Assess AI Insurance to Mitigate AI Risks",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:24",
+      "url": "https://www.gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «How governance as code controls AI agent risk» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://techtarget.com/searchdatamanagement/tip/How-governance-as-code-controls-AI-agent-risk",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -21,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "techtarget.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "d840c746f24c0e7b",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.93,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-07-14",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 27,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «How governance as code controls AI agent risk» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "How governance as code controls AI agent risk",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:26",
+      "url": "https://www.techtarget.com/searchdatamanagement/tip/How-governance-as-code-controls-AI-agent-risk",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Streaming specialist Redpanda adds governance to AI suite» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://techtarget.com/searchdatamanagement/news/366639150/Streaming-specialist-Redpanda-adds-governance-to-AI-suite",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -167,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "techtarget.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "6708693071d7c180",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.93,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-02-18",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 22,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «Streaming specialist Redpanda adds governance to AI suite» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Streaming specialist Redpanda adds governance to AI suite",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:32",
+      "url": "https://www.techtarget.com/searchdatamanagement/news/366639150/Streaming-specialist-Redpanda-adds-governance-to-AI-suite",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «White House Releases a National Policy Framework for Artificial Intelligence» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://hklaw.com/en/insights/publications/2026/03/white-house-releases-a-national-policy-framework-for-artificial",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -130,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "hklaw.com"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "70af209d884094f0",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.72,
+      "publication_date_source": "article_lead_text",
+      "publication_date_status": "resolved",
+      "published_at": "2026-03-27",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 24,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «White House Releases a National Policy Framework for Artificial Intelligence» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "White House Releases a National Policy Framework for Artificial Intelligence",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:31",
+      "url": "https://www.hklaw.com/en/insights/publications/2026/03/white-house-releases-a-national-policy-framework-for-artificial",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "Обзор перечисляет бизнес-платформы для создания ИИ-агентов, включая Timeweb Cloud, и описывает практические шаги от выбора процесса до запуска пилота. Подходит как обзорный материал по бизнес-агентам и платформам; полезен для weekly radar как обзор рынка и практик внедрения.",
+      "canonical_url": "https://sostav.ru/blogs/288561/92124",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -42,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "sostav.ru"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "b35d367256d06355",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.78,
+      "publication_date_source": "article_header",
+      "publication_date_status": "resolved",
+      "published_at": "2026-06-23",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 9,
+      "signal_strength": "watch",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Обзор перечисляет бизнес-платформы для создания ИИ-агентов, включая Timeweb Cloud, и описывает практические шаги от выбора процесса до запуска пилота. Подходит как обзорный материал по бизнес-агентам и платформам; полезен для weekly radar как обзор рынка и практик внедрения. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "10 лучших ИИ-агентов для бизнеса в 2026: платформы ...",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:27",
+      "url": "https://www.sostav.ru/blogs/288561/92124",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это материал среднего периметра: бизнес-агенты показывают, как автономное или полуавтономное действие встраивается в процесс. Проектное управление может использовать эту логику для статусов, поручений, контроля сроков, подготовки решений и межфункциональной координации. Ключевой вывод — агентность нужно проектировать как процессный контур, а не как отдельный чат. Для проектного офиса это означает связку роли агента, входных данных, допустимых действий, контрольных точек, журнала и ответственности человека за управленческий результат.",
+      "brief": "Материал «Agent-to-Agent Finance: Blockchain Payments and Trust Infrastructure for Autonomous AI Agents» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса.",
+      "canonical_url": "https://arxiv.org/html/2607.00245v1",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -35,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "arxiv.org"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "398d00901bd57eb5",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.72,
+      "publication_date_source": "article_lead_text",
+      "publication_date_status": "resolved",
+      "published_at": "2026-06-30",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "enterprise_adoption",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "research_methodology",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 23,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «Agent-to-Agent Finance: Blockchain Payments and Trust Infrastructure for Autonomous AI Agents» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса. Практически это показывает, что агентность смещается из интерфейса подсказок в операционное исполнение: агент начинает сопровождать участок процесса, готовить действия, связывать системы и снижать ручную координацию.",
+      "theses": [],
+      "title": "Agent-to-Agent Finance: Blockchain Payments and Trust Infrastructure for Autonomous AI Agents",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:27",
+      "url": "https://arxiv.org/html/2607.00245v1",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "Сообщается о запуске совместного предприятия Selectel и ИТМО, ориентированного на развитие ИИ-решений и инфраструктуры. Проект связан с созданием платформы для мультиагентных систем и промышленного внедрения ИИ-сервисов.",
+      "canonical_url": "https://comnews.ru/content/246229/2026-07-07/2026-w28/1008/selectel-i-itmo-sozdali-sovmestnoe-predpriyatie-dlya-razvitiya-ii",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -92,
+        "publication_date_status": "low_confidence",
+        "reason": "Дата найдена с низкой уверенностью.",
+        "review_status": "queued",
+        "severity": "medium",
+        "source_host": "comnews.ru"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "6a392d04f79fc197",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 1,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.62,
+      "publication_date_source": "page_text",
+      "publication_date_status": "low_confidence",
+      "published_at": "2026-05-04",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "mcp_gateways_infra",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 17,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Сообщается о запуске совместного предприятия Selectel и ИТМО, ориентированного на развитие ИИ-решений и инфраструктуры. Проект связан с созданием платформы для мультиагентных систем и промышленного внедрения ИИ-сервисов. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "Selectel и ИТМО создали совместное предприятие для развития ИИ",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:30",
+      "url": "https://www.comnews.ru/content/246229/2026-07-07/2026-w28/1008/selectel-i-itmo-sozdali-sovmestnoe-predpriyatie-dlya-razvitiya-ii",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "Материал «Unlocking AI Agents Potential Through Market Forces» зафиксирован как релевантный сигнал по рынку AI-агентов. Его ценность для радара не в самой новости об ИИ, а в наличии связи с бизнес-процессом, управлением, ответственностью, контролем или проектным контуром.",
+      "canonical_url": "https://arxiv.org/html/2501.10388v1",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -778,
+        "publication_date_status": "low_confidence",
+        "reason": "Дата найдена с низкой уверенностью.",
+        "review_status": "queued",
+        "severity": "medium",
+        "source_host": "arxiv.org"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 1,
+      "id": "a4d178e3bba9d5e1",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.62,
+      "publication_date_source": "page_text",
+      "publication_date_status": "low_confidence",
+      "published_at": "2024-06-17",
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 20,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал «Unlocking AI Agents Potential Through Market Forces» зафиксирован как релевантный сигнал по рынку AI-агентов. Его ценность для радара не в самой новости об ИИ, а в наличии связи с бизнес-процессом, управлением, ответственностью, контролем или проектным контуром. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "Unlocking AI Agents Potential Through Market Forces",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:34",
+      "url": "https://arxiv.org/html/2501.10388v1",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "SL Soft FabricaONE.AI запустила маркетплейс ИИ-агентов с готовыми решениями для автоматизации бизнес-задач, включая документы, бухгалтерию, клиентские запросы и аналитику. Это релиз о новом продукте в сегменте агентных платформ и маркетплейсов; важно для отслеживания упаковки ИИ-агентов в готовые бизнес-сервисы.",
+      "canonical_url": "https://alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": null,
+        "publication_date_status": "unresolved",
+        "reason": "Дата публикации первоисточника не найдена.",
+        "review_status": "queued",
+        "severity": "high",
+        "source_host": "alfa-bank.ru"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "9fbec44f27c4eade",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.0,
+      "publication_date_source": null,
+      "publication_date_status": "unresolved",
+      "published_at": null,
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 10,
+      "signal_strength": "watch",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "SL Soft FabricaONE.AI запустила маркетплейс ИИ-агентов с готовыми решениями для автоматизации бизнес-задач, включая документы, бухгалтерию, клиентские запросы и аналитику. Это релиз о новом продукте в сегменте агентных платформ и маркетплейсов; важно для отслеживания упаковки ИИ-агентов в готовые бизнес-сервисы. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "Дочка SOFL запустила маркетплейс ИИ-агентов",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:24",
+      "url": "https://www.alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0/",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "Яндекс представил платформу для интеграции ИИ-агентов в Алису AI; первые агенты уже тестируются на сервисах Яндекса, а до конца года размещать своих агентов смогут и сторонние компании. Сильный сигнал о платформизации consumer-to-business agentic AI и открытии экосистемы для внешних партнеров.",
+      "canonical_url": "https://tbank.ru/invest/social/profile/Yandex/5156595e-fe50-44a3-8cfe-f87e6edf9e48",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": null,
+        "publication_date_status": "unresolved",
+        "reason": "Дата публикации первоисточника не найдена.",
+        "review_status": "queued",
+        "severity": "high",
+        "source_host": "tbank.ru"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "07ea543645048dcb",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.0,
+      "publication_date_source": null,
+      "publication_date_status": "unresolved",
+      "published_at": null,
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 15,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Яндекс представил платформу для интеграции ИИ-агентов в Алису AI; первые агенты уже тестируются на сервисах Яндекса, а до конца года размещать своих агентов смогут и сторонние компании. Сильный сигнал о платформизации consumer-to-business agentic AI и открытии экосистемы для внешних партнеров. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "Платформа ИИ‑агентов в Алисе AI",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:24",
+      "url": "https://www.tbank.ru/invest/social/profile/Yandex/5156595e-fe50-44a3-8cfe-f87e6edf9e48/",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM это сигнал дальнего периметра: рынок развивает агентные рабочие среды, платформы и инфраструктуру быстрее, чем появляются зрелые специализированные PMO-сценарии. Такие материалы полезны как ранние индикаторы будущих требований к агентному проектному офису. Использовать их следует осторожно: они не меняют канон AgPM напрямую, но помогают уточнять требования к инструментальному слою — доступы, память, наблюдаемость, оркестрация, стоимость агентных запусков, безопасность и возможность остановки агентного действия.",
+      "brief": "Материал сравнивает российские платформы для создания и развертывания ИИ-агентов, включая Альбато, Just AI, Tomoru, TWIN, GigaChat Business, Яндекс AI Studio, Nodul, Битрикс24 и MWS. Полезен как срез рынка агентных платформ и продуктовых опций; релевантен теме новых функций и конкуренции в сегменте.",
+      "canonical_url": "https://blog.albato.ru/rossijskie-platformy-dlya-ii-agentov-v-2026-top-10-s-czenami-i-sravneniem",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": null,
+        "publication_date_status": "unresolved",
+        "reason": "Дата публикации первоисточника не найдена.",
+        "review_status": "queued",
+        "severity": "high",
+        "source_host": "blog.albato.ru"
+      },
+      "first_seen_at": "2026-08-04T05:00:13+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "83d4b4b6529547b5",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 1,
+      "publication_date_confidence": 0.0,
+      "publication_date_source": null,
+      "publication_date_status": "unresolved",
+      "published_at": null,
+      "radar_issue_date": "2026-08-04",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "agpm_pmo_portfolio",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "vendors_releases",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 9,
+      "signal_strength": "watch",
+      "source_id": "web_perplexity_far",
+      "source_name": "Perplexity fresh web research: far",
+      "summary": "Материал сравнивает российские платформы для создания и развертывания ИИ-агентов, включая Альбато, Just AI, Tomoru, TWIN, GigaChat Business, Яндекс AI Studio, Nodul, Битрикс24 и MWS. Полезен как срез рынка агентных платформ и продуктовых опций; релевантен теме новых функций и конкуренции в сегменте. Использовать материал в радаре стоит через фильтр AgPM: отделять реальное делегирование управленческого действия от маркетингового agent wash и проверять, есть ли в новости процесс, роль, объект управления и доказательная цепочка.",
+      "theses": [],
+      "title": "Российские платформы для ИИ-агентов 2026: топ-10 ...",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:24",
+      "url": "https://blog.albato.ru/rossijskie-platformy-dlya-ii-agentov-v-2026-top-10-s-czenami-i-sravneniem/",
+      "verdict": "core"
+    }
+  ],
+  "periodTheses": [
+    {
+      "as_of_issue_date": "2026-08-04",
+      "brief": "За последние 30 выпусков: 80 включено из 530 просмотренных; Б/С/Д — 15/20/45.",
+      "created_at": "2026-08-04 05:05:49",
+      "end_issue_date": "2026-08-04",
+      "issue_count": 30,
+      "material_count": 80,
+      "model": "rules-period-v1",
+      "period": "30d",
+      "prompt_version": "period-theses-ru-v1",
+      "provider": "fallback",
+      "start_issue_date": "2026-07-06",
+      "stats": {
+        "adjacent": 0,
+        "core": 80,
+        "cut": 450,
+        "far": 45,
+        "included": 80,
+        "mid": 20,
+        "near": 15,
+        "viewed": 530
+      },
+      "theses": [
+        {
+          "lead": "Governance остаётся главным условием масштабирования агентов.",
+          "rest": "Повторяются права доступа, политики, безопасность, MCP/gateway и контроль действий; значит, агентный контур требует управляемых границ, а не только автономного исполнения."
+        },
+        {
+          "lead": "Периодная повестка смещена к управленческой инфраструктуре.",
+          "rest": "В окне 30 выпусков и 80 материалов доминируют agent workflow и orchestration, governance и контроль агентов, AgPM / PMO / портфели; для AgPM это материал для уточнения практик внедрения, контроля и эксплуатации."
+        },
+        {
+          "lead": "Агентность закрепляется через повторяемые workflow.",
+          "rest": "Сигналы про orchestration, business process и enterprise adoption показывают, что ценность возникает там, где агент встроен в устойчивый управленческий процесс с правилами и трассировкой."
+        },
+        {
+          "lead": "Близкий периметр показывает прикладной слой AgPM.",
+          "rest": "15 материалов за последние 30 выпусков напрямую связаны с PMO, ИСУП или проектной координацией; их стоит использовать как основу для сценариев статусов, поручений, рисков, ресурсов и портфельной видимости."
+        }
+      ],
+      "updated_at": "2026-08-19 05:03:34"
+    },
+    {
+      "as_of_issue_date": "2026-08-04",
+      "brief": "За последние 7 выпусков: 55 включено из 299 просмотренных; Б/С/Д — 5/11/39.",
+      "created_at": "2026-08-04 05:05:49",
+      "end_issue_date": "2026-08-04",
+      "issue_count": 7,
+      "material_count": 55,
+      "model": "rules-period-v1",
+      "period": "7d",
+      "prompt_version": "period-theses-ru-v1",
+      "provider": "fallback",
+      "start_issue_date": "2026-07-29",
+      "stats": {
+        "adjacent": 0,
+        "core": 55,
+        "cut": 244,
+        "far": 39,
+        "included": 55,
+        "mid": 11,
+        "near": 5,
+        "viewed": 299
+      },
+      "theses": [
+        {
+          "lead": "Governance остаётся главным условием масштабирования агентов.",
+          "rest": "Повторяются права доступа, политики, безопасность, MCP/gateway и контроль действий; значит, агентный контур требует управляемых границ, а не только автономного исполнения."
+        },
+        {
+          "lead": "Периодная повестка смещена к управленческой инфраструктуре.",
+          "rest": "В окне 7 выпусков и 55 материалов доминируют governance и контроль агентов, human-in-the-loop и ответственность, agent workflow и orchestration; для AgPM это материал для уточнения практик внедрения, контроля и эксплуатации."
+        },
+        {
+          "lead": "Агентность закрепляется через повторяемые workflow.",
+          "rest": "Сигналы про orchestration, business process и enterprise adoption показывают, что ценность возникает там, где агент встроен в устойчивый управленческий процесс с правилами и трассировкой."
+        },
+        {
+          "lead": "Доверие к агентам требует доказательной цепочки.",
+          "rest": "Audit trail, monitoring, observability, durable execution и разрешение конфликтов нужны, чтобы действие агента можно было проверить, объяснить и воспроизвести."
+        }
+      ],
+      "updated_at": "2026-08-19 05:03:34"
+    }
+  ],
+  "stats": {
+    "adjacent": 0,
+    "core": 16,
+    "cut": 34,
+    "far": 15,
+    "included": 16,
+    "mid": 1,
+    "near": 0,
+    "stat_date": "2026-08-04",
+    "updated_at": "2026-08-19 05:03:21",
+    "viewed": 50
+  }
+}

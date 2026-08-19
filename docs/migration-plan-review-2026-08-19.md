@@ -1025,6 +1025,29 @@ Project Manager обязан преобразовать результат в п
 
 Не требуется: этап read-only.
 
+## Этап 0A. Срочно закрыть Legacy backup artifacts
+
+Этот межэтап добавлен по результатам Stage 0: static root сервится прямо из Legacy worktree, и 43 ignored backup-файла фактически доступны по public URL.
+
+### Работы
+
+1. Сохранить timestamped backup текущего Caddyfile и его SHA-256.
+2. Добавить fail-closed matcher для backup/temp/source-map patterns до SPA fallback.
+3. Провалидировать Caddy config и выполнить graceful reload.
+4. Проверить representative backup URLs, encoded path variants и unrelated public hosts.
+5. Не удалять Legacy backup-файлы и не менять Radar pipeline/API/frontend.
+
+### Gate
+
+- backup/temp/source-map URLs возвращают fail-closed 404;
+- public frontend, API и активные assets отвечают штатно;
+- Caddy active, config valid, restarts/errors не появились;
+- ни один Legacy-файл не удалён.
+
+### Rollback
+
+Вернуть timestamped Caddyfile backup, повторить validation и graceful reload.
+
 ## Этап 1. Архитектурные контракты и ADR
 
 ### Работы
@@ -1038,6 +1061,8 @@ Project Manager обязан преобразовать результат в п
 7. Утвердить publisher state machine и exit codes.
 8. Утвердить application/content/gazette compatibility contract.
 9. Утвердить error taxonomy и Project Manager report contract.
+10. Утвердить historical-publication inference: Legacy `status='draft'` не является V2 draft; публичность доказывается согласованным набором Legacy report/API/corpus evidence, а исходные status/published_at сохраняются как provenance.
+11. Утвердить LLM outcome contract: requested model, attempted models, effective model и `success|fallback|unavailable`; fallback/no-LLM не блокируют structurally valid content release.
 
 ### Gate
 
@@ -1078,6 +1103,8 @@ Project Manager обязан преобразовать результат в п
 8. Нормализовать связи issue/material вместо неявного удаления материалов.
 9. Удалить локальные пути из публичных полей.
 10. Добавить source/production DB equivalence tool по полному списку replicated tables.
+11. Реализовать historical-publication inference для Legacy: все доказанно публичные выпуски получают V2 published lifecycle, даже если Legacy хранит `status='draft'` и `published_at=NULL`; оригинальные значения сохраняются в provenance.
+12. Не смешивать inferred historical publications с реальными V2 editorial drafts и queues.
 
 ### Gate
 
@@ -1086,6 +1113,7 @@ Project Manager обязан преобразовать результат в п
 - для каждой контрактной таблицы зафиксированы source, row count и table hash; необъяснимо пустая draft/queue/snapshot таблица блокирует gate;
 - counts и публичные значения сопоставлены с Legacy;
 - drafts не попадают в public views;
+- 74 исторически публичных Legacy-выпуска распознаны по inference contract, а не по ошибочному Legacy status;
 - повторный import идемпотентен либо явно запрещён после bootstrap.
 
 ## Этап 4. Реализовать immutable input snapshot и Legacy/V2 fork
@@ -1126,6 +1154,7 @@ Project Manager обязан преобразовать результат в п
    - gazette;
    - retry/status.
 9. Добавить human-readable preview и machine-readable package.
+10. Включить в candidate/report фактический LLM outcome: requested/attempted/effective model, fallback status и предупреждение при полном отказе LLM.
 
 ### Gate
 
@@ -1135,6 +1164,7 @@ Project Manager обязан преобразовать результат в п
 - schema mismatch, DDL и SQL payload отклоняются;
 - draft/queue/snapshot fixture mutations входят в candidate и воспроизводятся в staging DB;
 - Project Manager может сформировать candidate без прямого SQL.
+- успешный fallback и no-LLM candidate дают однозначный machine-readable result и не маскируются как primary-model success.
 
 ## Этап 6. Детерминированные renderers и validators
 
@@ -1193,12 +1223,15 @@ Project Manager обязан преобразовать результат в п
 8. Добавить visual/security tests.
 9. Реализовать safe release markers в `/api/health`.
 10. Реализовать connection reopen/reload contract при content pointer switch.
+11. Валидировать внешние URL по allowlist схем и экранировать их как HTML attributes.
+12. Разделить SPA routes, real static assets и gazette paths, чтобы missing files давали 404, а не `index.html` с 200.
 
 ### Gate
 
 - draft leakage tests green;
 - path/internal metadata leakage отсутствует;
 - malformed requests дают 4xx JSON;
+- malicious URL schemes/attributes отклоняются, missing assets/gazettes дают 404;
 - после pointer switch API возвращает ожидаемые release id/schema/state hash, а не старый inode;
 - API/frontend work on disposable imported history;
 - desktop/mobile/console smokes green.
@@ -1338,6 +1371,9 @@ Project Manager обязан преобразовать результат в п
 5. Добавить combined comparison report.
 6. Добавить timeout isolation: V2 failure не блокирует Legacy result.
 7. Наблюдать daily runs.
+8. Изменять cron через активный Project Manager OpenClaw instance/state, а не через мигрированные `cron/jobs.json*`.
+9. Сохранить доказанный внешний порядок: build/validate DOCX, успешная delivery, Legacy publish, V2 publish, combined final report.
+10. Backup должен включать cron row/payload/state из активного OpenClaw SQLite store и читаемый экспорт job до изменения.
 
 ### Gate
 
@@ -1470,11 +1506,11 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-После принятия этого master plan выполняется только **Этап 0**:
+Stage 0 завершён. До начала архитектурных работ выполняется только **urgent Stage 0A**:
 
-- read-only Legacy baseline;
-- cron ownership inventory;
-- fixtures;
-- production/API/schema evidence.
+- сохранить Caddy rollback artifact;
+- закрыть public backup/temp/source-map paths без удаления файлов;
+- доказать, что frontend/API/active assets не изменились;
+- остановиться и пересмотреть Stage 1 после containment.
 
 До завершения Этапа 0 не создаются Local Ru Radar services, не меняется cron, не меняется DNS и не переносится production data.

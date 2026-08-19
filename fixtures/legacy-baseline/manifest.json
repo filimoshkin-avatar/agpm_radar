@@ -1,0 +1,76 @@
+{
+  "files": [
+    {
+      "case": "normal-latest",
+      "dailyAnalysisStatus": "success",
+      "issueDate": "2026-08-19",
+      "issueLlmStatus": "success",
+      "materialCount": 3,
+      "path": "normal-latest-2026-08-19.json",
+      "sha256": "530bcf8a871384a39627f2be3684df43373658d8a262b9b7f0ddf1de34fb6858"
+    },
+    {
+      "case": "deterministic-fallback",
+      "dailyAnalysisStatus": "fallback",
+      "issueDate": "2026-08-15",
+      "issueLlmStatus": "missing",
+      "materialCount": 6,
+      "path": "deterministic-fallback-2026-08-15.json",
+      "sha256": "c94303480da00b2270666513de464eccd8c7206cbd93dc7ac7f1a8944a563da4"
+    },
+    {
+      "case": "empty-issue",
+      "dailyAnalysisStatus": "fallback",
+      "issueDate": "2026-07-26",
+      "issueLlmStatus": "missing",
+      "materialCount": 0,
+      "path": "empty-issue-2026-07-26.json",
+      "sha256": "073d80c639308185c67a0bee9c303d955ce76c0222fa57aa29516b440b90f304"
+    },
+    {
+      "case": "high-volume",
+      "dailyAnalysisStatus": "fallback",
+      "issueDate": "2026-08-04",
+      "issueLlmStatus": "missing",
+      "materialCount": 16,
+      "path": "high-volume-2026-08-04.json",
+      "sha256": "b3b8f3980512fc1a42307ce50c09a08d2d66d25ed551c5130d20bd70592d3dee"
+    }
+  ],
+  "fixtureSetVersion": 1,
+  "sanitization": {
+    "excluded": [
+      "report_md_path",
+      "report_docx_path",
+      "docx_source_path",
+      "md_source_path",
+      "request_path",
+      "response_path",
+      "diagnostic_json",
+      "rejected_materials_internal",
+      "raw provider payloads",
+      "secrets and OAuth data"
+    ]
+  },
+  "source": {
+    "databaseBytes": 4194304,
+    "databaseSha256": "481d5d6c9b54a58f78f288fb29c0eb072d43e74d6c2db8b14044a3153cd8f7f7",
+    "schemaMigrations": [
+      "001_initial.sql",
+      "002_quality_and_search.sql",
+      "003_issue_period_theses.sql",
+      "004_signal_strength.sql",
+      "005_issue_daily_analysis.sql",
+      "006_openclaw_llm_analysis.sql"
+    ],
+    "sqliteVersion": "3.45.1",
+    "summary": {
+      "dailyStats": 74,
+      "firstIssueDate": "2026-06-07",
+      "issues": 74,
+      "lastIssueDate": "2026-08-19",
+      "materials": 254,
+      "maxIssueUpdatedAt": "2026-08-19 05:03:34"
+    }
+  }
+}

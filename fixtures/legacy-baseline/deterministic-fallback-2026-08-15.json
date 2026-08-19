@@ -1,0 +1,504 @@
+{
+  "dailyAnalysis": {
+    "analysis": {
+      "evidence_titles": [
+        "Enterprise AI Agent Security Survey Report",
+        "The State of AI in the Enterprise - 2026 AI report | Deloitte US",
+        "AI Intelligence Briefing — August 15, 2026",
+        "AI Agents are Only the Beginning: Deloitte Survey Examines the AI Readiness Gap and Reveals How Enterprises Can Prepare for Agentic Success – Press release | Deloitte US",
+        "Agentic AI use case: Orchestrate security operations ..."
+      ],
+      "headline": "Главный сигнал выпуска — управляемая агентность",
+      "signal": "В выпуске 6 материалов: близкий периметр — 1, средний — 3, дальний — 2. Доминирующие рубрики: исследования и методология, agent workflow и orchestration, безопасность и права доступа.",
+      "watch_next": "В следующих выпусках стоит отслеживать кейсы, где агент включён в статус, риск, поручение, ресурсное решение, портфельную видимость или эскалацию.",
+      "why_agpm": "Для AgPM это материал для прикладной операционализации: важно смотреть не на автономность агента саму по себе, а на управленческий процесс, границы прав, журнал действий, точки человеческого подтверждения и проверяемость результата."
+    },
+    "created_at": "2026-08-16 05:38:23",
+    "error": "",
+    "headline": "Главный сигнал выпуска — управляемая агентность",
+    "issue_date": "2026-08-15",
+    "model": "rules-daily-analysis-v1",
+    "prompt_version": "issue-daily-analysis-ru-v1",
+    "provider": "fallback",
+    "status": "fallback",
+    "updated_at": "2026-08-16 05:38:23"
+  },
+  "fixtureContractVersion": 1,
+  "issue": {
+    "brief": "Главный сигнал выпуска — управляемая агентность. В выпуске 6 материалов: близкий периметр — 1, средний — 3, дальний — 2.",
+    "created_at": "2026-08-16 02:05:35",
+    "issue_date": "2026-08-15",
+    "issue_number": 70,
+    "published_at": null,
+    "status": "draft",
+    "theses": [
+      {
+        "lead": "Главный сигнал выпуска — управляемая агентность.",
+        "rest": "В 6 материалах чаще всего повторяются права, политики, безопасность, журналирование и контроль действий; для AgPM это подтверждает приоритет governance-слоя над простой демонстрацией автономности."
+      },
+      {
+        "lead": "Рубрики выпуска показывают смещение к управленческой инфраструктуре.",
+        "rest": "Доминируют исследования и методология, agent workflow и orchestration, безопасность и права доступа; это полезный материал не для пересмотра канона AgPM, а для уточнения практик внедрения и контроля."
+      },
+      {
+        "lead": "Агенты переходят из интерфейса в операционный контур.",
+        "rest": "Материалы про workflow, orchestration и enterprise-процессы показывают, что ценность агента возникает не в отдельном чате, а в повторяемом управленческом сценарии с правилами, статусом и трассировкой."
+      },
+      {
+        "lead": "Доказательная цепочка становится условием доверия.",
+        "rest": "Темы durable execution, monitoring, audit trail и разрешения конфликтов важны для агентного проектного офиса: действие агента должно быть воспроизводимым, объяснимым и проверяемым."
+      }
+    ],
+    "title": "AgPM daily radar 2026-08-15",
+    "updated_at": "2026-08-19 05:03:34"
+  },
+  "issueLlmTheses": null,
+  "materials": [
+    {
+      "agpm_takeaway": "Для AgPM это материал близкого периметра: он помогает уточнять, какие проектные функции можно переводить в агентный режим без подмены управленческой ответственности. В центре здесь не «ИИ вообще», а конкретные практики PMO: наблюдение, статус, риск, поручения, координация и портфельная видимость. Методически такой материал стоит использовать для операционализации AgPM: описывать границы автономии агента, точки человеческого подтверждения, журнал действий и критерии качества агентной рекомендации. Чем ближе сценарий к изменению плана, сроков, ресурсов или эскалации, тем сильнее должен быть human-in-the-loop.",
+      "brief": "Материал «AI Intelligence Briefing — August 15, 2026» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса.",
+      "canonical_url": "https://buttondown.com/pollak/archive/ai-intelligence-briefing-august-15-2026",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": 0,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "buttondown.com"
+      },
+      "first_seen_at": "2026-08-16T01:57:00+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "48740866357b36c6",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "near",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.9,
+      "publication_date_source": "human_description",
+      "publication_date_status": "resolved",
+      "published_at": "2026-08-15",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "enterprise_adoption",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "research_methodology",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 18,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_extended_near",
+      "source_name": "Perplexity extended fresh web research: near",
+      "summary": "Материал «AI Intelligence Briefing — August 15, 2026» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса. Практически это показывает, что агентность смещается из интерфейса подсказок в операционное исполнение: агент начинает сопровождать участок процесса, готовить действия, связывать системы и снижать ручную координацию.",
+      "theses": [],
+      "title": "AI Intelligence Briefing — August 15, 2026",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:21",
+      "url": "https://buttondown.com/pollak/archive/ai-intelligence-briefing-august-15-2026/",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Enterprise AI Agent Security Survey Report» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://cloudsecurityalliance.org/artifacts/enterprise-ai-security-starts-with-ai-agents",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -122,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "cloudsecurityalliance.org"
+      },
+      "first_seen_at": "2026-08-16T01:57:00+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "e0431f8de813010e",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.88,
+      "publication_date_source": "labeled_page_date",
+      "publication_date_status": "resolved",
+      "published_at": "2026-04-15",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 24,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_extended_far",
+      "source_name": "Perplexity extended fresh web research: far",
+      "summary": "Материал «Enterprise AI Agent Security Survey Report» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "Enterprise AI Agent Security Survey Report",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:31",
+      "url": "https://cloudsecurityalliance.org/artifacts/enterprise-ai-security-starts-with-ai-agents",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «The State of AI in the Enterprise - 2026 AI report | Deloitte US» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев.",
+      "canonical_url": "https://deloitte.com/us/en/what-we-do/capabilities/applied-artificial-intelligence/content/state-of-ai-in-the-enterprise.html",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -1,
+        "publication_date_status": "low_confidence",
+        "reason": "Дата найдена с низкой уверенностью.",
+        "review_status": "queued",
+        "severity": "medium",
+        "source_host": "deloitte.com"
+      },
+      "first_seen_at": "2026-08-16T01:57:00+00:00",
+      "governance_flag": 1,
+      "human_in_the_loop_flag": 1,
+      "id": "163cad8988fed6cc",
+      "isup_flag": 0,
+      "key_material": 1,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "far",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.45,
+      "publication_date_source": "materials_jsonl",
+      "publication_date_status": "low_confidence",
+      "published_at": "2026-08-14",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "governance_control",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "human_responsibility",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 24,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_extended_far",
+      "source_name": "Perplexity extended fresh web research: far",
+      "summary": "Материал «The State of AI in the Enterprise - 2026 AI report | Deloitte US» рассматривает управляемость AI-агентов: политики, права, контроль действий, риски, соответствие требованиям и корпоративную эксплуатацию агентных сценариев. Главный акцент материала — не производительность модели, а управленческая надстройка вокруг неё: кто разрешает действие, как ограничивается доступ, как проверяется результат и где остаётся ответственность человека.",
+      "theses": [],
+      "title": "The State of AI in the Enterprise - 2026 AI report | Deloitte US",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:21",
+      "url": "https://www.deloitte.com/us/en/what-we-do/capabilities/applied-artificial-intelligence/content/state-of-ai-in-the-enterprise.html",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «AI Agents are Only the Beginning: Deloitte Survey Examines the AI Readiness Gap and Reveals How Enterprises Can Prepare for Agentic Success – Press release | Deloitte US» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса.",
+      "canonical_url": "https://deloitte.com/us/en/about/press-room/deloitte-survey-examines-ai-readiness-agentic-ai-success.html",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -3,
+        "publication_date_status": "resolved",
+        "reason": "Диагностических замечаний по дате нет.",
+        "review_status": "ok",
+        "severity": "ok",
+        "source_host": "deloitte.com"
+      },
+      "first_seen_at": "2026-08-16T01:49:31+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "0e6fd280d06f99c9",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "mid",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.93,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-08-12",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "enterprise_adoption",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "research_methodology",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 26,
+      "signal_strength": "strong",
+      "source_id": "web_brave_middle",
+      "source_name": "Brave web research: middle",
+      "summary": "Материал «AI Agents are Only the Beginning: Deloitte Survey Examines the AI Readiness Gap and Reveals How Enterprises Can Prepare for Agentic Success – Press release | Deloitte US» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса. Практически это показывает, что агентность смещается из интерфейса подсказок в операционное исполнение: агент начинает сопровождать участок процесса, готовить действия, связывать системы и снижать ручную координацию.",
+      "theses": [],
+      "title": "AI Agents are Only the Beginning: Deloitte Survey Examines the AI Readiness Gap and Reveals How Enterprises Can Prepare for Agentic Success – Press release | Deloitte US",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:22",
+      "url": "https://www.deloitte.com/us/en/about/press-room/deloitte-survey-examines-ai-readiness-agentic-ai-success.html",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Agentic AI use case: Orchestrate security operations ...» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса.",
+      "canonical_url": "https://docs.cloud.google.com/architecture/agentic-ai-orchestrate-security-ops-workflows",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -129,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "docs.cloud.google.com"
+      },
+      "first_seen_at": "2026-08-16T01:57:00+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "97a5eecada13ffd7",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "mid",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.78,
+      "publication_date_source": "article_header",
+      "publication_date_status": "resolved",
+      "published_at": "2026-04-08",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "research_methodology",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "security_access",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 1,
+      "signal_score": 23,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_extended_middle",
+      "source_name": "Perplexity extended fresh web research: middle",
+      "summary": "Материал «Agentic AI use case: Orchestrate security operations ...» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса. Практически это показывает, что агентность смещается из интерфейса подсказок в операционное исполнение: агент начинает сопровождать участок процесса, готовить действия, связывать системы и снижать ручную координацию.",
+      "theses": [],
+      "title": "Agentic AI use case: Orchestrate security operations ...",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:31",
+      "url": "https://docs.cloud.google.com/architecture/agentic-ai-orchestrate-security-ops-workflows",
+      "verdict": "core"
+    },
+    {
+      "agpm_takeaway": "Для AgPM материал усиливает governance-линию: агентная система должна быть управляемой, наблюдаемой и ограниченной правилами. Права, политики, журналирование, контроль доступа и трассировка действий становятся не технической деталью, а частью управленческой архитектуры. В прикладной методике это означает, что внедрение агента нужно начинать не с перечня функций, а с описания управленческой практики: что агент делает, где останавливается, кто подтверждает значимое действие, какие данные используются и как доказывается корректность результата.",
+      "brief": "Материал «Case study: Building an enterprise-scale agentic AI OS | EY - Global» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса.",
+      "canonical_url": "https://ey.com/en_gl/insights/ai/building-an-enterprise-scale-agentic-ai-operating-system",
+      "created_at": "2026-08-19 05:03:19",
+      "date_quality": {
+        "issue_date_delta_days": -129,
+        "publication_date_status": "resolved",
+        "reason": "Дата публикации сильно отличается от даты выпуска.",
+        "review_status": "monitor",
+        "severity": "low",
+        "source_host": "ey.com"
+      },
+      "first_seen_at": "2026-08-16T01:57:00+00:00",
+      "governance_flag": 0,
+      "human_in_the_loop_flag": 0,
+      "id": "8321b012182d2098",
+      "isup_flag": 0,
+      "key_material": 0,
+      "llm_summary": null,
+      "mcp_flag": 0,
+      "perimeter": "mid",
+      "pmo_flag": 0,
+      "publication_date_confidence": 0.93,
+      "publication_date_source": "url_meta",
+      "publication_date_status": "resolved",
+      "published_at": "2026-04-08",
+      "radar_issue_date": "2026-08-15",
+      "rubrics": [
+        {
+          "confidence": 0.66,
+          "rubric_id": "enterprise_adoption",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "research_methodology",
+          "source": "fallback"
+        },
+        {
+          "confidence": 0.66,
+          "rubric_id": "workflow_orchestration",
+          "source": "fallback"
+        }
+      ],
+      "security_flag": 0,
+      "signal_score": 23,
+      "signal_strength": "strong",
+      "source_id": "web_perplexity_extended_middle",
+      "source_name": "Perplexity extended fresh web research: middle",
+      "summary": "Материал «Case study: Building an enterprise-scale agentic AI OS | EY - Global» описывает переход от отдельных AI-помощников к агентным workflow: агенты получают роль в последовательности действий, координации задач, обработке данных и сопровождении бизнес-процесса. Практически это показывает, что агентность смещается из интерфейса подсказок в операционное исполнение: агент начинает сопровождать участок процесса, готовить действия, связывать системы и снижать ручную координацию.",
+      "theses": [],
+      "title": "Case study: Building an enterprise-scale agentic AI OS | EY - Global",
+      "trend_notes": null,
+      "updated_at": "2026-08-19 05:03:31",
+      "url": "https://www.ey.com/en_gl/insights/ai/building-an-enterprise-scale-agentic-ai-operating-system",
+      "verdict": "core"
+    }
+  ],
+  "periodTheses": [
+    {
+      "as_of_issue_date": "2026-08-15",
+      "brief": "За последние 30 выпусков: 148 включено из 843 просмотренных; Б/С/Д — 28/41/79.",
+      "created_at": "2026-08-16 02:05:49",
+      "end_issue_date": "2026-08-15",
+      "issue_count": 30,
+      "material_count": 148,
+      "model": "rules-period-v1",
+      "period": "30d",
+      "prompt_version": "period-theses-ru-v1",
+      "provider": "fallback",
+      "start_issue_date": "2026-07-17",
+      "stats": {
+        "adjacent": 0,
+        "core": 148,
+        "cut": 695,
+        "far": 79,
+        "included": 148,
+        "mid": 41,
+        "near": 28,
+        "viewed": 843
+      },
+      "theses": [
+        {
+          "lead": "Governance остаётся главным условием масштабирования агентов.",
+          "rest": "Повторяются права доступа, политики, безопасность, MCP/gateway и контроль действий; значит, агентный контур требует управляемых границ, а не только автономного исполнения."
+        },
+        {
+          "lead": "Периодная повестка смещена к управленческой инфраструктуре.",
+          "rest": "В окне 30 выпусков и 148 материалов доминируют agent workflow и orchestration, governance и контроль агентов, human-in-the-loop и ответственность; для AgPM это материал для уточнения практик внедрения, контроля и эксплуатации."
+        },
+        {
+          "lead": "Агентность закрепляется через повторяемые workflow.",
+          "rest": "Сигналы про orchestration, business process и enterprise adoption показывают, что ценность возникает там, где агент встроен в устойчивый управленческий процесс с правилами и трассировкой."
+        },
+        {
+          "lead": "Близкий периметр показывает прикладной слой AgPM.",
+          "rest": "28 материалов за последние 30 выпусков напрямую связаны с PMO, ИСУП или проектной координацией; их стоит использовать как основу для сценариев статусов, поручений, рисков, ресурсов и портфельной видимости."
+        }
+      ],
+      "updated_at": "2026-08-19 05:03:34"
+    },
+    {
+      "as_of_issue_date": "2026-08-15",
+      "brief": "За последние 7 выпусков: 34 включено из 238 просмотренных; Б/С/Д — 8/14/12.",
+      "created_at": "2026-08-16 02:05:49",
+      "end_issue_date": "2026-08-15",
+      "issue_count": 7,
+      "material_count": 34,
+      "model": "rules-period-v1",
+      "period": "7d",
+      "prompt_version": "period-theses-ru-v1",
+      "provider": "fallback",
+      "start_issue_date": "2026-08-09",
+      "stats": {
+        "adjacent": 0,
+        "core": 34,
+        "cut": 204,
+        "far": 12,
+        "included": 34,
+        "mid": 14,
+        "near": 8,
+        "viewed": 238
+      },
+      "theses": [
+        {
+          "lead": "Governance остаётся главным условием масштабирования агентов.",
+          "rest": "Повторяются права доступа, политики, безопасность, MCP/gateway и контроль действий; значит, агентный контур требует управляемых границ, а не только автономного исполнения."
+        },
+        {
+          "lead": "Периодная повестка смещена к управленческой инфраструктуре.",
+          "rest": "В окне 7 выпусков и 34 материалов доминируют agent workflow и orchestration, governance и контроль агентов, human-in-the-loop и ответственность; для AgPM это материал для уточнения практик внедрения, контроля и эксплуатации."
+        },
+        {
+          "lead": "Агентность закрепляется через повторяемые workflow.",
+          "rest": "Сигналы про orchestration, business process и enterprise adoption показывают, что ценность возникает там, где агент встроен в устойчивый управленческий процесс с правилами и трассировкой."
+        },
+        {
+          "lead": "Близкий периметр показывает прикладной слой AgPM.",
+          "rest": "8 материалов за последние 7 выпусков напрямую связаны с PMO, ИСУП или проектной координацией; их стоит использовать как основу для сценариев статусов, поручений, рисков, ресурсов и портфельной видимости."
+        }
+      ],
+      "updated_at": "2026-08-19 05:03:34"
+    }
+  ],
+  "stats": {
+    "adjacent": 0,
+    "core": 6,
+    "cut": 64,
+    "far": 2,
+    "included": 6,
+    "mid": 3,
+    "near": 1,
+    "stat_date": "2026-08-15",
+    "updated_at": "2026-08-19 05:03:21",
+    "viewed": 70
+  }
+}
