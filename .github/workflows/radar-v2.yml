@@ -1,0 +1,39 @@
+name: Radar V2 contracts and skeleton
+
+on:
+  pull_request:
+    paths:
+      - "v2/**"
+      - "contracts/**"
+      - "tools/contracts/**"
+      - ".github/workflows/radar-v2.yml"
+  push:
+    paths:
+      - "v2/**"
+      - "contracts/**"
+      - "tools/contracts/**"
+      - ".github/workflows/radar-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-v2:
+    name: Verify isolated V2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.14"
+          enable-cache: true
+          cache-dependency-glob: "v2/uv.lock"
+      - name: Run the V2 and parent-contract gates
+        run: ./v2/scripts/verify.sh

@@ -14,10 +14,11 @@ AgPM Radar — публичное приложение ежедневного р
 
 ## Основные каталоги
 
-- `backend/radar-api/` — публичный JSON API.
-- `pipeline/` — миграции, экспорт, quality gates и публикационный pipeline.
-- `work/radar-app/` — текущий frontend.
-- `deploy/` — systemd, Caddy/Nginx и production-чеклисты.
+- `v2/` — изолированный Radar V2 application workspace, locked gates и production artifact builder.
+- `backend/radar-api/` — Legacy публичный JSON API.
+- `pipeline/` — Legacy миграции, экспорт, quality gates и публикационный pipeline.
+- `work/radar-app/` — Legacy frontend.
+- `deploy/` — Legacy systemd, Caddy/Nginx и production-чеклисты.
 - `docs/` — архитектурные решения и регламенты.
 
 ## Правило разработки
@@ -41,3 +42,6 @@ Read-only снимок Legacy перед началом реализации V2:
 Stage 0A containment публичных Legacy backup/temp/source-map artifacts: `docs/radar-stage0a-caddy-containment-2026-08-19.md`.
 
 Stage 1 accepted ADRs and machine-readable contract family: `docs/radar-stage1-contracts-2026-08-19.md`, `docs/adr/`, `contracts/v1/`.
+
+Stage 2 isolated Python/web skeleton, locked local/CI gates and deterministic production artifact:
+`docs/radar-stage2-skeleton-2026-08-19.md`, `docs/adr/0003-radar-v2-python-stack-and-isolated-skeleton.md`, `v2/`.

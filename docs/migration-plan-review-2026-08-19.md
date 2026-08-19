@@ -4,7 +4,7 @@
 
 Дата полной переработки: 2026-08-19
 
-Статус: согласованный master plan; реализация ещё не начата
+Статус: согласованный master plan; Stage 0, 0A, 1 и 2 завершены
 
 Целевой production-сервер: Local Ru, `147.45.99.225`
 
@@ -1093,6 +1093,8 @@ Project Manager обязан преобразовать результат в п
 
 ## Этап 2. Создать изолированный Radar V2 repository skeleton
 
+Статус: completed 2026-08-19. Evidence: `docs/radar-stage2-skeleton-2026-08-19.md`.
+
 ### Работы
 
 1. Создать V2 packages/apps/tests structure.
@@ -1108,6 +1110,15 @@ Project Manager обязан преобразовать результат в п
 - clean install/build/test проходит;
 - production artifact excludes tests/dev/OpenClaw credentials;
 - repository не содержит секретов/DB/raw corpus.
+
+### Результат
+
+- создан изолированный `v2/` с Python 3.12 API и обязательными package boundaries;
+- зафиксированы `pyproject.toml`, `uv.lock`, Ruff, strict mypy, pytest и exact SQLite build profile;
+- dependency-free web ES module проверяется Node без npm/runtime dependencies;
+- единый local/CI entrypoint запускает parent Stage 1 validator, secret/isolation scan и все quality gates;
+- allowlist-only production artifact строится детерминированно и проходит membership/manifest audit;
+- используются только явно маркированные synthetic fixtures; Legacy runtime/config/data/cron и Local Ru не менялись.
 
 ## Этап 3. Реализовать V2 SQLite и Legacy importer
 
@@ -1526,8 +1537,8 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1 завершены. Следующий последовательный шаг — **Stage 2: изолированный Radar V2 repository skeleton**.
+Stage 0, urgent Stage 0A, Stage 1 и Stage 2 завершены. Следующий последовательный шаг — **Stage 3: V2 SQLite и Legacy importer**.
 
-Stage 2 обязан сделать contract generator/validator обязательным local/CI gate, закрепить exact SQLite build profile и не подключаться к Legacy cron/runtime. Stage 3 использует frozen 74-issue evidence manifest; Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
+Stage 2 сделал contract validator обязательным local/CI gate, закрепил exact SQLite build profile и не подключён к Legacy cron/runtime. Stage 3 использует frozen 74-issue evidence manifest и начинает только с synthetic/import validation; Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
 
-До завершения Stage 2 не создаются Local Ru Radar services, не меняется Project Manager cron, не меняется DNS и не переносится production data.
+До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.
