@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Final, cast
 from urllib.parse import urlsplit, urlunsplit
 
-from packages.domain.snapshot import JsonObject, JsonValue
+from packages.contracts.json_types import JsonObject, JsonValue
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE, assert_sqlite_runtime
 
 _PUBLIC_ISSUE_KEYS: Final = {

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from packages.storage import assert_sqlite_runtime
+from packages.storage.sqlite_profile import assert_sqlite_runtime
 
 from apps.api import ActiveDatabaseManager, RadarApi, RadarApplication, status_payload
 from apps.api.http_server import serve

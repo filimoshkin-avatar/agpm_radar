@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Final
 
+from packages.contracts.json_types import JsonObject, JsonValue
 from packages.storage.safe_files import (
     SafeFilesystemError,
     ensure_private_directory,
@@ -22,10 +23,6 @@ from packages.storage.safe_files import (
     publish_flat_directory,
     read_regular_file_at,
 )
-
-type JsonScalar = None | bool | int | float | str
-type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
-type JsonObject = dict[str, JsonValue]
 
 SNAPSHOT_FORMAT: Final = "radar-collected-input-snapshot/v1"
 MANIFEST_NAME: Final = "manifest.json"

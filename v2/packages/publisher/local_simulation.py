@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -23,6 +22,11 @@ from packages.domain.candidates import CandidateValidationError, validate_llm_ou
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.publisher.project_manager import build_project_manager_report
 from packages.publisher.state_machine import PublisherStateError, PublisherStateMachine
+from packages.storage.mutation_lock import (
+    MutationLockBusyError,
+    acquire_mutation_lock,
+    release_mutation_lock,
+)
 from packages.storage.safe_files import (
     SafeFilesystemError,
     atomic_write_new,
@@ -393,25 +397,10 @@ class LocalPublisherSimulator:
         self.state_machine = PublisherStateMachine(work_root / "publisher-audit.jsonl")
 
     def _lock(self) -> int:
-        path = self.work_root / "radar-mutation.lock"
-        flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
         try:
-            descriptor = os.open(path, flags, 0o600)
-            metadata = os.fstat(descriptor)
-            if (
-                not stat.S_ISREG(metadata.st_mode)
-                or stat.S_IMODE(metadata.st_mode) != 0o600
-                or metadata.st_nlink != 1
-            ):
-                raise LocalPublisherError("publisher lock is not a private single-link file")
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return descriptor
-        except BlockingIOError as error:
+            return acquire_mutation_lock(self.work_root)
+        except MutationLockBusyError as error:
             raise PublisherLockBusyError("local radar_mutation lock is busy") from error
-        except BaseException:
-            if "descriptor" in locals():
-                os.close(descriptor)
-            raise
 
     def _transition(
         self,
@@ -810,8 +799,7 @@ class LocalPublisherSimulator:
                 f"unsafe local publisher filesystem boundary: {error}"
             ) from error
         finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
-            os.close(lock)
+            release_mutation_lock(lock)
 
 
 __all__ = [

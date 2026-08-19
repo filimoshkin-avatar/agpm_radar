@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from packages.storage import (
+from packages.storage.sqlite_profile import (
     REQUIRED_SQLITE_PROFILE,
     assert_sqlite_runtime,
     inspect_sqlite_runtime,

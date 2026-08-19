@@ -6,6 +6,7 @@ import pytest
 from packages import (
     contracts,
     delta,
+    deployment,
     domain,
     legacy_bridge,
     publisher,
@@ -17,6 +18,7 @@ from packages import (
 COMPONENTS: tuple[tuple[str, str], ...] = (
     (contracts.COMPONENT_NAME, contracts.COMPONENT_STATUS),
     (delta.COMPONENT_NAME, delta.COMPONENT_STATUS),
+    (deployment.COMPONENT_NAME, deployment.COMPONENT_STATUS),
     (domain.COMPONENT_NAME, domain.COMPONENT_STATUS),
     (legacy_bridge.COMPONENT_NAME, legacy_bridge.COMPONENT_STATUS),
     (publisher.COMPONENT_NAME, publisher.COMPONENT_STATUS),
@@ -37,6 +39,7 @@ def test_component_has_an_explicit_implementation_status(name: str, status: str)
         "stage-5-implemented",
         "stage-6-implemented",
         "stage-7-implemented",
+        "stage-9-implemented",
     }
 
 

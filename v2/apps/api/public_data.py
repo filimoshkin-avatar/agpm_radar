@@ -7,7 +7,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 from typing import Final, cast
 
-from packages.domain.snapshot import JsonObject, JsonValue
+from packages.contracts.json_types import JsonObject, JsonValue
 from packages.validation.public_issue import (
     PublicIssueValidationError,
     build_public_issue_from_views,

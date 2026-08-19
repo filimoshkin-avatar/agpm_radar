@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TypeVar
 
-from packages.publisher.local_simulation import ActivePointer, read_active_pointer
+from packages.storage.content_pointer import ContentPointer, read_content_pointer
 from packages.storage.hashing import logical_state_hash
 from packages.storage.safe_files import open_regular_file_nofollow, read_regular_file
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE
@@ -99,7 +99,7 @@ def _public_authorizer(
     return sqlite3.SQLITE_DENY
 
 
-def _connect_pointer(pointer: ActivePointer, pointer_bytes: bytes) -> _OpenedDatabase:
+def _connect_pointer(pointer: ContentPointer, pointer_bytes: bytes) -> _OpenedDatabase:
     descriptor = open_regular_file_nofollow(pointer.database_path, expected_mode=_DATABASE_MODE)
     before = _signature(descriptor)
     uri = f"file:/proc/self/fd/{descriptor}?mode=ro&immutable=1"
@@ -191,7 +191,7 @@ class ActiveDatabaseManager:
         for _attempt in range(_LOAD_ATTEMPTS):
             before = self._pointer_bytes()
             try:
-                pointer = read_active_pointer(self._active_root)
+                pointer = read_content_pointer(self._active_root)
                 candidate = _connect_pointer(pointer, before)
             except BaseException as error:
                 last_error = error

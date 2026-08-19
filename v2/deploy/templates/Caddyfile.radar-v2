@@ -1,0 +1,9 @@
+@radar_v2_api path /api/*
+handle @radar_v2_api {
+    reverse_proxy 127.0.0.1:8765
+}
+handle {
+    root * @WEB_CURRENT@/apps/web
+    try_files {path} /index.html
+    file_server
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Radar V2 published-only API
+After=network-online.target
+
+[Service]
+Type=simple
+User=radar-v2
+Group=radar-v2
+WorkingDirectory=@API_CURRENT@
+EnvironmentFile=@API_ENV@
+ExecStart=@PYTHON@ -m apps.api --active-root @CONTENT_ROOT@ --gazette-root @GAZETTE_ROOT@
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=@API_CURRENT@ @CONTENT_ROOT@ @GAZETTE_ROOT@
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
