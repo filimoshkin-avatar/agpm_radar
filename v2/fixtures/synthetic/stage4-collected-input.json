@@ -1,0 +1,36 @@
+{
+  "candidates": [
+    {
+      "candidateKey": "synthetic-material-001",
+      "firstSeenAt": "2026-08-19T04:00:00Z",
+      "source": "Synthetic Wire",
+      "title": "Synthetic governance signal",
+      "url": "https://example.test/synthetic-governance"
+    },
+    {
+      "candidateKey": "synthetic-material-002",
+      "firstSeenAt": "2026-08-19T04:01:00Z",
+      "source": "Synthetic Journal",
+      "title": "Synthetic delivery signal",
+      "url": "https://example.test/synthetic-delivery"
+    }
+  ],
+  "collectedAt": "2026-08-19T05:00:00Z",
+  "containsProductionData": false,
+  "fixtureKind": "synthetic",
+  "safeEvidenceIndex": {
+    "evidenceFormat": "synthetic-safe-evidence/v1",
+    "items": [
+      {
+        "candidateKey": "synthetic-material-001",
+        "evidenceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "candidateKey": "synthetic-material-002",
+        "evidenceSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ]
+  },
+  "scenario": "stage4-immutable-fork",
+  "snapshotId": "snap_20260819_synthetic01"
+}

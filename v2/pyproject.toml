@@ -1,7 +1,7 @@
 [project]
 name = "radar-v2"
 version = "0.0.0"
-description = "Isolated Radar V2 Stage 2 application skeleton"
+description = "Isolated Radar V2 through the Stage 4 immutable snapshot fork"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 

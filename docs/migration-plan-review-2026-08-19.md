@@ -4,7 +4,7 @@
 
 Дата полной переработки: 2026-08-19
 
-Статус: согласованный master plan; Stage 0, 0A, 1 и 2 завершены
+Статус: согласованный master plan; Stage 0, 0A, 1, 2, 3 и 4 завершены
 
 Целевой production-сервер: Local Ru, `147.45.99.225`
 
@@ -1187,6 +1187,15 @@ Project Manager обязан преобразовать результат в п
 - сбой V2 не блокирует Legacy;
 - V2 не пишет в Legacy paths.
 
+### Результат
+
+Stage 4 завершён и зафиксирован в
+`docs/radar-stage4-snapshot-fork-2026-08-19.md`. Реализованы canonical four-file snapshot,
+обязательная creation identity, отдельные verified Legacy/V2 copies, private consumption
+attestations, pinned-directory reads, capability-scoped branch workspaces, fail-closed exact Legacy
+baseline gate, runtime result validation, независимая обработка ошибок и canonical daily comparison.
+V2 publication и Stage 5 candidate builder не реализованы.
+
 ## Этап 5. Candidate builder и Project Manager adapter
 
 ### Работы
@@ -1556,8 +1565,13 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1, Stage 2 и Stage 3 завершены. Следующий последовательный шаг — **Stage 4: immutable input snapshot и Legacy/V2 fork**.
+Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3 и Stage 4 завершены. Следующий
+последовательный шаг — **Stage 5: Candidate builder и Project Manager adapter**.
 
-Stage 3 закрепил contract-complete SQLite, доказал deterministic bootstrap import frozen 74-issue corpus и сохранил Legacy read-only. Stage 4 обязан создать один immutable collected-input snapshot для независимых Legacy/V2 веток, не объединяя их state, queues, selection rules, databases или publication paths. Stage 5 реализует closed desired-state candidates; Stage 7 принимает только generated typed deltas с full replicated-table expectations.
+Stage 4 закрепил один creation-sealed immutable collected-input snapshot, отдельные verified copies и
+consumption attestations для Legacy/V2, disjoint queues/corpus/DB/logs, exact Legacy baseline gate и
+daily comparison без V2 publication. Stage 5 реализует closed desired-state candidates и adapter,
+не ослабляя manifest/checksum/payload identity; Stage 7 принимает только generated typed deltas с
+full replicated-table expectations.
 
 До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.

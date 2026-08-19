@@ -49,3 +49,7 @@ Stage 2 isolated Python/web skeleton, locked local/CI gates and deterministic pr
 Stage 3 contract-complete SQLite, deterministic Legacy bootstrap importer, public-view/FTS boundary,
 replica equivalence and locked external audit journal:
 `docs/radar-stage3-sqlite-importer-2026-08-19.md`.
+
+Stage 4 creation-sealed input snapshots, independent Legacy/V2 copies and attestations, fail-closed
+Legacy baseline gate, branch isolation and canonical daily comparison:
+`docs/radar-stage4-snapshot-fork-2026-08-19.md`.
