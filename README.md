@@ -58,3 +58,7 @@ Stage 5 closed daily/correction/gazette candidates, typed desired-state mutation
 SQLite replay, immutable packages, Project Manager playbooks and final-result adapter:
 `docs/radar-stage5-candidate-builder-2026-08-19.md` and
 `docs/radar-stage5-project-manager-playbooks-2026-08-19.md`.
+
+Stage 6 explicit published DTO projection, canonical JSON, deterministic dependency-free DOCX,
+no-LLM fallback, database/artifact invariants, immutable gazette validation and historical parity:
+`docs/radar-stage6-renderers-validators-2026-08-19.md`.

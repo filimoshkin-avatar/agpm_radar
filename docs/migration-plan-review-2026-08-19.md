@@ -1233,7 +1233,7 @@ contract v1, Project Manager CLI/playbooks, типизированные full-ro
 preconditions и completeness counts, перенос текущих drafts/editorial queue/snapshot evidence,
 replay в новую staging SQLite, immutable nested package с preview/checksums и final-report adapter.
 Candidate не может авторить `content_releases`, SQL/DDL, migrations, schema metadata или FTS.
-Publication, production integration и Stage 6 renderers не реализованы.
+Publication и production integration не реализованы.
 
 ## Этап 6. Детерминированные renderers и validators
 
@@ -1253,6 +1253,17 @@ Publication, production integration и Stage 6 renderers не реализова
 - no-LLM fixture публикуем;
 - invalid DB/candidate блокируется;
 - DOCX открывается и проходит structure checks.
+
+### Результат
+
+Stage 6 завершён и зафиксирован в `docs/radar-stage6-renderers-validators-2026-08-19.md`.
+Реализованы explicit published-only `IssueDetail` projection, canonical JSON, byte-stable
+dependency-free DOCX, явный no-LLM fallback, stats/duplicate/date/draft/security invariants,
+независимая проверка JSON/OOXML и immutable gazette package validator. Golden fixtures и
+historical acceptance покрывают обычный, fallback, полный no-LLM и пустой выпуски. Реальный
+Stage 3 import также подтвердил совместимость с sparse Legacy material analysis и date-only
+timestamps через узкий `legacy_inferred` compatibility boundary. Publisher, activation и Stage 7
+delta engine не реализованы.
 
 ## Этап 7. Delta engine и local publisher simulation
 
@@ -1575,13 +1586,12 @@ Publication, production integration и Stage 6 renderers не реализова
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4 и Stage 5 завершены. Следующий
-последовательный шаг — **Stage 6: детерминированные renderers и validators**.
+Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4, Stage 5 и Stage 6 завершены. Следующий
+последовательный шаг — **Stage 7: Delta engine и local publisher simulation**.
 
-Stage 5 закрепил closed desired-state candidates, immutable packages, typed replicated-row
-mutations, exact snapshot/issue/base preconditions, drafts/queue completeness, disposable staging
-replay и Project Manager reporting без publication capability. Stage 6 строит только
-детерминированные renderers/validators; Stage 7 принимает generated typed deltas с full
-replicated-table expectations.
+Stage 6 закрепил explicit published DTO projection, детерминированные JSON/DOCX renderers,
+no-LLM fallback и database/artifact/gazette validators без publication capability. Stage 7 строит
+full seed/delta engine, transactional apply, state-machine и local publisher simulation поверх
+generated typed deltas с full replicated-table expectations.
 
 До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.

@@ -1,11 +1,11 @@
-# Radar V2 through Stage 5
+# Radar V2 through Stage 6
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
-daily/correction/gazette candidate construction, typed replicated-row mutations, disposable SQLite
-replay, immutable machine packages, human previews and the Project Manager report adapter. Normal
-V2 runtime access to Legacy remains disabled. V2 publication, production hosts, cron and service
-integration are deliberately absent.
+candidate packages and the Project Manager adapter. Stage 6 adds an explicit published-only public
+DTO projection, canonical JSON, deterministic dependency-free DOCX, no-LLM rendering, database and
+artifact invariants, and immutable gazette validation. Normal V2 runtime access to Legacy remains
+disabled. Publication, production hosts, cron and service integration are deliberately absent.
 
 ## Stack
 
@@ -30,6 +30,8 @@ the locked development group and do not enter the production artifact.
 - `packages/domain/candidates.py` — closed contract-v1 candidate builders/runtime validation;
 - `packages/domain/candidate_mutations.py` — database-derived typed desired-state mutations;
 - `packages/domain/candidate_package.py` — replayed, previewed and immutable candidate packages;
+- `packages/renderers/` — canonical public JSON and byte-stable daily DOCX generation;
+- `packages/validation/` — published DTO, JSON/DOCX and gazette fail-closed validators;
 - `packages/legacy_bridge/` — explicit bootstrap-only, read-only Legacy importer;
 - `packages/publisher/` — audit journal and Project Manager result adapter; publication is absent;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
@@ -94,5 +96,24 @@ logical-state hashing.
 Packages are published atomically as nested `0500` directories with `0400` single-link files,
 canonical JSON, exact membership and checksums. `status` and `retry` only re-verify immutable bytes;
 they do not publish. The Project Manager adapter preserves requested/attempted/effective LLM
-semantics and emits owner-visible fallback or complete-outage warnings. Stage 6 renderers and every
-publication capability remain deliberately out of scope.
+semantics and emits owner-visible fallback or complete-outage warnings.
+
+## Stage 6 boundary
+
+The public issue projector reads only a published issue aggregate from the contract SQLite and
+constructs the frozen `IssueDetail` DTO explicitly. It rejects draft leakage, inconsistent stats,
+non-contiguous or duplicate materials, invalid publication dates, sparse required rows, host paths
+and secret-shaped values. Historical `legacy_inferred` date-only material timestamps are normalized
+at this compatibility boundary; native V2 rows remain strict second-precision UTC.
+
+JSON is canonical UTF-8 with sorted keys and a final newline. DOCX is built without third-party
+runtime dependencies, with a fixed member allowlist, fixed ZIP metadata, normalized modes, explicit
+HTTP(S) hyperlinks and bounded XML. Both are validated independently against the same public DTO.
+When LLM output is unavailable or sparse in a historical import, the renderer emits an explicit
+deterministic fallback and never claims primary-model success.
+
+Gazette validation accepts only the candidate-declared immutable asset set and verifies exact byte
+counts/hashes, a local relative entrypoint, bounded safe HTML/CSS/SVG, local references and the
+absence of scripts, active content, traversal, remote imports, secrets and host-local paths. These
+renderers and validators still do not activate a database, publish files or mutate production;
+those capabilities begin at Stage 7 and later deployment stages.

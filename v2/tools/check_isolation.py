@@ -79,6 +79,8 @@ ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
         "errno",
         "fcntl",
         "hashlib",
+        "html",
+        "io",
         "json",
         "math",
         "os",
@@ -90,6 +92,8 @@ ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
         "typing",
         "unicodedata",
         "urllib",
+        "xml",
+        "zipfile",
     }
 )
 

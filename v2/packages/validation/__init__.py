@@ -1,8 +1,38 @@
-"""Runtime validation boundary reserved for Stage 6 implementation."""
+"""Runtime database, artifact and immutable gazette validation."""
 
 from typing import Final
 
-COMPONENT_NAME: Final = "validation"
-COMPONENT_STATUS: Final = "stage-2-skeleton"
+from packages.validation.artifacts import (
+    ArtifactValidationError,
+    DocxValidationReport,
+    validate_daily_docx,
+    validate_daily_json,
+)
+from packages.validation.gazette import (
+    GazetteValidationError,
+    GazetteValidationReport,
+    validate_gazette_candidate,
+)
+from packages.validation.public_issue import (
+    PublicIssueValidationError,
+    build_public_issue,
+    validate_public_issue_document,
+)
 
-__all__ = ["COMPONENT_NAME", "COMPONENT_STATUS"]
+COMPONENT_NAME: Final = "validation"
+COMPONENT_STATUS: Final = "stage-6-implemented"
+
+__all__ = [
+    "COMPONENT_NAME",
+    "COMPONENT_STATUS",
+    "ArtifactValidationError",
+    "DocxValidationReport",
+    "GazetteValidationError",
+    "GazetteValidationReport",
+    "PublicIssueValidationError",
+    "build_public_issue",
+    "validate_daily_docx",
+    "validate_daily_json",
+    "validate_gazette_candidate",
+    "validate_public_issue_document",
+]

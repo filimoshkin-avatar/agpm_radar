@@ -1,0 +1,186 @@
+{
+  "containsProductionData": false,
+  "fixtureKind": "synthetic",
+  "fixtureVersion": 1,
+  "gazette": {
+    "css": "body { color: #222; font-family: sans-serif; }\n",
+    "entrypointSha256": "8c3a85df6ce81f6f2d179ffede251e553377a921698ac39c22343fee54abe9f1",
+    "html": "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><title>Синтетическая газета — август 2026</title><link rel=\"stylesheet\" href=\"styles.css\"></head><body><main><h1>Синтетическая газета</h1><p>Только тестовые данные.</p><a href=\"https://example.test/reference\" target=\"_blank\" rel=\"noopener noreferrer\">Внешняя ссылка</a></main></body></html>\n",
+    "warnings": [
+      "external-link:https://example.test/reference"
+    ]
+  },
+  "noLlm": {
+    "docxSha256": "09085df335cf7c506acb5da291677ed80303d294b59839557f6c992151d61881",
+    "docxTextSha256": "4fc745a336b7aa0643cdda0b2a8615d8648a6b8a327ea5eed434516e5100a2f7",
+    "document": {
+      "analysis": {
+        "blocks": [
+          {
+            "kind": "overview",
+            "text": "Все LLM-провайдеры недоступны. В выпуск включено 1 материалов: ближний периметр — 0, средний — 0, дальний — 1.",
+            "title": "Детерминированный обзор"
+          }
+        ],
+        "brief": "Публикация без LLM-результата.",
+        "headline": null
+      },
+      "brief": "Публикация без LLM-результата.",
+      "issueDate": "2026-08-21",
+      "issueNumber": 76,
+      "llm": {
+        "effectiveModel": null,
+        "status": "unavailable"
+      },
+      "materialCount": 1,
+      "materials": [
+        {
+          "agpmTakeaway": "Материал сохранён детерминированным редакционным правилом.",
+          "brief": "Тестовая карточка без LLM.",
+          "canonicalUrl": "https://example.test/no-llm",
+          "id": "material_no_llm_0001",
+          "issueDate": "2026-08-21",
+          "keyMaterial": false,
+          "llm": {
+            "effectiveModel": null,
+            "status": "unavailable"
+          },
+          "perimeter": "far",
+          "publicationDateStatus": "unresolved",
+          "publishedAt": null,
+          "rubrics": [],
+          "signalScore": null,
+          "signalStrength": "watch",
+          "sourceName": "Synthetic Source",
+          "summary": "Безопасное синтетическое резюме.",
+          "theses": [],
+          "title": "Синтетический материал без LLM",
+          "trendNotes": null,
+          "url": "https://example.test/no-llm",
+          "verdict": "core"
+        }
+      ],
+      "publishedAt": "2026-08-21T05:10:00Z",
+      "stats": {
+        "adjacent": 0,
+        "core": 1,
+        "cut": 0,
+        "far": 1,
+        "included": 1,
+        "mid": 0,
+        "near": 0,
+        "viewed": 1
+      },
+      "theses": [],
+      "title": "AgPM daily radar 2026-08-21"
+    },
+    "jsonSha256": "8e9baa0d0473f0f8fe6df4b15e58fd2ac8e5862cc3e72724cb910e870a6f1d95"
+  },
+  "normal": {
+    "docxSha256": "e3edb76fba86d651bbb8fdb506bb809524e34708450036abd2f23656bcff3fe2",
+    "docxTextSha256": "8e53e6a61df1b3d8fc463ef647eb8796452cbaec81d51feb05b2674564f9c64c",
+    "document": {
+      "analysis": {
+        "blocks": [
+          {
+            "kind": "overview",
+            "text": "Два синтетических сигнала показывают управляемый агентный процесс.",
+            "title": "Итог"
+          },
+          {
+            "kind": "actions",
+            "text": "Проверить права, аудит и точки подтверждения.",
+            "title": "Действия"
+          }
+        ],
+        "brief": "Управляемая агентность и проверяемые действия.",
+        "headline": "Управляемый агентный процесс"
+      },
+      "brief": "В выпуске два синтетических материала.",
+      "issueDate": "2026-08-20",
+      "issueNumber": 75,
+      "llm": {
+        "effectiveModel": "MiniMax-M3",
+        "status": "fallback"
+      },
+      "materialCount": 2,
+      "materials": [
+        {
+          "agpmTakeaway": "Нужны явные полномочия и журнал действий.",
+          "brief": "Синтетический сигнал governance.",
+          "canonicalUrl": "https://example.test/governance",
+          "id": "material_synthetic_0001",
+          "issueDate": "2026-08-20",
+          "keyMaterial": true,
+          "llm": {
+            "effectiveModel": "MiniMax-M3",
+            "status": "fallback"
+          },
+          "perimeter": "near",
+          "publicationDateStatus": "resolved",
+          "publishedAt": "2026-08-20T04:00:00Z",
+          "rubrics": [
+            "governance"
+          ],
+          "signalScore": 90,
+          "signalStrength": "strong",
+          "sourceName": "Synthetic Source",
+          "summary": "Проверяемая роль агента в управленческом процессе.",
+          "theses": [
+            "Полномочия должны быть ограничены."
+          ],
+          "title": "Синтетический governance-сигнал",
+          "trendNotes": "Отслеживать практики аудита.",
+          "url": "https://example.test/governance?case=1",
+          "verdict": "core"
+        },
+        {
+          "agpmTakeaway": "Нужна наблюдаемость межагентного workflow.",
+          "brief": "Синтетический сигнал orchestration.",
+          "canonicalUrl": "https://example.test/orchestration",
+          "id": "material_synthetic_0002",
+          "issueDate": "2026-08-20",
+          "keyMaterial": false,
+          "llm": {
+            "effectiveModel": "MiniMax-M3",
+            "status": "fallback"
+          },
+          "perimeter": "mid",
+          "publicationDateStatus": "low_confidence",
+          "publishedAt": "2026-08-19T12:00:00Z",
+          "rubrics": [
+            "orchestration"
+          ],
+          "signalScore": 55,
+          "signalStrength": "context",
+          "sourceName": "Synthetic Source",
+          "summary": "Наблюдаемый workflow с точками контроля.",
+          "theses": [],
+          "title": "Синтетический orchestration-сигнал",
+          "trendNotes": null,
+          "url": "https://example.test/orchestration?case=2",
+          "verdict": "adjacent"
+        }
+      ],
+      "publishedAt": "2026-08-20T05:10:00Z",
+      "stats": {
+        "adjacent": 1,
+        "core": 1,
+        "cut": 1,
+        "far": 0,
+        "included": 2,
+        "mid": 1,
+        "near": 1,
+        "viewed": 3
+      },
+      "theses": [
+        {
+          "lead": "Governance предшествует автономности.",
+          "rest": "Полномочия и аудит задаются до запуска агента."
+        }
+      ],
+      "title": "AgPM daily radar 2026-08-20"
+    },
+    "jsonSha256": "bc7cca04e543a9e70e8ed85aa80f88ed2870d360c52b860c03c37ed3a482bc54"
+  }
+}
