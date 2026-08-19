@@ -2,6 +2,12 @@ radar.aipractice.space {
 	root * /mnt/vdd/Radar/work/radar-app
 	encode zstd gzip
 
+	@radar_private_artifacts path_regexp radar_private_artifacts (?i)(?:^|/)[^/]*(?:\.bak(?:\.[^/]*)?|\.backup(?:\.[^/]*)?|\.old(?:\.[^/]*)?|\.orig(?:\.[^/]*)?|\.tmp(?:\.[^/]*)?|\.temp(?:\.[^/]*)?|\.sw[op]|~|\.map)$
+
+	handle @radar_private_artifacts {
+		respond 404
+	}
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8765
 	}

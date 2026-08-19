@@ -1027,6 +1027,8 @@ Project Manager обязан преобразовать результат в п
 
 ## Этап 0A. Срочно закрыть Legacy backup artifacts
 
+Статус: completed 2026-08-19. Evidence: `docs/radar-stage0a-caddy-containment-2026-08-19.md`.
+
 Этот межэтап добавлен по результатам Stage 0: static root сервится прямо из Legacy worktree, и 43 ignored backup-файла фактически доступны по public URL.
 
 ### Работы
@@ -1047,6 +1049,14 @@ Project Manager обязан преобразовать результат в п
 ### Rollback
 
 Вернуть timestamped Caddyfile backup, повторить validation и graceful reload.
+
+### Результат
+
+- все 43 сохранённых backup artifacts и encoded variants возвращают HTTP 404;
+- active UI/API/assets/gazette и unrelated hosts сохранили baseline HTTP 200;
+- Caddy reload был graceful: PID прежний, `NRestarts=0`, warning/error journal пуст;
+- Legacy DB, API source, frontend и pipeline не изменились;
+- файлы не удалялись; rollback backup и evidence сохранены.
 
 ## Этап 1. Архитектурные контракты и ADR
 
@@ -1506,11 +1516,14 @@ Project Manager обязан преобразовать результат в п
 
 ## 26. Первый следующий шаг
 
-Stage 0 завершён. До начала архитектурных работ выполняется только **urgent Stage 0A**:
+Stage 0 и urgent Stage 0A завершены. Следующий последовательный шаг — **Stage 1: архитектурные контракты и ADR**.
 
-- сохранить Caddy rollback artifact;
-- закрыть public backup/temp/source-map paths без удаления файлов;
-- доказать, что frontend/API/active assets не изменились;
-- остановиться и пересмотреть Stage 1 после containment.
+Stage 0A не изменил целевую архитектуру. Stage 1 обязан использовать уже найденные baseline constraints:
 
-До завершения Этапа 0 не создаются Local Ru Radar services, не меняется cron, не меняется DNS и не переносится production data.
+- исторически публичный выпуск нельзя определять по Legacy `status`;
+- requested/attempted/effective LLM outcome фиксируется отдельно от publication success;
+- публичная граница строится через explicit DTO и published-only contract;
+- mutable worktree никогда не используется как V2 public release root;
+- generic missing assets, path/draft/internal leakage и invalid query 4xx остаются обязательными Stage 8 regressions.
+
+До завершения Stage 1 не создаются Local Ru Radar services, не меняется Project Manager cron, не меняется DNS и не переносится production data.

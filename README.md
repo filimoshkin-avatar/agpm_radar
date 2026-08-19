@@ -37,3 +37,5 @@ Schema migrations никогда не запускаются обычной dail
 Согласованный master plan полной пересборки Radar V2, dual-run и миграции на Local Ru: `docs/migration-plan-review-2026-08-19.md`.
 
 Read-only снимок Legacy перед началом реализации V2: `docs/legacy-baseline-2026-08-19.md`; обезличенные regression fixtures находятся в `fixtures/legacy-baseline/`.
+
+Stage 0A containment публичных Legacy backup/temp/source-map artifacts: `docs/radar-stage0a-caddy-containment-2026-08-19.md`.
