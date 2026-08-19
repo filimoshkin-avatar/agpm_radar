@@ -1,11 +1,13 @@
-# Radar V2 through Stage 6
+# Radar V2 through Stage 7
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
 candidate packages and the Project Manager adapter. Stage 6 adds an explicit published-only public
 DTO projection, canonical JSON, deterministic dependency-free DOCX, no-LLM rendering, database and
-artifact invariants, and immutable gazette validation. Normal V2 runtime access to Legacy remains
-disabled. Publication, production hosts, cron and service integration are deliberately absent.
+artifact invariants, and immutable gazette validation. Stage 7 adds exact full seeds, typed
+all-table deltas, transactional staging apply and a durable two-root local publisher simulation.
+Normal V2 runtime access to Legacy remains disabled. Real production hosts, cron and service
+integration are deliberately absent.
 
 ## Stack
 
@@ -32,8 +34,10 @@ the locked development group and do not enter the production artifact.
 - `packages/domain/candidate_package.py` — replayed, previewed and immutable candidate packages;
 - `packages/renderers/` — canonical public JSON and byte-stable daily DOCX generation;
 - `packages/validation/` — published DTO, JSON/DOCX and gazette fail-closed validators;
+- `packages/delta/` — exact full seeds, typed row deltas and transactional create-only apply;
 - `packages/legacy_bridge/` — explicit bootstrap-only, read-only Legacy importer;
-- `packages/publisher/` — audit journal and Project Manager result adapter; publication is absent;
+- `packages/publisher/` — audit/result adapters, durable state machine and local activation/rollback
+  simulation;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
 - `tests/` — skeleton, runtime-profile and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
@@ -116,4 +120,33 @@ Gazette validation accepts only the candidate-declared immutable asset set and v
 counts/hashes, a local relative entrypoint, bounded safe HTML/CSS/SVG, local references and the
 absence of scripts, active content, traversal, remote imports, secrets and host-local paths. These
 renderers and validators still do not activate a database, publish files or mutate production;
-those capabilities begin at Stage 7 and later deployment stages.
+those production capabilities remain reserved for later deployment stages.
+
+## Stage 7 boundary
+
+The full-seed path exports and imports the exact verified SQLite bytes plus a canonical manifest
+covering release identity, schema, file SHA-256 and counts/hashes for all 23 replicated tables. The
+source inode is opened once without symlink traversal; byte copying and immutable read-only SQLite
+inspection stay bound to that descriptor and recheck mode, link count, size and timestamps. Import
+always creates a new private inode, reopens it and proves the complete manifest again.
+
+The delta engine compares two verified release databases and emits only contract-allowlisted typed
+row inserts/upserts/tombstones followed by one publisher-owned `content_releases` marker. Every row
+has an optimistic precondition and canonical after-hash; the envelope fences base release,
+sequence, schema and logical state and declares before/after counts plus hashes for every table.
+Apply copies the pinned base into a newly reserved staging path, runs one transaction, rebuilds and
+validates derived FTS state, then reopens the sealed path. Missing/out-of-order releases, stale row
+hashes, application-owned table changes, SQL/DDL-shaped values and unsafe assets fail closed.
+
+`LocalPublisherSimulator` exercises the frozen publisher state machine against separate private
+source and disposable-production release roots. It serializes through `radar_mutation`, retains
+an immutable canonical delta/LLM/issue-date input for each candidate, retains immutable release
+databases, atomically replaces only `active.json`, verifies release/state after reopen, commits
+source only after the disposable public check, and restores the exact previous pointer on
+post-activation failure. If rollback cannot be proven, the durable journal blocks new candidates.
+Retries must present the same exact input and recover crashes before activation, after activation,
+between result save and `SUCCEEDED`, and between rollback state and result persistence; an already
+completed candidate is replayed without reapplying its delta.
+
+This is deliberately a local simulation boundary. Stage 7 does not install a service, connect to
+Local Ru, change Legacy, schedule cron, edit Caddy/DNS or activate any real production database.

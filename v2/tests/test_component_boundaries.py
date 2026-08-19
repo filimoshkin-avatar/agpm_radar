@@ -36,6 +36,7 @@ def test_component_has_an_explicit_implementation_status(name: str, status: str)
         "stage-5-adapter",
         "stage-5-implemented",
         "stage-6-implemented",
+        "stage-7-implemented",
     }
 
 

@@ -62,3 +62,8 @@ SQLite replay, immutable packages, Project Manager playbooks and final-result ad
 Stage 6 explicit published DTO projection, canonical JSON, deterministic dependency-free DOCX,
 no-LLM fallback, database/artifact invariants, immutable gazette validation and historical parity:
 `docs/radar-stage6-renderers-validators-2026-08-19.md`.
+
+Stage 7 exact full-seed export/import, typed row deltas with all-table evidence, transactional
+create-only apply, idempotent retry, durable publisher state machine and disposable two-root
+activation/rollback simulation:
+`docs/radar-stage7-delta-publisher-2026-08-19.md`.

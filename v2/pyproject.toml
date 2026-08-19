@@ -1,7 +1,7 @@
 [project]
 name = "radar-v2"
 version = "0.0.0"
-description = "Isolated Radar V2 through the Stage 6 renderer/validator boundary"
+description = "Isolated Radar V2 through the Stage 7 delta/publisher-simulation boundary"
 requires-python = ">=3.12,<3.13"
 dependencies = []
 
@@ -26,6 +26,7 @@ target-version = "py312"
 select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
+"packages/delta/engine.py" = ["S608"]
 "packages/storage/replication_mutations.py" = ["S608"]
 "tests/**" = ["E501", "S101"]
 

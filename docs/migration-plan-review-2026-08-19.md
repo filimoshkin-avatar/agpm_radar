@@ -1262,8 +1262,8 @@ dependency-free DOCX, явный no-LLM fallback, stats/duplicate/date/draft/sec
 независимая проверка JSON/OOXML и immutable gazette package validator. Golden fixtures и
 historical acceptance покрывают обычный, fallback, полный no-LLM и пустой выпуски. Реальный
 Stage 3 import также подтвердил совместимость с sparse Legacy material analysis и date-only
-timestamps через узкий `legacy_inferred` compatibility boundary. Publisher, activation и Stage 7
-delta engine не реализованы.
+timestamps через узкий `legacy_inferred` compatibility boundary. На границе принятия Stage 6
+publisher, activation и Stage 7 delta engine ещё не были реализованы.
 
 ## Этап 7. Delta engine и local publisher simulation
 
@@ -1288,6 +1288,23 @@ delta engine не реализованы.
 - missing/out-of-order delta rejected;
 - crash tests не повреждают active DB;
 - full seed восстанавливает drift.
+
+### Результат
+
+Stage 7 завершён и зафиксирован в `docs/radar-stage7-delta-publisher-2026-08-19.md`.
+Реализованы exact full-seed export/import, contract-v1 typed row delta с upserts/tombstones,
+optimistic base/row fences, полный набор counts/hashes по 23 replicated tables, transactional
+create-only staging apply и безопасный duplicate replay. Локальный publisher исполняет принятую
+durable state machine для раздельных source/disposable-production roots, атомарно меняет только
+малый active pointer, переоткрывает и проверяет release/state, восстанавливает previous pointer
+после post-activation failure и блокирует новые публикации при недоказанном rollback. Candidate
+replay связан с exact canonical delta/LLM/issue-date input и единой release/hash identity в journal.
+
+Synthetic acceptance покрывает official delta/publisher-result schemas, SQL/path/security
+отклонения, tombstones, correction, lock, parent-path swap, crashes до/после activation и оба
+result/state crash window. На сохранённом реальном Stage 3 import full seed и correction delta
+совпали по всем таблицам и logical state. Это всё ещё local disposable simulation: production,
+cron, services, Caddy, DNS и Local Ru не изменялись.
 
 ## Этап 8. Реализовать read-only API и frontend V2
 
@@ -1586,12 +1603,12 @@ delta engine не реализованы.
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4, Stage 5 и Stage 6 завершены. Следующий
-последовательный шаг — **Stage 7: Delta engine и local publisher simulation**.
+Stage 0, urgent Stage 0A, Stage 1, Stage 2, Stage 3, Stage 4, Stage 5, Stage 6 и Stage 7 завершены.
+Следующий последовательный шаг — **Stage 8: read-only API и frontend V2**.
 
-Stage 6 закрепил explicit published DTO projection, детерминированные JSON/DOCX renderers,
-no-LLM fallback и database/artifact/gazette validators без publication capability. Stage 7 строит
-full seed/delta engine, transactional apply, state-machine и local publisher simulation поверх
-generated typed deltas с full replicated-table expectations.
+Stage 7 закрепил exact full seed, typed all-table delta, transactional staging apply, durable
+state-machine и local source/disposable-production activation/rollback simulation. Stage 8 строит
+read-only API и frontend только поверх frozen published DTO/public views, включая safe release
+markers, connection reopen contract, bounded query validation, no-LLM/empty UI и gazette routes.
 
 До отдельного Stage 10 не создаются Local Ru Radar services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.

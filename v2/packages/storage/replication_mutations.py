@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
 import stat
+import unicodedata
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
@@ -17,7 +19,6 @@ from pathlib import Path
 from typing import Final, cast
 from urllib.parse import quote, urlsplit
 
-from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.hashing import (
     REPLICATED_TABLES,
     logical_state_hash,
@@ -34,6 +35,8 @@ from packages.storage.safe_files import (
 from packages.storage.sqlite_profile import assert_sqlite_runtime
 
 type JsonScalar = None | bool | int | float | str
+type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
 type MutationAction = str
 
 MUTATION_FORMAT: Final = "radar-replication-mutations/v1"
@@ -67,6 +70,43 @@ class MutationConflictError(RuntimeError):
 
 class StagingReplayError(RuntimeError):
     """A mutation document could not be replayed into a new staging database."""
+
+
+def _normalize_json(value: object) -> JsonValue:
+    if value is None or isinstance(value, bool | int | str):
+        return unicodedata.normalize("NFC", value) if isinstance(value, str) else value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise MutationValidationError("replication JSON cannot contain non-finite numbers")
+        return 0.0 if value == 0 else value
+    if isinstance(value, list | tuple):
+        return [_normalize_json(item) for item in value]
+    if isinstance(value, Mapping):
+        normalized: dict[str, JsonValue] = {}
+        for raw_key, raw_value in value.items():
+            if not isinstance(raw_key, str):
+                raise MutationValidationError("replication JSON object keys must be strings")
+            key = unicodedata.normalize("NFC", raw_key)
+            if key in normalized:
+                raise MutationValidationError(
+                    f"replication JSON key collides after NFC normalization: {key}"
+                )
+            normalized[key] = _normalize_json(raw_value)
+        return normalized
+    raise MutationValidationError(f"unsupported replication JSON value: {type(value).__name__}")
+
+
+def _canonical_json_line(value: object) -> bytes:
+    return (
+        json.dumps(
+            _normalize_json(value),
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -623,12 +663,74 @@ def _validate_column_scalar(table: str, column: str, value: object, label: str) 
 
 
 def _row_hash(values: Mapping[str, object]) -> str:
-    return hashlib.sha256(canonical_json_line(dict(values))).hexdigest()
+    return hashlib.sha256(_canonical_json_line(dict(values))).hexdigest()
 
 
 def row_after_sha256(values: Mapping[str, object]) -> str:
     """Return the required canonical full-row hash for a mutation."""
     return _row_hash(values)
+
+
+def validate_replication_key(table: str, key: Mapping[str, object]) -> JsonObject:
+    """Validate and normalize one exact replicated primary-key object."""
+    spec = TABLE_SPECS.get(table)
+    if spec is None:
+        raise MutationValidationError(f"unknown or non-content table: {table}")
+    if set(key) != set(spec.primary_key):
+        raise MutationValidationError(f"primary key shape differs for {table}")
+    normalized: dict[str, JsonValue] = {}
+    for column in spec.primary_key:
+        normalized[column] = _validate_column_scalar(
+            table,
+            column,
+            key[column],
+            f"{table}.key.{column}",
+        )
+    return normalized
+
+
+def validate_replication_row(
+    table: str,
+    key: Mapping[str, object],
+    values: Mapping[str, object],
+) -> JsonObject:
+    """Validate one complete typed replicated row without executing SQL."""
+    spec = TABLE_SPECS.get(table)
+    if spec is None:
+        raise MutationValidationError(f"unknown or non-content table: {table}")
+    normalized_key = validate_replication_key(table, key)
+    if set(values) != set(spec.columns):
+        raise MutationValidationError(f"full row column set differs for {table}")
+    normalized: dict[str, JsonValue] = {}
+    for column in spec.columns:
+        scalar = _validate_column_scalar(
+            table,
+            column,
+            values[column],
+            f"{table}.values.{column}",
+        )
+        if column in spec.json_columns:
+            if not isinstance(scalar, str):
+                raise MutationValidationError(f"{table}.{column} must be canonical JSON text")
+            try:
+                parsed = json.loads(scalar, parse_constant=_reject_json_constant)
+            except json.JSONDecodeError as error:
+                raise MutationValidationError(f"invalid JSON text in {table}.{column}") from error
+            canonical = json.dumps(
+                parsed,
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            if canonical != scalar:
+                raise MutationValidationError(f"non-canonical JSON text in {table}.{column}")
+        if column in spec.relative_path_columns:
+            _safe_relative_path(scalar, f"{table}.values.{column}")
+        normalized[column] = scalar
+    if any(normalized[column] != normalized_key[column] for column in spec.primary_key):
+        raise MutationValidationError(f"row primary key differs from key for {table}")
+    return normalized
 
 
 def _validate_expected_before(value: object, action: str, label: str) -> None:
@@ -1042,4 +1144,6 @@ __all__ = [
     "replay_to_staging",
     "row_after_sha256",
     "validate_mutation_document",
+    "validate_replication_key",
+    "validate_replication_row",
 ]
