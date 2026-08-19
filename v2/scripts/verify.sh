@@ -40,6 +40,9 @@ for javascript_file in "${javascript_files[@]}"; do
 done
 printf 'JavaScript syntax: PASS (%d module(s))\n' "${#javascript_files[@]}"
 
+step "frontend console smoke"
+node tools/frontend_console_smoke.mjs
+
 step "secret and Legacy-isolation scan"
 uv run --no-sync python tools/check_isolation.py
 

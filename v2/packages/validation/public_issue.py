@@ -240,6 +240,11 @@ def _scan_public_value(value: JsonValue, label: str = "public issue") -> None:
             _scan_public_value(item, f"{label}.{key}")
 
 
+def validate_public_value(value: JsonValue, *, label: str = "public value") -> None:
+    """Reject host-local paths and secret-shaped strings in any public DTO fragment."""
+    _scan_public_value(value, label)
+
+
 def validate_public_issue_document(value: object) -> JsonObject:
     """Validate the exact deterministic IssueDetail projection used by renderers."""
     issue = _exact(value, _PUBLIC_ISSUE_KEYS, "public issue")
@@ -428,6 +433,11 @@ def _verify_database_boundary(connection: sqlite3.Connection) -> None:
         raise PublicIssueValidationError("active application compatibility differs from V2 v1")
 
 
+def verify_public_database_connection(connection: sqlite3.Connection) -> None:
+    """Verify the database/profile boundary before installing a read-only API authorizer."""
+    _verify_database_boundary(connection)
+
+
 def build_public_issue(
     connection: sqlite3.Connection,
     *,
@@ -497,7 +507,7 @@ def build_public_issue(
                    m.published_at, m.publication_date_status,
                    ma.llm_status, ma.effective_model,
                    mq.publication_date_status AS quality_date_status,
-                   mq.issue_date_delta_days
+                   mq.issue_date_delta_days, mq.severity, mq.review_status
             FROM issue_materials AS im
             JOIN materials AS m ON m.material_id = im.material_id
             LEFT JOIN material_analysis AS ma
@@ -551,7 +561,12 @@ def build_public_issue(
         expected_delta: int | None = None
         if published_at is not None:
             published_day = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").date()
-            if published_day > issue_day + timedelta(days=1):
+            known_legacy_anomaly = (
+                legacy_inferred
+                and row["review_status"] == "queued"
+                and row["severity"] in {"medium", "high"}
+            )
+            if published_day > issue_day + timedelta(days=1) and not known_legacy_anomaly:
                 raise PublicIssueValidationError("material publication date is after issue window")
             expected_delta = (published_day - issue_day).days
         if row["issue_date_delta_days"] != expected_delta:
@@ -619,8 +634,208 @@ def build_public_issue(
     return validate_public_issue_document(document)
 
 
+def build_public_issue_from_views(
+    connection: sqlite3.Connection,
+    *,
+    issue_date: str,
+) -> JsonObject:
+    """Build one explicit IssueDetail using only versioned published public views."""
+    requested_date = _date(issue_date, "requested issue date")
+    issue = _row(
+        connection.execute(
+            """
+            SELECT issue_id, issue_date, issue_number, title, brief, published_at,
+                   publication_origin, empty_reason
+            FROM pub_issues_v1
+            WHERE issue_date = ?
+            """,
+            (requested_date,),
+        ),
+        "published issue",
+    )
+    legacy_inferred = issue["publication_origin"] == "legacy_inferred"
+    issue_published_at = _database_timestamp(
+        issue["published_at"],
+        "public issue published_at",
+        allow_legacy_date=legacy_inferred,
+    )
+    if issue["publication_origin"] == "v2" and issue_published_at is None:
+        raise PublicIssueValidationError("V2 published issue has no published_at")
+    issue_id = cast(str, issue["issue_id"])
+    stats = _stats(
+        _row(
+            connection.execute(
+                """
+                SELECT viewed, included, cut, near, mid, far, core, adjacent
+                FROM pub_stats_v1
+                WHERE issue_id = ?
+                """,
+                (issue_id,),
+            ),
+            "published stats",
+        ),
+        "public stats",
+    )
+    analysis_row = _row(
+        connection.execute(
+            """
+            SELECT headline, analysis_json, theses_json, brief, llm_status, effective_model
+            FROM pub_issue_analysis_v1
+            WHERE issue_id = ?
+            """,
+            (issue_id,),
+        ),
+        "published issue analysis",
+    )
+    issue_llm = {
+        "effectiveModel": analysis_row["effective_model"],
+        "status": analysis_row["llm_status"],
+    }
+    _llm(issue_llm, "public issue llm")
+
+    material_rows = _rows(
+        connection.execute(
+            """
+            SELECT im.sort_order, im.perimeter, im.verdict, im.summary,
+                   im.agpm_takeaway, im.brief, im.theses_json, im.trend_notes,
+                   im.key_material, im.signal_score, im.signal_strength,
+                   im.material_id, im.title, im.url, im.canonical_url, im.source_name,
+                   im.material_published_at, im.publication_date_status,
+                   ma.llm_status, ma.effective_model,
+                   mq.publication_date_status AS quality_date_status,
+                   mq.issue_date_delta_days, mq.severity, mq.review_status
+            FROM pub_issue_materials_v1 AS im
+            LEFT JOIN pub_material_analysis_v1 AS ma
+              ON ma.issue_id = im.issue_id AND ma.material_id = im.material_id
+            JOIN pub_material_quality_v1 AS mq
+              ON mq.issue_id = im.issue_id AND mq.material_id = im.material_id
+            WHERE im.issue_id = ?
+            ORDER BY im.sort_order, im.material_id
+            """,
+            (issue_id,),
+        )
+    )
+    if [row["sort_order"] for row in material_rows] != list(range(len(material_rows))):
+        raise PublicIssueValidationError("public material sort order must be contiguous from zero")
+    if len(material_rows) != cast(int, stats["included"]):
+        raise PublicIssueValidationError("public material count differs from stats.included")
+    if bool(material_rows) == (issue["empty_reason"] is not None):
+        raise PublicIssueValidationError("empty_reason must exist exactly for an empty issue")
+
+    rubric_rows = _rows(
+        connection.execute(
+            """
+            SELECT material_id, rubric_id
+            FROM pub_material_rubrics_v1
+            WHERE issue_id = ?
+            ORDER BY material_id, sort_order, rubric_id
+            """,
+            (issue_id,),
+        )
+    )
+    rubrics: dict[str, list[JsonValue]] = {}
+    for row in rubric_rows:
+        rubrics.setdefault(cast(str, row["material_id"]), []).append(cast(str, row["rubric_id"]))
+
+    issue_day = date.fromisoformat(requested_date)
+    materials: list[dict[str, object]] = []
+    for row in material_rows:
+        status = cast(str, row["publication_date_status"])
+        published_at = _database_timestamp(
+            row["material_published_at"],
+            "public material published_at",
+            allow_legacy_date=legacy_inferred,
+        )
+        if status == "resolved" and published_at is None:
+            raise PublicIssueValidationError("resolved public material has no published_at")
+        if status == "unresolved" and published_at is not None:
+            raise PublicIssueValidationError(
+                "unresolved public material unexpectedly has published_at"
+            )
+        if row["quality_date_status"] != status:
+            raise PublicIssueValidationError("public material and quality date statuses differ")
+        expected_delta: int | None = None
+        if published_at is not None:
+            published_day = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").date()
+            known_legacy_anomaly = (
+                legacy_inferred
+                and row["review_status"] == "queued"
+                and row["severity"] in {"medium", "high"}
+            )
+            if published_day > issue_day + timedelta(days=1) and not known_legacy_anomaly:
+                raise PublicIssueValidationError(
+                    "public material publication date is after issue window"
+                )
+            expected_delta = (published_day - issue_day).days
+        if row["issue_date_delta_days"] != expected_delta:
+            raise PublicIssueValidationError("public material quality date delta is inconsistent")
+        material_llm_status = row["llm_status"]
+        material_effective_model = row["effective_model"]
+        if material_llm_status is None:
+            material_llm_status = (
+                "unavailable" if issue_llm["status"] == "unavailable" else "fallback"
+            )
+            material_effective_model = None
+        material_id = cast(str, row["material_id"])
+        materials.append(
+            {
+                "agpmTakeaway": row["agpm_takeaway"],
+                "brief": row["brief"],
+                "canonicalUrl": row["canonical_url"],
+                "id": material_id,
+                "issueDate": requested_date,
+                "keyMaterial": bool(row["key_material"]),
+                "llm": {
+                    "effectiveModel": material_effective_model,
+                    "status": material_llm_status,
+                },
+                "perimeter": row["perimeter"],
+                "publicationDateStatus": status,
+                "publishedAt": published_at,
+                "rubrics": rubrics.get(material_id, []),
+                "signalScore": row["signal_score"],
+                "signalStrength": row["signal_strength"],
+                "sourceName": row["source_name"],
+                "summary": row["summary"],
+                "theses": _json(row["theses_json"], "public material theses"),
+                "title": row["title"],
+                "trendNotes": row["trend_notes"],
+                "url": row["url"],
+                "verdict": row["verdict"],
+            }
+        )
+
+    raw_analysis = _json(analysis_row["analysis_json"], "public issue analysis")
+    document: dict[str, object] = {
+        "analysis": {
+            "blocks": _analysis_blocks(
+                raw_analysis,
+                len(materials),
+                stats,
+                cast(str, analysis_row["llm_status"]),
+            ),
+            "brief": analysis_row["brief"] if analysis_row["brief"] is not None else issue["brief"],
+            "headline": analysis_row["headline"],
+        },
+        "brief": issue["brief"],
+        "issueDate": requested_date,
+        "issueNumber": issue["issue_number"],
+        "llm": issue_llm,
+        "materialCount": len(materials),
+        "materials": materials,
+        "publishedAt": issue_published_at,
+        "stats": stats,
+        "theses": _json(analysis_row["theses_json"], "public issue theses"),
+        "title": issue["title"],
+    }
+    return validate_public_issue_document(document)
+
+
 __all__ = [
     "PublicIssueValidationError",
     "build_public_issue",
+    "build_public_issue_from_views",
     "validate_public_issue_document",
+    "validate_public_value",
+    "verify_public_database_connection",
 ]

@@ -1,0 +1,707 @@
+"""Stage 8 published-only API, pointer reload, frontend and static-route acceptance."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import threading
+import urllib.error
+import urllib.request
+from collections.abc import Iterator
+from pathlib import Path
+from typing import cast
+
+import jsonschema  # type: ignore[import-untyped]
+import pytest
+import yaml  # type: ignore[import-untyped]
+from apps.api import (
+    ActiveDatabaseManager,
+    ApiResponse,
+    DatabaseIdentity,
+    RadarApi,
+    RadarApplication,
+    SearchRateLimiter,
+)
+from apps.api.http_server import RadarHttpServer
+from packages.publisher.local_simulation import install_initial_release, read_active_pointer
+from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, verify_database
+from packages.storage.migrations import create_database
+
+ROOT = Path(__file__).resolve().parents[2]
+V2_ROOT = ROOT / "v2"
+OPENAPI = ROOT / "contracts/v1/public-api.openapi.yaml"
+WEB_ROOT = V2_ROOT / "apps/web"
+NOW = "2026-08-21T05:10:00Z"
+
+
+def _hash(label: str) -> str:
+    return hashlib.sha256(label.encode()).hexdigest()
+
+
+def _json(value: object) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _build_release(path: Path, *, release_id: str, latest_title: str) -> None:
+    create_database(path, applied_at="2026-08-21T00:00:00Z")
+    with sqlite3.connect(path) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute(
+            """
+            INSERT INTO application_compatibility VALUES (
+              'app_stage8_synthetic', 1, '1.0.0', '1.0.0', '1.0.0',
+              '1.0.0', '1.0.0', '1.0.0', '3.45.1', ?
+            )
+            """,
+            (NOW,),
+        )
+        connection.execute("INSERT INTO rubrics VALUES ('orchestration', 'Оркестрация', 1)")
+        connection.execute("INSERT INTO rubrics VALUES ('governance', 'Управление', 2)")
+        connection.execute(
+            """
+            INSERT INTO materials VALUES (
+              'material_public', 'Безопасная оркестрация агентов',
+              'https://example.test/material', 'https://example.test/material',
+              'Synthetic Journal', '2026-08-20T04:00:00Z', 'resolved',
+              'Оркестрация стала надёжнее.', 'Проверять границы полномочий.',
+              'Короткий проверенный сигнал.', ?, ?, ?
+            )
+            """,
+            (_hash("material-public"), NOW, NOW),
+        )
+        connection.execute(
+            """
+            INSERT INTO issues VALUES (
+              'issue_public_normal', '2026-08-20', 75, 'Обычный выпуск Radar',
+              'Один опубликованный материал.', 'published', '2026-08-20T05:10:00Z',
+              'v2', NULL, ?, ?, ?
+            )
+            """,
+            (_hash("issue-public-normal"), NOW, NOW),
+        )
+        connection.execute(
+            """
+            INSERT INTO issue_materials VALUES (
+              'issue_public_normal', 'material_public', 0, 'near', 'core',
+              'Оркестрация стала надёжнее.', 'Проверять границы полномочий.',
+              'Короткий проверенный сигнал.', '["Надёжность важнее скорости"]', NULL,
+              '[]', 1, 95, 'strong', ?, ?
+            )
+            """,
+            (NOW, NOW),
+        )
+        connection.execute(
+            """
+            INSERT INTO issue_analysis VALUES (
+              'issue_public_normal', 'Контуры становятся надёжнее', ?, ?,
+              'Проверенный редакционный вывод.', 'fallback', 'primary-model',
+              'MiniMax-M3', 'minimax', 'stage8-synthetic-v1', ?
+            )
+            """,
+            (
+                _json(
+                    {
+                        "blocks": [
+                            {
+                                "kind": "signals",
+                                "text": "Системы усиливают контроль границ.",
+                                "title": "Главный сигнал",
+                            }
+                        ]
+                    }
+                ),
+                _json([{"lead": "Контроль", "rest": "становится частью архитектуры."}]),
+                NOW,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO material_analysis VALUES (
+              'issue_public_normal', 'material_public', 'Коротко', 'Для AgPM',
+              'fallback', 'primary-model', 'MiniMax-M3', 'minimax',
+              'stage8-synthetic-v1', ?
+            )
+            """,
+            (NOW,),
+        )
+        connection.execute(
+            """
+            INSERT INTO material_rubrics VALUES (
+              'issue_public_normal', 'material_public', 'orchestration', 0.95, 'synthetic'
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO material_quality VALUES (
+              'issue_public_normal', 'material_public', 'resolved', 0,
+              'ok', 'ok', NULL, ?
+            )
+            """,
+            (NOW,),
+        )
+        connection.execute(
+            """
+            INSERT INTO daily_stats VALUES (
+              'issue_public_normal', 3, 1, 2, 1, 0, 0, 1, 0, ?
+            )
+            """,
+            (NOW,),
+        )
+        connection.execute(
+            """
+            INSERT INTO issues VALUES (
+              'issue_public_empty', '2026-08-21', 76, ?, 'Пустой выпуск опубликован.',
+              'published', ?, 'v2', 'no_qualifying_materials', ?, ?, ?
+            )
+            """,
+            (latest_title, NOW, _hash(latest_title), NOW, NOW),
+        )
+        connection.execute(
+            """
+            INSERT INTO issue_analysis VALUES (
+              'issue_public_empty', NULL, ?, '[]', 'Материалов нет.',
+              'unavailable', 'primary-model', NULL, NULL, 'stage8-rules-v1', ?
+            )
+            """,
+            (
+                _json(
+                    {
+                        "blocks": [
+                            {
+                                "kind": "overview",
+                                "text": "Квалифицирующих материалов нет.",
+                                "title": "Итог",
+                            }
+                        ]
+                    }
+                ),
+                NOW,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO daily_stats VALUES (
+              'issue_public_empty', 4, 0, 4, 0, 0, 0, 0, 0, ?
+            )
+            """,
+            (NOW,),
+        )
+        connection.execute(
+            """
+            INSERT INTO issues VALUES (
+              'issue_private_draft', '2099-01-01', NULL, 'PRIVATE DRAFT MUST NOT LEAK',
+              '/mnt/private/draft', 'draft', NULL, NULL, NULL, ?, ?, ?
+            )
+            """,
+            (_hash("private-draft"), NOW, NOW),
+        )
+        connection.execute(
+            """
+            INSERT INTO gazettes VALUES (
+              'gazette_2026_08', '2026-08', 'Газета агентного управления',
+              'published', ?, ?, ?, ?, ?
+            )
+            """,
+            (NOW, _hash("gazette-manifest"), _hash("gazette-content"), NOW, NOW),
+        )
+        gazette_html = b"<!doctype html><title>Gazette</title><main>Published gazette</main>"
+        connection.execute(
+            """
+            INSERT INTO gazette_assets VALUES (
+              'gazette_2026_08', 'index.html', ?, ?, 'text/html'
+            )
+            """,
+            (hashlib.sha256(gazette_html).hexdigest(), len(gazette_html)),
+        )
+        rebuild_and_check_fts(connection)
+        state_hash = logical_state_hash(connection)
+        connection.execute(
+            """
+            INSERT INTO content_releases VALUES (
+              ?, 1, NULL, ?, 'daily', 1, ?, ?, ?, ?
+            )
+            """,
+            (release_id, f"candidate_{release_id}", "0" * 64, state_hash, NOW, NOW),
+        )
+        connection.commit()
+        verify_database(connection)
+        connection.commit()
+
+
+def _refresh_release_state(connection: sqlite3.Connection) -> None:
+    rebuild_and_check_fts(connection)
+    state_hash = logical_state_hash(connection)
+    connection.execute(
+        "UPDATE content_releases SET after_state_hash = ?",
+        (state_hash,),
+    )
+    connection.commit()
+    verify_database(connection)
+    connection.commit()
+
+
+@pytest.fixture
+def stage8_runtime(
+    tmp_path: Path,
+) -> Iterator[tuple[ActiveDatabaseManager, RadarApi, Path]]:
+    database = tmp_path / "stage8.sqlite"
+    _build_release(database, release_id="release_stage8_a", latest_title="Пустой выпуск")
+    active_root = tmp_path / "active"
+    install_initial_release(active_root, database)
+    manager = ActiveDatabaseManager(active_root)
+    api = RadarApi(manager)
+    yield manager, api, active_root
+    manager.close()
+
+
+def _payload(response: ApiResponse) -> object:
+    return json.loads(response.body)
+
+
+def _execute_sql(
+    manager: ActiveDatabaseManager,
+    statement: str,
+) -> list[tuple[object, ...]]:
+    def operation(
+        connection: sqlite3.Connection,
+        _identity: DatabaseIdentity,
+    ) -> list[tuple[object, ...]]:
+        return cast(list[tuple[object, ...]], connection.execute(statement).fetchall())
+
+    return manager.execute(operation)
+
+
+def _rewrite_refs(value: object) -> object:
+    if isinstance(value, list):
+        return [_rewrite_refs(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: (
+                raw.replace("#/components/schemas/", "#/$defs/")
+                if key == "$ref" and isinstance(raw, str)
+                else _rewrite_refs(raw)
+            )
+            for key, raw in value.items()
+        }
+    return value
+
+
+def _schema_validator(name: str) -> jsonschema.Draft202012Validator:
+    openapi = cast(dict[str, object], yaml.safe_load(OPENAPI.read_text(encoding="utf-8")))
+    components = cast(dict[str, object], openapi["components"])
+    schemas = cast(dict[str, object], components["schemas"])
+    schema = {
+        "$defs": _rewrite_refs(schemas),
+        "$ref": f"#/$defs/{name}",
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+    }
+    return jsonschema.Draft202012Validator(
+        schema,
+        format_checker=jsonschema.FormatChecker(),
+    )
+
+
+def _assert_schema(name: str, value: object) -> None:
+    errors = list(_schema_validator(name).iter_errors(value))
+    assert not errors, [error.message for error in errors]
+
+
+def test_all_openapi_endpoints_are_published_only_and_schema_valid(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    _manager, api, active_root = stage8_runtime
+    cases = (
+        ("/api/health", "Health"),
+        ("/api/latest", "IssueDetail"),
+        ("/api/issues/2026-08-20", "IssueDetail"),
+        ("/api/stats?period=30d", "Stats"),
+    )
+    bodies: list[object] = []
+    for target, schema in cases:
+        response = api.handle("GET", target, request_id="stage8_contract")
+        assert response.status == 200
+        payload = _payload(response)
+        _assert_schema(schema, payload)
+        bodies.append(payload)
+
+    issue_list = cast(dict[str, object], _payload(api.handle("GET", "/api/issues?limit=1")))
+    assert set(issue_list) == {"items", "nextCursor"}
+    for item in cast(list[object], issue_list["items"]):
+        _assert_schema("IssueSummary", item)
+    assert issue_list["nextCursor"] is not None
+    second_page = cast(
+        dict[str, object],
+        _payload(api.handle("GET", f"/api/issues?limit=1&cursor={issue_list['nextCursor']}")),
+    )
+    assert len(cast(list[object], second_page["items"])) == 1
+
+    for target in (
+        "/api/materials?period=30d&limit=100",
+        "/api/search?q=%D0%B0%D0%B3%D0%B5%D0%BD%D1%82%D0%BE%D0%B2&period=30d&limit=100",
+    ):
+        payload = cast(dict[str, object], _payload(api.handle("GET", target)))
+        for item in cast(list[object], payload["items"]):
+            _assert_schema("Material", item)
+        assert len(cast(list[object], payload["items"])) == 1
+        bodies.append(payload)
+
+    timeseries = cast(dict[str, object], _payload(api.handle("GET", "/api/timeseries?days=7")))
+    for item in cast(list[object], timeseries["items"]):
+        _assert_schema("TimeseriesPoint", item)
+    rubrics = cast(list[object], _payload(api.handle("GET", "/api/rubrics?period=30d")))
+    sources = cast(list[object], _payload(api.handle("GET", "/api/sources?period=30d")))
+    for item in rubrics:
+        _assert_schema("Rubric", item)
+    for item in sources:
+        _assert_schema("Source", item)
+    assert rubrics == [{"count": 1, "id": "orchestration", "title": "Оркестрация"}]
+    assert sources == [{"included": 1, "name": "Synthetic Journal"}]
+
+    gazettes = cast(dict[str, object], _payload(api.handle("GET", "/api/gazettes")))
+    for item in cast(list[object], gazettes["items"]):
+        _assert_schema("Gazette", item)
+    assert cast(list[dict[str, object]], gazettes["items"])[0]["url"] == "/gazettes/2026-08/"
+    bodies.extend((timeseries, rubrics, sources, gazettes))
+
+    serialized = json.dumps(bodies, ensure_ascii=False)
+    assert "PRIVATE DRAFT MUST NOT LEAK" not in serialized
+    assert str(active_root) not in serialized
+    assert "/mnt/" not in serialized
+    assert "issue_private_draft" not in serialized
+
+
+def test_empty_no_llm_and_direct_internal_sql_are_explicit(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    manager, api, _root = stage8_runtime
+    latest = cast(dict[str, object], _payload(api.handle("GET", "/api/latest")))
+    assert latest["materialCount"] == 0
+    assert latest["materials"] == []
+    assert latest["llm"] == {"effectiveModel": None, "status": "unavailable"}
+    assert cast(dict[str, int], latest["stats"])["viewed"] == 4
+    for statement in (
+        "SELECT title FROM issues",
+        "PRAGMA user_version",
+        "SELECT load_extension('untrusted')",
+    ):
+        with pytest.raises(sqlite3.DatabaseError, match="prohibited|not authorized"):
+            _execute_sql(manager, statement)
+
+
+@pytest.mark.parametrize(
+    "target",
+    (
+        "/api/issues?limit=0",
+        "/api/issues?limit=01",
+        "/api/issues?limit=1&limit=2",
+        "/api/issues?unknown=1",
+        "/api/issues/%32%30%32%36-08-20",
+        "/api/search?q=",
+        "/api/search?q=%00bad",
+        "/api/stats",
+        "/api/timeseries?days=91",
+        "/api/materials?perimeter=inside",
+    ),
+)
+def test_malformed_inputs_are_bounded_json_errors(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    target: str,
+) -> None:
+    _manager, api, _root = stage8_runtime
+    response = api.handle("GET", target, request_id="bounded_case")
+    assert response.status == 400
+    payload = _payload(response)
+    _assert_schema("Error", payload)
+    assert payload == {
+        "code": "INVALID_REQUEST",
+        "message": "The request is invalid",
+        "requestId": "bounded_case",
+    }
+
+
+def test_unknown_write_and_rate_limit_fail_closed(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    manager, _api, _root = stage8_runtime
+    api = RadarApi(manager, search_limiter=SearchRateLimiter(requests=1, window_seconds=60))
+    assert api.handle("POST", "/api/issues").status == 405
+    assert api.handle("PUT", "/api/issues").status == 405
+    assert api.handle("DELETE", "/api/issues").status == 405
+    assert api.handle("GET", "/api/internal/date-quality").status == 404
+    assert api.handle("GET", "/api/search?q=agent", remote_key="test").status == 200
+    limited = api.handle("GET", "/api/search?q=agent", remote_key="test")
+    assert limited.status == 429
+    _assert_schema("Error", _payload(limited))
+
+
+def test_path_shaped_published_values_fail_closed_without_leaking(tmp_path: Path) -> None:
+    database = tmp_path / "unsafe-public.sqlite"
+    _build_release(database, release_id="release_stage8_unsafe", latest_title="Пустой выпуск")
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "UPDATE materials SET source_name = ? WHERE material_id = 'material_public'",
+            ("/mnt/private/source",),
+        )
+        connection.execute(
+            "UPDATE gazettes SET title = ? WHERE gazette_id = 'gazette_2026_08'",
+            ("/root/private/gazette",),
+        )
+        _refresh_release_state(connection)
+    active_root = tmp_path / "unsafe-active"
+    install_initial_release(active_root, database)
+    manager = ActiveDatabaseManager(active_root)
+    api = RadarApi(manager)
+    try:
+        for target in ("/api/issues", "/api/sources", "/api/gazettes"):
+            response = api.handle("GET", target, request_id="unsafe_public")
+            assert response.status == 503
+            decoded = response.body.decode("utf-8")
+            assert "private/source" not in decoded
+            assert "private/gazette" not in decoded
+            _assert_schema("Error", _payload(response))
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize(
+    ("legacy_inferred", "date_status", "severity", "expected_status"),
+    (
+        (True, "low_confidence", "medium", 200),
+        (True, "resolved", "high", 200),
+        (False, "low_confidence", "medium", 503),
+    ),
+)
+def test_only_queued_legacy_quality_anomaly_can_exceed_issue_window(
+    tmp_path: Path,
+    legacy_inferred: bool,
+    date_status: str,
+    severity: str,
+    expected_status: int,
+) -> None:
+    suffix = f"{'legacy' if legacy_inferred else 'native'}-{date_status}"
+    database = tmp_path / f"date-window-{suffix}.sqlite"
+    _build_release(
+        database,
+        release_id=f"release_stage8_date_{suffix}",
+        latest_title="Пустой выпуск",
+    )
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            UPDATE materials
+            SET published_at = '2026-09-08', publication_date_status = ?
+            WHERE material_id = 'material_public'
+            """,
+            (date_status,),
+        )
+        connection.execute(
+            """
+            UPDATE material_quality
+            SET publication_date_status = ?, issue_date_delta_days = 19,
+                severity = ?, review_status = 'queued', reason = 'Known Legacy date anomaly'
+            WHERE issue_id = 'issue_public_normal' AND material_id = 'material_public'
+            """,
+            (date_status, severity),
+        )
+        if legacy_inferred:
+            connection.execute(
+                """
+                UPDATE issues SET publication_origin = 'legacy_inferred'
+                WHERE issue_id = 'issue_public_normal'
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO legacy_issue_provenance VALUES (
+                  'issue_public_normal', 'published', '2026-08-20', ?, ?, ?
+                )
+                """,
+                (_hash("legacy-baseline"), _hash("legacy-row"), NOW),
+            )
+        _refresh_release_state(connection)
+    active_root = tmp_path / f"date-active-{suffix}"
+    install_initial_release(active_root, database)
+    manager = ActiveDatabaseManager(active_root)
+    try:
+        response = RadarApi(manager).handle("GET", "/api/materials?period=30d&limit=100")
+        assert response.status == expected_status
+        if legacy_inferred:
+            payload = cast(dict[str, object], _payload(response))
+            item = cast(list[dict[str, object]], payload["items"])[0]
+            assert item["publicationDateStatus"] == date_status
+            assert item["publishedAt"] == "2026-09-08T00:00:00Z"
+    finally:
+        manager.close()
+
+
+def test_atomic_pointer_switch_reopens_expected_release_and_inode(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    tmp_path: Path,
+) -> None:
+    _manager, api, active_root = stage8_runtime
+    first = cast(dict[str, object], _payload(api.handle("GET", "/api/health")))
+    assert first["releaseId"] == "release_stage8_a"
+
+    replacement_database = tmp_path / "replacement.sqlite"
+    _build_release(
+        replacement_database,
+        release_id="release_stage8_b",
+        latest_title="Пустой выпуск после переключения",
+    )
+    replacement_root = tmp_path / "replacement-active"
+    replacement_pointer = install_initial_release(replacement_root, replacement_database)
+    target_database = active_root / replacement_pointer.database
+    shutil.copyfile(replacement_pointer.database_path, target_database)
+    target_database.chmod(0o600)
+    pointer_next = active_root / ".active.stage8.next"
+    pointer_next.write_bytes((replacement_root / "active.json").read_bytes())
+    pointer_next.chmod(0o600)
+    os.replace(pointer_next, active_root / "active.json")
+
+    second = cast(dict[str, object], _payload(api.handle("GET", "/api/health")))
+    assert second["releaseId"] == "release_stage8_b"
+    assert second["databaseStateHash"] != first["databaseStateHash"]
+    latest = cast(dict[str, object], _payload(api.handle("GET", "/api/latest")))
+    assert latest["title"] == "Пустой выпуск после переключения"
+    assert read_active_pointer(active_root).release_id == "release_stage8_b"
+
+
+def test_spa_assets_gazette_and_missing_routes_are_separate(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    tmp_path: Path,
+) -> None:
+    _manager, api, _root = stage8_runtime
+    gazette_root = tmp_path / "gazettes"
+    period_root = gazette_root / "2026-08"
+    period_root.mkdir(parents=True, mode=0o700)
+    (period_root / "index.html").write_text(
+        "<!doctype html><title>Gazette</title><main>Published gazette</main>",
+        encoding="utf-8",
+    )
+    (period_root / "index.html").chmod(0o600)
+    application = RadarApplication(api, web_root=WEB_ROOT, gazette_root=gazette_root)
+
+    spa = application.handle("GET", "/issues/2026-08-20")
+    assert spa.status == 200
+    assert b'<main id="content"' in spa.body
+    assert dict(spa.headers)["Cache-Control"] == "no-store"
+    asset = application.handle("GET", "/assets/app.mjs?v=stage8-v1")
+    assert asset.status == 200
+    assert dict(asset.headers)["Cache-Control"].endswith("immutable")
+    gazette = application.handle("GET", "/gazettes/2026-08/")
+    assert gazette.status == 200
+    assert b"Published gazette" in gazette.body
+    assert "script-src 'none'" in dict(gazette.headers)["Content-Security-Policy"]
+
+    (period_root / "unlisted.txt").write_text("must not be served", encoding="utf-8")
+    (period_root / "unlisted.txt").chmod(0o600)
+    assert application.handle("GET", "/gazettes/2026-08/unlisted.txt").status == 404
+    (period_root / "index.html").write_text("tampered", encoding="utf-8")
+    assert application.handle("GET", "/gazettes/2026-08/").status == 404
+
+    assert application.handle("GET", "/assets/missing.js").status == 404
+    assert application.handle("GET", "/gazettes/2026-07/").status == 404
+    assert application.handle("GET", "/gazettes/2026-08/missing.png").status == 404
+    assert application.handle("GET", "/gazettes/2026-08/../index.html").status == 404
+    assert application.handle("GET", "/gazettes/2026-08/%2e%2e/index.html").status == 404
+    assert application.handle("GET", "/unknown-real-file.js").status == 404
+
+
+def test_loopback_http_transport_serves_json_and_security_headers(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    tmp_path: Path,
+) -> None:
+    _manager, api, _root = stage8_runtime
+    gazette_root = tmp_path / "http-gazettes"
+    gazette_root.mkdir(mode=0o700)
+    application = RadarApplication(api, web_root=WEB_ROOT, gazette_root=gazette_root)
+    with RadarHttpServer(("127.0.0.1", 0), application) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        port = int(server.server_address[1])
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health",
+                timeout=5,
+            ) as response:
+                assert response.status == 200
+                assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+                assert response.headers["X-Content-Type-Options"] == "nosniff"
+                _assert_schema("Health", json.loads(response.read()))
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/issues",
+                method="POST",
+            )
+            with pytest.raises(urllib.error.HTTPError) as captured:
+                urllib.request.urlopen(request, timeout=5)  # noqa: S310 -- fixed loopback endpoint
+            assert captured.value.code == 405
+            assert captured.value.headers["Content-Type"] == "application/json; charset=utf-8"
+            _assert_schema("Error", json.loads(captured.value.read()))
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            assert not thread.is_alive()
+
+
+def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> None:
+    html = (WEB_ROOT / "index.html").read_text(encoding="utf-8")
+    script = (WEB_ROOT / "app.mjs").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
+    assert 'name="viewport"' in html
+    assert "/assets/app.mjs?v=" in html and "/assets/styles.css?v=" in html
+    assert "innerHTML" not in script
+    assert "insertAdjacentHTML" not in script
+    assert "document.write" not in script
+    assert "safeExternalUrl" in script
+    assert "Анализ без LLM" in script
+    assert "квалифицирующих материалов" in script.casefold()
+    assert "/api/gazettes" in script
+    assert "@media (max-width: 800px)" in styles
+    assert "@media (max-width: 540px)" in styles
+    node = shutil.which("node")
+    assert node is not None
+    result = subprocess.run(  # noqa: S603 -- absolute trusted development executable
+        [node, "--check", str(WEB_ROOT / "app.mjs")],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_active_release_file_remains_byte_stable_after_public_queries(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    _manager, api, active_root = stage8_runtime
+    pointer = read_active_pointer(active_root)
+    before = hashlib.sha256(pointer.database_path.read_bytes()).hexdigest()
+    for target in (
+        "/api/health",
+        "/api/latest",
+        "/api/issues",
+        "/api/materials",
+        "/api/search?q=agent",
+        "/api/stats?period=30d",
+        "/api/timeseries",
+        "/api/rubrics",
+        "/api/sources",
+        "/api/gazettes",
+    ):
+        assert api.handle("GET", target).status == 200
+    after = hashlib.sha256(pointer.database_path.read_bytes()).hexdigest()
+    assert after == before
+    assert not Path(f"{pointer.database_path}-wal").exists()
+    assert not Path(f"{pointer.database_path}-shm").exists()
+    assert not Path(f"{pointer.database_path}-journal").exists()

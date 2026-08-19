@@ -16,7 +16,10 @@ from packages.validation.gazette import (
 from packages.validation.public_issue import (
     PublicIssueValidationError,
     build_public_issue,
+    build_public_issue_from_views,
     validate_public_issue_document,
+    validate_public_value,
+    verify_public_database_connection,
 )
 
 COMPONENT_NAME: Final = "validation"
@@ -31,8 +34,11 @@ __all__ = [
     "GazetteValidationReport",
     "PublicIssueValidationError",
     "build_public_issue",
+    "build_public_issue_from_views",
     "validate_daily_docx",
     "validate_daily_json",
     "validate_gazette_candidate",
     "validate_public_issue_document",
+    "validate_public_value",
+    "verify_public_database_connection",
 ]

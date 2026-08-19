@@ -1,12 +1,12 @@
 {
   "containsProductionData": false,
-  "fixtureId": "synthetic-stage2-component-status",
+  "fixtureId": "synthetic-stage8-component-status",
   "fixtureKind": "synthetic",
   "payload": {
     "application": "radar-v2-api",
     "contractFamily": "radar-v2/1",
     "contractVersion": "1.0.0",
-    "stage": "stage-2-skeleton",
-    "status": "skeleton"
+    "stage": "stage-8-implemented",
+    "status": "ready"
   }
 }

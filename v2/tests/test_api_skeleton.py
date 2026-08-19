@@ -1,4 +1,4 @@
-"""Stage 2 API identity tests."""
+"""Stage 8 API build-identity and preflight tests."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ def test_status_payload_is_deterministic() -> None:
         "application": "radar-v2-api",
         "contractFamily": "radar-v2/1",
         "contractVersion": "1.0.0",
-        "stage": "stage-2-skeleton",
-        "status": "skeleton",
+        "stage": "stage-8-implemented",
+        "status": "ready",
     }
 
 
 def test_preflight_cli_prints_identity(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main() == 0
+    assert main([]) == 0
     captured = capsys.readouterr()
     assert json.loads(captured.out) == status_payload()

@@ -1333,6 +1333,26 @@ cron, services, Caddy, DNS и Local Ru не изменялись.
 - API/frontend work on disposable imported history;
 - desktop/mobile/console smokes green.
 
+### Результат
+
+Stage 8 завершён и зафиксирован в
+`docs/radar-stage8-readonly-api-frontend-2026-08-19.md`. Реализованы все 11 frozen OpenAPI routes,
+pointer-aware `mode=ro&immutable=1` SQLite connection с обязательным release/state reopen,
+published-view authorizer, bounded inputs/cursors/responses/search rate, exact JSON errors и
+loopback-only stdlib HTTP transport. Три additive published-only view добавлены application-owned
+миграцией 0002 без изменения таблиц или `user_version`.
+
+Dependency-free frontend реализует latest/archive/issue/search/gazette, explicit empty/no-LLM UI,
+DOM-only escaping, HTTP(S)-only external links, responsive desktop/mobile layout и раздельные
+SPA/static/gazette routes. Security regressions покрывают draft/path/secret leakage, SQL/PRAGMA и
+function denial, malformed inputs, traversal, missing assets, pointer switch и immutable DB bytes.
+
+Полный gate: 123 tests, Ruff, strict mypy, contracts, JavaScript, console smoke, isolation/secret
+scan и reproducible artifact PASS. Свежая копия реального исторического импорта прошла полный API
+matrix на 74 выпусках; известные Legacy date anomalies допускаются только при согласованном
+quality delta и явном `medium|high/queued`, native V2 остаётся строгим. Production/Legacy, cron,
+services, Caddy, DNS и Local Ru не менялись.
+
 ## Этап 9. Application release automation
 
 ### Работы

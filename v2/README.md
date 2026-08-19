@@ -1,4 +1,4 @@
-# Radar V2 through Stage 7
+# Radar V2 through Stage 8
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
@@ -6,6 +6,8 @@ candidate packages and the Project Manager adapter. Stage 6 adds an explicit pub
 DTO projection, canonical JSON, deterministic dependency-free DOCX, no-LLM rendering, database and
 artifact invariants, and immutable gazette validation. Stage 7 adds exact full seeds, typed
 all-table deltas, transactional staging apply and a durable two-root local publisher simulation.
+Stage 8 adds a pointer-aware published-only API, strict SQLite authorizer, bounded public DTO
+queries, loopback HTTP transport and responsive same-origin frontend with gazette routing.
 Normal V2 runtime access to Legacy remains disabled. Real production hosts, cron and service
 integration are deliberately absent.
 
@@ -22,9 +24,9 @@ the locked development group and do not enter the production artifact.
 
 ## Layout
 
-- `apps/api/` — inert API application identity and runtime-profile preflight;
+- `apps/api/` — pointer-aware read-only API, published DTO repository and loopback HTTP/static app;
 - `apps/candidate_builder/` — explicit daily/correction/gazette/status/retry/report CLI;
-- `apps/web/` — dependency-free static web shell;
+- `apps/web/` — responsive dependency-free latest/archive/search/gazette frontend;
 - `packages/storage/` — strict SQLite schema, migration runner, FTS and canonical hashing;
 - `packages/storage/safe_files.py` — no-follow, private, fsynced, atomic no-replace artifacts;
 - `packages/domain/snapshot.py` — canonical four-file snapshot creation and consumption checks;
@@ -39,7 +41,7 @@ the locked development group and do not enter the production artifact.
 - `packages/publisher/` — audit/result adapters, durable state machine and local activation/rollback
   simulation;
 - `fixtures/synthetic/` — explicitly marked synthetic data only;
-- `tests/` — skeleton, runtime-profile and isolation tests;
+- `tests/` — contract, runtime, publication, API/frontend, security and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
 - `scripts/verify.sh` — the mandatory local/CI verification entrypoint.
 
@@ -150,3 +152,19 @@ completed candidate is replayed without reapplying its delta.
 
 This is deliberately a local simulation boundary. Stage 7 does not install a service, connect to
 Local Ru, change Legacy, schedule cron, edit Caddy/DNS or activate any real production database.
+
+## Stage 8 boundary
+
+The public API follows the frozen OpenAPI contract and reads only published views. It pins the
+immutable database selected by the atomic content pointer, proves release/schema/state markers and
+reopens after a switch. SQLite `mode=ro`, `immutable`, `query_only` and an authorizer independently
+deny internal tables, writes, PRAGMA and unapproved functions. Query/cursor/response/search limits
+are explicit and public errors never contain exception, SQL or host-path details.
+
+The same-origin frontend renders latest/history/search/gazette indexes, empty issues and LLM
+outages without HTML injection or remote dependencies. SPA, exact static assets and gazette paths
+have separate routing and CSP/cache policy; missing or traversal paths are 404. A loopback transport
+smoke and headless DOM console smoke are part of the mandatory gate.
+
+Stage 8 remains local/disposable. It installs no application release or service and changes no
+production pointer, cron, Caddy, DNS or Local Ru state. Application automation begins at Stage 9.

@@ -469,6 +469,9 @@ publicViews:
   pub_material_analysis_v1: {publishedOnly: true, source: material_analysis}
   pub_stats_v1: {publishedOnly: true, source: daily_stats}
   pub_gazettes_v1: {publishedOnly: true, source: gazettes}
+  pub_gazette_assets_v1: {publishedOnly: true, source: gazette_assets}
+  pub_material_rubrics_v1: {publishedOnly: true, source: material_rubrics_join_rubrics}
+  pub_material_quality_v1: {publishedOnly: true, source: material_quality}
   pub_search_documents_v1: {publishedOnly: true, source: issue_materials_join_materials}
 apiReadAllowlist:
   - pub_health_v1
@@ -478,6 +481,9 @@ apiReadAllowlist:
   - pub_material_analysis_v1
   - pub_stats_v1
   - pub_gazettes_v1
+  - pub_gazette_assets_v1
+  - pub_material_rubrics_v1
+  - pub_material_quality_v1
   - pub_search_documents_v1
   - published_materials_fts
 derivedTables:

@@ -67,3 +67,7 @@ Stage 7 exact full-seed export/import, typed row deltas with all-table evidence,
 create-only apply, idempotent retry, durable publisher state machine and disposable two-root
 activation/rollback simulation:
 `docs/radar-stage7-delta-publisher-2026-08-19.md`.
+
+Stage 8 pointer-aware read-only API, public-view SQLite authorizer, bounded OpenAPI DTOs, responsive
+same-origin frontend, empty/no-LLM states, safe gazette/static routing and historical acceptance:
+`docs/radar-stage8-readonly-api-frontend-2026-08-19.md`.

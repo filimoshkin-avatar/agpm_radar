@@ -1,13 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Radar V2</title>
-    <link rel="stylesheet" href="./styles.css">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f3efe6">
+    <title>AgPM Radar</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=stage8-v1">
   </head>
   <body>
-    <main id="app" aria-live="polite">Loading Radar V2 skeleton…</main>
-    <script type="module" src="./app.mjs"></script>
+    <a class="skip-link" href="#content">К содержанию</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="AgPM Radar — последний выпуск">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span>
+          <strong>AgPM Radar</strong>
+          <small>Сигналы агентного управления</small>
+        </span>
+      </a>
+      <nav aria-label="Основная навигация">
+        <a href="/">Сегодня</a>
+        <a href="/issues">Архив</a>
+        <a href="/search">Поиск</a>
+        <a href="/gazettes">Газеты</a>
+      </nav>
+      <span class="health" id="health" role="status">Проверка данных…</span>
+    </header>
+    <main id="content" tabindex="-1">
+      <section class="loading" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Загружаю опубликованные данные…</p>
+      </section>
+    </main>
+    <footer>
+      <p>Radar показывает только опубликованные материалы. Черновики и технические данные закрыты.</p>
+    </footer>
+    <script type="module" src="/assets/app.mjs?v=stage8-v1"></script>
   </body>
 </html>
