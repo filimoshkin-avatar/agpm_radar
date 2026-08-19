@@ -6,10 +6,11 @@ AgPM Radar — публичное приложение ежедневного р
 
 ## Контуры
 
-- Разработка: этот сервер, рабочий каталог `/mnt/vdd/Radar`.
-- Репозиторий: код фронтенда, backend API, pipeline-скрипты, миграции, deploy-шаблоны и документация.
-- Production: отдельный сервер. На него публикуются фронтенд и backend, кроме OpenClaw-зависимых частей.
-- OpenClaw-контур: cron-оркестрация, Telegram-доставка, OAuth/LLM-вызовы через OpenClaw и другие действия, которые должны оставаться на стороне OpenClaw.
+- Legacy development/production: этот сервер, рабочий каталог `/mnt/vdd/Radar`; текущий `radar.aipractice.space` продолжает работать без архитектурных изменений до отдельного cutover-решения.
+- Radar V2 development: параллельная пересборка на этом сервере с отдельными кодом, SQLite, очередями и публикационным состоянием.
+- Radar V2 shadow production: Local Ru `147.45.99.225` под отдельным hostname для длительного сравнения с Legacy до явного принятия владельцем.
+- Project Manager/OpenClaw: утренний cron, сбор, редакторский отбор, ручные корректировки, LLM/fallback, Telegram и формирование candidate packages.
+- Radar V2 publisher: детерминированные проверки, DOCX/JSON, SQLite delta, доставка, атомарная активация, healthcheck и rollback.
 
 ## Основные каталоги
 
@@ -21,18 +22,16 @@ AgPM Radar — публичное приложение ежедневного р
 
 ## Правило разработки
 
-Все изменения сначала проходят на dev-контуре этого сервера. Production не редактируется вручную: туда уходит только проверенный release-артефакт из git.
+Legacy остаётся рабочим эталонным контуром и не перестраивается на месте. Radar V2 создаётся параллельно. Любой coding-агент может готовить изменения через git, но application release на Local Ru выполняется только из проверенного commit/tag после явного подтверждения владельца. Content и gazette releases проходят только через детерминированный publisher; production вручную не редактируется.
 
-Перед публикацией обязательны:
+Release gates зависят от типа релиза:
 
-1. Проверка git-статуса и состава релиза.
-2. Локальные проверки кода и healthcheck.
-3. Резервная копия production-базы и конфигов.
-4. Применение миграций.
-5. Перезагрузка сервисов.
-6. Production healthcheck.
-7. Запись результата в журнал выпуска.
+- **Application:** clean commit/tag, полный test/build/security gate, явное подтверждение владельца, backup, versioned migrations только при изменении схемы, атомарная активация, controlled service reload и rollback rehearsal.
+- **Content:** проверенный candidate без SQL/DDL/migrations, source/production staging copies, row-level delta, integrity/FK/per-table hashes, атомарный content pointer, обязательное переоткрытие SQLite API, проверка ожидаемого release id/hash и audit result.
+- **Gazette:** проверенный immutable HTML/assets package, security/link/visual/print gates, атомарная активация и public smoke.
 
-Подробная модель зафиксирована в `docs/development-production-model-2026-08-19.md`.
+Schema migrations никогда не запускаются обычной daily/correction/gazette публикацией. Любая ошибка после content activation обязана вернуть предыдущий pointer, переоткрыть API и подтвердить прежний release id/hash; иначе следующие публикации блокируются до reconciliation.
 
-План двухконтурного переезда, подготовленный для внешнего ревью: `docs/migration-plan-review-2026-08-19.md`.
+Историческая модель первого выделения репозитория сохранена в `docs/development-production-model-2026-08-19.md`.
+
+Согласованный master plan полной пересборки Radar V2, dual-run и миграции на Local Ru: `docs/migration-plan-review-2026-08-19.md`.
