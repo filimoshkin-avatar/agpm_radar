@@ -276,6 +276,32 @@ def test_role_and_outer_artifacts_are_reproducible_and_publicly_minimal(
     assert "packages/storage/migrations/0002_public_api_views.sql" in migration_files
     assert "apps/migration_runner/__main__.py" in migration_files
     assert "deploy/templates/radar-v2-api.service" in migration_files
+    service = migration_files["deploy/templates/radar-v2-api.service"].decode("utf-8")
+    for required in (
+        "User=radar-v2-api",
+        "Group=radar-v2-api",
+        "--host 127.0.0.1 --port 8765",
+        "NoNewPrivileges=true",
+        "ProtectSystem=strict",
+        "ProtectHome=true",
+        "ProtectKernelTunables=true",
+        "ProtectControlGroups=true",
+        "RestrictSUIDSGID=true",
+        "RestrictNamespaces=true",
+        "LockPersonality=true",
+        "MemoryDenyWriteExecute=true",
+        "CapabilityBoundingSet=",
+        "IPAddressDeny=any",
+        "IPAddressAllow=localhost",
+        "ReadOnlyPaths=@API_CURRENT@ @CONTENT_ROOT@ @GAZETTE_ROOT@",
+        "TasksMax=128",
+        "MemoryMax=512M",
+    ):
+        assert required in service
+    assert "User=radar-v2\n" not in service
+    caddy = migration_files["deploy/templates/Caddyfile.radar-v2"].decode("utf-8")
+    assert "reverse_proxy 127.0.0.1:8765" in caddy
+    assert "reverse_proxy 0.0.0.0" not in caddy
     forbidden = ("candidate_builder", "legacy_bridge", "packages/publisher", "packages/delta")
     assert not any(any(fragment in path for fragment in forbidden) for path in api_files)
     assert not any(any(fragment in path for fragment in forbidden) for path in web_files)

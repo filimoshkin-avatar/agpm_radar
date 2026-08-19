@@ -1,21 +1,55 @@
 [Unit]
 Description=Radar V2 published-only API
+Wants=network-online.target
 After=network-online.target
+ConditionPathIsDirectory=@API_CURRENT@
+ConditionPathIsDirectory=@CONTENT_ROOT@
+ConditionPathIsDirectory=@GAZETTE_ROOT@
 
 [Service]
 Type=simple
-User=radar-v2
-Group=radar-v2
+User=radar-v2-api
+Group=radar-v2-api
 WorkingDirectory=@API_CURRENT@
 EnvironmentFile=@API_ENV@
-ExecStart=@PYTHON@ -m apps.api --active-root @CONTENT_ROOT@ --gazette-root @GAZETTE_ROOT@
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@PYTHON@ -m apps.api --active-root @CONTENT_ROOT@ --gazette-root @GAZETTE_ROOT@ --host 127.0.0.1 --port 8765
 Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=15s
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+PrivateDevices=true
 ProtectHome=true
 ProtectSystem=strict
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+DevicePolicy=closed
 ReadOnlyPaths=@API_CURRENT@ @CONTENT_ROOT@ @GAZETTE_ROOT@
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+LimitNOFILE=4096
+TasksMax=128
+MemoryMax=512M
 
 [Install]
 WantedBy=multi-user.target
