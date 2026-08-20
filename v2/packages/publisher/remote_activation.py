@@ -7,6 +7,7 @@ import json
 import os
 import pwd
 import stat
+import time
 import urllib.error
 import urllib.request
 from contextlib import suppress
@@ -173,24 +174,29 @@ def replace_pointer(root: Path, content: bytes, *, uid: int, gid: int, expected:
 
 
 def _health(url: str, release_id: str, state_hash: str) -> None:
-    try:
-        with urllib.request.urlopen(url, timeout=10) as response:  # noqa: S310
-            body = response.read(1024 * 1024)
-            status = response.status
-    except (OSError, urllib.error.URLError) as error:
-        raise RemoteActivationError(f"health request failed: {error}") from error
-    if status != 200:
-        raise RemoteActivationError(f"health returned HTTP {status}")
-    try:
-        document = json.loads(body)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise RemoteActivationError("health response is invalid JSON") from error
-    if not isinstance(document, dict):
-        raise RemoteActivationError("health response is not an object")
-    observed_release = document.get("contentReleaseId", document.get("releaseId"))
-    observed_state = document.get("stateHash")
-    if observed_release != release_id or observed_state != state_hash:
-        raise RemoteActivationError("health release/state markers differ")
+    last_error = "health did not return expected markers"
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:  # noqa: S310
+                body = response.read(1024 * 1024)
+                status = response.status
+            if status != 200:
+                last_error = f"health returned HTTP {status}"
+            else:
+                document = json.loads(body)
+                if not isinstance(document, dict):
+                    last_error = "health response is not an object"
+                else:
+                    observed_release = document.get("contentReleaseId", document.get("releaseId"))
+                    observed_state = document.get("databaseStateHash", document.get("stateHash"))
+                    if observed_release == release_id and observed_state == state_hash:
+                        return
+                    last_error = "health release/state markers differ"
+        except (OSError, urllib.error.URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            last_error = f"health request failed: {error}"
+        time.sleep(0.2)
+    raise RemoteActivationError(last_error)
 
 
 def _install_database(target: Path, source: Path, *, uid: int, gid: int) -> str:
