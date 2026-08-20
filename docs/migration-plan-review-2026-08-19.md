@@ -1703,15 +1703,14 @@ Caddy/DNS, publisher transport, cron и reboot не затрагивались. 
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–11 завершены.
-Следующий последовательный шаг — **Stage 12: shadow hostname и HTTPS**.
+Stage 0, urgent Stage 0A и Stage 1–12 завершены.
+Следующий последовательный шаг — **Stage 13**.
 
-Stage 11 активировал на loopback verified Legacy-derived full seed: 23 replicated tables, 74
-исторических выпуска, private editorial/provenance/snapshot state и один gazette release. Full
-table/hash parity, historical API parity, public invisibility, disposable correction и живой
-content rollback/re-activation green. Runtime/application сохранили exact membership; NRD, UFW,
-Caddy config, DNS и Legacy production не изменены.
+Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
+`147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,
+security headers, private/unknown 404 boundary и loopback-only API приняты. Caddy и Radar API
+сохранили PID и `NRestarts=0`; все семь NRD units и публичный NRD health green.
 
-Stage 12 требует отдельного явного подтверждения владельца, потому что впервые добавит внешний
-shadow hostname, Caddy vhost и TLS/DNS. Основной `radar.aipractice.space`, publisher transport,
-Project Manager cron, reboot и cutover остаются неизменными до своих поздних stages.
+Основной `radar.aipractice.space`, publisher transport, Project Manager cron, reboot и cutover
+остаются неизменными до своих поздних stages. Канонический отчёт:
+`docs/radar-stage12-shadow-https-2026-08-20.md`.
