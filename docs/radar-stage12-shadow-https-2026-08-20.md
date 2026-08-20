@@ -65,3 +65,10 @@ Stage 12 завершён. Radar V2 доступен как shadow-систем�
 
 Следующий последовательный этап — Stage 13 по утверждённому плану с отдельной проверкой его
 точной authority boundary перед изменениями.
+
+## Post-acceptance frontend identity update
+
+По отдельному запросу владельца на shadow-домен опубликованы точные Legacy favicon и social-preview
+assets вместе с Open Graph/Twitter metadata для `radar.agpm.space`. Application release,
+SHA-256, regression boundary и live acceptance зафиксированы в
+`docs/radar-v2-social-assets-2026-08-20.md`.
