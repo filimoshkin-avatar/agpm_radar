@@ -1,0 +1,1 @@
+radar-v2-deploy ALL=(root) NOPASSWD: /usr/local/libexec/radar-v2-remote-activator
