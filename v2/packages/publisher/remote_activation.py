@@ -264,6 +264,7 @@ def activate_request(
     api_user: str = "radar-v2-api",
     loopback_url: str = "http://127.0.0.1:8765/api/health",
     public_url: str = "https://radar.agpm.space/api/health",
+    failure_stage: str | None = None,
 ) -> RemoteActivationResult:
     """Quarantine, stage, activate, verify and roll back one exact request."""
     identity = pwd.getpwnam(api_user)
@@ -374,7 +375,11 @@ def activate_request(
             database_sha = report.file_sha256
         replace_pointer(content_root, target_pointer, uid=uid, gid=gid, expected=previous_bytes)
         activated = True
+        if failure_stage == "loopback":
+            raise RemoteActivationError("injected loopback verification failure")
         _health(loopback_url, cast(str, delta["releaseId"]), cast(str, delta["afterStateHash"]))
+        if failure_stage == "public":
+            raise RemoteActivationError("injected public verification failure")
         _health(public_url, cast(str, delta["releaseId"]), cast(str, delta["afterStateHash"]))
         result = RemoteActivationResult(
             request_id=request_id,

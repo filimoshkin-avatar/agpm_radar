@@ -19,6 +19,7 @@ def _arguments() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--loopback-url", default="http://127.0.0.1:8765/api/health")
     parser.add_argument("--public-url", default="https://radar.agpm.space/api/health")
+    parser.add_argument("--failure-stage", choices=("loopback", "public"))
     return parser.parse_args()
 
 
@@ -34,6 +35,7 @@ def main() -> int:
             mutation_root=Path("/var/lib/radar-v2/mutation"),
             loopback_url=arguments.loopback_url,
             public_url=arguments.public_url,
+            failure_stage=arguments.failure_stage,
         )
     except (RemoteActivationError, RuntimeError, ValueError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, sort_keys=True))
