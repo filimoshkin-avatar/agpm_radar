@@ -1585,6 +1585,16 @@ Legacy production и три изменения Project Manager не затрон
 - если rollback нельзя подтвердить, дальнейшие publications заблокированы;
 - publisher final result unambiguous.
 
+### Фактический результат 2026-08-20
+
+Stage 13 завершён. Dedicated restricted SSH/forced-command transport, private quarantine,
+create-only remote staging, exact pointer activation, loopback/public verification and explicit
+remote rollback установлены и приняты. Успешная private-only delta свела source и Local Ru к
+`rel_stage13_private_transport_01` / `2c6e1ba75b252a8de5a2e0a0413bd31d6aa50968ebee228522a61cd9da30bff6`.
+Transfer/base/loopback/public/source-commit/rollback-proof failure branches прошли; непроверяемый
+rollback переводит publisher в `NEEDS_RECONCILIATION` и блокирует следующие запросы. Полный отчёт:
+`docs/radar-stage13-publisher-local-ru-2026-08-20.md`.
+
 ## Этап 14. Project Manager end-to-end dry runs
 
 ### Работы
