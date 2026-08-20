@@ -126,6 +126,8 @@ API_PATHS: Final = (
 WEB_PATHS: Final = (
     "apps/web/app.mjs",
     "apps/web/favicon.svg",
+    "apps/web/fonts/GolosText[wght].ttf",
+    "apps/web/fonts/PTMono-Regular.ttf",
     "apps/web/index.html",
     "apps/web/og-image-20260803.png",
     "apps/web/styles.css",

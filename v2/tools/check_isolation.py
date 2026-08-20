@@ -58,6 +58,12 @@ SECRET_PATTERNS: Final = (
     re.compile(r"\b[0-9]{8,10}:[A-Za-z0-9_-]{30,}\b"),
 )
 ALLOWED_BINARY_ASSETS: Final = {
+    Path("apps/web/fonts/GolosText[wght].ttf"): (
+        "17bb58fb69aec2dfb047a2ebf52534023e9b688c97a6b7ac795b0a72912c2063"
+    ),
+    Path("apps/web/fonts/PTMono-Regular.ttf"): (
+        "cbe732b3b8fd211fd986ebdfc9b870ddeca4faab0bb5425fc509b37f9b4ac804"
+    ),
     Path("apps/web/og-image-20260803.png"): (
         "1805d2711f4f7a4dd6118afc9900a314472383ace8ad9c0c98c26281f0c2b430"
     ),

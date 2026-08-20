@@ -1342,10 +1342,13 @@ published-view authorizer, bounded inputs/cursors/responses/search rate, exact J
 loopback-only stdlib HTTP transport. Три additive published-only view добавлены application-owned
 миграцией 0002 без изменения таблиц или `user_version`.
 
-Dependency-free frontend реализует latest/archive/issue/search/gazette, explicit empty/no-LLM UI,
-DOM-only escaping, HTTP(S)-only external links, responsive desktop/mobile layout и раздельные
-SPA/static/gazette routes. Security regressions покрывают draft/path/secret leakage, SQL/PRAGMA и
-function denial, malformed inputs, traversal, missing assets, pointer switch и immutable DB bytes.
+Первоначальный dependency-free frontend реализовал latest/archive/issue/search/gazette и
+responsive desktop/mobile layout. После уточнения владельцем целевого UI-контракта этот дизайн
+сохранён только как rollback artifact: начальный публичный V2 frontend обязан быть визуально и
+поведенчески идентичен актуальному Legacy baseline, используя при этом исключительно V2 API.
+Security regressions продолжают покрывать HTTP(S)-only external links, draft/path/secret leakage,
+SQL/PRAGMA и function denial, malformed inputs, traversal, missing assets, pointer switch и
+immutable DB bytes.
 
 Полный gate: 123 tests, Ruff, strict mypy, contracts, JavaScript, console smoke, isolation/secret
 scan и reproducible artifact PASS. Свежая копия реального исторического импорта прошла полный API
@@ -1514,6 +1517,40 @@ Caddy/DNS, publisher transport, cron и reboot не затрагивались. 
 - SPA/API routing isolated;
 - internal ports закрыты;
 - Legacy hostname не изменён.
+
+## Этап 12A. Legacy frontend parity на V2 backend
+
+### Целевой контракт и роли
+
+- `radar.aipractice.space` остаётся независимым Legacy production; его frontend, backend и
+  pipeline продолжает дорабатывать Project Manager.
+- `radar.agpm.space` использует V2 backend и immutable application releases, но его начальный
+  frontend должен быть визуально и поведенчески идентичен зафиксированному Legacy baseline.
+- После Stage 12A frontend и backend V2 изменяются coding-агентами через Git, тесты и immutable
+  release. Изменения Project Manager в Legacy не копируются в V2 автоматически: каждый перенос
+  является отдельной осознанной coding-agent change с parity/regression gate.
+- Legacy и V2 существуют параллельно. Cutover, удаление или отключение Legacy требуют отдельного
+  решения владельца.
+
+### Работы
+
+1. Зафиксировать exact Legacy HTML/CSS/JS/font/favicon/social baseline и его hashes.
+2. Перенести Legacy layout, widgets, responsive rules и interactions в V2 web artifact.
+3. Адаптировать только data boundary: все данные V2 frontend получает через frozen published V2
+   API; Legacy API/SQLite/runtime не входят в release и не вызываются из браузера.
+4. Сохранить предыдущий самостоятельный V2 frontend как immutable rollback application release.
+5. Добавить DOM/asset, desktop/mobile, console, CSP/static-route и external-URL regressions.
+6. Собрать clean immutable application release, активировать его на Local Ru с доказанным
+   rollback и выполнить public parallel acceptance против Legacy.
+
+### Gate
+
+- desktop/mobile структура, стили, widgets и interactions соответствуют baseline;
+- favicon, social image и шрифты совпадают по SHA-256;
+- browser network не обращается к Legacy hostname/API;
+- V2 public API, private/unknown 404 boundary, CSP/cache и loopback isolation green;
+- Legacy code/data/services/Caddy/DNS не изменены;
+- предыдущий V2 application release сохранён и rollback доказан.
 
 ## Этап 13. Интеграция publisher с Local Ru
 
@@ -1703,8 +1740,9 @@ Caddy/DNS, publisher transport, cron и reboot не затрагивались. 
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–12 завершены.
-Следующий последовательный шаг — **Stage 13**.
+Stage 0, urgent Stage 0A и Stage 1–12 завершены. По уточнённому владельцем UI-контракту Stage 12A
+является обязательной корректирующей границей перед Stage 13.
+Следующий последовательный шаг — **Stage 12A**, затем Stage 13.
 
 Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
 `147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,

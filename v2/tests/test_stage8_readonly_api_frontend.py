@@ -594,11 +594,14 @@ def test_spa_assets_gazette_and_missing_routes_are_separate(
 
     spa = application.handle("GET", "/issues/2026-08-20")
     assert spa.status == 200
-    assert b'<main id="content"' in spa.body
+    assert b'<main id="top"' in spa.body
     assert dict(spa.headers)["Cache-Control"] == "no-store"
     asset = application.handle("GET", "/assets/app.mjs?v=stage8-v1")
     assert asset.status == 200
     assert dict(asset.headers)["Cache-Control"].endswith("immutable")
+    font = application.handle("GET", "/assets/fonts/PTMono-Regular.ttf")
+    assert font.status == 200
+    assert dict(font.headers)["Content-Type"] == "font/ttf"
     gazette = application.handle("GET", "/gazettes/2026-08/")
     assert gazette.status == 200
     assert b"Published gazette" in gazette.body
@@ -674,15 +677,18 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
         "1805d2711f4f7a4dd6118afc9900a314472383ace8ad9c0c98c26281f0c2b430"
     )
     assert "/assets/app.mjs?v=" in html and "/assets/styles.css?v=" in html
-    assert "innerHTML" not in script
-    assert "insertAdjacentHTML" not in script
     assert "document.write" not in script
     assert "safeExternalUrl" in script
-    assert "Анализ без LLM" in script
-    assert "квалифицирующих материалов" in script.casefold()
-    assert "/api/gazettes" in script
-    assert "@media (max-width: 800px)" in styles
-    assert "@media (max-width: 540px)" in styles
+    assert "escapeHtml" in script
+    assert "legacyIssue" in script
+    assert "/api/latest" in script
+    assert "Сонар" in html
+    assert "Динамика трендов" in html
+    assert "Хронология выпусков" in html
+    assert "Рубрикатор" in html
+    assert "/gazettes/2026-08/" in html
+    assert "@media (max-width: 1100px)" in styles
+    assert "@media (max-width: 760px)" in styles
     node = shutil.which("node")
     assert node is not None
     result = subprocess.run(  # noqa: S603 -- absolute trusted development executable

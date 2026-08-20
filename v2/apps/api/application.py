@@ -29,7 +29,8 @@ _SECURITY_HEADERS: Final = (
 )
 _SPA_CSP: Final = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    "font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
+    "base-uri 'none'; form-action 'none'"
 )
 _GAZETTE_CSP: Final = (
     "default-src 'none'; script-src 'none'; style-src 'self' 'unsafe-inline'; "
@@ -47,6 +48,7 @@ _CONTENT_TYPES: Final = {
     ".mjs": "text/javascript; charset=utf-8",
     ".png": "image/png",
     ".svg": "image/svg+xml",
+    ".ttf": "font/ttf",
     ".webp": "image/webp",
 }
 
@@ -208,7 +210,12 @@ class RadarApplication:
             )
         except (UnicodeDecodeError, ValueError):
             return _not_found()
-        if parsed.path in {"/assets/styles.css", "/assets/app.mjs"}:
+        if parsed.path in {
+            "/assets/styles.css",
+            "/assets/app.mjs",
+            "/assets/fonts/GolosText[wght].ttf",
+            "/assets/fonts/PTMono-Regular.ttf",
+        }:
             if set(query) - {"v"} or ("v" in query and not query["v"]):
                 return _not_found()
             name = parsed.path.removeprefix("/assets/")
