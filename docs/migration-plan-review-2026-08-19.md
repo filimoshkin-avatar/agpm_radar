@@ -1640,6 +1640,16 @@ rollback переводит publisher в `NEEDS_RECONCILIATION` и блокир�
 
 Срок dual-run не ограничен: переход дальше только по явному решению пользователя.
 
+### Фактический результат 2026-08-20
+
+Stage 15 завершён для согласованной цели выпуска 20 августа. Legacy cron сохранён без изменений;
+в активном Project Manager state добавлен отдельный enabled post-Legacy cron на 08:25 МСК. Он
+создаёт immutable snapshot/fork, публикует отсутствующий V2 daily candidate и всегда формирует
+combined comparison с timeout isolation от Legacy. Scheduler-run для 2026-08-20 завершился `ok`,
+Telegram delivery прошла, а уже опубликованная дата была обработана как `already_published` без
+дублирования release. Канонический отчёт:
+`docs/radar-stage15-project-manager-dual-run-2026-08-20.md`.
+
 ## Этап 16. Reboot и disaster-recovery rehearsal Local Ru
 
 ### Работы
@@ -1760,9 +1770,9 @@ rollback переводит publisher в `NEEDS_RECONCILIATION` и блокир�
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–14 завершены.
-Следующий последовательный шаг — **Stage 15**; Ivan явно разрешил автоматический переход к нему
-после Stage 14 в Telegram message `24487`.
+Stage 0, urgent Stage 0A и Stage 1–15 завершены.
+Следующий последовательный шаг — **Stage 16**, только после отдельного явного подтверждения на
+reboot/disaster-recovery rehearsal.
 
 Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
 `147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,
