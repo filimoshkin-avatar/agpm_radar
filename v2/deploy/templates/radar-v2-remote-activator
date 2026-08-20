@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH=/opt/radar-v2-activator/current
+exec /opt/radar-v2-runtime/current/bin/python3.12 \
+  /opt/radar-v2-activator/current/tools/radar_remote_activator.py "$@"
