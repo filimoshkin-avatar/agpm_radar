@@ -13,7 +13,11 @@ from typing import cast
 
 import pytest
 from apps.candidate_builder.__main__ import main as candidate_cli
-from packages.domain.candidate_mutations import issue_state_hash
+from packages.domain.candidate_mutations import (
+    CandidateMutationError,
+    build_candidate_mutations,
+    issue_state_hash,
+)
 from packages.domain.candidate_package import (
     CandidateDuplicateError,
     CandidatePackageError,
@@ -368,6 +372,102 @@ def _daily_candidate(state_hash: str, identity: SnapshotIdentity) -> dict[str, o
         }
     ]
     return candidate
+
+
+def test_daily_candidate_accepts_30_day_or_unresolved_new_materials_and_rejects_repeats(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.sqlite"
+    state_hash = _seed_database(source)
+    workspace, attestation = _snapshot_workspace(tmp_path)
+    candidate = _daily_candidate(state_hash, attestation.identity)
+    desired = cast(dict[str, object], candidate["desiredIssue"])
+    desired["emptyReason"] = None
+    desired["stats"] = {
+        "adjacent": 0,
+        "core": 1,
+        "cut": 41,
+        "far": 1,
+        "included": 1,
+        "mid": 0,
+        "near": 0,
+        "viewed": 42,
+    }
+    desired["materials"] = [
+        {
+            "agpmTakeaway": "Synthetic takeaway",
+            "brief": "Synthetic brief",
+            "canonicalUrl": "https://example.test/window-material",
+            "flags": [],
+            "keyMaterial": False,
+            "llmAgpmAngle": None,
+            "llmShortText": None,
+            "llmStatus": "unavailable",
+            "materialId": "material_window_synthetic01",
+            "perimeter": "far",
+            "position": 1,
+            "publicationDateStatus": "resolved",
+            "publishedAt": "2026-07-21T00:00:00Z",
+            "rubrics": [],
+            "signalScore": None,
+            "signalStrength": "watch",
+            "sourceName": "Synthetic Source",
+            "summary": "Synthetic summary",
+            "theses": [],
+            "title": "Synthetic window material",
+            "trendNotes": None,
+            "url": "https://example.test/window-material",
+            "verdict": "core",
+        }
+    ]
+    materials = cast(list[dict[str, object]], desired["materials"])
+
+    def bind(value: dict[str, object]) -> None:
+        with sqlite3.connect(source) as connection:
+            build_candidate_mutations(
+                connection,
+                value,
+                snapshot_identity=attestation.identity,
+                snapshot_collected_at="2026-08-20T05:00:00Z",
+            )
+
+    materials[0]["publishedAt"] = "2026-07-21T00:00:00Z"
+    materials[0]["publicationDateStatus"] = "resolved"
+    bind(candidate)
+
+    too_old = copy.deepcopy(candidate)
+    cast(list[dict[str, object]], cast(dict[str, object], too_old["desiredIssue"])["materials"])[0][
+        "publishedAt"
+    ] = "2026-07-20T23:59:59Z"
+    too_old["candidateId"] = "candidate_daily_too_old_0001"
+    with pytest.raises(CandidateMutationError, match="outside the 30-day publication window"):
+        bind(too_old)
+
+    future = copy.deepcopy(candidate)
+    cast(list[dict[str, object]], cast(dict[str, object], future["desiredIssue"])["materials"])[0][
+        "publishedAt"
+    ] = "2026-08-21T00:00:00Z"
+    future["candidateId"] = "candidate_daily_future_0001"
+    with pytest.raises(CandidateMutationError, match="outside the 30-day publication window"):
+        bind(future)
+
+    unresolved = copy.deepcopy(candidate)
+    unresolved_material = cast(
+        list[dict[str, object]], cast(dict[str, object], unresolved["desiredIssue"])["materials"]
+    )[0]
+    unresolved_material["publishedAt"] = None
+    unresolved_material["publicationDateStatus"] = "unresolved"
+    unresolved["candidateId"] = "candidate_daily_unresolved_0001"
+    bind(unresolved)
+
+    repeated = copy.deepcopy(candidate)
+    repeated_material = cast(
+        list[dict[str, object]], cast(dict[str, object], repeated["desiredIssue"])["materials"]
+    )[0]
+    repeated_material["materialId"] = "material_draft_synthetic01"
+    repeated["candidateId"] = "candidate_daily_repeated_0001"
+    with pytest.raises(CandidateMutationError, match="already included in an earlier issue"):
+        bind(repeated)
 
 
 def _correction_candidate(source: Path, state_hash: str) -> dict[str, object]:

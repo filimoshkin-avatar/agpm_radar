@@ -7,7 +7,7 @@ import json
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Final, cast
 
 from packages.domain.candidates import CandidateValidationError, validate_candidate
@@ -57,6 +57,7 @@ _UPSERT_PRIORITY: Final = {
     "gazettes": 50,
     "gazette_assets": 51,
 }
+_DAILY_CANDIDATE_LOOKBACK_DAYS: Final = 30
 
 
 class CandidateMutationError(RuntimeError):
@@ -735,6 +736,33 @@ def _validate_daily_preconditions(
     ).fetchone()
     if conflict is not None:
         raise CandidateMutationError("daily candidate issue id/date is already present")
+    issue_day = datetime.strptime(cast(str, issue["issueDate"]), "%Y-%m-%d").date()
+    earliest_day = issue_day - timedelta(days=_DAILY_CANDIDATE_LOOKBACK_DAYS)
+    for material in cast(list[dict[str, object]], issue["materials"]):
+        material_id = cast(str, material["materialId"])
+        prior_issue = connection.execute(
+            "SELECT issue_id FROM issue_materials WHERE material_id = ? LIMIT 1",
+            (material_id,),
+        ).fetchone()
+        if prior_issue is not None:
+            raise CandidateMutationError(
+                "daily candidate material was already included in an earlier issue"
+            )
+        published_at = cast(str | None, material["publishedAt"])
+        date_status = cast(str, material["publicationDateStatus"])
+        if date_status == "unresolved":
+            if published_at is not None:
+                raise CandidateMutationError(
+                    "unresolved daily candidate material must not have publishedAt"
+                )
+            continue
+        if published_at is None:
+            raise CandidateMutationError("dated daily candidate material must have publishedAt")
+        published_day = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").date()
+        if not earliest_day <= published_day <= issue_day:
+            raise CandidateMutationError(
+                "daily candidate material is outside the 30-day publication window"
+            )
 
 
 def _validate_correction_preconditions(
