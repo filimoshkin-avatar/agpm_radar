@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import pwd
 import stat
 import time
 import urllib.error
@@ -261,14 +260,16 @@ def activate_request(
     incoming_root: Path,
     audit_root: Path,
     mutation_root: Path,
-    api_user: str = "radar-v2-api",
+    api_uid: int,
+    api_gid: int,
     loopback_url: str = "http://127.0.0.1:8765/api/health",
     public_url: str = "https://radar.agpm.space/api/health",
     failure_stage: str | None = None,
 ) -> RemoteActivationResult:
     """Quarantine, stage, activate, verify and roll back one exact request."""
-    identity = pwd.getpwnam(api_user)
-    uid, gid = identity.pw_uid, identity.pw_gid
+    uid, gid = api_uid, api_gid
+    if uid < 0 or gid < 0:
+        raise RemoteActivationError("API uid/gid is invalid")
     request_id = _request_token(request["requestId"], "requestId")
     ensure_private_directory(incoming_root)
     ensure_private_directory(audit_root)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pwd
 import sys
 from argparse import ArgumentParser, Namespace
 from dataclasses import asdict
@@ -26,6 +27,7 @@ def _arguments() -> Namespace:
 def main() -> int:
     arguments = _arguments()
     try:
+        identity = pwd.getpwnam("radar-v2-api")
         request = read_request(sys.stdin.buffer)
         result = activate_request(
             request,
@@ -33,11 +35,13 @@ def main() -> int:
             incoming_root=Path("/var/lib/radar-v2/incoming/content"),
             audit_root=Path("/var/lib/radar-v2/audit/content"),
             mutation_root=Path("/var/lib/radar-v2/mutation"),
+            api_uid=identity.pw_uid,
+            api_gid=identity.pw_gid,
             loopback_url=arguments.loopback_url,
             public_url=arguments.public_url,
             failure_stage=arguments.failure_stage,
         )
-    except (RemoteActivationError, RuntimeError, ValueError) as error:
+    except (KeyError, RemoteActivationError, RuntimeError, ValueError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, sort_keys=True))
         return 40
     print(json.dumps(asdict(result), sort_keys=True))
