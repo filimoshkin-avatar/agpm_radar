@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+unset SSH_ORIGINAL_COMMAND
+exec /usr/bin/sudo -n /usr/local/libexec/radar-v2-remote-activator
