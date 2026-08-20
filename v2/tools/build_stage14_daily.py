@@ -1,9 +1,12 @@
 """Build a real manual daily candidate from a captured Legacy public response."""
 
+# ruff: noqa: RUF001
+
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
@@ -81,7 +84,44 @@ def _material(raw: dict[str, object], position: int) -> JsonObject:
     return cast(JsonObject, result)
 
 
-def _analysis(document: dict[str, object]) -> JsonObject:
+def _material_count_word(count: int, *, prepositional: bool = False) -> str:
+    if prepositional:
+        return "материале" if count % 10 == 1 and count % 100 != 11 else "материалах"
+    if count % 10 == 1 and count % 100 != 11:
+        return "материал"
+    if count % 10 in {2, 3, 4} and count % 100 not in {12, 13, 14}:
+        return "материала"
+    return "материалов"
+
+
+def _composition_sentence(stats: dict[str, int]) -> str:
+    labels = (("near", "близкий"), ("mid", "средний"), ("far", "дальний"))
+    parts = [f"{label} периметр — {stats[key]}" for key, label in labels if stats[key]]
+    count = stats["included"]
+    return f"В выпуске {count} {_material_count_word(count)}: {', '.join(parts)}."
+
+
+def _reconcile_narrative(text: str, *, legacy_count: int, stats: dict[str, int]) -> str:
+    """Remove Legacy count/perimeter claims invalidated by V2 eligibility filtering."""
+
+    text = re.sub(r"В выпуске \d+ материал(?:ов|а)?: [^.]*\.", _composition_sentence(stats), text)
+    count = stats["included"]
+    text = re.sub(
+        rf"\bВ {legacy_count} материалах\b",
+        f"В {count} {_material_count_word(count, prepositional=True)}",
+        text,
+    )
+    text = re.sub(
+        rf"\b{legacy_count} материал(?:ов|а)?\b",
+        f"{count} {_material_count_word(count)}",
+        text,
+    )
+    return text
+
+
+def _analysis(
+    document: dict[str, object], *, legacy_count: int, stats: dict[str, int]
+) -> JsonObject:
     daily = cast(dict[str, object], document["daily_analysis"])
     body = cast(dict[str, object], daily.get("analysis") or {})
     blocks: list[JsonObject] = []
@@ -93,15 +133,30 @@ def _analysis(document: dict[str, object]) -> JsonObject:
     ):
         value = body.get(key)
         if isinstance(value, str) and value.strip():
-            blocks.append({"kind": kind, "text": value, "title": title})
+            blocks.append(
+                {
+                    "kind": kind,
+                    "text": _reconcile_narrative(value, legacy_count=legacy_count, stats=stats),
+                    "title": title,
+                }
+            )
     issue = cast(dict[str, object], document["issue"])
     theses = [
-        {"lead": str(item.get("lead") or ""), "rest": str(item.get("rest") or "")}
+        {
+            "lead": _reconcile_narrative(
+                str(item.get("lead") or ""), legacy_count=legacy_count, stats=stats
+            ),
+            "rest": _reconcile_narrative(
+                str(item.get("rest") or ""), legacy_count=legacy_count, stats=stats
+            ),
+        }
         for item in cast(list[dict[str, object]], issue.get("theses") or [])
     ]
     result: dict[str, object] = {
         "blocks": blocks,
-        "brief": issue.get("brief"),
+        "brief": _reconcile_narrative(
+            str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
+        ),
         "headline": daily.get("headline"),
         "theses": theses,
     }
@@ -167,6 +222,10 @@ def main() -> int:
         "near": sum(1 for item in eligible if item.get("perimeter") == "near"),
         "viewed": int(legacy_stats["viewed"]),
     }
+    legacy_count = len(cast(list[dict[str, object]], document["materials"]))
+    reconciled_brief = _reconcile_narrative(
+        str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
+    )
     base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
     snapshots = args.root / "snapshots"
@@ -215,8 +274,8 @@ def main() -> int:
         "contractVersion": "1.0.0",
         "createdAt": args.created_at,
         "desiredIssue": {
-            "analysis": _analysis(document),
-            "brief": issue.get("brief"),
+            "analysis": _analysis(document, legacy_count=legacy_count, stats=stats),
+            "brief": reconciled_brief,
             "emptyReason": None,
             "issueDate": issue_date,
             "issueId": f"issue_{issue_date.replace('-', '')}",

@@ -16,11 +16,22 @@ from packages.storage.replication_mutations import row_after_sha256
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
 
+from tools.build_stage14_daily import _reconcile_narrative
+
 
 def _json(value: object) -> object:
     if not isinstance(value, str):
         raise ValueError("expected JSON text in accepted source database")
     return json.loads(value)
+
+
+def _flag_names(value: object, *, material_id: str) -> list[str]:
+    raw = _json(value)
+    if isinstance(raw, dict):
+        return sorted(key for key, enabled in raw.items() if enabled is True)
+    if isinstance(raw, list) and all(isinstance(item, str) for item in raw):
+        return sorted(cast(list[str], raw))
+    raise ValueError(f"accepted material flags are invalid: {material_id}")
 
 
 def _desired_issue(
@@ -29,6 +40,7 @@ def _desired_issue(
     issue_date: str,
     remove_material_ids: frozenset[str],
     no_llm: bool,
+    reconcile_legacy_count: int | None = None,
 ) -> JsonObject:
     public = build_public_issue_from_views(connection, issue_date=issue_date)
     issue = connection.execute(
@@ -60,9 +72,6 @@ def _desired_issue(
             raise ValueError(f"accepted material aggregate is incomplete: {material_id}")
         flags_json, short_text, agpm_angle, _material_llm_status = private
         public_llm = cast(dict[str, object], raw["llm"])
-        raw_flags = _json(flags_json)
-        if not isinstance(raw_flags, dict):
-            raise ValueError(f"accepted material flags are not an object: {material_id}")
         materials.append(
             cast(
                 JsonObject,
@@ -70,7 +79,7 @@ def _desired_issue(
                     "agpmTakeaway": raw["agpmTakeaway"],
                     "brief": raw["brief"],
                     "canonicalUrl": raw["canonicalUrl"],
-                    "flags": sorted(key for key, enabled in raw_flags.items() if enabled is True),
+                    "flags": _flag_names(flags_json, material_id=material_id),
                     "keyMaterial": raw["keyMaterial"],
                     "llmAgpmAngle": None if no_llm else agpm_angle,
                     "llmShortText": None if no_llm else short_text,
@@ -138,6 +147,47 @@ def _desired_issue(
             "headline": "Подтверждённые дубли удалены из исторического выпуска",
             "theses": [],
         }
+    elif reconcile_legacy_count is not None:
+        brief = _reconcile_narrative(
+            cast(str, brief or ""), legacy_count=reconcile_legacy_count, stats=stats
+        )
+        analysis = cast(
+            JsonObject,
+            {
+                "blocks": [
+                    {
+                        **block,
+                        "text": _reconcile_narrative(
+                            cast(str, block["text"]),
+                            legacy_count=reconcile_legacy_count,
+                            stats=stats,
+                        ),
+                    }
+                    for block in cast(list[dict[str, object]], public_analysis["blocks"])
+                ],
+                "brief": _reconcile_narrative(
+                    cast(str, public_analysis["brief"] or ""),
+                    legacy_count=reconcile_legacy_count,
+                    stats=stats,
+                ),
+                "headline": public_analysis["headline"],
+                "theses": [
+                    {
+                        "lead": _reconcile_narrative(
+                            cast(str, thesis["lead"]),
+                            legacy_count=reconcile_legacy_count,
+                            stats=stats,
+                        ),
+                        "rest": _reconcile_narrative(
+                            cast(str, thesis["rest"]),
+                            legacy_count=reconcile_legacy_count,
+                            stats=stats,
+                        ),
+                    }
+                    for thesis in cast(list[dict[str, object]], public["theses"])
+                ],
+            },
+        )
     return cast(
         JsonObject,
         {
@@ -167,6 +217,7 @@ def main() -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--remove-material-id", action="append", default=[])
     parser.add_argument("--no-llm", action="store_true")
+    parser.add_argument("--reconcile-legacy-count", type=int)
     args = parser.parse_args()
     base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -181,6 +232,7 @@ def main() -> int:
             issue_date=args.issue_date,
             remove_material_ids=frozenset(args.remove_material_id),
             no_llm=args.no_llm,
+            reconcile_legacy_count=args.reconcile_legacy_count,
         )
     with sqlite3.connect(args.source_db) as connection:
         issue_id = cast(str, desired["issueId"])
@@ -269,7 +321,11 @@ def main() -> int:
         "reason": (
             "Stage 14 explicit no-LLM deterministic fallback dry run"
             if args.no_llm
-            else "Stage 14 remove confirmed historical duplicate URLs"
+            else (
+                "Reconcile V2 narrative after eligibility filtering"
+                if args.reconcile_legacy_count is not None
+                else "Stage 14 remove confirmed historical duplicate URLs"
+            )
         ),
         "schemaVersion": 1,
         "sharedMaterialPreconditions": shared,
