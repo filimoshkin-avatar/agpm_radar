@@ -200,8 +200,36 @@ def _install_database(target: Path, source: Path, *, uid: int, gid: int) -> str:
         if existing != content:
             raise RemoteActivationError("release path already contains different bytes")
     else:
-        atomic_write_new(target, content, mode=0o600)
-        os.chown(target, uid, gid, follow_symlinks=False)
+        directory = open_directory_nofollow(target.parent)
+        temporary = f".{target.name}.{_sha256(content)[:24]}.next"
+        descriptor: int | None = None
+        created = False
+        try:
+            descriptor = os.open(
+                temporary,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+                dir_fd=directory,
+            )
+            created = True
+            _write_all(descriptor, content)
+            os.fchmod(descriptor, 0o600)
+            os.fchown(descriptor, uid, gid)
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = None
+            if target.exists():
+                raise RemoteActivationError("release path appeared during installation")
+            os.rename(temporary, target.name, src_dir_fd=directory, dst_dir_fd=directory)
+            created = False
+            os.fsync(directory)
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+            if created:
+                with suppress(FileNotFoundError):
+                    os.unlink(temporary, dir_fd=directory)
+            os.close(directory)
     metadata = os.stat(target, follow_symlinks=False)
     if metadata.st_uid != uid or metadata.st_gid != gid or metadata.st_nlink != 1:
         raise RemoteActivationError("release database metadata is invalid")
@@ -271,7 +299,15 @@ def activate_request(
     try:
         lock = acquire_mutation_lock(mutation_root)
         if not target.exists():
-            apply_delta_to_staging(previous.database_path, staging, delta)
+            if staging.exists():
+                staged = inspect_release_database(staging)
+                if (
+                    staged.release.release_id != delta["releaseId"]
+                    or staged.digest.state_hash != delta["afterStateHash"]
+                ):
+                    raise RemoteActivationError("preserved staging release differs from delta")
+            else:
+                apply_delta_to_staging(previous.database_path, staging, delta)
             database_sha = _install_database(target, staging, uid=uid, gid=gid)
         else:
             report = inspect_release_database(target)
