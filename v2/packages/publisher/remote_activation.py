@@ -32,7 +32,14 @@ from packages.storage.safe_files import (
 
 MAX_REQUEST_BYTES: Final = 16 * 1024 * 1024
 REQUEST_FIELDS: Final = frozenset(
-    {"action", "delta", "expectedCurrentPointerSha256", "requestId", "rollbackPointer"}
+    {
+        "action",
+        "assetPayloads",
+        "delta",
+        "expectedCurrentPointerSha256",
+        "requestId",
+        "rollbackPointer",
+    }
 )
 ALLOWED_ACTIONS: Final = frozenset({"publish", "rollback", "status"})
 
@@ -97,9 +104,17 @@ def read_request(stream: object) -> JsonObject:
         if not isinstance(delta, dict):
             raise RemoteActivationError("publish request delta is missing")
         validate_delta(delta)
+        payloads = document.get("assetPayloads")
+        if not isinstance(payloads, dict) or any(
+            not isinstance(path, str) or not isinstance(content, str)
+            for path, content in payloads.items()
+        ):
+            raise RemoteActivationError("publish assetPayloads are invalid")
         if document.get("rollbackPointer") is not None:
             raise RemoteActivationError("publish request must not carry a rollback pointer")
     elif action == "rollback":
+        if document.get("assetPayloads") != {}:
+            raise RemoteActivationError("rollback request must not carry asset payloads")
         if document.get("delta") is not None:
             raise RemoteActivationError("rollback request must not carry a delta")
         pointer = document.get("rollbackPointer")
@@ -107,9 +122,66 @@ def read_request(stream: object) -> JsonObject:
             raise RemoteActivationError("rollback request pointer is missing")
         if set(pointer) != {"database", "releaseId", "stateHash"}:
             raise RemoteActivationError("rollback pointer has unknown or missing fields")
-    elif document.get("delta") is not None or document.get("rollbackPointer") is not None:
+    elif (
+        document.get("delta") is not None
+        or document.get("rollbackPointer") is not None
+        or document.get("assetPayloads") != {}
+    ):
         raise RemoteActivationError("status request must not carry mutation data")
     return cast(JsonObject, document)
+
+
+def _asset_payloads(request: JsonObject, delta: JsonObject) -> dict[str, bytes]:
+    descriptors = cast(list[dict[str, object]], delta["assets"])
+    raw = cast(dict[str, str], request["assetPayloads"])
+    expected = {cast(str, item["relativePath"]): item for item in descriptors}
+    if set(raw) != set(expected):
+        raise RemoteActivationError("asset payload membership differs from delta")
+    result: dict[str, bytes] = {}
+    for path, encoded in raw.items():
+        if not path.startswith("gazettes/") or ".." in Path(path).parts:
+            raise RemoteActivationError("asset payload path is unsafe")
+        try:
+            content = bytes.fromhex(encoded)
+        except ValueError as error:
+            raise RemoteActivationError("asset payload is not canonical hex") from error
+        if content.hex() != encoded:
+            raise RemoteActivationError("asset payload is not canonical lowercase hex")
+        descriptor = expected[path]
+        if len(content) != descriptor["bytes"] or _sha256(content) != descriptor["sha256"]:
+            raise RemoteActivationError("asset payload bytes differ from delta")
+        result[path.removeprefix("gazettes/")] = content
+    return result
+
+
+def _install_assets(root: Path, assets: dict[str, bytes], *, uid: int, gid: int) -> None:
+    for relative, content in sorted(assets.items()):
+        parts = Path(relative).parts
+        if len(parts) < 2 or any(part in {"", ".", ".."} for part in parts):
+            raise RemoteActivationError("asset target path is unsafe")
+        parent = root
+        for part in parts[:-1]:
+            parent = parent / part
+            if parent.exists():
+                metadata = os.stat(parent, follow_symlinks=False)
+                if not stat.S_ISDIR(metadata.st_mode):
+                    raise RemoteActivationError("asset parent is not a directory")
+                if (
+                    stat.S_IMODE(metadata.st_mode) != 0o700
+                    or metadata.st_uid != uid
+                    or metadata.st_gid != gid
+                ):
+                    raise RemoteActivationError("asset parent security metadata is invalid")
+            else:
+                parent.mkdir(mode=0o700)
+                os.chown(parent, uid, gid)
+        target = parent / parts[-1]
+        if target.exists():
+            if read_regular_file(target, expected_mode=0o600) != content:
+                raise RemoteActivationError("immutable asset path contains different bytes")
+            continue
+        atomic_write_new(target, content, mode=0o600)
+        os.chown(target, uid, gid)
 
 
 def _pointer_bytes(release_id: str, state_hash: str) -> bytes:
@@ -260,6 +332,7 @@ def activate_request(
     incoming_root: Path,
     audit_root: Path,
     mutation_root: Path,
+    gazette_root: Path,
     api_uid: int,
     api_gid: int,
     loopback_url: str = "http://127.0.0.1:8765/api/health",
@@ -341,6 +414,7 @@ def activate_request(
             loopback_verified=True,
         )
     delta = validate_delta(cast(dict[str, object], request["delta"]))
+    assets = _asset_payloads(request, delta)
     if (previous.release_id, previous.state_hash) != (
         delta["baseReleaseId"],
         delta["beforeStateHash"],
@@ -355,6 +429,7 @@ def activate_request(
     target = content_root / cast(str, json.loads(target_pointer)["database"])
     try:
         lock = acquire_mutation_lock(mutation_root)
+        _install_assets(gazette_root, assets, uid=uid, gid=gid)
         if not target.exists():
             if staging.exists():
                 staged = inspect_release_database(staging)

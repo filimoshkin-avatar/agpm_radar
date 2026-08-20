@@ -27,6 +27,7 @@ def _status_request() -> bytes:
     return json.dumps(
         {
             "action": "status",
+            "assetPayloads": {},
             "delta": None,
             "expectedCurrentPointerSha256": "a" * 64,
             "requestId": "stage13-status-0001",

@@ -35,6 +35,7 @@ def main() -> int:
             incoming_root=Path("/var/lib/radar-v2/incoming/content"),
             audit_root=Path("/var/lib/radar-v2/audit/content"),
             mutation_root=Path("/var/lib/radar-v2/mutation"),
+            gazette_root=Path("/var/lib/radar-v2/gazettes/releases"),
             api_uid=identity.pw_uid,
             api_gid=identity.pw_gid,
             loopback_url=arguments.loopback_url,

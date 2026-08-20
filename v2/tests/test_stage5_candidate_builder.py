@@ -42,7 +42,7 @@ from packages.publisher.project_manager import (
     ProjectManagerReportError,
     build_project_manager_report,
 )
-from packages.storage.hashing import logical_state_hash
+from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts
 from packages.storage.migrations import create_database
 from packages.storage.replication_mutations import (
     MutationValidationError,
@@ -260,10 +260,69 @@ def _seed_database(path: Path) -> str:
                 "published",
                 None,
                 "legacy_inferred",
-                "no_qualifying_materials",
+                None,
                 _hash("historical-issue"),
                 "2026-08-19T02:00:00Z",
                 "2026-08-19T02:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO issue_materials VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "issue_20260819",
+                "material_draft_synthetic01",
+                0,
+                "near",
+                "core",
+                "Historical summary",
+                "Historical takeaway",
+                "Historical brief",
+                _json([]),
+                None,
+                _json(["governance"]),
+                1,
+                90,
+                "strong",
+                "2026-08-19T02:00:00Z",
+                "2026-08-19T02:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO material_analysis VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "issue_20260819",
+                "material_draft_synthetic01",
+                None,
+                None,
+                "unavailable",
+                "gpt-5.5",
+                None,
+                None,
+                "synthetic-v1",
+                "2026-08-19T02:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO material_quality VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "issue_20260819",
+                "material_draft_synthetic01",
+                "resolved",
+                0,
+                "ok",
+                "ok",
+                None,
+                "2026-08-19T02:00:00Z",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO material_rubrics VALUES (?, ?, ?, ?, ?)",
+            (
+                "issue_20260819",
+                "material_draft_synthetic01",
+                "governance",
+                0.9,
+                "synthetic",
             ),
         )
         connection.execute(
@@ -287,16 +346,17 @@ def _seed_database(path: Path) -> str:
             (
                 "issue_20260819",
                 42,
+                1,
+                41,
+                1,
                 0,
-                42,
                 0,
-                0,
-                0,
-                0,
+                1,
                 0,
                 "2026-08-19T02:00:00Z",
             ),
         )
+        rebuild_and_check_fts(connection)
         connection.commit()
         state_hash = logical_state_hash(connection)
         connection.execute(

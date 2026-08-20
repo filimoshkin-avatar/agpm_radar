@@ -283,13 +283,34 @@ def _add_issue_desired_state(
             material_id = cast(str, link["material_id"])
             if material_id in desired_ids:
                 continue
-            key = {"issue_id": issue_id, "material_id": material_id}
-            for table in ("material_rubrics", "material_quality", "material_analysis"):
-                current = _row(connection, table, key)
+            link_key = {"issue_id": issue_id, "material_id": material_id}
+            for rubric_row in _rows(
+                connection,
+                "material_rubrics",
+                '"issue_id" = ? AND "material_id" = ?',
+                (issue_id, material_id),
+            ):
+                planner.add(
+                    _make_mutation(
+                        connection,
+                        table="material_rubrics",
+                        action="delete",
+                        key=_key(TABLE_SPECS["material_rubrics"], rubric_row),
+                    )
+                )
+            for table in ("material_quality", "material_analysis"):
+                current = _row(connection, table, link_key)
                 if current is not None:
-                    planner.add(_make_mutation(connection, table=table, action="delete", key=key))
+                    planner.add(
+                        _make_mutation(connection, table=table, action="delete", key=link_key)
+                    )
             planner.add(
-                _make_mutation(connection, table="issue_materials", action="delete", key=key)
+                _make_mutation(
+                    connection,
+                    table="issue_materials",
+                    action="delete",
+                    key=link_key,
+                )
             )
 
     for material in desired_materials:
@@ -464,7 +485,13 @@ def _add_issue_desired_state(
             else None
         )
         date_status = cast(str, material["publicationDateStatus"])
-        if date_status == "resolved" and delta_days is not None and abs(delta_days) <= 1:
+        if delta_days is not None and delta_days > 1:
+            severity, review_status, reason = (
+                "medium",
+                "queued",
+                "Publication date is after issue window",
+            )
+        elif date_status == "resolved" and delta_days is not None and abs(delta_days) <= 1:
             severity, review_status, reason = "ok", "ok", None
         elif date_status == "low_confidence":
             severity, review_status, reason = "low", "monitor", "Low-confidence date"

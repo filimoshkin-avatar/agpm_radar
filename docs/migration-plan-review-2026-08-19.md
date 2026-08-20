@@ -1760,14 +1760,16 @@ rollback переводит publisher в `NEEDS_RECONCILIATION` и блокир�
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A, Stage 1–12 и корректирующий Stage 12A завершены.
-Следующий последовательный шаг — **Stage 13**.
+Stage 0, urgent Stage 0A и Stage 1–14 завершены.
+Следующий последовательный шаг — **Stage 15**; Ivan явно разрешил автоматический переход к нему
+после Stage 14 в Telegram message `24487`.
 
 Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
 `147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,
 security headers, private/unknown 404 boundary и loopback-only API приняты. Caddy и Radar API
 сохранили PID и `NRestarts=0`; все семь NRD units и публичный NRD health green.
 
-Основной `radar.aipractice.space`, publisher transport, Project Manager cron, reboot и cutover
-остаются неизменными до своих поздних stages. Канонический отчёт:
-`docs/radar-stage12-shadow-https-2026-08-20.md`.
+Stage 14 провёл manual daily, no-LLM, historical correction и gazette update через restricted
+transport, подтвердил идемпотентный retry и финальные Project Manager reports. Основной
+`radar.aipractice.space`, Legacy cron и cutover не менялись. Канонический отчёт:
+`docs/radar-stage14-project-manager-dry-runs-2026-08-20.md`.

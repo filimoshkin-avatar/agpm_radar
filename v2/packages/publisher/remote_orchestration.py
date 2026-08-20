@@ -210,6 +210,11 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
         release = inspect_release_database(release_path)
         if release.digest.state_hash != metadata["stagingAfterStateHash"]:
             raise RemoteOrchestrationError("finalized release differs from immutable package")
+        asset_descriptors = (
+            cast(list[dict[str, object]], candidate["inputAssets"])
+            if operation == "gazette"
+            else []
+        )
         delta = build_delta(
             source.database_path,
             release_path,
@@ -218,6 +223,7 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
             release_id=release_id,
             application_release_id=inputs.application_release_id,
             created_at=inputs.created_at,
+            assets=tuple(asset_descriptors),
         )
         delta_bytes = canonical_json_line(delta)
         _save_exact(inputs.work_root / "deltas" / f"{candidate_id}.json", delta_bytes)
@@ -225,6 +231,13 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
         request = canonical_json_line(
             {
                 "action": "publish",
+                "assetPayloads": {
+                    cast(str, descriptor["relativePath"]): read_regular_file(
+                        inputs.package / "assets" / cast(str, descriptor["relativePath"]),
+                        expected_mode=0o400,
+                    ).hex()
+                    for descriptor in asset_descriptors
+                },
                 "delta": delta,
                 "expectedCurrentPointerSha256": _sha256(source_pointer_content),
                 "requestId": request_id,
