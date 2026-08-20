@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import re
 from collections.abc import Iterator
@@ -55,6 +56,17 @@ SECRET_PATTERNS: Final = (
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
     re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
     re.compile(r"\b[0-9]{8,10}:[A-Za-z0-9_-]{30,}\b"),
+)
+ALLOWED_BINARY_ASSETS: Final = {
+    Path("apps/web/og-image-20260803.png"): (
+        "1805d2711f4f7a4dd6118afc9900a314472383ace8ad9c0c98c26281f0c2b430"
+    ),
+}
+ALLOWED_WEB_URLS: Final = frozenset(
+    {
+        "https://radar.agpm.space/",
+        "https://radar.agpm.space/og-image-20260803.png",
+    }
 )
 RUNTIME_FORBIDDEN_FRAGMENTS: Final = (
     "/etc/",
@@ -160,10 +172,16 @@ def scan_workspace() -> tuple[list[str], int, int]:
             failures.append(f"credential filename is not allowed: {relative}")
         if lower_name.endswith(FORBIDDEN_DB_SUFFIXES):
             failures.append(f"database file is not allowed: {relative}")
+        content = path.read_bytes()
         try:
-            text = path.read_text(encoding="utf-8")
+            text = content.decode("utf-8")
         except UnicodeDecodeError:
-            failures.append(f"unexpected binary source file: {relative}")
+            expected_digest = ALLOWED_BINARY_ASSETS.get(relative)
+            actual_digest = hashlib.sha256(content).hexdigest()
+            if expected_digest is None:
+                failures.append(f"unexpected binary source file: {relative}")
+            elif actual_digest != expected_digest:
+                failures.append(f"binary asset digest mismatch in {relative}: {actual_digest}")
             continue
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
@@ -171,6 +189,8 @@ def scan_workspace() -> tuple[list[str], int, int]:
 
     for path in runtime_files():
         relative = path.relative_to(V2_ROOT)
+        if relative in ALLOWED_BINARY_ASSETS:
+            continue
         text = path.read_text(encoding="utf-8")
         lowered = text.lower()
         for fragment in RUNTIME_FORBIDDEN_FRAGMENTS:
@@ -188,8 +208,11 @@ def scan_workspace() -> tuple[list[str], int, int]:
                 failures.append(
                     f"external JavaScript dependency in {relative}: {external_import.group(1)}"
                 )
-        if path.suffix == ".html" and re.search(r"https?://", text, flags=re.IGNORECASE):
-            failures.append(f"remote web dependency in {relative}")
+        if path.suffix == ".html":
+            remote_urls = set(re.findall(r"https?://[^\"'<>\s]+", text, flags=re.IGNORECASE))
+            forbidden_urls = sorted(remote_urls - ALLOWED_WEB_URLS)
+            for url in forbidden_urls:
+                failures.append(f"remote web dependency in {relative}: {url}")
 
     fixture_root = V2_ROOT / "fixtures"
     for path in sorted(fixture_root.rglob("*")):

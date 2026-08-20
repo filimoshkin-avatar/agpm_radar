@@ -273,6 +273,8 @@ def test_role_and_outer_artifacts_are_reproducible_and_publicly_minimal(
     )
     assert "apps/api/__main__.py" in api_files
     assert "apps/web/app.mjs" in web_files
+    assert "apps/web/favicon.svg" in web_files
+    assert "apps/web/og-image-20260803.png" in web_files
     assert "packages/storage/migrations/0002_public_api_views.sql" in migration_files
     assert "apps/migration_runner/__main__.py" in migration_files
     assert "deploy/templates/radar-v2-api.service" in migration_files

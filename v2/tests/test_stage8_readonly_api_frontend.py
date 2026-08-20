@@ -659,6 +659,20 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     script = (WEB_ROOT / "app.mjs").read_text(encoding="utf-8")
     styles = (WEB_ROOT / "styles.css").read_text(encoding="utf-8")
     assert 'name="viewport"' in html
+    assert '<link rel="icon" href="/favicon.svg?v=20260729-1734"' in html
+    assert '<meta property="og:url" content="https://radar.agpm.space/">' in html
+    assert (
+        '<meta property="og:image" content="https://radar.agpm.space/og-image-20260803.png">'
+    ) in html
+    assert '<meta property="og:image:width" content="1200">' in html
+    assert '<meta property="og:image:height" content="630">' in html
+    assert '<meta name="twitter:card" content="summary_large_image">' in html
+    assert hashlib.sha256((WEB_ROOT / "favicon.svg").read_bytes()).hexdigest() == (
+        "4757342b86258c1fd7f9e08c4bc66b5e6af3014d5c6ab4b8ca1a4914524e7b38"
+    )
+    assert hashlib.sha256((WEB_ROOT / "og-image-20260803.png").read_bytes()).hexdigest() == (
+        "1805d2711f4f7a4dd6118afc9900a314472383ace8ad9c0c98c26281f0c2b430"
+    )
     assert "/assets/app.mjs?v=" in html and "/assets/styles.css?v=" in html
     assert "innerHTML" not in script
     assert "insertAdjacentHTML" not in script

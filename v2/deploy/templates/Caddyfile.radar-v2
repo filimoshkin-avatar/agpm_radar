@@ -2,6 +2,12 @@
 handle @radar_v2_api {
     reverse_proxy 127.0.0.1:8765
 }
+@radar_v2_social_assets path /favicon.svg /og-image-20260803.png
+handle @radar_v2_social_assets {
+    root * @WEB_CURRENT@/apps/web
+    header Cache-Control "public, max-age=86400"
+    file_server
+}
 handle {
     root * @WEB_CURRENT@/apps/web
     try_files {path} /index.html
