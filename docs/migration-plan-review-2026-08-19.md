@@ -4,7 +4,7 @@
 
 Дата полной переработки: 2026-08-19
 
-Статус: согласованный master plan; Stage 0, 0A, 1, 2, 3 и 4 завершены
+Статус: согласованный master plan; Stage 0, urgent Stage 0A и Stage 1–11 завершены
 
 Целевой production-сервер: Local Ru, `147.45.99.225`
 
@@ -1473,6 +1473,30 @@ production не изменены. Исторический seed, public Caddy/DN
 - drafts/queues присутствуют в DB и не доступны публично;
 - correction + rollback rehearsal green.
 
+### Результат
+
+После явного подтверждения владельца Stage 11 завершён и зафиксирован в
+`docs/radar-stage11-initial-seed-2026-08-20.md`. Frozen Legacy inputs детерминированно импортированы
+в V2 release `rel_e404ff802c3e3c71083529ed`: full seed SHA-256
+`5970470c28db4998b07d21052e196e97e55c5cb0ddbd60e4671e0a5861ea54d9`, logical state
+`ef5b4c3ef7ddfcda05c5aad331043bcc576ec641683e05d74ce1162e1e7c7f41`.
+
+Source/export/import/Local Ru совпали по inventory, row count и logical hash всех 23 replicated
+tables. Loopback API дал historical parity для 74 выпусков и 254 material relations; 128 queue
+rows, 26 unassigned materials, Legacy provenance и snapshot metadata физически присутствуют, но
+не видны через public DTO. Disposable correction доказала success и forced-smoke rollback.
+
+Живой content pointer на Local Ru прошёл Stage 11 full-seed -> Stage 10 empty -> Stage 11
+re-activation без service restart: PID `23919`, `NRestarts=0`, exact database hashes сохранены.
+Во время первого rehearsal найден и устранён fail-closed дефект операторского скрипта: новый
+pointer inode получил неверный owner `root:root`; после восстановления
+`radar-v2-api:radar-v2-api 0600` health вернулся без рестарта, исправленный rehearsal green. Для
+Stage 13 закреплён обязательный инвариант сохранения bytes/UID/GID/mode/link count при atomic
+pointer switch.
+
+Caddy/DNS, publisher transport, cron и reboot не затрагивались. `radar.aipractice.space` остаётся
+на Legacy `72.56.107.196`; Local Ru V2 остаётся loopback-only.
+
 ## Этап 12. Shadow hostname и HTTPS
 
 ### Работы
@@ -1499,7 +1523,8 @@ production не изменены. Исторический seed, public Caddy/DN
 2. Передать test delta.
 3. Проверить incoming quarantine.
 4. Выполнить remote staging apply.
-5. Проверить atomic activation и обязательный API reload/reopen.
+5. Проверить atomic activation и обязательный API reload/reopen; pointer switch обязан сохранять
+   и проверять exact bytes, UID, GID, mode, link count и fsync durability.
 6. Проверить ожидаемые release id/schema/state hash через loopback и public API.
 7. Проверить structured publisher result.
 8. Rehearse transfer failure, base mismatch, loopback failure, public smoke failure, source commit failure и rollback.
@@ -1678,15 +1703,15 @@ production не изменены. Исторический seed, public Caddy/DN
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–10 завершены.
-Следующий последовательный шаг — **Stage 11: initial seed и историческая acceptance**.
+Stage 0, urgent Stage 0A и Stage 1–11 завершены.
+Следующий последовательный шаг — **Stage 12: shadow hostname и HTTPS**.
 
-Stage 10 установил на Local Ru отдельный exact CPython 3.12.3/SQLite 3.45.1 runtime, immutable
-application release, locked users/private paths и hardened loopback-only API с пустым schema
-release. Все runtime/application/DB/security gates green; NRD, Caddy, UFW, DNS, Legacy production и
-cron не изменены.
+Stage 11 активировал на loopback verified Legacy-derived full seed: 23 replicated tables, 74
+исторических выпуска, private editorial/provenance/snapshot state и один gazette release. Full
+table/hash parity, historical API parity, public invisibility, disposable correction и живой
+content rollback/re-activation green. Runtime/application сохранили exact membership; NRD, UFW,
+Caddy config, DNS и Legacy production не изменены.
 
-Stage 11 требует отдельного явного подтверждения владельца, потому что впервые переносит на Local
-Ru полный Legacy-derived V2 dataset, включая исторические выпуски, drafts, queues и snapshot
-metadata. До этого подтверждения full seed не передаётся; public Caddy/DNS, publisher transport и
-Project Manager cron остаются неизменными до своих поздних stages.
+Stage 12 требует отдельного явного подтверждения владельца, потому что впервые добавит внешний
+shadow hostname, Caddy vhost и TLS/DNS. Основной `radar.aipractice.space`, publisher transport,
+Project Manager cron, reboot и cutover остаются неизменными до своих поздних stages.

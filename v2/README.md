@@ -1,4 +1,4 @@
-# Radar V2 through Stage 10
+# Radar V2 through Stage 11
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
@@ -11,9 +11,10 @@ queries, loopback HTTP transport and responsive same-origin frontend with gazett
 Stage 9 adds clean-commit provenance, role-separated immutable application artifacts, a frozen
 compatibility manifest, staging-only migrations, atomic activation and coordinated rollback.
 Stage 10 installs the accepted application and a separately verified exact runtime on Local Ru,
-activates only an empty schema release, and runs the hardened API on loopback. Normal V2 runtime
-access to Legacy remains disabled; historical data, public Caddy/DNS, publisher transport and cron
-are deliberately absent.
+activates only an empty schema release, and runs the hardened API on loopback. Stage 11 builds and
+activates a deterministic Legacy-derived full seed, proves all-table and historical API parity,
+private-state filtering, correction and content rollback/re-activation. Public Caddy/DNS,
+publisher transport and cron remain deliberately absent.
 
 ## Stack
 
@@ -213,3 +214,24 @@ non-regression are retained in `docs/radar-stage10-local-ru-loopback-2026-08-20.
 Stage 10 installs no public Radar vhost, changes no DNS, imports no history, activates no publisher
 transport and changes no cron. Full seed and historical endpoint parity begin only at Stage 11
 under a separate data-transfer approval.
+
+## Stage 11 boundary
+
+After owner approval, frozen Legacy inputs were imported into release
+`rel_e404ff802c3e3c71083529ed` and exported as a byte-stable full seed. Source, round-trip replica
+and Local Ru match on release/state plus counts and logical hashes for every one of the 23
+replicated tables. The retained production SQLite includes 74 evidence-backed published issues,
+254 issue/material relations, full Legacy provenance, 128 private queue rows, one exact snapshot
+and one gazette release.
+
+The loopback API matches Legacy history across all 74 dates while exposing none of the private
+queue/unassigned material identifiers or internal fields. A disposable historical correction
+proved both the normal publish path and forced-smoke rollback. The real Local Ru content pointer
+was then rolled back to the empty Stage 10 release and reactivated without restarting the service;
+release/state, immutable database hashes, UID/GID/mode/link-count and API reopen were verified at
+each boundary.
+
+The acceptance and retained evidence are documented in
+`docs/radar-stage11-initial-seed-2026-08-20.md`. Stage 11 adds no Caddy vhost, DNS record, publisher
+SSH transport, cron or public cutover. Those remain separately approved later stages, beginning
+with the Stage 12 shadow hostname.
