@@ -232,6 +232,20 @@ class RadarApplication:
             )
         if parsed.path.startswith("/assets/"):
             return _not_found()
+        if parsed.path == "/gazette-20260803.html":
+            if query:
+                return _not_found()
+            try:
+                body = _read_static(self.web_root, "gazette-20260803.html")
+            except StaticRouteError:
+                return _not_found()
+            return _response(
+                200,
+                body,
+                content_type="text/html; charset=utf-8",
+                cache=_IMMUTABLE_CACHE,
+                csp=_GAZETTE_CSP,
+            )
         if parsed.path.startswith("/gazettes/"):
             if query:
                 return _not_found()

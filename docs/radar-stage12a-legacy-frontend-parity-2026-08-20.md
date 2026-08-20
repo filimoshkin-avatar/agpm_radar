@@ -29,6 +29,8 @@ change:
   `17bb58fb69aec2dfb047a2ebf52534023e9b688c97a6b7ac795b0a72912c2063`;
 - PT Mono font: SHA-256
   `cbe732b3b8fd211fd986ebdfc9b870ddeca4faab0bb5425fc509b37f9b4ac804`.
+- Legacy gazette HTML: SHA-256
+  `1e6ba2bb055a2821bca2e05ad7ef6ec57e3a558049875ffc5e601c58911b637d`.
 
 Legacy HTML structure, CSS, widgets, responsive breakpoints and interaction implementation were
 copied as the baseline. The deliberate V2 differences are limited to:
@@ -51,8 +53,8 @@ SQLite, runtime, pipeline or host path.
 - Legacy-parity empty/fallback console smoke: PASS;
 - JavaScript syntax: PASS;
 - secret/Legacy isolation scan: PASS (92 files, three synthetic fixtures);
-- deterministic public production artifact: PASS, 25 files, SHA-256
-  `789aef04b151f07e7b2ede15f372e2047f3bd40c87dbe9c96b8b49f33d290a6e`;
+- deterministic public production artifact: PASS, 26 files, SHA-256
+  `9cb0f5e96cbebc0513737a13f7ced04fab69644a31d75964b2c24e68594306bb`;
 - `git diff --check`: PASS.
 
 ## GRACE delta

@@ -128,6 +128,7 @@ WEB_PATHS: Final = (
     "apps/web/favicon.svg",
     "apps/web/fonts/GolosText[wght].ttf",
     "apps/web/fonts/PTMono-Regular.ttf",
+    "apps/web/gazette-20260803.html",
     "apps/web/index.html",
     "apps/web/og-image-20260803.png",
     "apps/web/styles.css",

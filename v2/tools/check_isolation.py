@@ -70,6 +70,10 @@ ALLOWED_BINARY_ASSETS: Final = {
 }
 ALLOWED_WEB_URLS: Final = frozenset(
     {
+        "http://www.w3.org/2000/svg",
+        "https://fonts.googleapis.com",
+        "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,500&family=Ruslan+Display&family=Roboto+Condensed:wght@700&display=swap",
+        "https://fonts.gstatic.com",
         "https://radar.agpm.space/",
         "https://radar.agpm.space/og-image-20260803.png",
     }

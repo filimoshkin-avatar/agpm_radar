@@ -602,6 +602,9 @@ def test_spa_assets_gazette_and_missing_routes_are_separate(
     font = application.handle("GET", "/assets/fonts/PTMono-Regular.ttf")
     assert font.status == 200
     assert dict(font.headers)["Content-Type"] == "font/ttf"
+    legacy_gazette = application.handle("GET", "/gazette-20260803.html")
+    assert legacy_gazette.status == 200
+    assert b"<!doctype html>" in legacy_gazette.body.lower()
     gazette = application.handle("GET", "/gazettes/2026-08/")
     assert gazette.status == 200
     assert b"Published gazette" in gazette.body
@@ -686,7 +689,7 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "Динамика трендов" in html
     assert "Хронология выпусков" in html
     assert "Рубрикатор" in html
-    assert "/gazettes/2026-08/" in html
+    assert "/gazette-20260803.html" in html
     assert "@media (max-width: 1100px)" in styles
     assert "@media (max-width: 760px)" in styles
     node = shutil.which("node")
