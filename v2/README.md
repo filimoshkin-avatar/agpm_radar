@@ -1,4 +1,4 @@
-# Radar V2 through Stage 9
+# Radar V2 through Stage 10
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
@@ -10,8 +10,10 @@ Stage 8 adds a pointer-aware published-only API, strict SQLite authorizer, bound
 queries, loopback HTTP transport and responsive same-origin frontend with gazette routing.
 Stage 9 adds clean-commit provenance, role-separated immutable application artifacts, a frozen
 compatibility manifest, staging-only migrations, atomic activation and coordinated rollback.
-Normal V2 runtime access to Legacy remains disabled. Real production hosts, cron and installed
-service integration are deliberately absent.
+Stage 10 installs the accepted application and a separately verified exact runtime on Local Ru,
+activates only an empty schema release, and runs the hardened API on loopback. Normal V2 runtime
+access to Legacy remains disabled; historical data, public Caddy/DNS, publisher transport and cron
+are deliberately absent.
 
 ## Stack
 
@@ -193,3 +195,21 @@ Stage 9 acceptance used a clean commit and test-only approval against two retain
 proved rollback and re-activation, and did not install the inert templates or touch Legacy, cron,
 Caddy, DNS, Local Ru or a real production pointer. Those external changes start only after the
 read-only Stage 10 audit and explicit owner approval.
+
+## Stage 10 boundary
+
+After owner approval, Local Ru received locked `radar-v2-api` and `radar-v2-deploy` identities,
+private incoming/audit/data paths, the exact accepted application release, and a reproducibly built
+relocatable CPython 3.12.3 runtime carrying the exact SQLite 3.45.1 profile. The system Python and
+SQLite were not changed. The API runs non-root from immutable versioned targets, binds only
+`127.0.0.1:8765`, has zero capabilities plus strict systemd sandboxing, and reads a schema-only
+content release through an `EROFS` service mount.
+
+The empty Local Ru database and independent local staging database are byte-identical after the
+same migrations and contain no Legacy domain rows. Exact runtime/application membership, API
+semantics, security headers, systemd score, external-port closure and NRD/Caddy/UFW/Legacy
+non-regression are retained in `docs/radar-stage10-local-ru-loopback-2026-08-20.md`.
+
+Stage 10 installs no public Radar vhost, changes no DNS, imports no history, activates no publisher
+transport and changes no cron. Full seed and historical endpoint parity begin only at Stage 11
+under a separate data-transfer approval.

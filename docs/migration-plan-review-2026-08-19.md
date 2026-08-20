@@ -1404,7 +1404,8 @@ Legacy/production, services, cron, Caddy, DNS и Local Ru не менялись.
 2. Создать dedicated users/groups.
 3. Создать release/data/incoming paths.
 4. Установить hardened systemd API unit.
-5. Установить restricted remote activator.
+5. Подготовить restricted remote activator identity/quarantine; SSH transport и forced entrypoint
+   устанавливать только вместе с tested publisher integration на Stage 13.
 6. Развернуть application release без public DNS.
 7. Проверить loopback API и filesystem permissions.
 8. Не менять основной Radar DNS.
@@ -1433,6 +1434,23 @@ immutable Radar runtime под `/opt/radar-v2-runtime`, его portability/hash/
 `545bf2e11db924b0bacf3b5ac71092495fd8052b`, package SHA-256
 `85accde8b8c77c1fb8d10e84c267be77e7ca7af8e7fdc7e24e3dfcee02a727eb`) прошёл полный gate и local
 rollback rehearsal; на Local Ru не передавался и не устанавливался.
+
+### Результат
+
+После явного подтверждения владельца Stage 10 завершён и зафиксирован в
+`docs/radar-stage10-local-ru-loopback-2026-08-20.md`. На Local Ru установлены отдельный
+побайтово воспроизводимый runtime CPython 3.12.3/SQLite 3.45.1, immutable application release
+`app_release_20260819_545bf2e`, locked identities `radar-v2-api`/`radar-v2-deploy`, private
+release/data/incoming/audit paths и hardened `radar-v2-api.service`. Deploy identity/quarantine
+готовы, но SSH key/forced command/transport намеренно не установлены до Stage 13.
+
+Активирован только пустой schema release `content_release_stage10_empty`: source/target staging
+SQLite побайтово совпадают, все domain tables пусты, integrity/FK/schema/table hashes green. API
+active+enabled, non-root, `NRestarts=0`, слушает только `127.0.0.1:8765`, systemd security `2.7 OK`,
+filesystem write-open блокируется `EROFS`, 14-route loopback matrix green, внутренние порты снаружи
+закрыты. Все семь NRD units и Caddy сохранили active+enabled/`NRestarts=0`, UFW/Caddy/DNS и Legacy
+production не изменены. Исторический seed, public Caddy/DNS, publisher transport и cron остаются
+за границей Stage 11+.
 
 ## Этап 11. Initial seed и историческая acceptance
 
@@ -1660,14 +1678,15 @@ rollback rehearsal; на Local Ru не передавался и не устан
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–9 завершены.
-Следующий последовательный шаг — **Stage 10: подготовить Local Ru без public activation**.
+Stage 0, urgent Stage 0A и Stage 1–10 завершены.
+Следующий последовательный шаг — **Stage 11: initial seed и историческая acceptance**.
 
-Stage 9 закрепил clean-commit provenance, role-separated immutable artifacts, frozen compatibility
-manifest, общий application/content lock, одинаковые source/production staging migrations,
-dependency-ordered activation и доказанный coordinated rollback. Stage 10 начинается с read-only
-аудита disk/RAM/ports/Caddy/UFW/NRD load; аудит завершён. Следующая граница — отдельный exact
-Python 3.12.3/SQLite 3.45.1 runtime и затем users/paths/units/loopback deployment, всё только после
-отдельного явного подтверждения владельца.
+Stage 10 установил на Local Ru отдельный exact CPython 3.12.3/SQLite 3.45.1 runtime, immutable
+application release, locked users/private paths и hardened loopback-only API с пустым schema
+release. Все runtime/application/DB/security gates green; NRD, Caddy, UFW, DNS, Legacy production и
+cron не изменены.
 
-До отдельного явного подтверждения владельца в Stage 10 не создаются Local Ru Radar users/paths/services; до соответствующих поздних stages не меняются Project Manager cron/DNS и не переносится production data.
+Stage 11 требует отдельного явного подтверждения владельца, потому что впервые переносит на Local
+Ru полный Legacy-derived V2 dataset, включая исторические выпуски, drafts, queues и snapshot
+metadata. До этого подтверждения full seed не передаётся; public Caddy/DNS, publisher transport и
+Project Manager cron остаются неизменными до своих поздних stages.

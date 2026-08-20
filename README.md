@@ -77,5 +77,7 @@ manifest, shared deploy/publisher lock, identical two-target migrations and prov
 rollback/re-activation:
 `docs/radar-stage9-application-release-2026-08-19.md`.
 
-Stage 10 Local Ru read-only capacity/security/runtime preflight and approval boundary:
-`docs/radar-stage10-local-ru-preflight-2026-08-19.md`.
+Stage 10 Local Ru capacity/security/runtime preflight plus the accepted exact-runtime,
+schema-only, hardened loopback contour (without Caddy/DNS/Legacy seed):
+`docs/radar-stage10-local-ru-preflight-2026-08-19.md` and
+`docs/radar-stage10-local-ru-loopback-2026-08-20.md`.
