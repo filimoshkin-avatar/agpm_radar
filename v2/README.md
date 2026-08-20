@@ -235,3 +235,18 @@ The acceptance and retained evidence are documented in
 `docs/radar-stage11-initial-seed-2026-08-20.md`. Stage 11 adds no Caddy vhost, DNS record, publisher
 SSH transport, cron or public cutover. Those remain separately approved later stages, beginning
 with the Stage 12 shadow hostname.
+
+## Stage 14 source-side publisher boundary
+
+`apps/publisher_runner` is the explicit manual Project Manager entrypoint for the restricted
+Stage 13 transport. It verifies an immutable candidate package and its create-only staging DB,
+finalizes a source release, builds the closed row delta, sends one canonical request through a
+no-shell SSH argv, verifies the exact remote release/state result, installs the source release and
+only then atomically commits the source pointer. Machine result and owner-facing report outputs are
+create-only. A completed candidate replays its retained result without calling the transport or
+applying the delta again.
+
+The runner does not read or mutate Legacy, edit Project Manager cron, install a timer, deploy an
+application release or begin dual-run. `tools/build_stage14_daily.py` is a manual acceptance input
+adapter for a captured Legacy public response; it enforces the approved 30-day/unresolved material
+window before the candidate package boundary and records excluded materials explicitly.

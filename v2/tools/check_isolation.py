@@ -116,6 +116,7 @@ ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
         "re",
         "sqlite3",
         "stat",
+        "subprocess",
         "tarfile",
         "threading",
         "time",
