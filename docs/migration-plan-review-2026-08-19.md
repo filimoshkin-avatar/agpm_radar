@@ -1552,6 +1552,16 @@ Caddy/DNS, publisher transport, cron и reboot не затрагивались. 
 - Legacy code/data/services/Caddy/DNS не изменены;
 - предыдущий V2 application release сохранён и rollback доказан.
 
+### Результат
+
+Stage 12A завершён и зафиксирован в
+`docs/radar-stage12a-legacy-frontend-parity-2026-08-20.md`. Legacy layout/widgets/responsive
+behavior, точные шрифты, favicon/social assets и газета перенесены в V2 web artifact; browser data
+adapter использует только published V2 API. Desktop/mobile DOM/widget parity, console/network,
+public routes, CSP, isolation и rollback приняты. Активен immutable release
+`app_release_20260820_10fc9c8`; предыдущий самостоятельный V2 frontend сохранён как rollback.
+Legacy production и три изменения Project Manager не затронуты.
+
 ## Этап 13. Интеграция publisher с Local Ru
 
 ### Работы
@@ -1740,9 +1750,8 @@ Caddy/DNS, publisher transport, cron и reboot не затрагивались. 
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–12 завершены. По уточнённому владельцем UI-контракту Stage 12A
-является обязательной корректирующей границей перед Stage 13.
-Следующий последовательный шаг — **Stage 12A**, затем Stage 13.
+Stage 0, urgent Stage 0A, Stage 1–12 и корректирующий Stage 12A завершены.
+Следующий последовательный шаг — **Stage 13**.
 
 Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
 `147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,

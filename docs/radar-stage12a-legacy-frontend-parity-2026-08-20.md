@@ -1,8 +1,7 @@
 # Radar V2 Stage 12A — Legacy frontend parity
 
 Date: 2026-08-20
-Status: implementation and local acceptance complete; production activation evidence is appended
-after immutable release deployment.
+Status: complete and publicly accepted.
 
 ## Corrected target contract
 
@@ -65,5 +64,36 @@ truth, invariants and verification gates instead.
 
 ## Production acceptance
 
-Pending immutable release build, Local Ru activation, desktop/mobile browser comparison, public
-API/static/CSP checks, service non-regression and rollback proof.
+Final immutable release:
+
+- Git commit: `10fc9c83cba910e4cba3f77f6db066e0147150c7`;
+- application release: `app_release_20260820_10fc9c8`;
+- outer package SHA-256:
+  `1375f628dc4b846f32b536a50750e6c0482f28e7b4a85409a813d23d5910bc70`;
+- API role SHA-256: `cfcbd2563eeec45d56fcbcf19aa3f84176490964d07ccd390cfee1397bcee058`;
+- web role SHA-256: `1286055dd4892c21f72dfb4d42b962c8458be099eaba3fed2600d7b22078d451`.
+
+The package passed a retained two-target activation/rollback/re-activation rehearsal. Local Ru
+installed new create-only API/web directories and atomically moved both `current` links to the
+final release. Previous releases, including the independent V2 UI release
+`app_release_20260820_21b111a`, remain intact as rollback targets.
+
+Public acceptance passed for `/`, JS, CSS, both exact fonts, favicon/social assets, the exact
+Legacy gazette HTML and `/api/latest`; private and unknown paths return `404`. Desktop 1440x1100
+and mobile 390x844 browser runs have exact Legacy/V2 ID/widget structure, no horizontal overflow,
+no console/page errors and no V2 request to `radar.aipractice.space`. Screenshots are retained at
+`/tmp/radar-stage12a-final-{legacy,v2}-{desktop,mobile}.png`.
+
+The Legacy UI requires runtime inline style attributes for charts and a same-origin gazette iframe.
+The V2 Caddy CSP therefore allows `style-src 'unsafe-inline'` and `frame-ancestors 'self'`, while
+scripts remain self-only, objects remain disabled and external style/font access is limited to the
+exact Google Fonts origins used by the byte-identical Legacy gazette.
+
+Final services: Radar API active with PID `37933`, `NRestarts=0`; Caddy retained PID `1021`,
+`NRestarts=0`; all seven NRD units and public NRD health are green; error-priority Radar/Caddy
+journal is empty. Content release/state remain `rel_e404ff802c3e3c71083529ed` /
+`ef5b4c3ef7ddfcda05c5aad331043bcc576ec641683e05d74ce1162e1e7c7f41`.
+
+Remote evidence is retained at `/root/radar-stage12a-final-evidence-20260820T0912Z`. Legacy code,
+data, services, Caddy/DNS and Project Manager cron were not changed. The three pre-existing
+Project Manager pipeline edits remain uncommitted and separate.
