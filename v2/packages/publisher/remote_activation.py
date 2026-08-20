@@ -32,8 +32,10 @@ from packages.storage.safe_files import (
 )
 
 MAX_REQUEST_BYTES: Final = 16 * 1024 * 1024
-REQUEST_FIELDS: Final = frozenset({"action", "delta", "expectedCurrentPointerSha256", "requestId"})
-ALLOWED_ACTIONS: Final = frozenset({"publish", "status"})
+REQUEST_FIELDS: Final = frozenset(
+    {"action", "delta", "expectedCurrentPointerSha256", "requestId", "rollbackPointer"}
+)
+ALLOWED_ACTIONS: Final = frozenset({"publish", "rollback", "status"})
 
 
 class RemoteActivationError(RuntimeError):
@@ -96,8 +98,18 @@ def read_request(stream: object) -> JsonObject:
         if not isinstance(delta, dict):
             raise RemoteActivationError("publish request delta is missing")
         validate_delta(delta)
-    elif document.get("delta") is not None:
-        raise RemoteActivationError("status request must not carry a delta")
+        if document.get("rollbackPointer") is not None:
+            raise RemoteActivationError("publish request must not carry a rollback pointer")
+    elif action == "rollback":
+        if document.get("delta") is not None:
+            raise RemoteActivationError("rollback request must not carry a delta")
+        pointer = document.get("rollbackPointer")
+        if not isinstance(pointer, dict):
+            raise RemoteActivationError("rollback request pointer is missing")
+        if set(pointer) != {"database", "releaseId", "stateHash"}:
+            raise RemoteActivationError("rollback pointer has unknown or missing fields")
+    elif document.get("delta") is not None or document.get("rollbackPointer") is not None:
+        raise RemoteActivationError("status request must not carry mutation data")
     return cast(JsonObject, document)
 
 
@@ -288,6 +300,43 @@ def activate_request(
             database_sha256=report.file_sha256,
             pointer_sha256=_sha256(previous_bytes),
             loopback_verified=False,
+        )
+    if request["action"] == "rollback":
+        rollback_bytes = canonical_json_line(cast(dict[str, object], request["rollbackPointer"]))
+        rollback = parse_content_pointer(content_root, rollback_bytes)
+        report = inspect_release_database(rollback.database_path)
+        if (
+            report.release.release_id != rollback.release_id
+            or report.digest.state_hash != rollback.state_hash
+        ):
+            raise RemoteActivationError("rollback pointer differs from preserved release")
+        rollback_lock: int | None = None
+        try:
+            rollback_lock = acquire_mutation_lock(mutation_root)
+            replace_pointer(
+                content_root,
+                rollback_bytes,
+                uid=uid,
+                gid=gid,
+                expected=previous_bytes,
+            )
+            _health(loopback_url, rollback.release_id, rollback.state_hash)
+            _health(public_url, rollback.release_id, rollback.state_hash)
+        except (MutationLockBusyError, SafeFilesystemError) as error:
+            raise RemoteActivationError(str(error)) from error
+        finally:
+            if rollback_lock is not None:
+                release_mutation_lock(rollback_lock)
+        return RemoteActivationResult(
+            request_id=request_id,
+            status="rolled_back",
+            release_id=rollback.release_id,
+            state_hash=rollback.state_hash,
+            previous_release_id=previous.release_id,
+            previous_state_hash=previous.state_hash,
+            database_sha256=report.file_sha256,
+            pointer_sha256=_sha256(rollback_bytes),
+            loopback_verified=True,
         )
     delta = validate_delta(cast(dict[str, object], request["delta"]))
     if (previous.release_id, previous.state_hash) != (

@@ -30,6 +30,7 @@ def _status_request() -> bytes:
             "delta": None,
             "expectedCurrentPointerSha256": "a" * 64,
             "requestId": "stage13-status-0001",
+            "rollbackPointer": None,
         },
         separators=(",", ":"),
         sort_keys=True,
@@ -53,6 +54,20 @@ def test_status_request_cannot_carry_delta() -> None:
     request = json.loads(_status_request())
     request["delta"] = {}
     with pytest.raises(RemoteActivationError, match="must not carry"):
+        read_request(io.BytesIO(json.dumps(request).encode()))
+
+
+def test_rollback_request_has_closed_pointer_contract() -> None:
+    request = json.loads(_status_request())
+    request["action"] = "rollback"
+    request["rollbackPointer"] = {
+        "database": "releases/old.sqlite",
+        "releaseId": "old",
+        "stateHash": "b" * 64,
+    }
+    assert read_request(io.BytesIO(json.dumps(request).encode()))["action"] == "rollback"
+    request["rollbackPointer"]["command"] = "id"
+    with pytest.raises(RemoteActivationError, match="unknown or missing"):
         read_request(io.BytesIO(json.dumps(request).encode()))
 
 
