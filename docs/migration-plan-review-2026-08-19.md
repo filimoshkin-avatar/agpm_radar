@@ -1669,6 +1669,18 @@ Telegram delivery прошла, а уже опубликованная дата 
 - no NRD regression;
 - no external internal-port exposure.
 
+### Фактический результат 2026-08-20
+
+Stage 16 завершён после явного подтверждения владельца. Local Ru пережил согласованный reboot;
+Radar API, Caddy и семь NRD units автоматически восстановились enabled/active с `NRestarts=0`.
+Application rollback, DB release rollback/re-activation, create-only full-seed recovery и полная
+source/production/recovered-seed reconciliation прошли. Перед Stage 16 исправлена согласованность
+отфильтрованного daily narrative и опубликована sequence 9. Канонический отчёт:
+`docs/radar-stage16-local-ru-dr-2026-08-20.md`.
+
+По решению владельца Stage 16 является финальной границей текущего плана. Этапы 17–19 и cutover
+не входят в эту приёмку; оба стенда остаются в наблюдении.
+
 ## Этап 17. Пользовательская приёмка V2
 
 Пользователь сравнивает:
@@ -1743,11 +1755,11 @@ Telegram delivery прошла, а уже опубликованная дата 
 - [ ] historical import принят;
 - [ ] gazette create/update принят;
 - [ ] Project Manager final reporting принят;
-- [ ] Local Ru reboot green;
-- [ ] application rollback green;
-- [ ] DB rollback green;
-- [ ] reconciliation/full reseed green;
-- [ ] NRD на Local Ru не деградировал;
+- [x] Local Ru reboot green;
+- [x] application rollback green;
+- [x] DB rollback green;
+- [x] reconciliation/full reseed green;
+- [x] NRD на Local Ru не деградировал;
 - [ ] user explicitly approved cutover.
 
 ## 25. Запрещённые сокращения пути
@@ -1770,9 +1782,9 @@ Telegram delivery прошла, а уже опубликованная дата 
 
 ## 26. Первый следующий шаг
 
-Stage 0, urgent Stage 0A и Stage 1–15 завершены.
-Следующий последовательный шаг — **Stage 16**, только после отдельного явного подтверждения на
-reboot/disaster-recovery rehearsal.
+Stage 0, urgent Stage 0A и Stage 1–16 завершены. По явному решению владельца текущий план на этом
+выполнен; Stage 17–19, cutover и вывод Legacy из эксплуатации не авторизованы. Следующий режим —
+наблюдение обоих стендов и ежедневного dual-run.
 
 Stage 12 опубликован как изолированный shadow по `https://radar.agpm.space` на Local Ru
 `147.45.99.225`. Authoritative и публичный DNS, Let's Encrypt TLS, HTTP redirect, frontend/API,
