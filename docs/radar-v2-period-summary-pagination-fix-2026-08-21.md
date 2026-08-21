@@ -9,8 +9,8 @@ Status: locally accepted; production application release pending
   material page instead of the published period aggregates.
 - Secondary defect: the frontend requested `limit=100` and ignored `nextCursor`, truncating period
   material lists above 100 rows.
-- Affected files: `v2/apps/web/app.mjs`, `v2/tools/frontend_console_smoke.mjs`, and
-  `v2/tests/test_stage8_readonly_api_frontend.py`.
+- Affected files: `v2/apps/web/app.mjs`, `v2/apps/web/index.html`,
+  `v2/tools/frontend_console_smoke.mjs`, and `v2/tests/test_stage8_readonly_api_frontend.py`.
 - Source of truth: `contracts/v1/public-api.openapi.yaml` and the accepted Stage 8 read-only API
   boundary in `docs/radar-stage8-readonly-api-frontend-2026-08-19.md`.
 - GRACE module delta: skip — Radar has no `M-*`/`V-M-*` module map. The explicit affected-file and
@@ -21,6 +21,7 @@ Status: locally accepted; production application release pending
 - For `7d` and `30d`, summary cards now read `/api/stats?period=<period>` independently of the
   currently rendered material page.
 - Period materials and search results follow the opaque API `nextCursor` until it becomes null.
+- The script URL has a new immutable cache version, so previously cached browsers receive the fix.
 - Issue and yesterday modes retain their issue-specific statistics and material behavior.
 - The API contract, database schema, content publisher, Legacy runtime, cron and public data are
   unchanged.
@@ -51,4 +52,4 @@ editorial/rules outcome, while the larger browser discrepancy was the frontend d
 - JavaScript syntax and frontend console regression: passed;
 - secret/Legacy isolation: 110 files and 3 fixtures passed;
 - deterministic public production artifact: 26 files, SHA-256
-  `df8fc0a5fa590ebddb3232f138583744f9515ad86da691470823ef48403a8f35`.
+  `cf3fcfcc4da2de821121d1d0760f56cf10f19319468b4794795467baffc67995`.
