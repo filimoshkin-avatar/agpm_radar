@@ -1,0 +1,48 @@
+[project]
+name = "radar-kx"
+version = "0.1.0"
+description = "Isolated production full-text evidence store for Radar"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "beautifulsoup4>=4.13,<5",
+  "httpx>=0.28,<0.29",
+  "psycopg[binary]>=3.2,<4",
+  "pypdf>=5.9,<7",
+  "trafilatura>=2,<3",
+]
+
+[dependency-groups]
+dev = [
+  "mypy==1.17.1",
+  "pytest==8.4.1",
+  "ruff==0.12.9",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["RUF001", "S101"]
+
+[tool.mypy]
+files = ["src", "tests"]
+mypy_path = "src"
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["trafilatura.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers -q"
+pythonpath = ["src"]
+testpaths = ["tests"]

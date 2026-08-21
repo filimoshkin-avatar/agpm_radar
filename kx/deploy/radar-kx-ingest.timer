@@ -1,0 +1,12 @@
+[Unit]
+Description=Resume Radar KX ingest and bounded retries
+
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=30min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=radar-kx-ingest.service
+
+[Install]
+WantedBy=timers.target

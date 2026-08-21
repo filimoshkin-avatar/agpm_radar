@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+umask 077
+backup_root=/var/backups/radar-kx
+capacity_path=/var/lib/postgresql
+minimum_free_bytes=21474836480
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+attempt_dir="${backup_root}/${timestamp}"
+
+mkdir -p "${attempt_dir}"
+chmod 0700 "${attempt_dir}"
+
+database_bytes="$(psql -X -d radar_kx -Atqc 'select pg_database_size(current_database())')"
+free_bytes="$(df --output=avail -B1 "${capacity_path}" | tail -n 1 | tr -d ' ')"
+required_bytes="$((minimum_free_bytes + database_bytes * 2))"
+
+if ((free_bytes < required_bytes)); then
+  printf 'backup reserve guard failed: free=%s required=%s\n' \
+    "${free_bytes}" "${required_bytes}" >"${attempt_dir}/FAILED-reserve.txt"
+  exit 1
+fi
+
+partial_dump="${attempt_dir}/radar_kx.dump.partial"
+final_dump="${attempt_dir}/radar_kx.dump"
+
+if ! pg_dump --format=custom --compress=zstd:6 --file="${partial_dump}" radar_kx; then
+  if [ -e "${partial_dump}" ]; then
+    mv "${partial_dump}" "${attempt_dir}/radar_kx.dump.failed"
+  fi
+  printf 'pg_dump failed before a complete backup was created\n' \
+    >"${attempt_dir}/FAILED-pg-dump.txt"
+  exit 1
+fi
+
+mv "${partial_dump}" "${final_dump}"
+sha256sum "${final_dump}" >"${final_dump}.sha256"
+RADAR_KX_RELEASE_ID=backup \
+  PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/opt/radar-kx/current/src \
+  /opt/radar-kx/runtime/current/bin/python -m radar_kx status \
+  >"${attempt_dir}/status.json"
+printf '%s\n' "${database_bytes}" >"${attempt_dir}/database-bytes.txt"

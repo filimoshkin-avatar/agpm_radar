@@ -1,0 +1,75 @@
+[Unit]
+Description=Radar KX resumable production full-text ingest
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/worker.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx run --workers 32
+UMask=0077
+Nice=10
+CPUWeight=25
+IOWeight=25
+MemoryHigh=2G
+MemoryMax=3G
+TasksMax=128
+TimeoutStartSec=infinity
+Restart=on-failure
+RestartSec=60
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# DNS is provided by the local systemd-resolved stub. Allow it explicitly, then
+# block non-public destinations at the cgroup boundary as a second SSRF barrier.
+IPAddressAllow=127.0.0.53/32
+IPAddressDeny=0.0.0.0/8
+IPAddressDeny=10.0.0.0/8
+IPAddressDeny=100.64.0.0/10
+IPAddressDeny=127.0.0.0/8
+IPAddressDeny=169.254.0.0/16
+IPAddressDeny=172.16.0.0/12
+IPAddressDeny=192.0.0.0/24
+IPAddressDeny=192.0.2.0/24
+IPAddressDeny=192.168.0.0/16
+IPAddressDeny=198.18.0.0/15
+IPAddressDeny=198.51.100.0/24
+IPAddressDeny=203.0.113.0/24
+IPAddressDeny=224.0.0.0/4
+IPAddressDeny=240.0.0.0/4
+IPAddressDeny=::/128
+IPAddressDeny=::1/128
+IPAddressDeny=100::/64
+IPAddressDeny=2001:db8::/32
+IPAddressDeny=fc00::/7
+IPAddressDeny=fe80::/10
+IPAddressDeny=ff00::/8
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
