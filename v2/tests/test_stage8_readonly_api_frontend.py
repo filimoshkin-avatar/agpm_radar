@@ -128,7 +128,7 @@ def _build_release(path: Path, *, release_id: str, latest_title: str) -> None:
         connection.execute(
             """
             INSERT INTO material_analysis VALUES (
-              'issue_public_normal', 'material_public', 'Коротко', 'Для AgPM',
+              'issue_public_normal', 'material_public', 'Коротко от LLM', 'Угол AgPM от LLM',
               'fallback', 'primary-model', 'MiniMax-M3', 'minimax',
               'stage8-synthetic-v1', ?
             )
@@ -368,6 +368,10 @@ def test_all_openapi_endpoints_are_published_only_and_schema_valid(
         _assert_schema("Source", item)
     assert rubrics == [{"count": 1, "id": "orchestration", "title": "Оркестрация"}]
     assert sources == [{"included": 1, "name": "Synthetic Journal"}]
+    last_material_page = cast(dict[str, object], bodies[-1])
+    material = cast(list[dict[str, object]], last_material_page["items"])[0]
+    assert material["llmShortText"] == "Коротко от LLM"
+    assert material["llmAgpmAngle"] == "Угол AgPM от LLM"
 
     gazettes = cast(dict[str, object], _payload(api.handle("GET", "/api/gazettes")))
     for item in cast(list[object], gazettes["items"]):
@@ -725,6 +729,9 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "getJson(`/api/stats?period=${state.period}`)" in script
     assert "page.nextCursor || null" in script
     assert "while (cursor)" in script
+    assert 'short_text: llm.status === "success" ? (item.llmShortText || "") : ""' in script
+    assert 'signal: block("overview")' in script
+    assert 'why_agpm: block("signals")' in script
     assert "Сонар" in html
     assert "Динамика трендов" in html
     assert "Хронология выпусков" in html

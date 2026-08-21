@@ -64,6 +64,31 @@ def test_analysis_reconciles_inherited_legacy_claims() -> None:
     assert theses[0]["rest"] == "Выбрано 9 материалов."
 
 
+def test_analysis_prefers_successful_llm_theses_over_deterministic_issue_theses() -> None:
+    document: dict[str, object] = {
+        "daily_analysis": {"headline": "LLM", "analysis": {"signal": "Сигнал"}},
+        "issue": {"brief": "Кратко", "theses": [{"lead": "Rules", "rest": "Fallback"}]},
+        "issue_llm_theses": {
+            "status": "success",
+            "theses": [{"lead": "LLM lead", "rest": "LLM rest"}],
+        },
+    }
+    stats = {
+        "adjacent": 1,
+        "core": 0,
+        "cut": 0,
+        "far": 1,
+        "included": 1,
+        "mid": 0,
+        "near": 0,
+        "viewed": 1,
+    }
+
+    analysis = _analysis(document, legacy_count=1, stats=stats)
+
+    assert analysis["theses"] == [{"lead": "LLM lead", "rest": "LLM rest"}]
+
+
 def test_correction_accepts_imported_and_native_flag_shapes() -> None:
     assert _flag_names('{"security":true,"pmo":false}', material_id="mat_1") == ["security"]
     assert _flag_names('["security","governance"]', material_id="mat_1") == [

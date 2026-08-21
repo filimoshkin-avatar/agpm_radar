@@ -48,6 +48,7 @@ _MATERIAL_KEYS: Final = {
     "url",
     "verdict",
 }
+_MATERIAL_LLM_TEXT_KEYS: Final = {"llmAgpmAngle", "llmShortText"}
 _STATS_KEYS: Final = {
     "adjacent",
     "core",
@@ -287,7 +288,12 @@ def validate_public_issue_document(value: object) -> JsonObject:
     duplicate_keys: set[str] = set()
     material_ids: set[str] = set()
     for index, raw_material in enumerate(materials):
-        material = _exact(raw_material, _MATERIAL_KEYS, f"materials[{index}]")
+        material = _object(raw_material, f"materials[{index}]")
+        if (
+            not set(material) >= _MATERIAL_KEYS
+            or set(material) - _MATERIAL_KEYS > _MATERIAL_LLM_TEXT_KEYS
+        ):
+            raise PublicIssueValidationError(f"materials[{index}] has unknown or missing fields")
         material_id = _text(material["id"], "material id", minimum=1, maximum=128)
         if material_id in material_ids:
             raise PublicIssueValidationError("material id is duplicated")
@@ -334,6 +340,10 @@ def validate_public_issue_document(value: object) -> JsonObject:
         ):
             raise PublicIssueValidationError("material rubrics must be unique bounded strings")
         _llm(material["llm"], "material llm")
+        if "llmShortText" in material:
+            _optional_text(material["llmShortText"], "material llmShortText", maximum=4_000)
+        if "llmAgpmAngle" in material:
+            _optional_text(material["llmAgpmAngle"], "material llmAgpmAngle", maximum=4_000)
     _scan_public_value(cast(JsonValue, issue))
     return cast(JsonObject, issue)
 
@@ -505,7 +515,7 @@ def build_public_issue(
                    im.key_material, im.signal_score, im.signal_strength,
                    m.material_id, m.title, m.url, m.canonical_url, m.source_name,
                    m.published_at, m.publication_date_status,
-                   ma.llm_status, ma.effective_model,
+                   ma.short_text, ma.agpm_angle, ma.llm_status, ma.effective_model,
                    mq.publication_date_status AS quality_date_status,
                    mq.issue_date_delta_days, mq.severity, mq.review_status
             FROM issue_materials AS im
@@ -579,33 +589,35 @@ def build_public_issue(
                 "unavailable" if issue_llm["status"] == "unavailable" else "fallback"
             )
             material_effective_model = None
-        materials.append(
-            {
-                "agpmTakeaway": row["agpm_takeaway"],
-                "brief": row["brief"],
-                "canonicalUrl": row["canonical_url"],
-                "id": material_id,
-                "issueDate": requested_date,
-                "keyMaterial": bool(row["key_material"]),
-                "llm": {
-                    "effectiveModel": material_effective_model,
-                    "status": material_llm_status,
-                },
-                "perimeter": row["perimeter"],
-                "publicationDateStatus": status,
-                "publishedAt": published_at,
-                "rubrics": rubrics.get(material_id, []),
-                "signalScore": row["signal_score"],
-                "signalStrength": row["signal_strength"],
-                "sourceName": row["source_name"],
-                "summary": row["summary"],
-                "theses": _json(row["theses_json"], "material theses"),
-                "title": row["title"],
-                "trendNotes": row["trend_notes"],
-                "url": row["url"],
-                "verdict": row["verdict"],
-            }
-        )
+        material_document = {
+            "agpmTakeaway": row["agpm_takeaway"],
+            "brief": row["brief"],
+            "canonicalUrl": row["canonical_url"],
+            "id": material_id,
+            "issueDate": requested_date,
+            "keyMaterial": bool(row["key_material"]),
+            "llm": {
+                "effectiveModel": material_effective_model,
+                "status": material_llm_status,
+            },
+            "perimeter": row["perimeter"],
+            "publicationDateStatus": status,
+            "publishedAt": published_at,
+            "rubrics": rubrics.get(material_id, []),
+            "signalScore": row["signal_score"],
+            "signalStrength": row["signal_strength"],
+            "sourceName": row["source_name"],
+            "summary": row["summary"],
+            "theses": _json(row["theses_json"], "material theses"),
+            "title": row["title"],
+            "trendNotes": row["trend_notes"],
+            "url": row["url"],
+            "verdict": row["verdict"],
+        }
+        if row["short_text"] is not None or row["agpm_angle"] is not None:
+            material_document["llmShortText"] = row["short_text"]
+            material_document["llmAgpmAngle"] = row["agpm_angle"]
+        materials.append(material_document)
 
     raw_analysis = _json(analysis_row["analysis_json"], "issue analysis")
     raw_theses = _json(analysis_row["theses_json"], "issue theses")
@@ -701,7 +713,7 @@ def build_public_issue_from_views(
                    im.key_material, im.signal_score, im.signal_strength,
                    im.material_id, im.title, im.url, im.canonical_url, im.source_name,
                    im.material_published_at, im.publication_date_status,
-                   ma.llm_status, ma.effective_model,
+                   ma.short_text, ma.agpm_angle, ma.llm_status, ma.effective_model,
                    mq.publication_date_status AS quality_date_status,
                    mq.issue_date_delta_days, mq.severity, mq.review_status
             FROM pub_issue_materials_v1 AS im
@@ -777,33 +789,35 @@ def build_public_issue_from_views(
             )
             material_effective_model = None
         material_id = cast(str, row["material_id"])
-        materials.append(
-            {
-                "agpmTakeaway": row["agpm_takeaway"],
-                "brief": row["brief"],
-                "canonicalUrl": row["canonical_url"],
-                "id": material_id,
-                "issueDate": requested_date,
-                "keyMaterial": bool(row["key_material"]),
-                "llm": {
-                    "effectiveModel": material_effective_model,
-                    "status": material_llm_status,
-                },
-                "perimeter": row["perimeter"],
-                "publicationDateStatus": status,
-                "publishedAt": published_at,
-                "rubrics": rubrics.get(material_id, []),
-                "signalScore": row["signal_score"],
-                "signalStrength": row["signal_strength"],
-                "sourceName": row["source_name"],
-                "summary": row["summary"],
-                "theses": _json(row["theses_json"], "public material theses"),
-                "title": row["title"],
-                "trendNotes": row["trend_notes"],
-                "url": row["url"],
-                "verdict": row["verdict"],
-            }
-        )
+        material_document = {
+            "agpmTakeaway": row["agpm_takeaway"],
+            "brief": row["brief"],
+            "canonicalUrl": row["canonical_url"],
+            "id": material_id,
+            "issueDate": requested_date,
+            "keyMaterial": bool(row["key_material"]),
+            "llm": {
+                "effectiveModel": material_effective_model,
+                "status": material_llm_status,
+            },
+            "perimeter": row["perimeter"],
+            "publicationDateStatus": status,
+            "publishedAt": published_at,
+            "rubrics": rubrics.get(material_id, []),
+            "signalScore": row["signal_score"],
+            "signalStrength": row["signal_strength"],
+            "sourceName": row["source_name"],
+            "summary": row["summary"],
+            "theses": _json(row["theses_json"], "public material theses"),
+            "title": row["title"],
+            "trendNotes": row["trend_notes"],
+            "url": row["url"],
+            "verdict": row["verdict"],
+        }
+        if row["short_text"] is not None or row["agpm_angle"] is not None:
+            material_document["llmShortText"] = row["short_text"]
+            material_document["llmAgpmAngle"] = row["agpm_angle"]
+        materials.append(material_document)
 
     raw_analysis = _json(analysis_row["analysis_json"], "public issue analysis")
     document: dict[str, object] = {

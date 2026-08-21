@@ -257,6 +257,8 @@ components:
         brief: {type: [string, "null"]}
         summary: {type: [string, "null"]}
         agpmTakeaway: {type: [string, "null"]}
+        llmShortText: {type: [string, "null"]}
+        llmAgpmAngle: {type: [string, "null"]}
         keyMaterial: {type: boolean}
         signalScore: {type: [integer, "null"]}
         signalStrength: {type: string, enum: [strong, context, watch]}

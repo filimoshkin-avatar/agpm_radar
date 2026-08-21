@@ -217,8 +217,14 @@ def main() -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--remove-material-id", action="append", default=[])
     parser.add_argument("--no-llm", action="store_true")
+    parser.add_argument("--llm-success-model")
+    parser.add_argument("--llm-success-provider")
     parser.add_argument("--reconcile-legacy-count", type=int)
     args = parser.parse_args()
+    if bool(args.llm_success_model) != bool(args.llm_success_provider):
+        parser.error("--llm-success-model and --llm-success-provider must be provided together")
+    if args.no_llm and args.llm_success_model:
+        parser.error("--no-llm cannot be combined with an explicit successful LLM")
     base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
     staging = args.root / "staging"
@@ -272,6 +278,30 @@ def main() -> int:
             "effectiveAttemptOrder": None,
             "requested": {"model": "gpt-5.5", "provider": "openai"},
             "status": "unavailable",
+        }
+    elif args.llm_success_model:
+        llm = {
+            "attempts": [
+                {
+                    "accepted": True,
+                    "errorCode": None,
+                    "model": args.llm_success_model,
+                    "order": 1,
+                    "provider": args.llm_success_provider,
+                    "status": "success",
+                }
+            ],
+            "deterministicFallback": None,
+            "effective": {
+                "model": args.llm_success_model,
+                "provider": args.llm_success_provider,
+            },
+            "effectiveAttemptOrder": 1,
+            "requested": {
+                "model": args.llm_success_model,
+                "provider": args.llm_success_provider,
+            },
+            "status": "success",
         }
     else:
         llm = {

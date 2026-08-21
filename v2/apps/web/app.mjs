@@ -17,7 +17,8 @@ function legacyMaterial(item) {
     canonical_url: item.canonicalUrl || item.url,
     key_material: Boolean(item.keyMaterial),
     llm_summary: {
-      short_text: item.summary || item.brief || "",
+      short_text: llm.status === "success" ? (item.llmShortText || "") : "",
+      agpm_angle: llm.status === "success" ? (item.llmAgpmAngle || "") : "",
       status: llm.status || "fallback",
       model: llm.effectiveModel || null,
     },
@@ -37,8 +38,8 @@ function legacyIssue(payload) {
   const block = kind => blocks.find(item => item.kind === kind)?.text || "";
   const analysis = {
     headline: payload.brief || payload.title || "",
-    signal: block("signals"),
-    why_agpm: block("overview"),
+    signal: block("overview"),
+    why_agpm: block("signals"),
     watch_next: block("watch_next") || block("outlook"),
     evidence_titles: (payload.materials || []).filter(item => item.keyMaterial).map(item => item.title),
   };

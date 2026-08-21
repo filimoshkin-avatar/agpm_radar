@@ -141,6 +141,12 @@ def _analysis(
                 }
             )
     issue = cast(dict[str, object], document["issue"])
+    llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
+    thesis_source = (
+        cast(list[dict[str, object]], llm_theses.get("theses") or [])
+        if llm_theses is not None and llm_theses.get("status") == "success"
+        else cast(list[dict[str, object]], issue.get("theses") or [])
+    )
     theses = [
         {
             "lead": _reconcile_narrative(
@@ -150,7 +156,7 @@ def _analysis(
                 str(item.get("rest") or ""), legacy_count=legacy_count, stats=stats
             ),
         }
-        for item in cast(list[dict[str, object]], issue.get("theses") or [])
+        for item in thesis_source
     ]
     result: dict[str, object] = {
         "blocks": blocks,
