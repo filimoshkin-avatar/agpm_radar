@@ -164,21 +164,12 @@ def _llm_status(document: JsonObject) -> str:
     return "unavailable"
 
 
-def _application_release_id(source_root: Path) -> str:
-    pointer = read_content_pointer(source_root)
-    with sqlite3.connect(f"file:{pointer.database_path}?mode=ro", uri=True) as connection:
-        connection.execute("PRAGMA query_only=ON")
-        row = connection.execute(
-            """
-            SELECT application_release_id
-            FROM application_compatibility
-            ORDER BY activated_at DESC, application_release_id DESC
-            LIMIT 1
-            """
-        ).fetchone()
-    if row is None or not isinstance(row[0], str) or not row[0]:
-        raise Stage15DualRunError("active content has no application compatibility release")
-    return row[0]
+def _application_release_id(public_base: str) -> str:
+    health, _content = _fetch_json(f"{public_base.rstrip('/')}/api/health")
+    value = health.get("applicationReleaseId")
+    if not isinstance(value, str) or not value.startswith("app_release_"):
+        raise Stage15DualRunError("public health does not identify the active application release")
+    return value
 
 
 def _next_attempt_root(run_root: Path) -> Path:
@@ -374,7 +365,7 @@ def main() -> int:
     disposition = "already_published"
     if not _source_has_issue(args.source_root, args.issue_date):
         args.application_release_id = args.application_release_id or _application_release_id(
-            args.source_root
+            args.v2_public_base
         )
         build = _build_candidate(args, args.legacy_json, attempt_root)
         publication = _publish(args, build, attempt_root)

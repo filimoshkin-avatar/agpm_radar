@@ -16,6 +16,7 @@ from tools.check_legacy_mirror import main as mirror_main
 from tools.find_stage15_catchup import main as catchup_main
 from tools.run_stage15_dual import (
     Stage15DualRunError,
+    _application_release_id,
     _comparison_verdict,
     _fetch_json,
     _issue_date,
@@ -102,6 +103,27 @@ def test_public_fetch_has_bounded_clear_failure(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
     with pytest.raises(Stage15DualRunError, match="did not converge after 2 attempts"):
         _fetch_json("https://example.test/missing", attempts=2)
+
+
+def test_application_release_comes_from_public_runtime_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tools.run_stage15_dual._fetch_json",
+        lambda _url: ({"applicationReleaseId": "app_release_live_pointer"}, b"{}"),
+    )
+    assert _application_release_id("https://radar.example") == "app_release_live_pointer"
+
+
+def test_application_release_rejects_stale_compatibility_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tools.run_stage15_dual._fetch_json",
+        lambda _url: ({"status": "ok"}, b"{}"),
+    )
+    with pytest.raises(Stage15DualRunError, match="does not identify"):
+        _application_release_id("https://radar.example")
 
 
 def test_comparison_verdict_is_fail_loud_for_unexplained_difference() -> None:

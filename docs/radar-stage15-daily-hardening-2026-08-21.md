@@ -6,6 +6,11 @@ This change hardens the already accepted Stage 15 daily boundary without changin
 rules, V2 domain selection rules, database schema, public API contracts, Caddy, DNS or service unit
 configuration.
 
+The public health contract now includes `applicationReleaseId`, read at API startup from the
+immutable `APPLICATION-RELEASE.json` installed beside the active API artifact. This is the runtime
+pointer source of truth and deliberately differs from querying the latest append-only compatibility
+history row.
+
 ## Invariants
 
 - `combined-report.json` is the only completion marker. An incomplete date is retryable and each
@@ -20,7 +25,9 @@ configuration.
   scheduler alert path.
 - LLM success is accepted only from an explicit status field; schema shape alone never implies
   success.
-- The application compatibility ID comes from the active content database, not a shell literal.
+- The application release ID comes from the live runtime marker exposed by public health, not a
+  shell literal or the append-only compatibility history. Application deployment still appends the
+  matching compatibility row to the migrated content database and fails closed if the two differ.
 - The Git Legacy scripts and Project Manager runtime mirror must match byte-for-byte before a V2
   daily run can proceed.
 - If today's Legacy issue is late, the launcher waits up to ten minutes and then may process the

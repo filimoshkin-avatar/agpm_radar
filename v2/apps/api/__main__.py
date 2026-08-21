@@ -6,10 +6,27 @@ import argparse
 import json
 from pathlib import Path
 
+from packages.contracts.json_types import JsonValue
+from packages.storage.safe_files import read_regular_file
 from packages.storage.sqlite_profile import assert_sqlite_runtime
 
 from apps.api import ActiveDatabaseManager, RadarApi, RadarApplication, status_payload
 from apps.api.http_server import serve
+
+
+def _application_release_id(application_root: Path) -> str:
+    value: JsonValue = json.loads(
+        read_regular_file(
+            application_root / "APPLICATION-RELEASE.json",
+            expected_mode=0o400,
+        )
+    )
+    if not isinstance(value, dict):
+        raise RuntimeError("application release marker is not an object")
+    release_id = value.get("applicationReleaseId")
+    if not isinstance(release_id, str):
+        raise RuntimeError("application release marker has no release id")
+    return release_id
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,8 +42,9 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.gazette_root is None:
             parser.error("--gazette-root is required with --active-root")
         manager = ActiveDatabaseManager(arguments.active_root)
+        application_root = Path(__file__).resolve().parents[2]
         application = RadarApplication(
-            RadarApi(manager),
+            RadarApi(manager, application_release_id=_application_release_id(application_root)),
             web_root=Path(__file__).resolve().parents[1] / "web",
             gazette_root=arguments.gazette_root,
         )

@@ -197,10 +197,11 @@ components:
     Health:
       type: object
       additionalProperties: false
-      required: [status, releaseId, schemaVersion, databaseStateHash]
+      required: [status, releaseId, applicationReleaseId, schemaVersion, databaseStateHash]
       properties:
         status: {const: ok}
         releaseId: {type: string}
+        applicationReleaseId: {type: string, pattern: "^app_release_[A-Za-z0-9._-]+$"}
         schemaVersion: {type: integer}
         databaseStateHash: {type: string, pattern: "^[a-f0-9]{64}$"}
     LlmPublicOutcome:

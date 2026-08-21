@@ -26,6 +26,7 @@ from apps.api import (
     RadarApplication,
     SearchRateLimiter,
 )
+from apps.api.__main__ import _application_release_id
 from apps.api.http_server import RadarHttpServer
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
 from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, verify_database
@@ -260,7 +261,7 @@ def stage8_runtime(
     active_root = tmp_path / "active"
     install_initial_release(active_root, database)
     manager = ActiveDatabaseManager(active_root)
-    api = RadarApi(manager)
+    api = RadarApi(manager, application_release_id="app_release_stage8_fixture")
     yield manager, api, active_root
     manager.close()
 
@@ -434,7 +435,11 @@ def test_unknown_write_and_rate_limit_fail_closed(
     stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
 ) -> None:
     manager, _api, _root = stage8_runtime
-    api = RadarApi(manager, search_limiter=SearchRateLimiter(requests=1, window_seconds=60))
+    api = RadarApi(
+        manager,
+        application_release_id="app_release_rate_limit_test",
+        search_limiter=SearchRateLimiter(requests=1, window_seconds=60),
+    )
     assert api.handle("POST", "/api/issues").status == 405
     assert api.handle("PUT", "/api/issues").status == 405
     assert api.handle("DELETE", "/api/issues").status == 405
@@ -461,7 +466,7 @@ def test_path_shaped_published_values_fail_closed_without_leaking(tmp_path: Path
     active_root = tmp_path / "unsafe-active"
     install_initial_release(active_root, database)
     manager = ActiveDatabaseManager(active_root)
-    api = RadarApi(manager)
+    api = RadarApi(manager, application_release_id="app_release_http_test")
     try:
         for target in ("/api/issues", "/api/sources", "/api/gazettes"):
             response = api.handle("GET", target, request_id="unsafe_public")
@@ -534,7 +539,9 @@ def test_only_queued_legacy_quality_anomaly_can_exceed_issue_window(
     install_initial_release(active_root, database)
     manager = ActiveDatabaseManager(active_root)
     try:
-        response = RadarApi(manager).handle("GET", "/api/materials?period=30d&limit=100")
+        response = RadarApi(manager, application_release_id="app_release_date_status_test").handle(
+            "GET", "/api/materials?period=30d&limit=100"
+        )
         assert response.status == expected_status
         if legacy_inferred:
             payload = cast(dict[str, object], _payload(response))
@@ -575,6 +582,36 @@ def test_atomic_pointer_switch_reopens_expected_release_and_inode(
     latest = cast(dict[str, object], _payload(api.handle("GET", "/api/latest")))
     assert latest["title"] == "Пустой выпуск после переключения"
     assert read_active_pointer(active_root).release_id == "release_stage8_b"
+
+
+def test_health_exposes_explicit_runtime_application_release(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    manager, _api, _active_root = stage8_runtime
+    payload = cast(
+        dict[str, object],
+        _payload(
+            RadarApi(manager, application_release_id="app_release_stage8_runtime").handle(
+                "GET", "/api/health"
+            )
+        ),
+    )
+    assert payload["applicationReleaseId"] == "app_release_stage8_runtime"
+
+
+def test_invalid_runtime_application_release_is_rejected(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    manager, _api, _active_root = stage8_runtime
+    with pytest.raises(ValueError, match="application release id"):
+        RadarApi(manager, application_release_id="../unsafe")
+
+
+def test_runtime_application_release_marker_is_immutable_and_required(tmp_path: Path) -> None:
+    marker = tmp_path / "APPLICATION-RELEASE.json"
+    marker.write_text('{"applicationReleaseId":"app_release_marker_test"}\n', encoding="utf-8")
+    marker.chmod(0o400)
+    assert _application_release_id(tmp_path) == "app_release_marker_test"
 
 
 def test_spa_assets_gazette_and_missing_routes_are_separate(

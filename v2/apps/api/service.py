@@ -282,21 +282,27 @@ class RadarApi:
         self,
         manager: ActiveDatabaseManager,
         *,
+        application_release_id: str,
         search_limiter: SearchRateLimiter | None = None,
     ) -> None:
         self.manager = manager
+        if _IDENTIFIER.fullmatch(application_release_id) is None:
+            raise ValueError("application release id is invalid")
+        self.application_release_id = application_release_id
         self.search_limiter = search_limiter or SearchRateLimiter()
 
     def _dispatch(self, path: str, values: dict[str, str], remote_key: str) -> object:
         if path == "/api/health":
             _only(values, set())
             identity = self.manager.identity()
-            return {
+            result = {
                 "databaseStateHash": identity.state_hash,
                 "releaseId": identity.release_id,
                 "schemaVersion": identity.schema_version,
                 "status": "ok",
             }
+            result["applicationReleaseId"] = self.application_release_id
+            return result
         if path == "/api/latest":
             _only(values, set())
             return self.manager.execute(
