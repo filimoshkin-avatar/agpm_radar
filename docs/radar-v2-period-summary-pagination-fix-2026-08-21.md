@@ -1,7 +1,7 @@
 # Radar V2 period summary and pagination fix
 
 Date: 2026-08-21
-Status: locally accepted; production application release pending
+Status: production web release accepted
 
 ## START_CHANGE_SUMMARY
 
@@ -53,3 +53,20 @@ editorial/rules outcome, while the larger browser discrepancy was the frontend d
 - secret/Legacy isolation: 110 files and 3 fixtures passed;
 - deterministic public production artifact: 26 files, SHA-256
   `cf3fcfcc4da2de821121d1d0760f56cf10f19319468b4794795467baffc67995`.
+
+## Production acceptance
+
+- Source commits: `10a7526a80e45fd0e86a5c5d0dc5c7057d937870` (behavior and regression) and
+  `8d6e6264b4a8fbd6deaf01ed04983664794b1172` (immutable cache version).
+- Final application package: `app_release_20260821_8d6e626`, SHA-256
+  `3bc07ead09f180a41adaed56a2ac20c264ba0125c966cb0a6e22b220ecabc0aa`.
+- Only the web pointer changed, to
+  `/srv/radar-v2.aipractice.space/releases/app_release_20260821_8d6e626`; API code, content DB,
+  Caddy configuration and services were not restarted.
+- Public HTML references `app.mjs?v=20260821-period-stats-pagination`; the public script SHA-256
+  is `0b9a055b47ad782975b7962987de42a4e6257a5055110700199afeff0e95bbae`, identical to source.
+- Public 7d/30d stats and health passed; `radar-v2-api.service` and `caddy.service` are active with
+  `NRestarts=0` and no error journal entries during deployment.
+- Rollback targets and incoming hashes are retained under
+  `/root/radar-v2-web-deploy-backup-20260821T0609Z` on Local Ru. No prior release or failed
+  create-only target was deleted.
