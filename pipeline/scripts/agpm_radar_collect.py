@@ -1048,6 +1048,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-web-research", action="store_true")
     parser.add_argument("--web-research-only", action="store_true", help="Skip configured sources and run only web research.")
     parser.add_argument(
+        "--auxiliary-run",
+        action="store_true",
+        help="Record this run as an auxiliary collection without replacing the canonical daily run id.",
+    )
+    parser.add_argument(
         "--web-provider",
         choices=["all", "brave", "perplexity", "openclaw_cli"],
         default="all",
@@ -1101,14 +1106,26 @@ def main() -> int:
 
     new_ids, updated_ids = update_materials(candidates, materials, started_at)
     save_materials(materials_path, materials)
-    state.update(
-        {
-            "last_run_at": started_at,
-            "last_run_id": args.run_id,
-            "previous_run_at": state.get("last_run_at"),
-            "material_count": len(materials),
-        }
-    )
+    if args.auxiliary_run:
+        state.update(
+            {
+                "last_aux_run_at": started_at,
+                "last_aux_run_id": args.run_id,
+                "last_aux_query_set": args.query_set,
+                "last_aux_web_provider": args.web_provider,
+                "last_aux_previous_run_at": state.get("last_run_at"),
+                "material_count": len(materials),
+            }
+        )
+    else:
+        state.update(
+            {
+                "last_run_at": started_at,
+                "last_run_id": args.run_id,
+                "previous_run_at": state.get("last_run_at"),
+                "material_count": len(materials),
+            }
+        )
     save_state(state_path, state)
 
     stats = {

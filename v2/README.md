@@ -1,4 +1,4 @@
-# Radar V2 through Stage 11
+# Radar V2 production system through Stage 16
 
 This directory is the isolated Radar V2 application workspace. Stages 3 and 4 established the
 contract SQLite/importer boundary plus the immutable Legacy/V2 snapshot fork. Stage 5 adds closed
@@ -15,6 +15,11 @@ activates only an empty schema release, and runs the hardened API on loopback. S
 activates a deterministic Legacy-derived full seed, proves all-table and historical API parity,
 private-state filtering, correction and content rollback/re-activation. Public Caddy/DNS,
 publisher transport and cron remain deliberately absent.
+Stage 12 established public frontend parity and the independent public contour. Stages 13–14 add
+the restricted remote activation boundary and production publication workflow. Stage 15 runs the
+post-Legacy daily publication/comparison, and Stage 16 closes operational acceptance, rollback and
+disaster-recovery evidence. The public V2 contour is `https://radar.agpm.space`; Legacy remains an
+independent production system.
 
 ## Stack
 
@@ -53,6 +58,27 @@ the locked development group and do not enter the production artifact.
 - `tests/` — contract, runtime, publication, API/frontend, security and isolation tests;
 - `tools/` — isolation/secret scanner and deterministic artifact builder;
 - `scripts/verify.sh` — the mandatory local/CI verification entrypoint.
+
+## Operator entrypoints
+
+The project intentionally remains non-installable (`[tool.uv] package = false`). Approved module
+entrypoints therefore run with `PYTHONPATH` set to this directory. Shell launchers resolve their
+own absolute root and export it before invoking `.venv/bin/python`; systemd units use an explicit
+`WorkingDirectory`. Tests exercise the supported `-m` entrypoints from a foreign working directory.
+
+The daily Stage 15 launcher additionally:
+
+- fails closed if the three Git-owned Legacy incident fixes differ from the Project Manager runtime
+  mirror;
+- waits for the requested Legacy issue, then selects the oldest unfinished issue from a bounded
+  seven-day catch-up window;
+- retains every failed attempt under `attempt-NNN` while treating `combined-report.json` as the
+  sole completion marker;
+- retries the public issue endpoint, reads application compatibility from the active content DB,
+  and exits non-zero when URL differences are not explained by recorded V2 exclusions.
+
+`PublishInputs.finished_at` and `duration_ms` stay stable because they participate in publication
+idempotency. `combined-report.json.generatedAt` is the actual report completion time.
 
 ## Verify
 

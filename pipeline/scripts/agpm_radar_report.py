@@ -52,6 +52,7 @@ REPORT_DATE_RE = re.compile(r"AgPM_(?:daily|weekly)_radar_(\d{4}-\d{2}-\d{2})\.m
 FULLTEXT_CACHE_DIRNAME = "source-fulltext"
 DAILY_REPORT_LIMIT = 10
 DAILY_DEFERRED_QUEUE = "daily-deferred.jsonl"
+DAILY_CANDIDATE_LOOKBACK_DAYS = 30
 TRACKING_PARAMS = {
     "utm_source",
     "utm_medium",
@@ -988,6 +989,18 @@ def in_period(item: dict[str, Any], since: datetime, until: datetime) -> bool:
     if not marker:
         return True
     return since <= marker <= until
+
+
+def in_daily_candidate_window(item: dict[str, Any], since: datetime, until: datetime) -> bool:
+    if in_period(item, since, until):
+        return True
+    first_seen = parse_dt(item.get("first_seen_at")) or parse_dt(item.get("last_seen_at"))
+    if not first_seen or not (since <= first_seen <= until):
+        return False
+    published = parse_dt(item.get("published_at"))
+    if not published:
+        return True
+    return until - timedelta(days=DAILY_CANDIDATE_LOOKBACK_DAYS) <= published <= until
 
 
 def clean(value: str | None) -> str:
@@ -2099,9 +2112,12 @@ def parse_until(value: str | None) -> datetime:
 def main() -> int:
     args = parse_args()
     until = parse_until(args.until)
-    since = until - timedelta(days=args.days)
+    report_since = until - timedelta(days=args.days)
     materials = load_materials(args.wiki / "data" / "materials.jsonl")
-    period_items = [item for item in materials if in_period(item, since, until)]
+    if args.output_prefix == "daily":
+        period_items = [item for item in materials if in_daily_candidate_window(item, report_since, until)]
+    else:
+        period_items = [item for item in materials if in_period(item, report_since, until)]
     skipped_previous: list[dict[str, Any]] = []
     skipped_dead_links: list[dict[str, Any]] = []
     deferred_written = 0
@@ -2120,7 +2136,7 @@ def main() -> int:
         included = None
         excluded = None
 
-    markdown = render_markdown(period_items, since, until, included, excluded, deferred_written)
+    markdown = render_markdown(period_items, report_since, until, included, excluded, deferred_written)
     output_dir = args.output_dir or args.wiki / "reports"
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = until.date().isoformat()

@@ -1,4 +1,4 @@
-name: Radar V2 contracts and skeleton
+name: Radar V2 production verification
 
 on:
   pull_request:

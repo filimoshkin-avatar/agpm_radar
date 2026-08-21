@@ -7,8 +7,10 @@ import hashlib
 import json
 import sqlite3
 import subprocess
+import time
+import urllib.error
 import urllib.request
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
@@ -40,11 +42,31 @@ def _load_json(path: Path) -> JsonObject:
     return cast(JsonObject, value)
 
 
-def _fetch_json(url: str) -> tuple[JsonObject, bytes]:
-    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
-        if response.status != 200:
-            raise Stage15DualRunError(f"public endpoint returned HTTP {response.status}")
-        content = response.read(8 * 1024 * 1024 + 1)
+def _fetch_json(
+    url: str,
+    *,
+    attempts: int = 5,
+    retry_delay_seconds: float = 3.0,
+) -> tuple[JsonObject, bytes]:
+    if attempts < 1:
+        raise ValueError("attempts must be positive")
+    content: bytes | None = None
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
+                if response.status != 200:
+                    raise Stage15DualRunError(f"public endpoint returned HTTP {response.status}")
+                content = response.read(8 * 1024 * 1024 + 1)
+            break
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
+            last_error = error
+            if attempt < attempts:
+                time.sleep(retry_delay_seconds)
+    if content is None:
+        raise Stage15DualRunError(
+            f"public endpoint did not converge after {attempts} attempts: {last_error}"
+        ) from last_error
     if len(content) > 8 * 1024 * 1024:
         raise Stage15DualRunError("public response exceeds the 8 MiB bound")
     value: object = json.loads(content)
@@ -80,19 +102,143 @@ def _urls(document: JsonObject) -> list[str]:
     return sorted(result)
 
 
+def _material_map(document: JsonObject) -> dict[str, JsonObject]:
+    materials = document.get("materials")
+    if not isinstance(materials, list):
+        raise Stage15DualRunError("materials are absent from public response")
+    result: dict[str, JsonObject] = {}
+    for raw_item in materials:
+        if not isinstance(raw_item, dict):
+            raise Stage15DualRunError("material is not an object")
+        item = raw_item
+        value = item.get("canonical_url") or item.get("canonicalUrl") or item.get("url")
+        if not isinstance(value, str):
+            raise Stage15DualRunError("material URL is invalid")
+        result[value] = item
+    return result
+
+
+def _material_content_differences(legacy: JsonObject, v2: JsonObject) -> list[JsonObject]:
+    legacy_materials = _material_map(legacy)
+    v2_materials = _material_map(v2)
+    fields = (
+        ("title", "title"),
+        ("summary", "summary"),
+        ("agpm_takeaway", "agpmTakeaway"),
+        ("brief", "brief"),
+        ("theses", "theses"),
+        ("trend_notes", "trendNotes"),
+        ("perimeter", "perimeter"),
+        ("verdict", "verdict"),
+        ("signal_strength", "signalStrength"),
+        ("key_material", "keyMaterial"),
+    )
+    differences: list[JsonObject] = []
+    for url in sorted(set(legacy_materials) & set(v2_materials)):
+        changed = [
+            legacy_name
+            for legacy_name, v2_name in fields
+            if legacy_materials[url].get(legacy_name) != v2_materials[url].get(v2_name)
+        ]
+        legacy_rubrics = legacy_materials[url].get("rubrics")
+        v2_rubrics = v2_materials[url].get("rubrics")
+        if isinstance(legacy_rubrics, list) and isinstance(v2_rubrics, list):
+            if sorted(map(str, legacy_rubrics)) != sorted(map(str, v2_rubrics)):
+                changed.append("rubrics")
+        elif legacy_rubrics != v2_rubrics:
+            changed.append("rubrics")
+        if changed:
+            differences.append({"fields": cast(list[JsonValue], changed), "url": url})
+    return differences
+
+
 def _llm_status(document: JsonObject) -> str:
     llm = document.get("llm")
     if isinstance(llm, dict) and isinstance(llm.get("status"), str):
         return cast(str, llm["status"])
     analysis = document.get("daily_analysis") or document.get("analysis")
     if isinstance(analysis, dict):
-        nested = analysis.get("analysis")
         status = analysis.get("status")
         if isinstance(status, str):
             return status
-        if isinstance(nested, dict):
-            return "success"
     return "unavailable"
+
+
+def _application_release_id(source_root: Path) -> str:
+    pointer = read_content_pointer(source_root)
+    with sqlite3.connect(f"file:{pointer.database_path}?mode=ro", uri=True) as connection:
+        connection.execute("PRAGMA query_only=ON")
+        row = connection.execute(
+            """
+            SELECT application_release_id
+            FROM application_compatibility
+            ORDER BY activated_at DESC, application_release_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    if row is None or not isinstance(row[0], str) or not row[0]:
+        raise Stage15DualRunError("active content has no application compatibility release")
+    return row[0]
+
+
+def _next_attempt_root(run_root: Path) -> Path:
+    run_root.mkdir(mode=0o700, exist_ok=True)
+    for number in range(1, 10_000):
+        attempt = run_root / f"attempt-{number:03d}"
+        try:
+            attempt.mkdir(mode=0o700)
+        except FileExistsError:
+            continue
+        return attempt
+    raise Stage15DualRunError("daily run exhausted the bounded attempt namespace")
+
+
+def _excluded_count(build: JsonObject | None) -> int | None:
+    if build is None:
+        return None
+    value = build.get("excludedMaterials")
+    return value if isinstance(value, int) and value >= 0 else None
+
+
+def _retained_excluded_count(run_root: Path) -> int | None:
+    for attempt in sorted(run_root.glob("attempt-*"), reverse=True):
+        path = attempt / "candidate-build" / "excluded-materials.json"
+        if not path.is_file():
+            continue
+        document = _load_json(path)
+        excluded = document.get("excluded")
+        if isinstance(excluded, list):
+            return len(excluded)
+    return None
+
+
+def _comparison_verdict(
+    legacy_urls: list[str],
+    v2_urls: list[str],
+    excluded_count: int | None,
+    content_differences: list[JsonObject] | None = None,
+) -> JsonObject:
+    only_legacy = sorted(set(legacy_urls) - set(v2_urls))
+    only_v2 = sorted(set(v2_urls) - set(legacy_urls))
+    if content_differences:
+        return {
+            "status": "unexplained",
+            "alert": True,
+            "reason": "shared_material_content_differs",
+        }
+    if not only_legacy and not only_v2:
+        return {"status": "matched", "alert": False, "reason": "identical_url_sets"}
+    if excluded_count == len(only_legacy) and not only_v2:
+        return {
+            "status": "explained",
+            "alert": False,
+            "reason": "v2_exclusions_match_only_legacy_count",
+        }
+    return {
+        "status": "unexplained",
+        "alert": True,
+        "reason": "url_difference_is_not_explained_by_v2_exclusions",
+    }
 
 
 def _source_has_issue(source_root: Path, issue_date: str) -> bool:
@@ -186,7 +332,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--python", required=True, type=Path)
     parser.add_argument("--ssh-host", required=True)
     parser.add_argument("--ssh-identity", required=True, type=Path)
-    parser.add_argument("--application-release-id", required=True)
+    parser.add_argument("--application-release-id")
     parser.add_argument("--v2-public-base", required=True)
     return parser
 
@@ -199,22 +345,23 @@ def main() -> int:
         raise Stage15DualRunError("Legacy output is not ready for the requested issue date")
     ensure_private_directory(args.runs_root)
     run_root = args.runs_root / args.issue_date
-    if run_root.exists():
-        report_content = read_regular_file(run_root / "combined-report.json", expected_mode=0o600)
+    report_path = run_root / "combined-report.json"
+    if report_path.exists():
+        report_content = read_regular_file(report_path, expected_mode=0o600)
         print(report_content.decode("utf-8"), end="")
         return 0
-    run_root.mkdir(mode=0o700)
+    attempt_root = _next_attempt_root(run_root)
     legacy_bytes = read_regular_file(args.legacy_json, expected_mode=0o644)
     snapshot = create_snapshot(
-        run_root / "snapshots",
+        attempt_root / "snapshots",
         snapshot_id=f"snap_{args.issue_date.replace('-', '')}_stage15",
         collected_at=args.started_at,
         candidates=[legacy],
         safe_evidence_index={"legacyPublicSha256": _sha256(legacy_bytes)},
     )
     fork = fork_snapshot(
-        run_root / "snapshots" / snapshot.identity.snapshot_id,
-        run_root / "fork",
+        attempt_root / "snapshots" / snapshot.identity.snapshot_id,
+        attempt_root / "fork",
         expected_identity=snapshot.identity,
         legacy_consumed_at=args.started_at,
         v2_consumed_at=args.started_at,
@@ -223,9 +370,14 @@ def main() -> int:
         raise Stage15DualRunError("Legacy and V2 branches did not attest the same snapshot")
 
     publication: JsonObject | None = None
+    build: JsonObject | None = None
     disposition = "already_published"
     if not _source_has_issue(args.source_root, args.issue_date):
-        publication = _publish(args, _build_candidate(args, args.legacy_json, run_root), run_root)
+        args.application_release_id = args.application_release_id or _application_release_id(
+            args.source_root
+        )
+        build = _build_candidate(args, args.legacy_json, attempt_root)
+        publication = _publish(args, build, attempt_root)
         disposition = cast(str, publication["status"])
 
     v2, v2_bytes = _fetch_json(f"{args.v2_public_base.rstrip('/')}/api/issues/{args.issue_date}")
@@ -234,9 +386,15 @@ def main() -> int:
     pointer = read_content_pointer(args.source_root)
     legacy_urls = _urls(legacy)
     v2_urls = _urls(v2)
+    content_differences = _material_content_differences(legacy, v2)
+    excluded_count = _excluded_count(build)
+    if excluded_count is None:
+        excluded_count = _retained_excluded_count(run_root)
+    verdict = _comparison_verdict(legacy_urls, v2_urls, excluded_count, content_differences)
     report: JsonObject = {
         "comparisonFormat": "radar-stage15-dual-run/v1",
-        "generatedAt": args.finished_at,
+        "comparisonVerdict": verdict,
+        "generatedAt": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "issueDate": args.issue_date,
         "legacy": {
             "llmStatus": _llm_status(legacy),
@@ -258,6 +416,7 @@ def main() -> int:
             "onlyLegacy": cast(list[JsonValue], sorted(set(legacy_urls) - set(v2_urls))),
             "onlyV2": cast(list[JsonValue], sorted(set(v2_urls) - set(legacy_urls))),
         },
+        "sharedMaterialDifferences": cast(list[JsonValue], content_differences),
         "v2": {
             "llmStatus": _llm_status(v2),
             "materialCount": len(v2_urls),
@@ -268,7 +427,7 @@ def main() -> int:
         },
     }
     content = canonical_json_line(report)
-    atomic_write_new(run_root / "combined-report.json", content, mode=0o600)
+    atomic_write_new(report_path, content, mode=0o600)
     print(content.decode("utf-8"), end="")
     return 0
 
