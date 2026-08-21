@@ -225,8 +225,10 @@ def test_snapshot_extra_member_and_broad_permissions_are_rejected(tmp_path: Path
     with pytest.raises(SnapshotIntegrityError, match="membership"):
         verify_snapshot(snapshot_path)
 
+    snapshot_path.chmod(0o700)
     extra.unlink()
     (snapshot_path / MANIFEST_NAME).chmod(0o444)
+    snapshot_path.chmod(0o500)
     with pytest.raises(SnapshotIntegrityError, match="mode differs"):
         verify_snapshot(snapshot_path)
 

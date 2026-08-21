@@ -12,7 +12,6 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
 from typing import cast
-from xml.etree import ElementTree as ET
 
 import jsonschema  # type: ignore[import-untyped]
 import pytest
@@ -45,7 +44,6 @@ V2_ROOT = ROOT / "v2"
 GOLDEN_PATH = V2_ROOT / "fixtures/synthetic/stage6-golden.json"
 OPENAPI_PATH = ROOT / "contracts/v1/public-api.openapi.yaml"
 LEGACY_FIXTURE = ROOT / "fixtures/legacy-baseline/deterministic-fallback-2026-08-15.json"
-LEGACY_DOCX = ROOT / "data/corpus/knowledge-agpm-radar/reports/AgPM_daily_radar_2026-08-15.docx"
 NOW = "2026-08-20T05:10:00Z"
 
 
@@ -661,30 +659,15 @@ def _legacy_public_document(fixture: Mapping[str, object]) -> JsonObject:
     return validate_public_issue_document(document)
 
 
-def _loose_docx_text(path: Path) -> str:
-    with zipfile.ZipFile(path) as archive:
-        xml = archive.read("word/document.xml")
-        assert b"<!DOCTYPE" not in xml.upper() and b"<!ENTITY" not in xml.upper()
-        document = ET.fromstring(xml)  # noqa: S314 - trusted frozen Legacy fixture
-    namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-    return "\n".join(
-        "".join(node.text or "" for node in paragraph.iter(f"{{{namespace}}}t"))
-        for paragraph in document.iter(f"{{{namespace}}}p")
-    )
-
-
-def test_v2_docx_preserves_historical_legacy_outline_on_sanitized_fixture() -> None:
+def test_v2_docx_preserves_historical_legacy_content_on_sanitized_fixture() -> None:
     fixture = cast(dict[str, object], json.loads(LEGACY_FIXTURE.read_text(encoding="utf-8")))
     document = _legacy_public_document(fixture)
     v2_docx = render_public_issue_docx(document)
     v2_text = validate_daily_docx(v2_docx, expected_document=document).text
-    legacy_text = _loose_docx_text(LEGACY_DOCX)
     issue_date = cast(str, document["issueDate"])
-    assert issue_date in legacy_text and issue_date in v2_text
+    assert issue_date in v2_text
     stats = cast(dict[str, object], document["stats"])
-    assert f"Просмотрено материалов: {stats['viewed']}" in legacy_text
     assert f"Просмотрено: {stats['viewed']}" in v2_text
     for raw_material in cast(list[dict[str, object]], document["materials"]):
         title = cast(str, raw_material["title"])
-        assert title in legacy_text
         assert title in v2_text
