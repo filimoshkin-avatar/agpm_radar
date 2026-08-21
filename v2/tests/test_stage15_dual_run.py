@@ -23,6 +23,7 @@ from tools.run_stage15_dual import (
     _llm_status,
     _material_content_differences,
     _next_attempt_root,
+    _retained_excluded_count,
     _urls,
 )
 
@@ -136,6 +137,34 @@ def test_comparison_verdict_is_fail_loud_for_unexplained_difference() -> None:
     }
 
 
+def test_missing_exclusion_evidence_is_unverified_rather_than_unexplained() -> None:
+    verdict = _comparison_verdict(["https://example.test/a"], [], None)
+    assert verdict == {
+        "status": "unverified",
+        "alert": False,
+        "reason": "v2_exclusion_evidence_is_unavailable_for_this_date",
+    }
+
+
+def test_v2_only_material_always_alerts_even_without_exclusion_evidence() -> None:
+    verdict = _comparison_verdict([], ["https://example.test/a"], None)
+    assert verdict == {
+        "status": "unexplained",
+        "alert": True,
+        "reason": "v2_published_material_is_absent_from_legacy",
+    }
+
+
+def test_retained_exclusions_are_found_in_the_pre_attempt_layout(tmp_path: Path) -> None:
+    build = tmp_path / "candidate-build"
+    build.mkdir(parents=True)
+    retained = build / "excluded-materials.json"
+    retained.write_text('{"excluded": [{"url": "https://example.test/a"}]}\n', encoding="utf-8")
+    # build_stage14_daily writes this artifact private; reading it must not assume 0644.
+    retained.chmod(0o600)
+    assert _retained_excluded_count(tmp_path) == 1
+
+
 def test_shared_material_comparison_covers_editorial_content() -> None:
     legacy: JsonObject = {
         "materials": [
@@ -193,12 +222,45 @@ def test_catchup_selects_oldest_unfinished_recent_issue(
             str(runs),
             "--through",
             "2026-08-21",
+            "--not-before",
+            "2026-08-19",
             "--lookback-days",
             "3",
         ],
     )
     assert catchup_main() == 0
     assert capsys.readouterr().out == "2026-08-19\n"
+
+
+def test_catchup_never_selects_a_date_before_the_daily_contour(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    exports = tmp_path / "exports"
+    runs = tmp_path / "runs"
+    exports.mkdir()
+    (runs / "2026-08-20").mkdir(parents=True)
+    (runs / "2026-08-20" / "combined-report.json").write_text("{}", encoding="utf-8")
+    for day in ("2026-08-19", "2026-08-20", "2026-08-21"):
+        (exports / f"{day}.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "find_stage15_catchup.py",
+            "--exports-root",
+            str(exports),
+            "--runs-root",
+            str(runs),
+            "--through",
+            "2026-08-21",
+            "--not-before",
+            "2026-08-20",
+            "--lookback-days",
+            "3",
+        ],
+    )
+    assert catchup_main() == 0
+    assert capsys.readouterr().out == "2026-08-21\n"
 
 
 def test_legacy_mirror_fails_on_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

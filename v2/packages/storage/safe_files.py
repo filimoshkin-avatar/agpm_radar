@@ -250,10 +250,11 @@ def publish_flat_directory(
         return root / final_name
     finally:
         if temporary_exists and temporary_descriptor is not None:
-            # The directory has already been sealed read-only before the
-            # no-replace rename.  If another publisher wins the race, restore
-            # owner write permission solely on our unlinked temporary tree so
-            # cleanup works for non-root service/CI users as well.
+            # The directory was sealed read-only before the no-replace rename.  When
+            # another publisher wins the race the rename did not happen, so this tree is
+            # still linked at its private temporary name.  Restore owner write permission
+            # on that temporary path only -- it is required so a non-root service or CI
+            # owner can unlink its own files -- and drop the whole tree immediately below.
             os.fchmod(temporary_descriptor, 0o700)
             for file_name in written_names:
                 with suppress(FileNotFoundError):

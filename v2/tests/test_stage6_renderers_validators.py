@@ -659,7 +659,12 @@ def _legacy_public_document(fixture: Mapping[str, object]) -> JsonObject:
     return validate_public_issue_document(document)
 
 
-def test_v2_docx_preserves_historical_legacy_content_on_sanitized_fixture() -> None:
+def test_v2_docx_renders_every_material_from_sanitized_legacy_fixture() -> None:
+    """Assert the rendered DOCX carries the whole sanitized Legacy issue.
+
+    This does not compare against the historical Legacy ``.docx`` itself: that file lives in
+    the corpus, not in the repository, so the comparison could not run in CI.
+    """
     fixture = cast(dict[str, object], json.loads(LEGACY_FIXTURE.read_text(encoding="utf-8")))
     document = _legacy_public_document(fixture)
     v2_docx = render_public_issue_docx(document)

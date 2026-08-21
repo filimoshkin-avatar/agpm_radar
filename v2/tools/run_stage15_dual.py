@@ -35,8 +35,8 @@ def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def _load_json(path: Path) -> JsonObject:
-    value: object = json.loads(read_regular_file(path, expected_mode=0o644))
+def _load_json(path: Path, *, expected_mode: int = 0o644) -> JsonObject:
+    value: object = json.loads(read_regular_file(path, expected_mode=expected_mode))
     if not isinstance(value, dict):
         raise Stage15DualRunError(f"JSON root is not an object: {path.name}")
     return cast(JsonObject, value)
@@ -192,11 +192,12 @@ def _excluded_count(build: JsonObject | None) -> int | None:
 
 
 def _retained_excluded_count(run_root: Path) -> int | None:
-    for attempt in sorted(run_root.glob("attempt-*"), reverse=True):
-        path = attempt / "candidate-build" / "excluded-materials.json"
+    candidates = [*sorted(run_root.glob("attempt-*"), reverse=True), run_root]
+    for base in candidates:
+        path = base / "candidate-build" / "excluded-materials.json"
         if not path.is_file():
             continue
-        document = _load_json(path)
+        document = _load_json(path, expected_mode=0o600)
         excluded = document.get("excluded")
         if isinstance(excluded, list):
             return len(excluded)
@@ -219,7 +220,21 @@ def _comparison_verdict(
         }
     if not only_legacy and not only_v2:
         return {"status": "matched", "alert": False, "reason": "identical_url_sets"}
-    if excluded_count == len(only_legacy) and not only_v2:
+    if only_v2:
+        return {
+            "status": "unexplained",
+            "alert": True,
+            "reason": "v2_published_material_is_absent_from_legacy",
+        }
+    if excluded_count is None:
+        # A replayed or already-published date carries no exclusion evidence of its own.
+        # Report the difference without claiming it is unexplained.
+        return {
+            "status": "unverified",
+            "alert": False,
+            "reason": "v2_exclusion_evidence_is_unavailable_for_this_date",
+        }
+    if excluded_count == len(only_legacy):
         return {
             "status": "explained",
             "alert": False,

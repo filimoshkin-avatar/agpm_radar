@@ -7,14 +7,17 @@ export PYTHONPATH="$v2_root"
 "${v2_root}/.venv/bin/python" "${v2_root}/tools/check_legacy_mirror.py" \
   --repository-scripts /mnt/vdd/Radar/pipeline/scripts \
   --runtime-scripts /root/.openclaw-projectmanager/workspace/scripts >&2
+# The first date this daily contour owns. Legacy issues older than this were published
+# outside the dual-run boundary and must never be selected as a catch-up target.
+daily_contour_start="2026-08-20"
 requested_issue_date="${RADAR_ISSUE_DATE:-$(TZ=Europe/Moscow date +%F)}"
 issue_date="$requested_issue_date"
 legacy_json="/mnt/vdd/Radar/data/exports/json-cache/issues/${issue_date}.json"
-started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-finished_at="$(date -u -d '+1 minute' +%Y-%m-%dT%H:%M:%SZ)"
 
+# Bounded wait so a late Legacy run still fits inside the cron timeout budget alongside
+# candidate build (300s), SSH transport (60s) and public convergence retries (15s).
 if [[ ! -f "$legacy_json" ]]; then
-  for _ in {1..60}; do
+  for _ in {1..30}; do
     sleep 10
     [[ -f "$legacy_json" ]] && break
   done
@@ -24,7 +27,8 @@ if [[ ! -f "$legacy_json" && -z "${RADAR_ISSUE_DATE:-}" ]]; then
   if ! issue_date="$(${v2_root}/.venv/bin/python "${v2_root}/tools/find_stage15_catchup.py" \
       --exports-root /mnt/vdd/Radar/data/exports/json-cache/issues \
       --runs-root /root/.openclaw-projectmanager/workspace/state/radar-v2/dual-run-cron \
-      --through "$requested_issue_date" --lookback-days 7)"; then
+      --through "$requested_issue_date" --not-before "$daily_contour_start" \
+      --lookback-days 7)"; then
     issue_date="$requested_issue_date"
   fi
   legacy_json="/mnt/vdd/Radar/data/exports/json-cache/issues/${issue_date}.json"
@@ -34,6 +38,10 @@ if [[ ! -f "$legacy_json" ]]; then
   echo "Radar V2 dual-run: Legacy выпуск ${requested_issue_date} ещё не опубликован, незакрытого выпуска за 7 дней нет." >&2
   exit 2
 fi
+
+# Captured only once the Legacy input exists, so a wait never backdates the retained provenance.
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+finished_at="$(date -u -d '+1 minute' +%Y-%m-%dT%H:%M:%SZ)"
 
 report="$(${v2_root}/.venv/bin/python -m tools.run_stage15_dual \
   --issue-date "$issue_date" \
