@@ -685,6 +685,9 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "escapeHtml" in script
     assert "legacyIssue" in script
     assert "/api/latest" in script
+    assert "getJson(`/api/stats?period=${state.period}`)" in script
+    assert "page.nextCursor || null" in script
+    assert "while (cursor)" in script
     assert "Сонар" in html
     assert "Динамика трендов" in html
     assert "Хронология выпусков" in html

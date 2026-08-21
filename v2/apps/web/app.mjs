@@ -113,6 +113,7 @@ let sources = [];
 let timeseries = [];
 let publicationTimeseries = [];
 let issues = [];
+const periodStats = new Map();
 const issueCache = new Map();
 let ringTimer = null;
 
@@ -362,7 +363,7 @@ function currentStats(materials) {
     if (row) return row;
     return latest.issue_stats || latest.stats?.day || countMaterials(materials);
   }
-  return latest.stats?.[state.period] || countMaterials(materials.filter(materialMatches));
+  return periodStats.get(state.period) || countMaterials(materials.filter(materialMatches));
 }
 
 function countMaterials(rows) {
@@ -1134,16 +1135,30 @@ async function loadIssueMaterials() {
     return payload.materials || [];
   }
   const params = { period: state.period, limit: 100 };
+  let path = "/api/materials";
   if (state.q) {
     params.q = state.q;
-    const response = await fetch(`${API}/api/search?${qs(params)}`);
-    if (!response.ok) throw new Error(`${response.status} /api/search`);
-    return (await response.json()).items.map(legacyMaterial);
+    path = "/api/search";
+  } else {
+    params.perimeter = state.perimeter;
   }
-  params.perimeter = state.perimeter;
-  const response = await fetch(`${API}/api/materials?${qs(params)}`);
-  if (!response.ok) throw new Error(`${response.status} /api/materials`);
-  return (await response.json()).items.map(legacyMaterial);
+  const materials = [];
+  let cursor = null;
+  do {
+    const pageParams = { ...params };
+    if (cursor) pageParams.cursor = cursor;
+    const response = await fetch(`${API}${path}?${qs(pageParams)}`);
+    if (!response.ok) throw new Error(`${response.status} ${path}`);
+    const page = await response.json();
+    materials.push(...(page.items || []).map(legacyMaterial));
+    cursor = page.nextCursor || null;
+  } while (cursor);
+  return materials;
+}
+
+async function loadPeriodStats() {
+  if (!["7d", "30d"].includes(state.period)) return;
+  periodStats.set(state.period, await getJson(`/api/stats?period=${state.period}`));
 }
 
 async function loadIssuePayload(issueDate) {
@@ -1163,7 +1178,7 @@ async function loadIssuePayload(issueDate) {
 async function reload() {
   state.loading = true;
   renderColumns(state.materials);
-  const materials = await loadIssueMaterials();
+  const [materials] = await Promise.all([loadIssueMaterials(), loadPeriodStats()]);
   state.materials = materials;
   state.loading = false;
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;
