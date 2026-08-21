@@ -26,6 +26,36 @@ def test_schema_contains_evidence_and_immutability_contracts() -> None:
     assert "search_en tsvector GENERATED ALWAYS" in chunks_section
 
 
+def test_perimeter_migration_keeps_selections_immutable_and_overrides_reasoned() -> None:
+    schema = (Path(__file__).parents[1] / "sql" / "002_issue_perimeter.sql").read_text(
+        encoding="utf-8"
+    )
+    for table in ("issue_perimeter_sources", "issue_perimeter_members", "reparse_runs"):
+        assert f"CREATE TABLE {table}" in schema
+    assert "issue_perimeter_sources_immutable" in schema
+    assert "issue_perimeter_members_immutable" in schema
+    assert "reparse_runs_immutable" in schema
+    assert "CREATE VIEW issue_perimeter_documents" in schema
+    assert "fetch_queue_override_requires_reason" in schema
+    assert "CHECK (NOT robots_override OR robots_override_reason IS NOT NULL)" in schema
+    # Overridden evidence must stay distinguishable from ordinary robots-respecting evidence.
+    assert schema.count("'network', 'network_robots_override'") == 2
+    # 001 granted the service role out of band, so later objects must grant explicitly
+    # or the deployed worker cannot read or write them.
+    assert "GRANT ALL ON issue_perimeter_sources" in schema
+    assert "GRANT USAGE, SELECT ON SEQUENCE reparse_runs_reparse_id_seq TO radar_kx" in schema
+    assert "GRANT SELECT ON issue_perimeter_documents TO radar_kx" in schema
+    assert "UPDATE metadata SET value = '2'::jsonb" in schema
+
+
+def test_reparse_never_relabels_truncated_legacy_excerpts_as_complete() -> None:
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "database.py").read_text(
+        encoding="utf-8"
+    )
+    assert "attempts.source_kind <> 'legacy_truncated'" in source
+    assert "issue perimeter source counts do not match members" in source
+
+
 def test_ingest_unit_uses_bounded_thirty_two_worker_pool() -> None:
     unit = (Path(__file__).parents[1] / "deploy" / "radar-kx-ingest.service").read_text(
         encoding="utf-8"

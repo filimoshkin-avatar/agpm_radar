@@ -126,6 +126,135 @@ def test_parses_reddit_json_post_and_comments() -> None:
     assert "[deleted]" not in parsed.text
 
 
+def test_recovers_article_body_from_schema_org_json_ld() -> None:
+    article_body = "".join(
+        f"<p>Paragraph {index} of the full article states a verifiable metric of "
+        "42 percent with its full context.</p>"
+        for index in range(9)
+    )
+    ld_json = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@graph": [
+                {"@type": "WebSite", "name": "Example"},
+                {
+                    "@type": ["NewsArticle"],
+                    "headline": "Structured evidence title",
+                    "description": "Short teaser that must not become the body.",
+                    "articleBody": article_body,
+                },
+            ],
+        }
+    )
+    # Only the opening teaser is rendered, so visible extraction captures a fraction of
+    # the evidence while the publisher ships the whole body in its structured data.
+    body = f"""
+    <html><head><title>Shell title</title>
+    <script type="application/ld+json">{ld_json}</script></head>
+    <body><main><article><h1>Structured evidence title</h1>
+    <p>Only the opening teaser of this article is rendered in the served HTML, which is
+    why an extractor that reads the visible page alone captures a fraction of it.</p>
+    </article></main></body></html>
+    """.encode()
+    parsed = parse_content(
+        body=body,
+        content_type="text/html; charset=utf-8",
+        source_url="https://example.com/structured",
+        min_text_chars=60,
+    )
+    assert parsed.is_complete
+    assert parsed.quality == "json_ld_article"
+    assert parsed.title == "Structured evidence title"
+    assert "Paragraph 8 of the full article" in parsed.text
+    assert "must not become the body" not in parsed.text
+    assert "<p>" not in parsed.text
+
+
+def test_recovers_rich_text_article_from_next_data() -> None:
+    payload = json.dumps(
+        {
+            "props": {
+                "pageProps": {
+                    "post": {
+                        "title": "Next evidence title",
+                        "content": {
+                            "json": {
+                                "nodeType": "document",
+                                "content": [
+                                    {
+                                        "nodeType": "paragraph",
+                                        "content": [
+                                            {"nodeType": "text", "value": "First paragraph "},
+                                            {
+                                                "nodeType": "hyperlink",
+                                                "content": [
+                                                    {"nodeType": "text", "value": "with a link"}
+                                                ],
+                                            },
+                                            {"nodeType": "text", "value": " inside it."},
+                                        ],
+                                    },
+                                    {
+                                        "nodeType": "paragraph",
+                                        "content": [
+                                            {
+                                                "nodeType": "text",
+                                                "value": "Second paragraph carries the "
+                                                "verifiable metric of 17 percent.",
+                                            }
+                                        ],
+                                    },
+                                ],
+                            }
+                        },
+                    }
+                }
+            }
+        }
+    )
+    body = f"""
+    <html><head><title>Shell title</title></head><body><main><p>Loading.</p></main>
+    <script id="__NEXT_DATA__" type="application/json">{payload}</script></body></html>
+    """.encode()
+    parsed = parse_content(
+        body=body,
+        content_type="text/html; charset=utf-8",
+        source_url="https://example.com/next",
+        min_text_chars=60,
+    )
+    assert parsed.is_complete
+    assert parsed.quality == "next_data_article"
+    assert parsed.title == "Next evidence title"
+    assert "First paragraph with a link inside it." in parsed.text
+    assert "17 percent" in parsed.text
+
+
+def test_structured_description_never_outranks_a_longer_extracted_body() -> None:
+    ld_json = json.dumps(
+        {
+            "@type": "Article",
+            "headline": "Structured headline",
+            "description": "A teaser sentence.",
+        }
+    )
+    body = f"""
+    <html><head><title>Real title</title>
+    <script type="application/ld+json">{ld_json}</script></head>
+    <body><article><h1>Real title</h1><p>The visible article body is long enough to be
+    accepted on its own and must not be replaced by a much shorter teaser.</p></article>
+    </body></html>
+    """.encode()
+    parsed = parse_content(
+        body=body,
+        content_type="text/html; charset=utf-8",
+        source_url="https://example.com/teaser",
+        min_text_chars=60,
+    )
+    assert parsed.is_complete
+    assert "visible article body" in parsed.text
+    assert "A teaser sentence." not in parsed.text
+
+
 def test_marks_visible_block_page_incomplete() -> None:
     body = b"""
     <html><body><main><h1>Attention Required</h1>

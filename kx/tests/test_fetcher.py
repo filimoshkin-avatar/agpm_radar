@@ -177,6 +177,78 @@ def test_transient_robots_failure_remains_retryable(
     assert result.retryable
 
 
+def test_audited_robots_override_skips_robots_and_labels_its_own_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("radar_kx.fetcher.resolve_public_url", _public_resolver)
+    requested_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /", request=request)
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/plain; charset=utf-8"},
+            text="A complete article body that is long enough for the parser to accept.",
+            request=request,
+        )
+
+    settings = replace(_settings(tmp_path), respect_robots=True)
+    task = DocumentTask("a" * 64, "https://example.com/a", 1, None, None, robots_override=True)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = fetch_document(
+            task=task,
+            client=client,
+            limiter=HostLimiter(settings.per_host_interval_seconds),
+            robots=RobotsPolicy(),
+            settings=settings,
+        )
+    assert requested_paths == ["/a"]
+    assert result.error_code is None
+    assert task.source_kind == "network_robots_override"
+    assert DocumentTask("a" * 64, "https://example.com/a", 1, None, None).source_kind == "network"
+
+
+def test_per_document_body_limit_overrides_the_global_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr("radar_kx.fetcher.resolve_public_url", _public_resolver)
+    text = "A complete article body that is long enough for the parser to accept. " * 20
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/plain; charset=utf-8"},
+            text=text,
+            request=request,
+        )
+
+    settings = _settings(tmp_path, max_body_bytes=100)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        denied = fetch_document(
+            task=DocumentTask("a" * 64, "https://example.com/a", 1, None, None),
+            client=client,
+            limiter=HostLimiter(settings.per_host_interval_seconds),
+            robots=RobotsPolicy(),
+            settings=settings,
+        )
+        allowed = fetch_document(
+            task=DocumentTask(
+                "a" * 64, "https://example.com/a", 1, None, None, body_limit_bytes=100_000
+            ),
+            client=client,
+            limiter=HostLimiter(settings.per_host_interval_seconds),
+            robots=RobotsPolicy(),
+            settings=settings,
+        )
+    assert denied.error_code == "body_too_large"
+    assert allowed.error_code is None
+    assert allowed.parsed is not None and allowed.parsed.is_complete
+
+
 def test_robots_policy_loads_distinct_origins_concurrently(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -17,17 +17,21 @@ from radar_kx.config import Settings
 from radar_kx.fetcher import DocumentTask, FetchResult
 from radar_kx.identifiers import (
     PARSER_CONFIG_HASH,
+    PARSER_NAME,
+    PARSER_VERSION,
     chunk_text,
     document_id,
     sha256_bytes,
     stable_json_bytes,
     version_id,
 )
+from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.manifest import Manifest
-from radar_kx.parser import ParsedContent
+from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.url_policy import normalize_url
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+PERIMETER_PRIORITY = 100
 
 
 class Database:
@@ -248,6 +252,7 @@ class Database:
                 cursor.execute(
                     """
                     SELECT queue.document_id, documents.canonical_url, queue.attempt_count,
+                           queue.robots_override, queue.body_limit_bytes,
                            validators.etag, validators.last_modified
                     FROM kx.fetch_queue AS queue
                     JOIN kx.documents AS documents USING (document_id)
@@ -276,6 +281,10 @@ class Database:
                 etag=str(row["etag"]) if row["etag"] is not None else None,
                 last_modified=(
                     str(row["last_modified"]) if row["last_modified"] is not None else None
+                ),
+                robots_override=bool(row["robots_override"]),
+                body_limit_bytes=(
+                    int(row["body_limit_bytes"]) if row["body_limit_bytes"] is not None else None
                 ),
             )
             for row in rows
@@ -408,7 +417,7 @@ class Database:
                             document=result.task.document_id,
                             raw_sha256=raw_sha256,
                             parsed=result.parsed,
-                            source_kind="network",
+                            source_kind=result.task.source_kind,
                             fetched_at=response.fetched_at,
                         )
                 if result.not_modified:
@@ -425,11 +434,12 @@ class Database:
                         response_headers, raw_sha256, outcome, error_detail,
                         worker_release
                     ) VALUES (
-                        %s, 'network', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     """,
                     (
                         result.task.document_id,
+                        result.task.source_kind,
                         result.task.canonical_url,
                         response.final_url if response is not None else None,
                         response.started_at if response is not None else now,
@@ -550,6 +560,384 @@ class Database:
                 )
             connection.commit()
         return version
+
+    def import_issue_perimeter(self, export: PerimeterExport) -> dict[str, Any]:
+        """Record one immutable editorial snapshot of issue -> material selections."""
+        source = export.source
+        created_documents = 0
+        queued_documents = 0
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT source_sha256 FROM kx.issue_perimeter_sources
+                    WHERE perimeter_source_id = %s
+                    """,
+                    (source.perimeter_source_id,),
+                )
+                existing = cursor.fetchone()
+                if existing is not None and str(existing["source_sha256"]) != source.source_sha256:
+                    raise RuntimeError(
+                        f"perimeter source {source.perimeter_source_id} was already imported "
+                        "from a different artifact"
+                    )
+                cursor.execute(
+                    """
+                    INSERT INTO kx.issue_perimeter_sources (
+                        perimeter_source_id, source_kind, source_reference,
+                        source_sha256, captured_at, row_count, document_count
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (perimeter_source_id) DO NOTHING
+                    """,
+                    (
+                        source.perimeter_source_id,
+                        source.source_kind,
+                        source.source_reference,
+                        source.source_sha256,
+                        source.captured_at,
+                        len(export.members),
+                        len(export.document_ids),
+                    ),
+                )
+                for member in export.members:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.documents (document_id, canonical_url)
+                        VALUES (%s, %s) ON CONFLICT (document_id) DO NOTHING
+                        """,
+                        (member.document_id, member.canonical_url),
+                    )
+                    created_documents += cursor.rowcount
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.fetch_queue (document_id, status, priority)
+                        VALUES (%s, 'pending', %s) ON CONFLICT (document_id) DO NOTHING
+                        """,
+                        (member.document_id, PERIMETER_PRIORITY),
+                    )
+                    queued_documents += cursor.rowcount
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.issue_perimeter_members (
+                            perimeter_source_id, issue_id, material_ref, document_id,
+                            issue_date, issue_number, issue_title, sort_order,
+                            perimeter, verdict, key_material, signal_score,
+                            signal_strength, title, source_url, canonical_url,
+                            summary, agpm_takeaway, brief, trend_notes,
+                            theses, flags, published_raw, payload, payload_sha256
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        )
+                        ON CONFLICT (perimeter_source_id, issue_id, material_ref) DO NOTHING
+                        """,
+                        (
+                            source.perimeter_source_id,
+                            member.issue_id,
+                            member.material_ref,
+                            member.document_id,
+                            member.issue_date,
+                            member.issue_number,
+                            member.issue_title,
+                            member.sort_order,
+                            member.perimeter,
+                            member.verdict,
+                            member.key_material,
+                            member.signal_score,
+                            member.signal_strength,
+                            member.title,
+                            member.source_url,
+                            member.canonical_url,
+                            member.summary,
+                            member.agpm_takeaway,
+                            member.brief,
+                            member.trend_notes,
+                            Jsonb(member.theses),
+                            Jsonb(member.flags),
+                            member.published_raw,
+                            Jsonb(member.payload),
+                            member.payload_sha256,
+                        ),
+                    )
+            connection.commit()
+        return {
+            "perimeterSourceId": source.perimeter_source_id,
+            "memberRows": len(export.members),
+            "documents": len(export.document_ids),
+            "createdDocuments": created_documents,
+            "queuedDocuments": queued_documents,
+        }
+
+    def perimeter_status(self) -> dict[str, Any]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        (SELECT count(*) FROM kx.issue_perimeter_sources) AS sources,
+                        (SELECT count(*) FROM kx.issue_perimeter_members) AS member_rows,
+                        (SELECT count(DISTINCT issue_id)
+                         FROM kx.issue_perimeter_members) AS issues,
+                        (SELECT count(DISTINCT material_ref)
+                         FROM kx.issue_perimeter_members) AS materials,
+                        (SELECT count(*) FROM kx.issue_perimeter_documents) AS documents,
+                        (SELECT count(*) FROM kx.issue_perimeter_documents
+                         WHERE best_version_id IS NOT NULL) AS complete_documents,
+                        (SELECT count(*) FROM kx.fetch_queue AS queue
+                         JOIN kx.issue_perimeter_documents USING (document_id)
+                         WHERE queue.robots_override) AS robots_override_documents
+                    """
+                )
+                totals = cursor.fetchone()
+                cursor.execute(
+                    """
+                    SELECT queue.status, count(*) AS count
+                    FROM kx.fetch_queue AS queue
+                    JOIN kx.issue_perimeter_documents USING (document_id)
+                    GROUP BY queue.status ORDER BY queue.status
+                    """
+                )
+                queue = {str(row["status"]): int(row["count"]) for row in cursor.fetchall()}
+                cursor.execute(
+                    """
+                    SELECT coalesce(queue.last_error_code, 'unknown') AS reason,
+                           count(*) AS count
+                    FROM kx.issue_perimeter_documents AS perimeter
+                    LEFT JOIN kx.fetch_queue AS queue USING (document_id)
+                    WHERE perimeter.best_version_id IS NULL
+                    GROUP BY reason ORDER BY count DESC, reason
+                    """
+                )
+                reasons = {str(row["reason"]): int(row["count"]) for row in cursor.fetchall()}
+                cursor.execute(
+                    """
+                    SELECT sources.perimeter_source_id, sources.source_kind,
+                           sources.source_reference, sources.source_sha256,
+                           sources.row_count, sources.document_count
+                    FROM kx.issue_perimeter_sources AS sources
+                    ORDER BY sources.perimeter_source_id
+                    """
+                )
+                source_rows = [dict(row) for row in cursor.fetchall()]
+        if totals is None:
+            raise RuntimeError("perimeter status query returned no row")
+        counts = {key: int(value) for key, value in totals.items()}
+        return {
+            **counts,
+            "incomplete_documents": counts["documents"] - counts["complete_documents"],
+            "queue": queue,
+            "incomplete_reasons": reasons,
+            "sources": source_rows,
+        }
+
+    def iter_perimeter_gaps(self, *, limit: int = 500) -> Iterator[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            self.require_schema(connection)
+            cursor.execute(
+                """
+                SELECT perimeter.canonical_url, perimeter.issue_count,
+                       perimeter.first_issue_date, perimeter.last_issue_date,
+                       queue.status, queue.attempt_count, queue.last_http_status,
+                       queue.last_error_code, queue.last_error_detail,
+                       queue.robots_override,
+                       (SELECT count(*) FROM kx.document_versions AS versions
+                        WHERE versions.document_id = perimeter.document_id) AS versions
+                FROM kx.issue_perimeter_documents AS perimeter
+                LEFT JOIN kx.fetch_queue AS queue USING (document_id)
+                WHERE perimeter.best_version_id IS NULL
+                ORDER BY queue.last_error_code, perimeter.canonical_url
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            yield from cursor.fetchall()
+
+    def prepare_perimeter(
+        self,
+        *,
+        robots_override_reason: str | None = None,
+        body_limit_bytes: int | None = None,
+        requeue: bool = False,
+    ) -> dict[str, Any]:
+        """Apply audited per-document policy to issue-perimeter documents without full text.
+
+        The scope is deliberately narrow: only documents that a published Radar issue
+        already selected and that still have no complete canonical version.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE kx.fetch_queue AS queue
+                    SET priority = %s, updated_at = clock_timestamp()
+                    FROM kx.issue_perimeter_documents AS perimeter
+                    WHERE queue.document_id = perimeter.document_id
+                      AND queue.priority < %s
+                    """,
+                    (PERIMETER_PRIORITY, PERIMETER_PRIORITY),
+                )
+                prioritized = cursor.rowcount
+                overridden = 0
+                if robots_override_reason:
+                    cursor.execute(
+                        """
+                        UPDATE kx.fetch_queue AS queue
+                        SET robots_override = true,
+                            robots_override_reason = %s,
+                            updated_at = clock_timestamp()
+                        FROM kx.issue_perimeter_documents AS perimeter
+                        WHERE queue.document_id = perimeter.document_id
+                          AND perimeter.best_version_id IS NULL
+                          AND NOT queue.robots_override
+                        """,
+                        (robots_override_reason,),
+                    )
+                    overridden = cursor.rowcount
+                relaxed = 0
+                if body_limit_bytes is not None:
+                    cursor.execute(
+                        """
+                        UPDATE kx.fetch_queue AS queue
+                        SET body_limit_bytes = %s, updated_at = clock_timestamp()
+                        FROM kx.issue_perimeter_documents AS perimeter
+                        WHERE queue.document_id = perimeter.document_id
+                          AND perimeter.best_version_id IS NULL
+                          AND queue.body_limit_bytes IS DISTINCT FROM %s
+                        """,
+                        (body_limit_bytes, body_limit_bytes),
+                    )
+                    relaxed = cursor.rowcount
+                requeued = 0
+                if requeue:
+                    cursor.execute(
+                        """
+                        UPDATE kx.fetch_queue AS queue
+                        SET status = 'retry', attempt_count = 0,
+                            next_attempt_at = clock_timestamp(),
+                            lease_token = NULL, lease_until = NULL,
+                            updated_at = clock_timestamp()
+                        FROM kx.issue_perimeter_documents AS perimeter
+                        WHERE queue.document_id = perimeter.document_id
+                          AND perimeter.best_version_id IS NULL
+                          AND queue.status = 'failed'
+                        """
+                    )
+                    requeued = cursor.rowcount
+            connection.commit()
+        return {
+            "prioritized": prioritized,
+            "robotsOverridden": overridden,
+            "bodyLimitRelaxed": relaxed,
+            "requeued": requeued,
+        }
+
+    def reparse_perimeter_gaps(self, *, reason: str, min_text_chars: int) -> dict[str, Any]:
+        """Re-parse retained raw evidence for perimeter documents that still lack full text.
+
+        No network request is made. Truncated legacy caches are excluded, because a
+        20,000-character excerpt must never be relabelled as a complete article.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT ON (attempts.document_id, attempts.raw_sha256)
+                           attempts.document_id, attempts.raw_sha256, attempts.source_kind,
+                           attempts.content_type, attempts.final_url, attempts.finished_at,
+                           perimeter.canonical_url
+                    FROM kx.issue_perimeter_documents AS perimeter
+                    JOIN kx.fetch_attempts AS attempts
+                      ON attempts.document_id = perimeter.document_id
+                    WHERE perimeter.best_version_id IS NULL
+                      AND attempts.raw_sha256 IS NOT NULL
+                      AND attempts.source_kind <> 'legacy_truncated'
+                    ORDER BY attempts.document_id, attempts.raw_sha256,
+                             attempts.finished_at DESC
+                    """
+                )
+                candidates = cursor.fetchall()
+            completed: list[str] = []
+            versions = 0
+            for candidate in candidates:
+                started_at = datetime.now(UTC)
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT content FROM kx.raw_blobs WHERE raw_sha256 = %s",
+                        (candidate["raw_sha256"],),
+                    )
+                    blob = cursor.fetchone()
+                if blob is None:
+                    continue
+                body = gzip.decompress(bytes(blob["content"]))
+                try:
+                    parsed = parse_content(
+                        body=body,
+                        content_type=str(candidate["content_type"] or ""),
+                        source_url=str(candidate["final_url"] or candidate["canonical_url"]),
+                        min_text_chars=min_text_chars,
+                    )
+                    outcome = "complete" if parsed.is_complete else f"incomplete:{parsed.quality}"
+                except Exception as exc:
+                    # Parser libraries operate on untrusted retained bodies. Isolate the
+                    # document instead of aborting the whole derived re-parse pass.
+                    parsed = None
+                    outcome = f"parse_error:{type(exc).__name__}"
+                version: str | None = None
+                with connection.transaction(), connection.cursor() as cursor:
+                    if parsed is not None and parsed.is_complete:
+                        version = self._insert_version(
+                            cursor,
+                            document=str(candidate["document_id"]),
+                            raw_sha256=str(candidate["raw_sha256"]),
+                            parsed=parsed,
+                            source_kind=str(candidate["source_kind"]),
+                            fetched_at=candidate["finished_at"],
+                        )
+                        cursor.execute(
+                            """
+                            UPDATE kx.fetch_queue
+                            SET status = 'succeeded', last_error_code = NULL,
+                                last_error_detail = 'completed by derived reparse',
+                                next_attempt_at = clock_timestamp(),
+                                updated_at = clock_timestamp()
+                            WHERE document_id = %s AND status <> 'succeeded'
+                            """,
+                            (candidate["document_id"],),
+                        )
+                        completed.append(str(candidate["canonical_url"]))
+                        versions += 1
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.reparse_runs (
+                            document_id, raw_sha256, version_id, parser_name,
+                            parser_version, parser_config_sha256, reason, outcome,
+                            worker_release, started_at, finished_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            candidate["document_id"],
+                            candidate["raw_sha256"],
+                            version,
+                            PARSER_NAME,
+                            PARSER_VERSION,
+                            PARSER_CONFIG_HASH,
+                            reason,
+                            outcome,
+                            self.settings.release_id,
+                            started_at,
+                            datetime.now(UTC),
+                        ),
+                    )
+                connection.commit()
+        return {
+            "candidates": len(candidates),
+            "versions": versions,
+            "completedDocuments": sorted(set(completed)),
+        }
 
     def requeue_failed(self, *, error_code: str | None = None) -> int:
         with self.connect() as connection:
@@ -673,6 +1061,26 @@ class Database:
                     row = cursor.fetchone()
                     if row is not None and int(row["count"]) != 0:
                         errors.append("corpus import counts do not match immutable revisions")
+
+                    cursor.execute(
+                        """
+                        SELECT count(*) AS count
+                        FROM (
+                            SELECT sources.perimeter_source_id
+                            FROM kx.issue_perimeter_sources AS sources
+                            LEFT JOIN kx.issue_perimeter_members AS members
+                              USING (perimeter_source_id)
+                            GROUP BY sources.perimeter_source_id, sources.row_count,
+                                     sources.document_count
+                            HAVING count(members.material_ref) <> sources.row_count
+                                OR count(DISTINCT members.document_id)
+                                   <> sources.document_count
+                        ) AS mismatches
+                        """
+                    )
+                    row = cursor.fetchone()
+                    if row is not None and int(row["count"]) != 0:
+                        errors.append("issue perimeter source counts do not match members")
 
                     cursor.execute(
                         """

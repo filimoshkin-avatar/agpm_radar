@@ -48,6 +48,14 @@ class DocumentTask:
     attempt_count: int
     etag: str | None
     last_modified: str | None
+    # Per-document policy exceptions. Both are recorded in the queue with a reason
+    # and default to the global policy; see docs/radar-kx-issue-perimeter-2026-08-21.md.
+    robots_override: bool = False
+    body_limit_bytes: int | None = None
+
+    @property
+    def source_kind(self) -> str:
+        return "network_robots_override" if self.robots_override else "network"
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,7 +292,7 @@ def fetch_document(
 ) -> FetchResult:
     try:
         resolved = resolve_public_url(task.canonical_url)
-        if not robots.allowed(
+        if not task.robots_override and not robots.allowed(
             url=resolved.url,
             client=client,
             limiter=limiter,
@@ -294,11 +302,15 @@ def fetch_document(
         actual_url = (
             reddit_json_url(resolved.url) or telegram_embed_url(resolved.url) or resolved.url
         )
-        if actual_url != resolved.url and not robots.allowed(
-            url=actual_url,
-            client=client,
-            limiter=limiter,
-            settings=settings,
+        if (
+            actual_url != resolved.url
+            and not task.robots_override
+            and not robots.allowed(
+                url=actual_url,
+                client=client,
+                limiter=limiter,
+                settings=settings,
+            )
         ):
             raise FetchError("robots_denied", actual_url, retryable=False)
         conditional_headers: dict[str, str] = {}
@@ -313,6 +325,7 @@ def fetch_document(
             requested_url=resolved.url,
             actual_url=actual_url,
             conditional_headers=conditional_headers,
+            max_body_bytes=task.body_limit_bytes,
         )
         if response.http_status == 304:
             return FetchResult(

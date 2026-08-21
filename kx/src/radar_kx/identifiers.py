@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from typing import Any
 
 PARSER_NAME = "radar-kx"
-PARSER_VERSION = "canonical-v3"
+PARSER_VERSION = "canonical-v4"
 PARSER_CONFIG_HASH = hashlib.sha256(
-    b"radar-kx:canonical-v3:nfc:lf:nul-replacement:trim-lines:max-two-blank-lines"
+    b"radar-kx:canonical-v4:nfc:lf:nul-replacement:trim-lines:max-two-blank-lines"
+    b":structured-article-json"
 ).hexdigest()
 
 

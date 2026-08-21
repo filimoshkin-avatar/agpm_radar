@@ -9,12 +9,13 @@ from typing import Any
 from radar_kx.cache_import import import_caches
 from radar_kx.config import Settings
 from radar_kx.database import Database
+from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.worker import run_until_idle
 
 
 def _print_json(value: Any) -> None:
-    print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
+    print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -42,6 +43,22 @@ def _parser() -> argparse.ArgumentParser:
 
     requeue_parser = subparsers.add_parser("requeue-failed")
     requeue_parser.add_argument("--error-code")
+
+    perimeter_import_parser = subparsers.add_parser("import-perimeter")
+    perimeter_import_parser.add_argument("path", type=Path)
+
+    subparsers.add_parser("perimeter-status")
+
+    perimeter_gaps_parser = subparsers.add_parser("perimeter-gaps")
+    perimeter_gaps_parser.add_argument("--limit", type=int, default=500)
+
+    prepare_parser = subparsers.add_parser("perimeter-prepare")
+    prepare_parser.add_argument("--robots-override-reason")
+    prepare_parser.add_argument("--body-limit-bytes", type=int)
+    prepare_parser.add_argument("--requeue", action="store_true")
+
+    reparse_parser = subparsers.add_parser("perimeter-reparse")
+    reparse_parser.add_argument("--reason", required=True)
 
     return parser
 
@@ -82,6 +99,32 @@ def main() -> None:
                 "requeued": database.requeue_failed(error_code=args.error_code),
                 "errorCode": args.error_code,
             }
+        )
+        return
+    if args.command == "import-perimeter":
+        _print_json(database.import_issue_perimeter(load_perimeter_export(args.path)))
+        return
+    if args.command == "perimeter-status":
+        _print_json(database.perimeter_status())
+        return
+    if args.command == "perimeter-gaps":
+        _print_json(list(database.iter_perimeter_gaps(limit=args.limit)))
+        return
+    if args.command == "perimeter-prepare":
+        _print_json(
+            database.prepare_perimeter(
+                robots_override_reason=args.robots_override_reason,
+                body_limit_bytes=args.body_limit_bytes,
+                requeue=args.requeue,
+            )
+        )
+        return
+    if args.command == "perimeter-reparse":
+        _print_json(
+            database.reparse_perimeter_gaps(
+                reason=args.reason,
+                min_text_chars=settings.min_text_chars,
+            )
         )
         return
     raise AssertionError(f"unhandled command: {args.command}")

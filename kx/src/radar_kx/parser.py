@@ -34,6 +34,11 @@ REMIX_ENQUEUE_RE = re.compile(
     re.DOTALL,
 )
 MAX_REMIX_ITEMS = 200_000
+ARTICLE_LD_TYPES = frozenset(
+    {"Article", "BlogPosting", "NewsArticle", "Report", "ScholarlyArticle", "TechArticle"}
+)
+INLINE_RICH_TEXT_NODES = frozenset({"text", "hyperlink", "entry-hyperlink", "asset-hyperlink"})
+MAX_RICH_TEXT_DEPTH = 32
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,7 +172,139 @@ def _remix_article(html: str) -> tuple[str, str]:
     return "", ""
 
 
+def _text_from_markup(value: str) -> str:
+    if "<" in value and ">" in value:
+        return canonicalize_text(BeautifulSoup(value, "html.parser").get_text("\n", strip=True))
+    return canonicalize_text(value)
+
+
+def _ld_json_nodes(soup: BeautifulSoup) -> Iterable[Mapping[str, Any]]:
+    for element in soup.select('script[type="application/ld+json"]'):
+        try:
+            value = json.loads(element.get_text())
+        except (TypeError, ValueError):
+            continue
+        stack: list[Any] = [value]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, list):
+                stack.extend(item)
+                continue
+            if not isinstance(item, Mapping):
+                continue
+            yield item
+            graph = item.get("@graph")
+            if isinstance(graph, list):
+                stack.extend(graph)
+
+
+def _is_article_node(node: Mapping[str, Any]) -> bool:
+    raw = node.get("@type")
+    values = raw if isinstance(raw, list) else [raw]
+    return any(isinstance(item, str) and item in ARTICLE_LD_TYPES for item in values)
+
+
+def _ld_json_article(soup: BeautifulSoup) -> tuple[str, str, str]:
+    """Return (articleBody, description, headline) of the first schema.org article."""
+    for node in _ld_json_nodes(soup):
+        if not _is_article_node(node):
+            continue
+        body = node.get("articleBody")
+        description = node.get("description")
+        headline = node.get("headline")
+        return (
+            _text_from_markup(body) if isinstance(body, str) else "",
+            _text_from_markup(description) if isinstance(description, str) else "",
+            canonicalize_text(headline)[:1000] if isinstance(headline, str) else "",
+        )
+    return "", "", ""
+
+
+def _rich_text(node: Any, depth: int = 0) -> str:
+    if depth > MAX_RICH_TEXT_DEPTH:
+        return ""
+    if isinstance(node, list):
+        return "".join(_rich_text(item, depth + 1) for item in node)
+    if not isinstance(node, Mapping):
+        return ""
+    value = node.get("value")
+    if isinstance(value, str):
+        return value
+    content = node.get("content")
+    if not isinstance(content, list):
+        return ""
+    inner = "".join(_rich_text(item, depth + 1) for item in content)
+    if node.get("nodeType") in INLINE_RICH_TEXT_NODES:
+        return inner
+    return inner + "\n\n"
+
+
+def _find_rich_text_root(value: Any, depth: int = 0) -> Mapping[str, Any] | None:
+    if depth > 8:
+        return None
+    if isinstance(value, Mapping):
+        if value.get("nodeType") == "document" and isinstance(value.get("content"), list):
+            return value
+        for item in value.values():
+            found = _find_rich_text_root(item, depth + 1)
+            if found is not None:
+                return found
+        return None
+    if isinstance(value, list):
+        for item in value[:64]:
+            found = _find_rich_text_root(item, depth + 1)
+            if found is not None:
+                return found
+    return None
+
+
+def _next_data_article(soup: BeautifulSoup) -> tuple[str, str]:
+    element = soup.select_one("script#__NEXT_DATA__")
+    if element is None:
+        return "", ""
+    try:
+        value = json.loads(element.get_text())
+    except (TypeError, ValueError):
+        return "", ""
+    props = value.get("props") if isinstance(value, Mapping) else None
+    page_props = props.get("pageProps") if isinstance(props, Mapping) else None
+    if not isinstance(page_props, Mapping):
+        return "", ""
+    root = _find_rich_text_root(page_props)
+    if root is None:
+        return "", ""
+    title = ""
+    for key in ("post", "article", "entry"):
+        item = page_props.get(key)
+        if isinstance(item, Mapping) and isinstance(item.get("title"), str):
+            title = canonicalize_text(item["title"])[:1000]
+            break
+    return canonicalize_text(_rich_text(root)), title
+
+
+def _structured_article(
+    soup: BeautifulSoup, *, current_text: str, min_text_chars: int
+) -> tuple[str, str, str]:
+    """Recover article text that a site only publishes inside embedded structured data.
+
+    schema.org ``articleBody`` and Contentful rich text are article bodies by
+    definition, so they win whenever they are longer. ``description`` is only a
+    body on sites that misuse it, so it is accepted solely as a last resort when
+    ordinary extraction produced nothing usable.
+    """
+    article_body, description, headline = _ld_json_article(soup)
+    if len(article_body) > len(current_text):
+        return article_body, headline, "json_ld_article"
+    next_text, next_title = _next_data_article(soup)
+    if len(next_text) > len(current_text):
+        return next_text, next_title, "next_data_article"
+    if len(current_text) < min_text_chars <= len(description):
+        return description, headline, "json_ld_description"
+    return "", "", ""
+
+
 def _visible_fallback(soup: BeautifulSoup) -> str:
+    """Strip page chrome and return visible text. Mutates ``soup``, so it must run last."""
     for element in soup.select("script,style,noscript,svg,nav,header,footer,form"):
         element.decompose()
     root = soup.select_one("article") or soup.select_one("main") or soup.body
@@ -310,7 +447,16 @@ def parse_content(
             )
             text = canonicalize_text(extracted or "")
             quality = "trafilatura"
+        if not specialized_text:
+            structured_text, structured_title, structured_quality = _structured_article(
+                soup, current_text=text, min_text_chars=min_text_chars
+            )
+            if structured_text:
+                text = structured_text
+                title = structured_title or title
+                quality = structured_quality
         if not specialized_text and len(text) < min_text_chars:
+            # Last, because it strips the script elements the structured pass reads.
             fallback = _visible_fallback(soup)
             if len(fallback) > len(text):
                 text = fallback
