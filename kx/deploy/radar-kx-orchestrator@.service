@@ -27,7 +27,11 @@ WorkingDirectory=/opt/radar-kx/current
 # rather than escaping by hand.
 Environment=RADAR_KX_ORCHESTRATOR_ARGS=%I
 ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx $RADAR_KX_ORCHESTRATOR_ARGS
-TimeoutStartSec=1800s
+# Batch work is what this unit is for: a pass over the 1098 chunks of the
+# perimeter is a model call each and runs for over an hour. The first attempt
+# at this used 1800s, which was a guess rather than a bound and would have
+# killed the pass two thirds of the way through.
+TimeoutStartSec=7200s
 UMask=0077
 
 # ADR-0005 §6: the orchestrator has no internet. Loopback reaches Hermes; the
