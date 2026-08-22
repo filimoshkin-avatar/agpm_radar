@@ -67,7 +67,26 @@ SCOPES: dict[str, str] = {
 
 _HEADLINE_OPTIONS = 'MaxFragments=0, MaxWords=48, MinWords=20, StartSel="", StopSel=""'
 
-SEARCH_SQL = """
+#: How the terms of a query combine.
+#:
+#: ``all``
+#:     every term must appear in one chunk. Right for a quoted phrase, and wrong
+#:     for a question: a fifteen-word question conjoined finds nothing, which is
+#:     not the same as there being nothing to find.
+#: ``any``
+#:     any term may match, and ranking decides. Right for a question and for
+#:     binding a wiki sentence to a source.
+MATCH_MODES = ("all", "any")
+
+#: ``plainto_tsquery`` emits ``'a' & 'b' & 'c'`` with every lexeme already
+#: normalized and quoted, so turning the conjunction into a disjunction is a text
+#: substitution on a value PostgreSQL produced - never on user input.
+_TSQUERY = {
+    "all": "websearch_to_tsquery({config}, %(query)s)",
+    "any": "replace(plainto_tsquery({config}, %(query)s)::text, ' & ', ' | ')::tsquery",
+}
+
+SEARCH_SQL_TEMPLATE = """
 WITH scope_documents AS (
     {scope}
 ),
@@ -77,18 +96,15 @@ matched AS (
            chunks.char_start,
            chunks.text,
            versions.document_id,
-           chunks.search_ru @@ websearch_to_tsquery('russian', %(query)s) AS ru_hit,
-           chunks.search_en @@ websearch_to_tsquery('english', %(query)s) AS en_hit,
-           ts_rank_cd(chunks.search_ru, websearch_to_tsquery('russian', %(query)s)) AS ru_score,
-           ts_rank_cd(chunks.search_en, websearch_to_tsquery('english', %(query)s)) AS en_score
+           chunks.search_ru @@ {ru_query} AS ru_hit,
+           chunks.search_en @@ {en_query} AS en_hit,
+           ts_rank_cd(chunks.search_ru, {ru_query}) AS ru_score,
+           ts_rank_cd(chunks.search_en, {en_query}) AS en_score
     FROM kx.chunks AS chunks
     JOIN kx.document_versions AS versions USING (version_id)
     JOIN scope_documents USING (document_id)
     WHERE versions.is_complete
-      AND (
-        chunks.search_ru @@ websearch_to_tsquery('russian', %(query)s)
-        OR chunks.search_en @@ websearch_to_tsquery('english', %(query)s)
-      )
+      AND (chunks.search_ru @@ {ru_query} OR chunks.search_en @@ {en_query})
 ),
 ru_ranked AS (
     SELECT chunk_id, row_number() OVER (ORDER BY ru_score DESC, chunk_id) AS position
@@ -222,7 +238,15 @@ def build_hit(row: dict[str, Any]) -> SearchHit:
     )
 
 
-def search_sql(scope: str) -> str:
+def search_sql(scope: str, *, match: str = "all") -> str:
     if scope not in SCOPES:
         raise ValueError(f"unknown search scope {scope!r}; expected one of {sorted(SCOPES)}")
-    return SEARCH_SQL.format(scope=SCOPES[scope].strip(), headline_options=_HEADLINE_OPTIONS)
+    if match not in MATCH_MODES:
+        raise ValueError(f"unknown match mode {match!r}; expected one of {list(MATCH_MODES)}")
+    template = _TSQUERY[match]
+    return SEARCH_SQL_TEMPLATE.format(
+        scope=SCOPES[scope].strip(),
+        headline_options=_HEADLINE_OPTIONS,
+        ru_query=template.format(config="'russian'"),
+        en_query=template.format(config="'english'"),
+    )

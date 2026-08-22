@@ -14,7 +14,15 @@ from radar_kx.canon_corpus import import_canon, scan_canon
 from radar_kx.config import Settings
 from radar_kx.database import Database, VersionProvenance
 from radar_kx.parser import parse_content
-from radar_kx.search import RRF_K, SCOPES, SearchHit, build_hit, locate_snippet, search_sql
+from radar_kx.search import (
+    MATCH_MODES,
+    RRF_K,
+    SCOPES,
+    SearchHit,
+    build_hit,
+    locate_snippet,
+    search_sql,
+)
 
 NOW = datetime(2026, 8, 22, tzinfo=UTC)
 
@@ -219,3 +227,33 @@ def test_the_smoke_floors_are_reported_with_the_counts_they_are_judged_against(
     # report says so rather than rescaling the expectation to what it found.
     assert all(item["ok"] is False for item in report["smoke"])
     assert all(item["chunks"] > 0 for item in report["smoke"])
+
+
+def test_all_requires_every_term_and_any_does_not(stored: Database) -> None:
+    # A quoted phrase wants every term. A question does not: conjoining fifteen
+    # words finds nothing, and nothing found is not the same as nothing to find.
+    query = "агентное управление проектами и совершенно посторонний термин"
+    assert stored.search(query, scope="corpus", limit=10, match="all") == []
+    assert stored.search(query, scope="corpus", limit=10, match="any")
+
+
+def test_any_still_ranks_the_document_that_carries_most_of_the_query_first(
+    stored: Database,
+) -> None:
+    hits = stored.search(
+        "искусственный интеллект принимает решения", scope="corpus", limit=10, match="any"
+    )
+    assert hits
+    assert hits[0].canonical_url in {"https://example.com/ru", "https://example.com/both"}
+
+
+def test_an_unknown_match_mode_is_refused() -> None:
+    with pytest.raises(ValueError, match="unknown match mode"):
+        search_sql("corpus", match="fuzzy")
+
+
+def test_both_match_modes_still_verify_their_offsets(stored: Database) -> None:
+    for mode in MATCH_MODES:
+        hits = stored.search("агентное управление", scope="corpus", limit=5, match=mode)
+        assert hits
+        assert all(hit.char_end > hit.char_start for hit in hits)

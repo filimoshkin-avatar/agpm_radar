@@ -19,7 +19,7 @@ from radar_kx.database import Database
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
-from radar_kx.search import SCOPES
+from radar_kx.search import MATCH_MODES, SCOPES
 from radar_kx.vertical_slice import load_candidates
 from radar_kx.vertical_slice import select as select_slice
 from radar_kx.worker import run_until_idle
@@ -69,6 +69,7 @@ def _parser() -> argparse.ArgumentParser:
     search_parser.add_argument("query")
     search_parser.add_argument("--scope", choices=sorted(SCOPES), default="current")
     search_parser.add_argument("--limit", type=int, default=10)
+    search_parser.add_argument("--match", choices=list(MATCH_MODES), default="all")
 
     subparsers.add_parser("coverage-report")
 
@@ -170,7 +171,9 @@ def main() -> None:
                 "scope": args.scope,
                 "hits": [
                     hit.as_json()
-                    for hit in database.search(args.query, scope=args.scope, limit=args.limit)
+                    for hit in database.search(
+                        args.query, scope=args.scope, limit=args.limit, match=args.match
+                    )
                 ],
             }
         )

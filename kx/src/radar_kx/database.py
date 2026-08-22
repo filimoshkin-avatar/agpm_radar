@@ -1421,14 +1421,14 @@ class Database:
             )
             yield from cursor.fetchall()
 
-    def search(self, query: str, *, scope: str, limit: int) -> list[SearchHit]:
+    def search(self, query: str, *, scope: str, limit: int, match: str = "all") -> list[SearchHit]:
         """Lexical search over one membership class, fused across ru and en.
 
         The snippet offsets each hit reports are checked against the stored
         canonical text before the hit is returned: an offset that does not
         reproduce its own snippet is a lie the evidence layer would then build on.
         """
-        statement = search_sql(scope)
+        statement = search_sql(scope, match=match)
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.cursor() as cursor:
