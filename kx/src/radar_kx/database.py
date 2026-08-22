@@ -39,7 +39,7 @@ from radar_kx.url_policy import canonical_identity_url, normalize_url
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -52,6 +52,15 @@ _SCOPE_SOURCES = {
 #: The scopes a caller may name. Derived from the mapping so the CLI's choices
 #: and the queries cannot disagree.
 SCAN_SCOPES = tuple(_SCOPE_SOURCES)
+
+#: How a pair's measure is spelled in ``duplicate_evidence.evidence_kind``. Both
+#: numbers go into ``detail`` whichever fired, so a later review never has to
+#: recompute the other one to understand why a cluster exists.
+_EVIDENCE_KIND = {
+    "canonical_text_hash": "canonical_text_hash",
+    "jaccard": "shingle_overlap",
+    "containment": "shingle_containment",
+}
 PERIMETER_PRIORITY = 100
 
 #: Source kinds a network fetch may record. The ladder rungs that are HTTP
@@ -1758,8 +1767,8 @@ class Database:
                         """
                         INSERT INTO kx.content_duplicate_clusters
                             (cluster_kind, formation_method, shingle_threshold,
-                             shingle_width, proposed_by, batch_id)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                             shingle_width, shingle_measure, proposed_by, batch_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         RETURNING cluster_id
                         """,
                         (
@@ -1767,6 +1776,7 @@ class Database:
                             proposal.formation_method,
                             proposal.shingle_threshold,
                             proposal.shingle_width,
+                            proposal.shingle_measure,
                             proposed_by,
                             batch_id,
                         ),
@@ -1780,20 +1790,26 @@ class Database:
                             (cluster_id, document_id),
                         )
                         recorded["members"] = int(recorded["members"]) + 1
-                    for left, right, similarity in proposal.pairs:
+                    for pair in proposal.pairs:
                         cursor.execute(
                             """
                             INSERT INTO kx.duplicate_evidence
                                 (cluster_id, evidence_kind, left_document_id,
-                                 right_document_id, similarity, recorded_by)
-                            VALUES (%s, %s, %s, %s, %s, %s)
+                                 right_document_id, similarity, detail, recorded_by)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
                             """,
                             (
                                 cluster_id,
-                                proposal.formation_method,
-                                left,
-                                right,
-                                similarity,
+                                _EVIDENCE_KIND[pair.measure],
+                                pair.left,
+                                pair.right,
+                                pair.similarity,
+                                Jsonb(
+                                    {
+                                        "jaccard": round(pair.jaccard, 4),
+                                        "containment": round(pair.containment, 4),
+                                    }
+                                ),
                                 proposed_by,
                             ),
                         )

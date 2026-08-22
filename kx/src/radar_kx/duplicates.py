@@ -5,9 +5,18 @@ Two rules, and the difference between them is recorded rather than smoothed over
 * **an identical canonical text hash is certain.** Nothing was inferred; the two
   documents hold the same characters. Slice 1.1 already found 734 complete
   versions corpus-wide sharing a text with another, so this is not a corner case.
-* **shingle overlap is probable.** The threshold and the shingle width are stored
-  with the cluster, because thresholds misclassify and a later review has to be
-  able to tell which clusters were formed under which rule instead of guessing.
+* **shingle overlap is probable**, measured two ways because one was not enough.
+  Jaccard answers "are these the same document". Containment - the shared
+  shingles as a share of the *shorter* text - answers "is one of these inside the
+  other", which is the shape syndication actually takes: an outlet wraps a press
+  release in its own chrome, and Jaccard punishes the reprint for that chrome.
+  Measured on the perimeter the difference decides the slice: at Jaccard 0.80
+  nothing was found, and containment found one GlobeNewswire release in two
+  outlets, a Deloitte release carried almost verbatim by Yahoo Finance, and the
+  AgPM Manifesto announced by two unrelated Russian domains. The threshold, the
+  width and the measure are all stored with the cluster, because thresholds
+  misclassify and a later review has to be able to tell which rule produced which
+  cluster instead of guessing.
 
 A third signal - two documents citing the same primary source - is a hint and
 never forms a cluster on its own (ADR-0007 §10). Migration 005 carries that rule
@@ -35,8 +44,18 @@ from typing import Any
 #: enough that ordinary phrases do not collide.
 DEFAULT_SHINGLE_WIDTH = 5
 
-#: Jaccard overlap above which two texts are proposed as one cluster.
+#: Jaccard overlap above which two texts are proposed as one cluster. Kept at the
+#: conventional value; on the perimeter it fires on nothing that containment does
+#: not already catch, and it is the right measure for two copies of one document.
 DEFAULT_SHINGLE_THRESHOLD = 0.80
+
+#: Containment above which the shorter text is proposed as carried by the longer.
+#: Measured, not assumed: the four pairs the perimeter contains score 1.000, 1.000,
+#: 0.969 and 0.773, and nothing else reaches 0.5. Set below the lowest of the four
+#: rather than above it, because all four are real. This is a number chosen against
+#: 275 documents and it is stored with every cluster it forms, so a later review can
+#: tell which clusters it produced.
+DEFAULT_CONTAINMENT_THRESHOLD = 0.75
 
 #: Below this many shingles a document is too short to judge by overlap: two
 #: 40-word notices about the same event look identical by Jaccard and are not
@@ -44,6 +63,29 @@ DEFAULT_SHINGLE_THRESHOLD = 0.80
 MIN_SHINGLES = 40
 
 _WORD = re.compile(r"\w+", re.UNICODE)
+
+
+@dataclass(frozen=True, slots=True)
+class PairEvidence:
+    """Why one pair of documents is in a cluster, with both measures kept."""
+
+    left: str
+    right: str
+    #: The value of the measure named by ``measure`` - what the rule fired on.
+    similarity: float
+    measure: str
+    jaccard: float
+    containment: float
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "left": self.left,
+            "right": self.right,
+            "measure": self.measure,
+            "similarity": round(self.similarity, 4),
+            "jaccard": round(self.jaccard, 4),
+            "containment": round(self.containment, 4),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,10 +103,12 @@ class DuplicateProposal:
     cluster_kind: str
     formation_method: str
     document_ids: tuple[str, ...]
-    #: ``(left, right, similarity)`` for each pair that put the group together.
-    pairs: tuple[tuple[str, str, float], ...]
+    #: One entry per pair that put the group together: the two documents, the
+    #: value the rule fired on, and both measures for a later reader.
+    pairs: tuple[PairEvidence, ...]
     shingle_threshold: float | None = None
     shingle_width: int | None = None
+    shingle_measure: str | None = None
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -73,10 +117,8 @@ class DuplicateProposal:
             "documentIds": list(self.document_ids),
             "shingleThreshold": self.shingle_threshold,
             "shingleWidth": self.shingle_width,
-            "pairs": [
-                {"left": left, "right": right, "similarity": round(score, 4)}
-                for left, right, score in self.pairs
-            ],
+            "shingleMeasure": self.shingle_measure,
+            "pairs": [pair.as_json() for pair in self.pairs],
         }
 
 
@@ -100,6 +142,17 @@ def jaccard(left: frozenset[str], right: frozenset[str]) -> float:
         return 0.0
     union = len(left | right)
     return len(left & right) / union if union else 0.0
+
+
+def containment(left: frozenset[str], right: frozenset[str]) -> float:
+    """Shared shingles as a share of the shorter text.
+
+    Asymmetric in meaning and symmetric in value: it says "one of these is inside
+    the other" without saying which, which is all a cluster needs.
+    """
+    if not left or not right:
+        return 0.0
+    return len(left & right) / min(len(left), len(right))
 
 
 def _components(nodes: Sequence[str], edges: Iterable[tuple[str, str]]) -> list[list[str]]:
@@ -137,7 +190,17 @@ def find_hash_clusters(documents: Sequence[DocumentText]) -> tuple[DuplicateProp
                 cluster_kind="reprint",
                 formation_method="canonical_text_hash",
                 document_ids=ordered,
-                pairs=tuple((ordered[0], other, 1.0) for other in ordered[1:]),
+                pairs=tuple(
+                    PairEvidence(
+                        left=ordered[0],
+                        right=other,
+                        similarity=1.0,
+                        measure="canonical_text_hash",
+                        jaccard=1.0,
+                        containment=1.0,
+                    )
+                    for other in ordered[1:]
+                ),
             )
         )
     return tuple(proposals)
@@ -147,10 +210,16 @@ def find_shingle_clusters(
     documents: Sequence[DocumentText],
     *,
     threshold: float = DEFAULT_SHINGLE_THRESHOLD,
+    containment_threshold: float = DEFAULT_CONTAINMENT_THRESHOLD,
     width: int = DEFAULT_SHINGLE_WIDTH,
     exclude: frozenset[str] = frozenset(),
-) -> tuple[tuple[DuplicateProposal, ...], dict[str, int]]:
+) -> tuple[tuple[DuplicateProposal, ...], dict[str, Any]]:
     """Propose clusters by pairwise overlap, and report what was compared.
+
+    A pair joins a cluster if **either** measure clears its threshold. Containment
+    is preferred when both do, because when a press release sits inside a longer
+    page containment is the number that describes the relationship and Jaccard is
+    the number that describes the host's chrome.
 
     ``exclude`` takes the documents an exact-hash cluster already accounts for:
     running them through the slow path would rediscover the same group with a
@@ -158,39 +227,66 @@ def find_shingle_clusters(
     """
     if not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
+    if not 0 < containment_threshold <= 1:
+        raise ValueError("containment_threshold must be in (0, 1]")
     prepared = [
         (document.document_id, shingles(document.text, width))
         for document in documents
         if document.document_id not in exclude
     ]
     comparable = [(identifier, bag) for identifier, bag in prepared if len(bag) >= MIN_SHINGLES]
-    stats = {
+    stats: dict[str, Any] = {
         "documents": len(documents),
         "excluded": len(documents) - len(prepared),
         "tooShort": len(prepared) - len(comparable),
         "compared": len(comparable),
         "pairs": len(comparable) * (len(comparable) - 1) // 2,
+        "jaccardThreshold": threshold,
+        "containmentThreshold": containment_threshold,
     }
-    similarity: dict[tuple[str, str], float] = {}
+    matched: dict[tuple[str, str], PairEvidence] = {}
     for index, (left_id, left_bag) in enumerate(comparable):
         for right_id, right_bag in comparable[index + 1 :]:
-            score = jaccard(left_bag, right_bag)
-            if score >= threshold:
-                similarity[(left_id, right_id)] = score
-    groups = _components([identifier for identifier, _ in comparable], similarity)
-    proposals = tuple(
-        DuplicateProposal(
-            cluster_kind="reprint",
-            formation_method="shingle_overlap",
-            document_ids=tuple(members),
-            pairs=tuple(
-                (left, right, score)
-                for (left, right), score in sorted(similarity.items())
-                if left in set(members) and right in set(members)
-            ),
-            shingle_threshold=threshold,
-            shingle_width=width,
+            overlap = jaccard(left_bag, right_bag)
+            inside = containment(left_bag, right_bag)
+            if inside >= containment_threshold:
+                measure, similarity = "containment", inside
+            elif overlap >= threshold:
+                measure, similarity = "jaccard", overlap
+            else:
+                continue
+            matched[(left_id, right_id)] = PairEvidence(
+                left=left_id,
+                right=right_id,
+                similarity=similarity,
+                measure=measure,
+                jaccard=overlap,
+                containment=inside,
+            )
+    groups = _components([identifier for identifier, _ in comparable], matched)
+    proposals: list[DuplicateProposal] = []
+    for members in sorted(groups):
+        inside_group = frozenset(members)
+        pairs = tuple(
+            evidence
+            for (left, right), evidence in sorted(matched.items())
+            if left in inside_group and right in inside_group
         )
-        for members in sorted(groups)
-    )
-    return proposals, stats
+        # One cluster, one rule: containment if any pair needed it, because that is
+        # the weaker claim of the two and the cluster should be labelled with what
+        # actually holds it together.
+        measure = (
+            "containment" if any(pair.measure == "containment" for pair in pairs) else "jaccard"
+        )
+        proposals.append(
+            DuplicateProposal(
+                cluster_kind="reprint",
+                formation_method="shingle_overlap",
+                document_ids=tuple(members),
+                pairs=pairs,
+                shingle_threshold=containment_threshold if measure == "containment" else threshold,
+                shingle_width=width,
+                shingle_measure=measure,
+            )
+        )
+    return tuple(proposals), stats

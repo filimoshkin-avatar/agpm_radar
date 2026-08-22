@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -15,6 +15,7 @@ from radar_kx.database import Database, VersionProvenance
 from radar_kx.duplicates import (
     MIN_SHINGLES,
     DocumentText,
+    containment,
     find_hash_clusters,
     find_shingle_clusters,
     jaccard,
@@ -179,7 +180,7 @@ def test_an_identical_text_is_a_certain_cluster() -> None:
     assert proposals[0].document_ids == ("a", "b")
     assert proposals[0].formation_method == "canonical_text_hash"
     assert proposals[0].shingle_threshold is None
-    assert all(similarity == 1.0 for _, _, similarity in proposals[0].pairs)
+    assert all(pair.similarity == 1.0 for pair in proposals[0].pairs)
 
 
 def test_shingle_overlap_records_the_rule_it_was_formed_under() -> None:
@@ -187,11 +188,13 @@ def test_shingle_overlap_records_the_rule_it_was_formed_under() -> None:
     proposals, stats = find_shingle_clusters(
         [_text("a", BODY), _text("b", edited), _text("c", UNRELATED)],
         threshold=0.7,
+        containment_threshold=1.0,
     )
     assert len(proposals) == 1
     assert proposals[0].document_ids == ("a", "b")
     assert proposals[0].shingle_threshold == 0.7
     assert proposals[0].shingle_width == 5
+    assert proposals[0].shingle_measure == "jaccard"
     assert stats["compared"] == 3
 
 
@@ -378,3 +381,45 @@ def test_a_correction_is_a_new_decision_and_the_old_one_survives(
         assert cursor.fetchone()["family_key"] == "newsroom"  # type: ignore[index]
         cursor.execute("SELECT count(*) AS total FROM kx.document_source_family")
         assert cursor.fetchone()["total"] == 2  # type: ignore[index]
+
+
+def test_a_press_release_inside_a_longer_page_is_found_by_containment_not_by_overlap() -> None:
+    # The case that made migration 006 necessary. On the perimeter this is one
+    # GlobeNewswire release carried by two outlets: containment 1.000 against a
+    # Jaccard of 0.593, because the second outlet wraps it in its own chrome.
+    release = BODY
+    carried = release + " " + UNRELATED
+    bags = (shingles(release), shingles(carried))
+    assert containment(*bags) == 1.0
+    assert jaccard(*bags) < 0.8
+
+    proposals, _ = find_shingle_clusters([_text("a", release), _text("b", carried)])
+    assert len(proposals) == 1
+    assert proposals[0].shingle_measure == "containment"
+    assert proposals[0].shingle_threshold == 0.75
+    pair = proposals[0].pairs[0]
+    assert pair.similarity == pair.containment == 1.0
+    assert pair.jaccard < 0.8
+
+
+def test_both_measures_are_kept_whichever_one_fired(migrated_dsn: str) -> None:
+    database = Database(_settings(migrated_dsn))
+    first = _store(database, "https://wire.example/release", BODY)
+    second = _store(database, "https://outlet.example/story", BODY + " " + UNRELATED)
+    documents = database.documents_for_duplicate_scan(scope="corpus")
+    recorded = database.record_duplicate_proposals(
+        find_shingle_clusters(documents)[0], proposed_by="test"
+    )
+    assert recorded["clusters"] == 1
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT evidence_kind, similarity, detail FROM kx.duplicate_evidence")
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["evidence_kind"] == "shingle_containment"
+        assert float(cast(float, row["similarity"])) == 1.0
+        detail = cast(dict[str, float], row["detail"])
+        assert detail["jaccard"] < 0.8
+        assert detail["containment"] == 1.0
+        cursor.execute("SELECT shingle_measure FROM kx.content_duplicate_clusters")
+        assert cursor.fetchone()["shingle_measure"] == "containment"  # type: ignore[index]
+    assert {first, second}

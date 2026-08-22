@@ -33,7 +33,8 @@ BASELINE_MIGRATIONS = (
 MIGRATION_003 = "003_provenance_and_publication.sql"
 MIGRATION_004 = "004_publication_caveat.sql"
 MIGRATION_005 = "005_source_independence.sql"
-ADOPTED_MIGRATIONS = (MIGRATION_003, MIGRATION_004, MIGRATION_005)
+MIGRATION_006 = "006_duplicate_containment.sql"
+ADOPTED_MIGRATIONS = (MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006)
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
 #: was added straight to the running database, so the repository schema and
@@ -131,7 +132,7 @@ def caveat_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 5 - the version the deployed release requires."""
+    """A database at schema 6 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
