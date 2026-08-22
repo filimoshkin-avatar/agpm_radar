@@ -15,6 +15,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from radar_kx.acquisition import HostProfile, next_step, profile_for
 from radar_kx.config import Settings
 from radar_kx.duplicates import DocumentText, DuplicateProposal
 from radar_kx.extraction import (
@@ -57,7 +58,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -2592,6 +2593,156 @@ class Database:
             # are not the same kind of thing to be unsupported.
             "byNature": by_nature,
             "pagesWithNothing": worst,
+        }
+
+    # ---------------------------------------------------------------------
+    # Acquisition as a subsystem (slice 2.3)
+    # ---------------------------------------------------------------------
+
+    def host_profiles(self) -> dict[str, HostProfile]:
+        """Every written profile. A host without one gets the default."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT host, rung_order, min_interval_seconds, max_in_flight,"
+                " robots_policy, request_headers, rationale, decided_by"
+                " FROM kx.host_profiles"
+            )
+            profiles: dict[str, HostProfile] = {}
+            for row in cursor.fetchall():
+                rungs = row["rung_order"]
+                profiles[str(row["host"])] = HostProfile(
+                    host=str(row["host"]),
+                    rungs=tuple(cast(list[str], rungs)) if rungs is not None else ("network",),
+                    min_interval_seconds=(
+                        float(cast(float, row["min_interval_seconds"]))
+                        if row["min_interval_seconds"] is not None
+                        else None
+                    ),
+                    max_in_flight=(
+                        int(cast(int, row["max_in_flight"]))
+                        if row["max_in_flight"] is not None
+                        else None
+                    ),
+                    robots_policy=str(row["robots_policy"]),
+                    request_headers=cast(dict[str, str], row["request_headers"]),
+                    rationale=str(row["rationale"]),
+                    decided_by=str(row["decided_by"]),
+                )
+        return profiles
+
+    def write_host_profile(self, profile: HostProfile) -> dict[str, Any]:
+        """Record a decision about how one host is treated."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.host_profiles
+                        (host, rung_order, min_interval_seconds, max_in_flight,
+                         robots_policy, request_headers, rationale, decided_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (host) DO UPDATE SET
+                        rung_order = EXCLUDED.rung_order,
+                        min_interval_seconds = EXCLUDED.min_interval_seconds,
+                        max_in_flight = EXCLUDED.max_in_flight,
+                        robots_policy = EXCLUDED.robots_policy,
+                        request_headers = EXCLUDED.request_headers,
+                        rationale = EXCLUDED.rationale,
+                        decided_by = EXCLUDED.decided_by,
+                        decided_at = clock_timestamp()
+                    """,
+                    (
+                        profile.host,
+                        list(profile.rungs),
+                        profile.min_interval_seconds,
+                        profile.max_in_flight,
+                        profile.robots_policy,
+                        Jsonb(dict(profile.request_headers)),
+                        profile.rationale,
+                        profile.decided_by,
+                    ),
+                )
+        return profile.as_json()
+
+    def plan_acquisition(self, *, limit: int = 500) -> dict[str, Any]:
+        """Walk the gap queue and record where each document is on the ladder.
+
+        Decides nothing about the network: it reads what already happened, applies
+        the host's profile, and writes the next rung or a terminal reason with an
+        owner. Running it twice changes nothing that has not changed underneath.
+        """
+        profiles = self.host_profiles()
+        planned: dict[str, Any] = {
+            "considered": 0,
+            "escalated": 0,
+            "terminal": 0,
+            "byReason": {},
+        }
+        reasons: dict[str, int] = {}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT document_id, canonical_url, current_rung, rungs_tried,"
+                    " last_error_code, terminal_reason"
+                    " FROM kx.acquisition_gap_queue"
+                    " WHERE terminal_reason IS NULL"
+                    " ORDER BY updated_at LIMIT %s",
+                    (limit,),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+            for row in rows:
+                planned["considered"] = int(planned["considered"]) + 1
+                tried = list(cast(list[str], row["rungs_tried"] or []))
+                if str(row["current_rung"]) not in tried:
+                    tried.append(str(row["current_rung"]))
+                step = next_step(
+                    profile=profile_for(str(row["canonical_url"]), profiles),
+                    tried=tried,
+                    error_code=(str(row["last_error_code"]) if row["last_error_code"] else None),
+                )
+                with connection.transaction(), connection.cursor() as cursor:
+                    if step.is_terminal:
+                        cursor.execute(
+                            "UPDATE kx.fetch_queue SET rungs_tried = %s,"
+                            " terminal_reason = %s, next_action_owner = %s,"
+                            " updated_at = clock_timestamp() WHERE document_id = %s",
+                            (
+                                tried,
+                                step.terminal_reason,
+                                step.next_action_owner,
+                                row["document_id"],
+                            ),
+                        )
+                        planned["terminal"] = int(planned["terminal"]) + 1
+                        key = str(step.terminal_reason)
+                        reasons[key] = reasons.get(key, 0) + 1
+                    else:
+                        cursor.execute(
+                            "UPDATE kx.fetch_queue SET current_rung = %s, rungs_tried = %s,"
+                            " status = 'retry', next_attempt_at = clock_timestamp(),"
+                            " next_action_owner = 'machine', updated_at = clock_timestamp()"
+                            " WHERE document_id = %s",
+                            (step.rung, tried, row["document_id"]),
+                        )
+                        planned["escalated"] = int(planned["escalated"]) + 1
+        planned["byReason"] = reasons
+        return planned
+
+    def acquisition_gaps(self) -> dict[str, Any]:
+        """What is missing, why, and whose move it is."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT coalesce(terminal_reason, 'undecided') AS reason,"
+                " coalesce(next_action_owner, 'unassigned') AS owner,"
+                " coalesce(last_error_code, 'none') AS error_code,"
+                " count(*) AS total"
+                " FROM kx.acquisition_gap_queue GROUP BY 1, 2, 3 ORDER BY total DESC"
+            )
+            rows = [dict(row) for row in cursor.fetchall()]
+        return {
+            "documentsWithoutText": sum(int(row["total"]) for row in rows),
+            "byReason": rows[:40],
         }
 
     def coverage_report(self) -> dict[str, Any]:

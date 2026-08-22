@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from radar_kx.acquisition import LADDER, HostProfile
 from radar_kx.artifact_import import (
     import_artifact,
     load_artifact_manifest,
@@ -166,6 +167,26 @@ def _parser() -> argparse.ArgumentParser:
 
     unsupported_parser = subparsers.add_parser("statements-without-evidence")
     unsupported_parser.add_argument("--snapshot-id", required=True)
+
+    # Slice 2.3: acquisition as a subsystem. A host profile is a decision about
+    # how somebody else's server is treated, so it records who made it and why.
+    host_profile_parser = subparsers.add_parser("write-host-profile")
+    host_profile_parser.add_argument("--host", required=True)
+    host_profile_parser.add_argument("--rungs", nargs="*", choices=LADDER, default=["network"])
+    host_profile_parser.add_argument(
+        "--robots-policy", choices=("respect", "override_recorded"), default="respect"
+    )
+    host_profile_parser.add_argument("--min-interval-seconds", type=float, default=None)
+    host_profile_parser.add_argument("--max-in-flight", type=int, default=None)
+    host_profile_parser.add_argument("--rationale", required=True)
+    host_profile_parser.add_argument("--decided-by", required=True)
+
+    subparsers.add_parser("host-profiles")
+
+    plan_acquisition_parser = subparsers.add_parser("plan-acquisition")
+    plan_acquisition_parser.add_argument("--limit", type=int, default=500)
+
+    subparsers.add_parser("acquisition-gaps")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -387,6 +408,30 @@ def main() -> None:
         return
     if args.command == "statements-without-evidence":
         _print_json(database.statements_without_evidence(snapshot_id=args.snapshot_id))
+        return
+    if args.command == "write-host-profile":
+        _print_json(
+            database.write_host_profile(
+                HostProfile(
+                    host=args.host.lower(),
+                    rungs=tuple(args.rungs),
+                    min_interval_seconds=args.min_interval_seconds,
+                    max_in_flight=args.max_in_flight,
+                    robots_policy=args.robots_policy,
+                    rationale=args.rationale,
+                    decided_by=args.decided_by,
+                )
+            )
+        )
+        return
+    if args.command == "host-profiles":
+        _print_json([profile.as_json() for profile in database.host_profiles().values()])
+        return
+    if args.command == "plan-acquisition":
+        _print_json(database.plan_acquisition(limit=args.limit))
+        return
+    if args.command == "acquisition-gaps":
+        _print_json(database.acquisition_gaps())
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
