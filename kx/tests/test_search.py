@@ -257,3 +257,19 @@ def test_both_match_modes_still_verify_their_offsets(stored: Database) -> None:
         hits = stored.search("агентное управление", scope="corpus", limit=5, match=mode)
         assert hits
         assert all(hit.char_end > hit.char_start for hit in hits)
+
+
+def test_documents_sharing_a_text_counts_documents_not_group_size_squared(
+    migrated_dsn: str,
+) -> None:
+    # Joining a duplicate group back onto its own rows and summing the group size
+    # gives n squared. On the production perimeter that reported 85 where the
+    # answer is 11.
+    database = Database(_settings(migrated_dsn))
+    for index in range(3):
+        _store(database, f"https://example.com/copy{index}", RUSSIAN)
+    _store(database, "https://example.com/other", ENGLISH)
+    scope = database.coverage_report()["scopes"]["corpus"]
+    assert scope["documents"] == 4
+    assert scope["distinct_texts"] == 2
+    assert scope["documents_sharing_a_text"] == 3

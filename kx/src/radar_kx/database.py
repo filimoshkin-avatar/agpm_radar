@@ -1520,11 +1520,16 @@ class Database:
                             WHERE versions.is_complete
                             ORDER BY versions.document_id, versions.fetched_at DESC
                         )
+                        -- count the documents in a shared group, not the group size
+                        -- once per member: joining a nine-member group back onto its
+                        -- own rows sums to eighty-one, which is not a count of
+                        -- anything.
                         SELECT count(DISTINCT canonical_text_sha256) AS distinct_texts,
-                               coalesce(sum(shared.members), 0) AS sharing
+                               count(*) FILTER (WHERE shared.canonical_text_sha256 IS NOT NULL)
+                                   AS sharing
                         FROM best
                         LEFT JOIN (
-                            SELECT canonical_text_sha256, count(*) AS members
+                            SELECT canonical_text_sha256
                             FROM best GROUP BY 1 HAVING count(*) > 1
                         ) AS shared USING (canonical_text_sha256)
                         """  # noqa: S608 - same constant
