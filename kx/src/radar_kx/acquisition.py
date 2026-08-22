@@ -239,6 +239,16 @@ def next_step(
                 "owner",
                 f"{profile.host} denies robots and has no recorded override",
             )
+        # A rung that would help and is not enabled for this host is one decision
+        # away, not a page anybody needs to read. Measured on production the
+        # difference is 324 documents: without this they read as "somebody look at
+        # these", and what they are is "write a profile for these hosts".
+        return LadderStep(
+            None,
+            "blocked_by_host",
+            "owner",
+            f"{profile.host} would need {hinted}, and no profile allows it",
+        )
 
     for rung in profile.rungs:
         if rung in already:
