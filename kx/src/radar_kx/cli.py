@@ -305,6 +305,17 @@ def main() -> None:
         return
     if args.command == "extract-claims":
         gateway = ModelGateway(database, settings)
+        # A configuration error is not a per-fragment failure. Without this the
+        # loop below records one failed run per fragment and the operator learns
+        # about a missing key from a thousand identical rows - which is exactly
+        # what happened on 2026-08-22 when the pass was started through `kxrun`
+        # instead of `kxorch` and the orchestrator env was never read.
+        if not settings.hermes_key:
+            raise SystemExit(
+                "RADAR_KX_HERMES_KEY is not set. Model commands run inside the"
+                " orchestrator unit, which reads /etc/radar-kx/orchestrator.env:"
+                " use `kxorch extract-claims ...`, not `kxrun`."
+            )
         extractor = HermesExtractor(gateway, **({"model": args.model} if args.model else {}))
         fragment_results: list[dict[str, Any]] = []
         for fragment in database.extraction_fragments(scope=args.scope, limit=args.limit):

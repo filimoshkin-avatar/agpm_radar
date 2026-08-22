@@ -357,3 +357,77 @@ def test_the_report_says_what_share_of_proposals_became_evidence(migrated_dsn: s
     assert report["openCandidates"] == 2
     assert report["exactShare"] == pytest.approx(1 / 3, abs=1e-4)
     assert report["candidatesByReason"] == {"quote_not_found": 2}
+
+
+def test_a_failed_run_is_retried_rather_than_blocking_its_fragment(migrated_dsn: str) -> None:
+    # The idempotency that stops successful work being recorded twice must not
+    # become a way to lose work permanently: `processing_runs` is unique on the
+    # recipe, so a failed row occupies its own key. An operator error on
+    # 2026-08-22 left 1053 fragments in exactly that state, and a five-minute
+    # model outage would have done the same.
+    database = Database(_settings(migrated_dsn))
+    fragment = _stored(database)
+    canonical = database.canonical_text(fragment.version_id)
+    first = database.record_extraction(
+        fragment,
+        (),
+        model="glm-5.2",
+        prompt_sha256=prompt_sha256(fragment),
+        failure="OrchestratorError: the key was missing",
+    )
+    assert first["byReason"] == {"malformed_output": 1}
+
+    second = database.record_extraction(
+        fragment,
+        align_all(
+            fragment,
+            canonical,
+            (ProposedClaim("p", "o", "assigns accountability to one named human owner"),),
+        ),
+        model="glm-5.2",
+        prompt_sha256=prompt_sha256(fragment),
+    )
+    assert second["retriedAttempt"] == 2
+    assert second["claims"] == 1
+    # What the failed attempt left behind is a record of an attempt that did not
+    # happen, not a finding about the document.
+    assert second["discardedFromPreviousAttempt"] == 1
+
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT status, attempt_count FROM kx.processing_runs")
+        run = one(cursor)
+        assert run["status"] == "succeeded"
+        assert run["attempt_count"] == 2
+        cursor.execute(
+            "SELECT count(*) AS total FROM kx.extraction_candidates WHERE status = 'open'"
+        )
+        assert cursor.fetchone()["total"] == 0  # type: ignore[index]
+
+
+def test_a_succeeded_run_still_blocks_a_second_recording(migrated_dsn: str) -> None:
+    database = Database(_settings(migrated_dsn))
+    fragment = _stored(database)
+    database.record_extraction(fragment, (), model="glm-5.2", prompt_sha256=prompt_sha256(fragment))
+    again = database.record_extraction(
+        fragment, (), model="glm-5.2", prompt_sha256=prompt_sha256(fragment)
+    )
+    assert "skipped" in again
+    assert "retriedAttempt" not in again
+
+
+def test_a_retry_must_count_the_attempt(migrated_dsn: str) -> None:
+    database = Database(_settings(migrated_dsn))
+    fragment = _stored(database)
+    database.record_extraction(
+        fragment,
+        (),
+        model="glm-5.2",
+        prompt_sha256=prompt_sha256(fragment),
+        failure="something went wrong",
+    )
+    with (
+        connect(migrated_dsn) as connection,
+        connection.cursor() as cursor,
+        pytest.raises(Exception, match="must count the attempt"),
+    ):
+        cursor.execute("UPDATE kx.processing_runs SET status = 'running'")

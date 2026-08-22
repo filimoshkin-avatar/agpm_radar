@@ -57,7 +57,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -1985,9 +1985,46 @@ class Database:
                 )
                 row = cursor.fetchone()
                 if row is None:
-                    outcome["skipped"] = "this fragment already has a run of this recipe"
-                    return outcome
-                run_id = row["run_id"]
+                    # The recipe already has a run for this fragment. If it
+                    # succeeded, there is nothing to do. If it failed, the row is
+                    # occupying the unique key and must be retried rather than left
+                    # to block the fragment forever (migration 009).
+                    cursor.execute(
+                        "SELECT run_id, status, attempt_count FROM kx.processing_runs"
+                        " WHERE version_id = %s AND processor = 'claim_extraction'"
+                        "   AND processor_version = %s AND parameters_sha256 = %s"
+                        "   AND model_id = %s",
+                        (
+                            fragment.version_id,
+                            EXTRACTOR_VERSION,
+                            sha256_bytes(stable_json_bytes(parameters)),
+                            model,
+                        ),
+                    )
+                    previous = one_row(cursor)
+                    if str(previous["status"]) == "succeeded":
+                        outcome["skipped"] = "this fragment already has a run of this recipe"
+                        return outcome
+                    run_id = previous["run_id"]
+                    outcome["retriedAttempt"] = int(cast(int, previous["attempt_count"])) + 1
+                    cursor.execute(
+                        "UPDATE kx.processing_runs SET status = 'running',"
+                        " attempt_count = attempt_count + 1, error_detail = NULL,"
+                        " finished_at = NULL, prompt_sha256 = %s WHERE run_id = %s",
+                        (prompt_sha256, run_id),
+                    )
+                    # What the failed attempt left behind is not a finding about the
+                    # document; it is a record of an attempt that did not happen.
+                    cursor.execute(
+                        "UPDATE kx.extraction_candidates"
+                        " SET status = 'discarded', resolved_at = clock_timestamp(),"
+                        "     resolved_by = 'retry'"
+                        " WHERE run_id = %s AND status = 'open'",
+                        (run_id,),
+                    )
+                    outcome["discardedFromPreviousAttempt"] = cursor.rowcount
+                else:
+                    run_id = row["run_id"]
                 outcome["runId"] = str(run_id)
 
                 if failure is not None:
