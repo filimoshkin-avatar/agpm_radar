@@ -117,6 +117,7 @@ let issues = [];
 const periodStats = new Map();
 const issueCache = new Map();
 let ringTimer = null;
+let reloadGeneration = 0;
 
 const TIMESERIES_RETRY_DELAYS_MS = [0, 800, 2000];
 
@@ -1128,20 +1129,20 @@ function toggleRubric(id) {
   reload();
 }
 
-async function loadIssueMaterials() {
-  if (["issue", "yesterday"].includes(state.period)) {
-    const issueDate = activeIssueDate();
+async function loadIssueMaterials(request) {
+  if (["issue", "yesterday"].includes(request.period)) {
+    const issueDate = request.issueDate;
     if (!issueDate || issueDate === latest?.issue?.issue_date) return latest.materials;
     const payload = await loadIssuePayload(issueDate);
     return payload.materials || [];
   }
-  const params = { period: state.period, limit: 100 };
+  const params = { period: request.period, limit: 100 };
   let path = "/api/materials";
-  if (state.q) {
-    params.q = state.q;
+  if (request.q) {
+    params.q = request.q;
     path = "/api/search";
   } else {
-    params.perimeter = state.perimeter;
+    params.perimeter = request.perimeter;
   }
   const materials = [];
   let cursor = null;
@@ -1157,9 +1158,9 @@ async function loadIssueMaterials() {
   return materials;
 }
 
-async function loadPeriodStats() {
-  if (!["7d", "30d"].includes(state.period)) return;
-  periodStats.set(state.period, await getJson(`/api/stats?period=${state.period}`));
+async function loadPeriodStats(period) {
+  if (!["7d", "30d"].includes(period)) return;
+  periodStats.set(period, await getJson(`/api/stats?period=${period}`));
 }
 
 async function loadIssuePayload(issueDate) {
@@ -1177,9 +1178,27 @@ async function loadIssuePayload(issueDate) {
 }
 
 async function reload() {
+  const generation = ++reloadGeneration;
+  const request = {
+    period: state.period,
+    perimeter: state.perimeter,
+    q: state.q,
+    issueDate: activeIssueDate(),
+  };
   state.loading = true;
   renderColumns(state.materials);
-  const [materials] = await Promise.all([loadIssueMaterials(), loadPeriodStats()]);
+  let materials;
+  try {
+    [materials] = await Promise.all([
+      loadIssueMaterials(request),
+      loadPeriodStats(request.period),
+    ]);
+  } catch (error) {
+    if (generation !== reloadGeneration) return;
+    state.loading = false;
+    throw error;
+  }
+  if (generation !== reloadGeneration) return;
   state.materials = materials;
   state.loading = false;
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;

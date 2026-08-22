@@ -29,6 +29,7 @@ let publicationTimeseries = [];
 let issues = [];
 const issueCache = new Map();
 let ringTimer = null;
+let reloadGeneration = 0;
 
 const TIMESERIES_RETRY_DELAYS_MS = [0, 800, 2000];
 
@@ -1031,10 +1032,10 @@ function toggleRubric(id) {
   reload();
 }
 
-async function loadIssueMaterials() {
-  const params = { period: state.period, q: state.q, perimeter: state.perimeter };
-  if (["issue", "yesterday"].includes(state.period)) {
-    const issueDate = activeIssueDate();
+async function loadIssueMaterials(request) {
+  const params = { period: request.period, q: request.q, perimeter: request.perimeter };
+  if (["issue", "yesterday"].includes(request.period)) {
+    const issueDate = request.issueDate;
     if (!issueDate || issueDate === latest?.issue?.issue_date) return latest.materials;
     const payload = await loadIssuePayload(issueDate);
     return payload.materials || [];
@@ -1057,9 +1058,24 @@ async function loadIssuePayload(issueDate) {
 }
 
 async function reload() {
+  const generation = ++reloadGeneration;
+  const request = {
+    period: state.period,
+    perimeter: state.perimeter,
+    q: state.q,
+    issueDate: activeIssueDate(),
+  };
   state.loading = true;
   renderColumns(state.materials);
-  const materials = await loadIssueMaterials();
+  let materials;
+  try {
+    materials = await loadIssueMaterials(request);
+  } catch (error) {
+    if (generation !== reloadGeneration) return;
+    state.loading = false;
+    throw error;
+  }
+  if (generation !== reloadGeneration) return;
   state.materials = materials;
   state.loading = false;
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;

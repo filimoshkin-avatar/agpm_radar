@@ -726,7 +726,12 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "escapeHtml" in script
     assert "legacyIssue" in script
     assert "/api/latest" in script
-    assert "getJson(`/api/stats?period=${state.period}`)" in script
+    assert "getJson(`/api/stats?period=${period}`)" in script
+    assert "let reloadGeneration = 0" in script
+    assert "const generation = ++reloadGeneration" in script
+    assert "if (generation !== reloadGeneration) return" in script
+    assert "loadIssueMaterials(request)" in script
+    assert "loadPeriodStats(request.period)" in script
     assert "page.nextCursor || null" in script
     assert "while (cursor)" in script
     assert 'short_text: llm.status === "success" ? (item.llmShortText || "") : ""' in script

@@ -39,9 +39,14 @@ for javascript_file in "${javascript_files[@]}"; do
   node --check "${javascript_file}"
 done
 printf 'JavaScript syntax: PASS (%d module(s))\n' "${#javascript_files[@]}"
+node --check "${repository_root}/work/radar-app/app.js"
+printf 'Legacy JavaScript syntax: PASS\n'
 
 step "frontend console smoke"
 node tools/frontend_console_smoke.mjs
+
+step "Legacy and V2 out-of-order reload regression"
+node "${repository_root}/tools/frontend_period_switch_race_smoke.mjs"
 
 step "secret and Legacy-isolation scan"
 uv run --no-sync python tools/check_isolation.py
