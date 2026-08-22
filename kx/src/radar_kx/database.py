@@ -1510,11 +1510,10 @@ class Database:
                     }
                     for row in cursor.fetchall()
                 }
-            if scope == "source_fulltext":
-                # Only documents that have text are comparable to a text cache;
-                # counting the 2334 documents nothing could fetch as "only in KX"
-                # would bury the finding under a known, separate problem.
-                known = {key: value for key, value in known.items() if value["hasCompleteVersion"]}
+            # Every document goes into the lookup, including the ones nothing could
+            # fetch: a document KX knows and holds no text for is the case worth
+            # reporting, and dropping it here reclassifies it as absent. Which
+            # direction is worth reporting is the scope's business, not this query's.
             result = compare(scope, entries, known, source=source)
             payload = result.payload()
             with connection.transaction(), connection.cursor() as cursor:
