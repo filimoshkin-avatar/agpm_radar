@@ -18,6 +18,7 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from radar_kx.identifiers import PARSER_NAME, PARSER_VERSION, canonicalize_text
+from radar_kx.language import language_of
 
 PYPDF_LOGGER = logging.getLogger("pypdf")
 PYPDF_LOGGER.addHandler(logging.NullHandler())
@@ -75,17 +76,8 @@ def _decode_text(payload: bytes, content_type: str) -> str:
 
 
 def _language(text: str) -> str:
-    cyrillic = sum(0x0400 <= ord(char) <= 0x04FF for char in text)
-    latin = sum("a" <= char.lower() <= "z" for char in text)
-    total = cyrillic + latin
-    if total < 40:
-        return "und"
-    cyrillic_ratio = cyrillic / total
-    if cyrillic_ratio >= 0.75:
-        return "ru"
-    if cyrillic_ratio <= 0.15:
-        return "en"
-    return "mixed"
+    """Defect D10: this counted Cyrillic against Latin. See radar_kx.language."""
+    return language_of(text)
 
 
 def _title_from_soup(soup: BeautifulSoup) -> str:

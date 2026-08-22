@@ -4,6 +4,7 @@ import gzip
 import json
 import shutil
 import uuid
+from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -36,6 +37,7 @@ from radar_kx.identifiers import (
     version_id,
 )
 from radar_kx.issue_perimeter import PerimeterExport
+from radar_kx.language import language_of
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
@@ -2149,6 +2151,54 @@ class Database:
             # The number that says whether the recipe works: of everything the model
             # proposed, what share could be pinned to an exact span.
             "exactShare": round(total_claims / attempted, 4) if attempted else None,
+        }
+
+    def language_drift(self, *, limit: int = 20) -> dict[str, Any]:
+        """How the stored language labels differ from what the detector says now.
+
+        Nothing is rewritten. A version's label was produced by the parser that
+        made it, and a better detector is a parser change - relabelling in place
+        would make the store disagree with its own `parser_config_sha256`. This
+        answers whether a re-parse is worth its cost, which is a measured decision
+        and not one to take blind (defect D10, slice 2.15).
+        """
+        moves: Counter[tuple[str, str]] = Counter()
+        examples: dict[tuple[str, str], list[str]] = {}
+        total = 0
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor(name="language_drift") as cursor:
+                cursor.itersize = 200
+                cursor.execute(
+                    "SELECT versions.version_id, versions.language, versions.canonical_text,"
+                    " documents.canonical_url"
+                    " FROM kx.document_versions AS versions"
+                    " JOIN kx.documents AS documents USING (document_id)"
+                    " WHERE versions.is_complete"
+                )
+                for row in cursor:
+                    total += 1
+                    stored = str(row["language"])
+                    detected = language_of(str(row["canonical_text"]))
+                    if detected == stored:
+                        continue
+                    key = (stored, detected)
+                    moves[key] += 1
+                    if len(examples.setdefault(key, [])) < 3:
+                        examples[key].append(str(row["canonical_url"]))
+        return {
+            "versionsExamined": total,
+            "unchanged": total - sum(moves.values()),
+            "changed": sum(moves.values()),
+            "moves": [
+                {
+                    "from": stored,
+                    "to": detected,
+                    "count": count,
+                    "examples": examples[(stored, detected)],
+                }
+                for (stored, detected), count in moves.most_common(limit)
+            ],
         }
 
     def coverage_report(self) -> dict[str, Any]:

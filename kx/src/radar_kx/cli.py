@@ -139,6 +139,10 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("extraction-report")
 
+    # Slice 2.15: what a better detector would relabel, measured before deciding
+    # whether a re-parse is worth its cost.
+    subparsers.add_parser("language-drift")
+
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
     subparsers.add_parser("model-run-types")
@@ -309,6 +313,9 @@ def main() -> None:
         return
     if args.command == "extraction-report":
         _print_json(database.extraction_report())
+        return
+    if args.command == "language-drift":
+        _print_json(database.language_drift())
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])

@@ -31,6 +31,11 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["RUF001", "S101"]
+# The detector's whole content is non-Latin function words (RUF001/RUF003) written
+# as space-separated lists so a word list reads as a word list (SIM905). Turning
+# nineteen of them into quoted list literals would cost the readability that makes
+# them checkable by eye.
+"src/radar_kx/language.py" = ["RUF001", "RUF003", "SIM905"]
 
 [tool.mypy]
 files = ["src", "tests"]
