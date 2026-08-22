@@ -21,9 +21,13 @@ evidence store, and there is nothing in it worth stealing.
 Every attempt is written to the journal as one JSON line, refusals included. The
 orchestrator writes its own row to ``egress_audit`` for the same call, from the other
 side of the boundary and knowing things this process cannot know - which run, which
-document, how many tokens. Two independent records of one call is the point: either
-can be compared against the other, and a call that appears in only one of them is a
-finding.
+document, how many tokens.
+
+The two records are deliberately independent, but they are not one-to-one: this side
+sees strictly more, because Hermes makes calls of its own that no run type asked for.
+The first production run showed nine tunnels against three audited calls. The check
+the pair supports runs one way - an audited call with no tunnel behind it did not
+leave this host the way its row claims.
 """
 
 from __future__ import annotations

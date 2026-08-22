@@ -19,6 +19,13 @@ anything left the host. A refusal that leaves no trace is indistinguishable from
 call that was never attempted, and the difference between those two is exactly what
 somebody reviewing the boundary needs to see.
 
+The proxy keeps its own journal of the same calls, from the other side of the
+boundary. The two records are not one-to-one and should not be read as if they were:
+Hermes makes calls of its own that no run type asked for - the first production run
+showed nine tunnels against three audited calls, the difference being model discovery
+and two manual checks. What the pair supports is the one-way check that matters: an
+audited call with no tunnel behind it did not happen the way the row says it did.
+
 The two-model limit of P9 is checked here too, against :data:`ALLOWED_MODELS`. That is
 the third place it is enforced - the Hermes profile config routes only these models,
 the profile's entry point rejects any other identifier in a request body, and this
