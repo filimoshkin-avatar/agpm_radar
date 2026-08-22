@@ -19,6 +19,7 @@ from radar_kx.database import Database
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
+from radar_kx.reconciliation import load_inventory
 from radar_kx.search import MATCH_MODES, SCOPES
 from radar_kx.vertical_slice import load_candidates
 from radar_kx.vertical_slice import select as select_slice
@@ -72,6 +73,10 @@ def _parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--match", choices=list(MATCH_MODES), default="all")
 
     subparsers.add_parser("coverage-report")
+
+    # Compare a file-store inventory with KX and record the difference (P28).
+    reconcile_parser = subparsers.add_parser("reconcile-stores")
+    reconcile_parser.add_argument("--inventory", type=Path, required=True)
 
     # Choose the documents the vertical slice runs on, from the extract that
     # scripts/vertical_slice_candidates.sql produced.
@@ -191,6 +196,17 @@ def main() -> None:
                 "summary": summary,
                 "results": [item.as_json() for item in results],
             }
+        )
+        return
+    if args.command == "reconcile-stores":
+        scope, entries, source = load_inventory(args.inventory)
+        _print_json(
+            database.record_store_reconciliation(
+                scope,
+                entries,
+                source=source,
+                generated_by=f"radar_kx reconcile-stores:{settings.release_id}",
+            )
         )
         return
     if args.command == "coverage-report":

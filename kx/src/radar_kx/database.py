@@ -29,6 +29,7 @@ from radar_kx.identifiers import (
 from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
+from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 
@@ -1472,6 +1473,78 @@ class Database:
                     "search snippet does not match its own offsets in version "
                     f"{row['version_id']} [{row['char_start']}, {row['char_end']})"
                 )
+
+    def record_store_reconciliation(
+        self,
+        scope: str,
+        entries: Sequence[FileStoreEntry],
+        *,
+        source: Mapping[str, Any],
+        generated_by: str,
+    ) -> dict[str, Any]:
+        """Compare a file-store inventory with KX and record the difference.
+
+        The scope decides what KX side to compare against: the full-text cache is
+        about documents that have text, the discovery registry is about documents
+        existing at all.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT documents.document_id,
+                           documents.canonical_url,
+                           EXISTS (
+                               SELECT 1 FROM kx.document_versions AS versions
+                               WHERE versions.document_id = documents.document_id
+                                 AND versions.is_complete
+                           ) AS has_complete_version
+                    FROM kx.documents
+                    """
+                )
+                known = {
+                    str(row["document_id"]): {
+                        "canonicalUrl": row["canonical_url"],
+                        "hasCompleteVersion": bool(row["has_complete_version"]),
+                    }
+                    for row in cursor.fetchall()
+                }
+            if scope == "source_fulltext":
+                # Only documents that have text are comparable to a text cache;
+                # counting the 2334 documents nothing could fetch as "only in KX"
+                # would bury the finding under a known, separate problem.
+                known = {key: value for key, value in known.items() if value["hasCompleteVersion"]}
+            result = compare(scope, entries, known, source=source)
+            payload = result.payload()
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.store_reconciliation_reports (
+                        scope, file_store_count, kx_count, only_in_file_store,
+                        only_in_kx, differing, payload, payload_sha256, generated_by
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING report_id, generated_at
+                    """,
+                    (
+                        result.scope,
+                        result.file_store_count,
+                        result.kx_count,
+                        len(result.only_in_file_store),
+                        len(result.only_in_kx),
+                        len(result.differing),
+                        Jsonb(payload),
+                        payload_sha256(payload),
+                        generated_by,
+                    ),
+                )
+                row = one_row(cursor)
+            connection.commit()
+        return {
+            **result.as_json(),
+            "reportId": row["report_id"],
+            "generatedAt": row["generated_at"],
+        }
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.
