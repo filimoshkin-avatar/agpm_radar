@@ -1,0 +1,391 @@
+{
+  "name": "wiki-claim-coverage-2026-08-22",
+  "summary": {
+    "pages": 34,
+    "claims": 279,
+    "claimsTooShortToSearch": 53,
+    "claimsWithACandidate": 279,
+    "claimsWithNoCandidate": 0,
+    "byTermCoverage": {
+      "high": 122,
+      "low": 24,
+      "medium": 133
+    },
+    "medianBestTermCoverage": 0.545,
+    "candidateHitsByScope": {
+      "canon": 837,
+      "current": 837
+    },
+    "match": "any",
+    "limitPerScope": 3,
+    "lowCoverageBySection": {
+      "core_claims": 3,
+      "implications": 8,
+      "open_questions": 9,
+      "tensions": 4
+    }
+  },
+  "caveat": "A candidate is a lexical hit, not evidence, and term coverage is a hint at how promising it is - not a verdict. ADR-0004 admits nothing to claim_evidence without an exact span bound to an accepted claim, and both arrive with slice 2.6. This report says only where somebody should look.",
+  "pages": [
+    {
+      "page": "agpm/wiki/comparisons/ngmn-agentic-ai-operating-models-to-agpm.md",
+      "claims": 8,
+      "claimsBelowMediumCoverage": 4
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v3-3.md",
+      "claims": 30,
+      "claimsBelowMediumCoverage": 4
+    },
+    {
+      "page": "agpm/wiki/sources/ngmn-agentic-ai-based-operating-models-v1.0.md",
+      "claims": 14,
+      "claimsBelowMediumCoverage": 3
+    },
+    {
+      "page": "agpm/wiki/entities/agent-efficiency.md",
+      "claims": 9,
+      "claimsBelowMediumCoverage": 2
+    },
+    {
+      "page": "agpm/wiki/practices/industry-operationalization-five-role-stack.md",
+      "claims": 7,
+      "claimsBelowMediumCoverage": 2
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-industries-analytical-note-2026-05.md",
+      "claims": 12,
+      "claimsBelowMediumCoverage": 2
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-live-methodology-2026-07-13.md",
+      "claims": 11,
+      "claimsBelowMediumCoverage": 2
+    },
+    {
+      "page": "agpm/wiki/comparisons/gost-r-72514-2026-to-agpm-bridge.md",
+      "claims": 8,
+      "claimsBelowMediumCoverage": 1
+    },
+    {
+      "page": "agpm/wiki/entities/multi-agent-orchestration.md",
+      "claims": 3,
+      "claimsBelowMediumCoverage": 1
+    },
+    {
+      "page": "agpm/wiki/overview/ontological-structure.md",
+      "claims": 4,
+      "claimsBelowMediumCoverage": 1
+    },
+    {
+      "page": "agpm/wiki/practices/ai-pmo-implementation-method.md",
+      "claims": 5,
+      "claimsBelowMediumCoverage": 1
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v1-8-2.md",
+      "claims": 26,
+      "claimsBelowMediumCoverage": 1
+    },
+    {
+      "page": "agpm/wiki/comparisons/agentic-management-business-ai-vs-agpm.md",
+      "claims": 3,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/comparisons/agpm-vs-agentic-bpm.md",
+      "claims": 7,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/comparisons/agpmbok-v0.7-role-and-related-document-map.md",
+      "claims": 3,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/comparisons/hierarchy-agentic-processes-management-agpm.md",
+      "claims": 2,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/comparisons/iso-21502-to-agpm-bridge.md",
+      "claims": 3,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/comparisons/pmbok-v8-classical-pm-to-agpm-bridge.md",
+      "claims": 3,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/improvements/manifesto-values-proposals-2026-04-19.md",
+      "claims": 2,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/practices/agpm-live-implementation-method.md",
+      "claims": 2,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/practices/ai-pmo-market-positioning.md",
+      "claims": 6,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/practices/four-practice-areas.md",
+      "claims": 7,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/principles/five-principles.md",
+      "claims": 12,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/responsibility/two-layer-accountability.md",
+      "claims": 8,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/agpmbok-v0.7-working-draft.md",
+      "claims": 7,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-market-research-2026-06-05.md",
+      "claims": 8,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-operational-model-2026-06-14.md",
+      "claims": 9,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/aws-agentic-ai-executive-guide.md",
+      "claims": 10,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/gost-r-72514-2026-ai-impact-assessment-reference.md",
+      "claims": 10,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/iso-21502-2024-classical-reference.md",
+      "claims": 9,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/pmbok-8-2025-ai-reference-layer.md",
+      "claims": 11,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/pmi-ai-pppm-standard-2026.md",
+      "claims": 11,
+      "claimsBelowMediumCoverage": 0
+    },
+    {
+      "page": "agpm/wiki/sources/why-agpm-v3-executive-rationale.md",
+      "claims": 9,
+      "claimsBelowMediumCoverage": 0
+    }
+  ],
+  "claimsBelowMediumCoverage": [
+    {
+      "page": "agpm/wiki/comparisons/gost-r-72514-2026-to-agpm-bridge.md",
+      "section": "implications",
+      "line": 62,
+      "bestTermCoverage": 0.167,
+      "claim": "Нужен реестр чувствительных agentic-сценариев.",
+      "bestCandidate": "agpm-canon:/sber-ai-disrupt-pdlc-full-docx-2026-06-14.md"
+    },
+    {
+      "page": "agpm/wiki/comparisons/ngmn-agentic-ai-operating-models-to-agpm.md",
+      "section": "implications",
+      "line": 74,
+      "bestTermCoverage": 0.188,
+      "claim": "Для high-reliability проектов полезно развивать связку observability + LLMOps + policy-as-code + rollback как обязательный operational contour.",
+      "bestCandidate": "agpm-canon:/sber-ai-disrupt-pdlc-full-docx-2026-06-14.md"
+    },
+    {
+      "page": "agpm/wiki/comparisons/ngmn-agentic-ai-operating-models-to-agpm.md",
+      "section": "implications",
+      "line": 75,
+      "bestTermCoverage": 0.286,
+      "claim": "Digital twin и controlled closed-loop validation заслуживают отдельного места в обсуждении безопасной агентной автоматизации.",
+      "bestCandidate": "https://agenticpm.pro/"
+    },
+    {
+      "page": "agpm/wiki/comparisons/ngmn-agentic-ai-operating-models-to-agpm.md",
+      "section": "open_questions",
+      "line": 97,
+      "bestTermCoverage": 0.267,
+      "claim": "Нужно ли в corpus AgPM ввести отдельные отраслевые overlays зрелости для high-reliability и cloud-native сред?",
+      "bestCandidate": "https://agenticpm.pro/"
+    },
+    {
+      "page": "agpm/wiki/comparisons/ngmn-agentic-ai-operating-models-to-agpm.md",
+      "section": "open_questions",
+      "line": 99,
+      "bestTermCoverage": 0.231,
+      "claim": "Нужно ли выделить digital twin / safe simulation как отдельный обязательный механизм для agentic изменений в критичных проектах?",
+      "bestCandidate": "agpm-canon:/originals/PMBOK-8-2025_output_ru-1---48f41247-d9a4-4a60-9193-d4bdef40e6f8.docx"
+    },
+    {
+      "page": "agpm/wiki/entities/agent-efficiency.md",
+      "section": "implications",
+      "line": 150,
+      "bestTermCoverage": 0.25,
+      "claim": "анализируются ли худшие траектории, а не только среднее;",
+      "bestCandidate": "agpm-canon:/ai-pmo-implementation-method-v1-8-2-2026-05-28.md"
+    },
+    {
+      "page": "agpm/wiki/entities/agent-efficiency.md",
+      "section": "tensions",
+      "line": 162,
+      "bestTermCoverage": 0.263,
+      "claim": "Простая формула P(успеха) > время проверки / время выполнения полезна как эвристика, но не годится для операций с высокой ценой ошибки без отдельного risk-adjusted расчёта.",
+      "bestCandidate": "agpm-canon:/originals/PMBOK-8-2025_output_ru-1---48f41247-d9a4-4a60-9193-d4bdef40e6f8.docx"
+    },
+    {
+      "page": "agpm/wiki/entities/multi-agent-orchestration.md",
+      "section": "implications",
+      "line": 213,
+      "bestTermCoverage": 0.25,
+      "claim": "как передаются сигналы и где проходит верификация;",
+      "bestCandidate": "agpm-canon:/originals/PMBOK-8-2025_output_ru-1---48f41247-d9a4-4a60-9193-d4bdef40e6f8.docx"
+    },
+    {
+      "page": "agpm/wiki/overview/ontological-structure.md",
+      "section": "implications",
+      "line": 26,
+      "bestTermCoverage": 0.2,
+      "claim": "Мультиагентная оркестрация в этой логике относится прежде всего к категории management mechanisms, но затрагивает также model architecture и evaluation frameworks.",
+      "bestCandidate": "https://docs.cloud.google.com/architecture/agentic-ai-orchestrate-security-ops-workflows"
+    },
+    {
+      "page": "agpm/wiki/practices/ai-pmo-implementation-method.md",
+      "section": "tensions",
+      "line": 208,
+      "bestTermCoverage": 0.294,
+      "claim": "Комплект артефактов получен как пакет v6.3, но внутренняя строка версии указывает 6.1; в корпусе это считается несогласованностью маркировки, а не отдельной редакцией.",
+      "bestCandidate": "https://habr.com/ru/articles/1067234"
+    },
+    {
+      "page": "agpm/wiki/practices/industry-operationalization-five-role-stack.md",
+      "section": "implications",
+      "line": 80,
+      "bestTermCoverage": 0.25,
+      "claim": "Главная типовая ошибка внедрения — ранний запуск оркестратора без предварительного слоя наблюдения и аудита — должна быть зафиксирована как anti-pattern.",
+      "bestCandidate": "agpm-canon:/originals/GOST_R_ISO_21502-2024---ce3d79e1-6b35-4e31-826c-9dddae405831.pdf"
+    },
+    {
+      "page": "agpm/wiki/practices/industry-operationalization-five-role-stack.md",
+      "section": "open_questions",
+      "line": 99,
+      "bestTermCoverage": 0.231,
+      "claim": "Следует ли вынести пяти-ролевую модель в отдельный постоянный узел entities/ как прикладной deployment pattern?",
+      "bestCandidate": "agpm-canon:/gost-r-72514-2026-full-text-2026-05-02.md"
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-industries-analytical-note-2026-05.md",
+      "section": "core_claims",
+      "line": 18,
+      "bestTermCoverage": 0.154,
+      "claim": "Предлагает отраслевую матрицу стартовых уровней зрелости для ИТ, маркетинга, финуслуг, промышленности, строительства и здравоохранения/фармацевтики.",
+      "bestCandidate": "agpm-canon:/ai-pmo-implementation-method-reference-v4-3-2026-06-14.md"
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-industries-analytical-note-2026-05.md",
+      "section": "open_questions",
+      "line": 24,
+      "bestTermCoverage": 0.286,
+      "claim": "Из-за этого он полезен для операционализации, но не годится как источник канонических определений.",
+      "bestCandidate": "agpm-canon:/agpm-live-implementation-methodology-v4-2-2026-07-13.md"
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-live-methodology-2026-07-13.md",
+      "section": "implications",
+      "line": 89,
+      "bestTermCoverage": 0.2,
+      "claim": "механику заморозки конфигурации и калибровочного релиза;",
+      "bestCandidate": "agpm-canon:/originals/PMBOK-8-2025_output_ru-1---48f41247-d9a4-4a60-9193-d4bdef40e6f8.docx"
+    },
+    {
+      "page": "agpm/wiki/sources/agpm-live-methodology-2026-07-13.md",
+      "section": "tensions",
+      "line": 118,
+      "bestTermCoverage": 0.273,
+      "claim": "Приложение v1.3 сознательно хранит данные в одном JSON-файле и рассчитано на один процесс. Это допустимо для MVP и командного периметра, но не является целевой архитектурой масштабного публичного сервиса.",
+      "bestCandidate": "agpm-canon:/agpm-white-paper-v1.0-d075a34c-37b1-46cd-878b-0e7c166e6ce1.md"
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v1-8-2.md",
+      "section": "open_questions",
+      "line": 84,
+      "bestTermCoverage": 0.25,
+      "claim": "Какие элементы методики v1.8.2 должны быть повышены до статуса канон-смежного операционного синтеза?",
+      "bestCandidate": "agpm-canon:/sber-ai-disrupt-pdlc-full-docx-2026-06-14.md"
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v3-3.md",
+      "section": "core_claims",
+      "line": 41,
+      "bestTermCoverage": 0.286,
+      "claim": "Закрепление и рост стали частью жизненного цикла способности. Масштабирование описывается как маршрут Pilot → Embed → Scale → Extend в русской операционной логике: пилот, встраивание, тиражирование, расширение.",
+      "bestCandidate": "https://forbes.ru/tekhnologii/557824-razrab-raspravit-pleci-v-rossii-sozdan-pervyj-fond-dla-proektov-s-ii-agentami"
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v3-3.md",
+      "section": "tensions",
+      "line": 88,
+      "bestTermCoverage": 0.158,
+      "claim": "Термины из внешних материалов — Alignment Blueprint, Execution Path, Trust Rails, Capability Contract — полезны как мосты, но не должны становиться каноном без русской методической нормализации.",
+      "bestCandidate": "agpm-canon:/originals/AgPMBoK_v0_7_Агентное_управление_проектами_2---4a9b5d2e-baf0-467b-9513-f228b502868c.docx"
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v3-3.md",
+      "section": "open_questions",
+      "line": 101,
+      "bestTermCoverage": 0.214,
+      "claim": "Какие термины из v3.3 нужно русифицировать и закрепить до публичного использования: trust rails, capability contract, execution path?",
+      "bestCandidate": "agpm-canon:/originals/GOST_R_ISO_21502-2024---ce3d79e1-6b35-4e31-826c-9dddae405831.pdf"
+    },
+    {
+      "page": "agpm/wiki/sources/ai-pmo-implementation-method-v3-3.md",
+      "section": "open_questions",
+      "line": 102,
+      "bestTermCoverage": 0.273,
+      "claim": "Следует ли сделать отдельный узел wiki по профилю управления способностью как ответу на uniform governance?",
+      "bestCandidate": "agpm-canon:/originals/GOST_R_ISO_21502-2024---ce3d79e1-6b35-4e31-826c-9dddae405831.pdf"
+    },
+    {
+      "page": "agpm/wiki/sources/ngmn-agentic-ai-based-operating-models-v1.0.md",
+      "section": "core_claims",
+      "line": 20,
+      "bestTermCoverage": 0.278,
+      "claim": "Удерживает важную управленческую мысль: AI усиливает принятие решений и автоматизирует повторяемые действия, а люди сохраняют стратегию, governance, exception handling и supervision.",
+      "bestCandidate": "agpm-canon:/ai-pmo-market-research-2026-06-05.md"
+    },
+    {
+      "page": "agpm/wiki/sources/ngmn-agentic-ai-based-operating-models-v1.0.md",
+      "section": "open_questions",
+      "line": 25,
+      "bestTermCoverage": 0.231,
+      "claim": "Документ секторный: его базовая среда — telecom network operations, а не универсальный проектный контекст.",
+      "bestCandidate": "agpm-canon:/ngmn-agentic-ai-based-operating-models-v1.0-2026-03-24.md"
+    },
+    {
+      "page": "agpm/wiki/sources/ngmn-agentic-ai-based-operating-models-v1.0.md",
+      "section": "open_questions",
+      "line": 26,
+      "bestTermCoverage": 0.273,
+      "claim": "В тексте AI / GenAI / Agentic AI местами собраны в одну семью без строгого онтологического разведения.",
+      "bestCandidate": "agpm-canon:/sber-ai-disrupt-pdlc-full-docx-2026-06-14.md"
+    }
+  ],
+  "reading": "An open question is a question, not an assertion, and needs no evidence - nine of the twenty-four low-coverage items are questions. The fifteen that remain are the real work: three core claims, eight implications and four tensions that the store, as it stands, cannot support. Several of those are also list sub-items rather than whole claims, which is a limit of extracting claims from list markup and is why the other twenty-nine pages need prose segmentation rather than a parser."
+}

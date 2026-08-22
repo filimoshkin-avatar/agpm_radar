@@ -46,6 +46,42 @@ MIN_CLAIM_CHARS = 40
 #: model should land; the perimeter is where a claim about the market should.
 SCOPES = ("canon", "current")
 
+#: With an OR query almost every claim retrieves something, so "a candidate
+#: exists" carries no information. Term coverage does: what share of the claim's
+#: own lexemes the passage actually contains. These are reporting buckets, not a
+#: verdict - the verdict is a human's, over an exact span, in slice 2.6.
+COVERAGE_BANDS = ((0.60, "high"), (0.30, "medium"), (0.0, "low"))
+
+_COVERAGE_SQL = """
+WITH terms AS (
+    SELECT tsvector_to_array(to_tsvector(%(config)s::regconfig, %(claim)s)) AS claim_terms,
+           tsvector_to_array(to_tsvector(%(config)s::regconfig, chunks.text)) AS chunk_terms
+    FROM kx.chunks WHERE chunk_id = %(chunk_id)s
+)
+SELECT cardinality(claim_terms) AS claim_terms,
+       cardinality(ARRAY(SELECT unnest(claim_terms) INTERSECT SELECT unnest(chunk_terms)))
+           AS shared
+FROM terms
+"""
+
+
+def band(coverage: float) -> str:
+    for floor, name in COVERAGE_BANDS:
+        if coverage >= floor:
+            return name
+    return "low"
+
+
+def term_coverage(database: Database, *, chunk_id: str, claim: str, language: str) -> float:
+    """Share of the claim's lexemes that the passage contains."""
+    config = "russian" if language == "ru" else "english"
+    with database.connect() as connection, connection.cursor() as cursor:
+        cursor.execute(_COVERAGE_SQL, {"config": config, "claim": claim, "chunk_id": chunk_id})
+        row = cursor.fetchone()
+    if row is None or not int(row["claim_terms"]):
+        return 0.0
+    return int(row["shared"]) / int(row["claim_terms"])
+
 
 def _settings(dsn: str) -> Settings:
     base = Settings.from_environment()
@@ -60,6 +96,8 @@ def bind(
     ]
     results: list[dict[str, Any]] = []
     per_scope: Counter[str] = Counter()
+    bands: Counter[str] = Counter()
+    best_by_claim: list[float] = []
     bound = 0
     total = 0
     skipped = 0
@@ -74,14 +112,23 @@ def bind(
             hits: list[dict[str, Any]] = []
             for scope in SCOPES:
                 for hit in database.search(text, scope=scope, limit=limit, match=match):
-                    hits.append({**hit.as_json(), "scope": scope})
+                    coverage = term_coverage(
+                        database, chunk_id=hit.chunk_id, claim=text, language=hit.language
+                    )
+                    hits.append(
+                        {**hit.as_json(), "scope": scope, "termCoverage": round(coverage, 3)}
+                    )
                     per_scope[scope] += 1
-            hits.sort(key=lambda item: float(item["rrfScore"]), reverse=True)
+            hits.sort(key=lambda item: float(item["termCoverage"]), reverse=True)
+            best = float(hits[0]["termCoverage"]) if hits else 0.0
+            bands[band(best)] += 1
             if hits:
                 bound += 1
+            best_by_claim.append(best)
             results.append(
                 {
                     "page": page["relativePath"],
+                    "bestTermCoverage": round(best, 3),
                     "section": claim["section"],
                     "line": claim["line"],
                     "claim": text,
@@ -90,7 +137,10 @@ def bind(
             )
 
     by_page = Counter(item["page"] for item in results)
-    unsupported = Counter(item["page"] for item in results if not item["candidates"])
+    unsupported = Counter(
+        item["page"] for item in results if float(item["bestTermCoverage"]) < 0.30
+    )
+    ordered = sorted(best_by_claim)
     return {
         "summary": {
             "pages": len(pages),
@@ -98,6 +148,8 @@ def bind(
             "claimsTooShortToSearch": skipped,
             "claimsWithACandidate": bound,
             "claimsWithNoCandidate": total - bound,
+            "byTermCoverage": dict(sorted(bands.items())),
+            "medianBestTermCoverage": (round(ordered[len(ordered) // 2], 3) if ordered else 0.0),
             "candidateHitsByScope": dict(sorted(per_scope.items())),
             "match": match,
             "limitPerScope": limit,
@@ -106,13 +158,14 @@ def bind(
             {
                 "page": page,
                 "claims": by_page[page],
-                "claimsWithNoCandidate": unsupported.get(page, 0),
+                "claimsBelowMediumCoverage": unsupported.get(page, 0),
             }
             for page in sorted(by_page)
         ],
         "claims": results,
         "caveat": (
-            "A candidate is a lexical hit, not evidence. ADR-0004 admits nothing to "
+            "A candidate is a lexical hit, not evidence, and term coverage is a hint at "
+            "how promising it is - not a verdict. ADR-0004 admits nothing to "
             "claim_evidence without an exact span bound to an accepted claim, and both "
             "arrive with slice 2.6. This report says only where somebody should look."
         ),
