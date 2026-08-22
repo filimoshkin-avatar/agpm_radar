@@ -148,6 +148,13 @@ def test_a_host_declining_this_client_is_not_the_document_being_unavailable() ->
     for error_code in ("http_403", "http_429"):
         step = next_step(profile=profile, tried=["network"], error_code=error_code)
         assert step.rung == "network_browser_headers"
+    # And with no profile it is one decision away, not a page to read.
+    default = next_step(
+        profile=HostProfile(host="x.example"), tried=["network"], error_code="http_403"
+    )
+    assert default.terminal_reason == "blocked_by_host"
+    assert default.next_action_owner == "owner"
+    assert "network_browser_headers" in default.detail
     # A 5xx is the host having a bad minute, not the host declining this client.
     assert (
         next_step(profile=profile, tried=["network"], error_code="http_503").terminal_reason
