@@ -9,7 +9,7 @@ from typing import Any
 import psycopg
 import pytest
 
-from conftest import apply_migration_003, connect
+from conftest import apply_migration_003, connect, one
 
 NOW = datetime(2026, 8, 22, 6, 19, 43, tzinfo=UTC)
 
@@ -69,7 +69,7 @@ def _insert_provenance(dsn: str, version: str, **fields: Any) -> None:
 
 def test_migration_lands_on_the_repository_baseline(baseline_dsn: str) -> None:
     apply_migration_003(baseline_dsn)
-    assert _scalar(baseline_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 3
+    assert _scalar(baseline_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
 
 
 def test_migration_lands_on_the_drifted_production_schema(drifted_dsn: str) -> None:
@@ -77,7 +77,7 @@ def test_migration_lands_on_the_drifted_production_schema(drifted_dsn: str) -> N
     # migration has to be idempotent against it, or the repository can never
     # describe production again.
     apply_migration_003(drifted_dsn)
-    assert _scalar(drifted_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 3
+    assert _scalar(drifted_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
     definition = _scalar(
         drifted_dsn,
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint"
@@ -199,15 +199,16 @@ def test_current_provenance_is_the_latest_row(migrated_dsn: str) -> None:
 
 def test_publication_blocks_default_to_no(migrated_dsn: str) -> None:
     unrecorded = _seed_version(migrated_dsn, url="https://example.com/unrecorded")
-    flagged = _seed_version(migrated_dsn, url="https://example.com/flagged")
+    ours = _seed_version(migrated_dsn, url="https://example.com/our-own-excerpt")
     clean = _seed_version(migrated_dsn, url="https://example.com/clean")
     _insert_provenance(
         migrated_dsn,
-        flagged,
-        source_access_method="web_archive",
-        archive_used=True,
+        ours,
+        source_access_method="local_import",
+        provided_by="pm",
+        provided_at=NOW,
         manual_review_required=True,
-        manual_review_reason="no snapshot identity",
+        manual_review_reason="our excerpt of the source, not the source text",
     )
     _insert_provenance(migrated_dsn, clean, source_access_method="http_default")
     with connect(migrated_dsn) as connection, connection.cursor() as cursor:
@@ -215,9 +216,48 @@ def test_publication_blocks_default_to_no(migrated_dsn: str) -> None:
         blocks = {str(row["version_id"]): row["block_reason"] for row in cursor.fetchall()}
     assert blocks == {
         unrecorded: "provenance_missing",
-        flagged: "provenance_manual_review",
+        ours: "provenance_manual_review",
     }
     assert clean not in blocks
+
+
+def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(migrated_dsn: str) -> None:
+    # Owner decision 2026-08-22 (ADR-0004, rule 21a). The words are the source's; what
+    # is missing is the reader's ability to re-check them at that snapshot. That is
+    # a statement about the link, and the reader is told it.
+    archived = _seed_version(migrated_dsn, url="https://adopt.ai/blog/enterprise-ai-agents")
+    _insert_provenance(
+        migrated_dsn,
+        archived,
+        source_access_method="web_archive",
+        archive_used=True,
+        manual_review_required=True,
+        manual_review_reason="snapshot URL and capture date were not recorded",
+    )
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) AS count FROM kx.version_publication_block")
+        assert one(cursor)["count"] == 0
+        cursor.execute("SELECT caveat, caveat_detail FROM kx.version_publication_caveat")
+        row = one(cursor)
+        assert row["caveat"] == "archive_snapshot_not_recorded"
+        assert "snapshot" in str(row["caveat_detail"])
+
+
+def test_an_archive_with_its_snapshot_carries_no_caveat_at_all(migrated_dsn: str) -> None:
+    archived = _seed_version(migrated_dsn, url="https://example.com/archived")
+    _insert_provenance(
+        migrated_dsn,
+        archived,
+        source_access_method="web_archive",
+        archive_used=True,
+        archive_url="https://web.archive.org/web/20260101/https://example.com/archived",
+        archive_captured_at=NOW,
+    )
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) AS count FROM kx.version_publication_caveat")
+        assert one(cursor)["count"] == 0
+        cursor.execute("SELECT count(*) AS count FROM kx.version_publication_block")
+        assert one(cursor)["count"] == 0
 
 
 def test_the_canon_url_scheme_is_reserved_and_nothing_else_is(migrated_dsn: str) -> None:

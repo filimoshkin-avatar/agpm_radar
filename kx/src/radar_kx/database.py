@@ -32,7 +32,7 @@ from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 PERIMETER_PRIORITY = 100
 
 #: Source kinds a network fetch may record. The ladder rungs that are HTTP

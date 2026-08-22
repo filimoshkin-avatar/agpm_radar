@@ -162,8 +162,15 @@ def test_the_worker_gate_matches_the_migration_it_requires() -> None:
     # SCHEMA_VERSION is a hard gate (defect D2): the release refuses to run against
     # a database at any other version, so the two must move together and in the
     # order "database first, release second".
-    assert "SCHEMA_VERSION = 3" in source
+    assert "SCHEMA_VERSION = 4" in source
     assert "UPDATE metadata SET value = '3'::jsonb" in schema
+    caveat = (Path(__file__).parents[1] / "sql" / "004_publication_caveat.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "UPDATE metadata SET value = '4'::jsonb" in caveat
+    # A refusal and a caveat are different answers and must be different views.
+    assert "CREATE VIEW version_publication_block" in caveat
+    assert "CREATE VIEW version_publication_caveat" in caveat
 
 
 def test_a_network_fetch_can_never_be_recorded_as_an_operator_artifact() -> None:

@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: proposed — awaiting owner approval
+Status: accepted 2026-08-22 by the owner
 
 ## Context
 
@@ -68,6 +68,10 @@ inferred.
 11. A family is an editorial fact, not a computed one. It is proposed by domain and by observed
     syndication, and confirmed by a person. An append-only decision event records who confirmed it
     (ADR-0006, §3).
+11а. **The machine proposes and the owner confirms in batches, weekly** (owner decision,
+    2026-08-22). Per-family decisions would not fit the 15-30 minutes a day of P15 - the perimeter
+    alone spans 198 hosts. The batch is a list with the evidence for each proposed grouping, and
+    confirming it is one decision event per family, not one per document.
 12. Absence of a family is not independence. A document with no family assignment is treated as
     **unknown**, and an unknown never satisfies a "two independent sources" requirement. Fail-closed:
     the default is not "presumed independent".

@@ -271,8 +271,8 @@ def test_import_stores_the_version_and_its_provenance(
         cursor.execute("SELECT count(*) AS count FROM kx.fetch_attempts")
         # No HTTP request happened, so none is recorded. Inventing one is the D9 bug.
         assert one(cursor)["count"] == 0
-        cursor.execute("SELECT block_reason FROM kx.version_publication_block")
-        assert one(cursor)["block_reason"] == "provenance_manual_review"
+        cursor.execute("SELECT caveat FROM kx.version_publication_caveat")
+        assert one(cursor)["caveat"] == "archive_snapshot_not_recorded"
 
 
 def test_reimporting_the_same_artifact_changes_nothing(

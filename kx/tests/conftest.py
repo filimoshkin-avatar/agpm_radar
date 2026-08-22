@@ -28,7 +28,10 @@ BASELINE_MIGRATIONS = (
     "001_initial.sql",
     "002_issue_perimeter.sql",
 )
-MIGRATION_003 = "003_provenance_and_publication.sql"
+MIGRATIONS_AFTER_BASELINE = (
+    "003_provenance_and_publication.sql",
+    "004_publication_caveat.sql",
+)
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
 #: was added straight to the running database, so the repository schema and
@@ -114,12 +117,12 @@ def drifted_dsn() -> Iterator[str]:
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
     """A database at schema 3."""
-    _apply(baseline_dsn, (MIGRATION_003,))
+    _apply(baseline_dsn, MIGRATIONS_AFTER_BASELINE)
     return baseline_dsn
 
 
 def apply_migration_003(dsn: str) -> None:
-    _apply(dsn, (MIGRATION_003,))
+    _apply(dsn, MIGRATIONS_AFTER_BASELINE)
 
 
 def connect(dsn: str) -> Connection[dict[str, object]]:

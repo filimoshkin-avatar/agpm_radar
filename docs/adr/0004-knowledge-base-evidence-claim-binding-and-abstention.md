@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: proposed — awaiting owner approval
+Status: accepted 2026-08-22 by the owner
 
 ## Context
 
@@ -45,6 +45,13 @@ there is no basis. It does not specify the extraction pipeline (slice 2.6), the 
 
 6. In strict mode **every factual clause of a generated text must reference an accepted `claim_id`
    and the exact evidence of that claim.**
+6а. **The strict mode is the public one; the research mode checks tokens** (owner decision,
+   2026-08-22). An authenticated researcher gets numbers, dates, units, quotations and links checked
+   against their spans, without full clause-level binding, because the reader is a person who can
+   see the sources. The risk this accepts is that a researcher's finding travels into publication
+   uncontrolled, and it is closed structurally: **the publication path re-runs the full strict check
+   on the authored text, always.** Nothing reaches a reader on the strength of a research-mode
+   answer.
 7. Free model text with no claim binding is an error. Connective phrasing that carries no factual
    content is allowed and is marked as non-substantive; everything else unbound is a defect, not a
    style issue.
@@ -59,6 +66,13 @@ there is no basis. It does not specify the extraction pipeline (slice 2.6), the 
 9. When there is no basis, the answer is a structural refusal, not a hedged sentence. "Probably",
    "it appears that" and "sources suggest" are ways of publishing an unsupported claim while sounding
    careful, and they are forbidden in strict mode.
+9а. **A refusal is accompanied by what the base does support nearby** (owner decision, 2026-08-22):
+   "there is no basis for this, and here is what there is basis for". The adjacent material is
+   itself under the full contract - every clause bound, every span exact - so this cannot become a
+   way to answer a question the refusal just declined. Two rules make that structural rather than
+   hopeful: the adjacent statements are retrieved for the *question*, never for the refused claim,
+   and the refusal is rendered first and separately, never merged into a paragraph that reads like
+   an answer. Without both, "adjacent" degrades into the hedging rule 9 forbids.
 10. **A refusal carries an internal reason code**, not only a sentence:
     - `no_evidence` — the fact is not in the evidence base at all;
     - `out_of_scope` — the fact is in the evidence base but not reachable from the asker's scope.
@@ -73,7 +87,9 @@ there is no basis. It does not specify the extraction pipeline (slice 2.6), the 
 
 12. A quotation, a figure or a translation publishes with no human and no batch approval when **all**
     of the following hold. Any one of them failing sends the element to `publication_quarantine`
-    with the reason, and never out with a caveat:
+    with the reason. None of them may be waived by a caveat - a note saying "this figure might be
+    wrong" is not a substitute for checking it. The caveat of rule 21а is a different thing: it is a
+    statement about the **link**, on material whose span, hashes and figures have all passed:
     1. the original quotation matches its immutable span exactly;
     2. coordinates, hash, URL and provenance are valid;
     3. figures, dates, units and proper names pass their deterministic checks;
@@ -104,9 +120,16 @@ there is no basis. It does not specify the extraction pipeline (slice 2.6), the 
     rule for every kind of source, standards included (P34). The limit is enforced by the automatic
     publication check, not by editorial care.
 21. **A quotation and its link point at the version the quotation came from.** Text taken from a web
-    archive links to the archive snapshot and its capture date. Migration 003 makes this computable:
-    `version_publication_block` refuses any version whose provenance is missing, flagged for review,
-    or claims an archive with no snapshot identity. Four documents are in that state today.
+    archive links to the archive snapshot and its capture date where one was recorded.
+21а. **Where the snapshot was not recorded, the quotation publishes with a visible caveat rather
+    than being withheld** (owner decision, 2026-08-22, amending rule 19 of the plan). The label says
+    what is true: the text came from a web archive and the snapshot was not preserved, so the reader
+    cannot re-check it at the source. Four documents are in that state - adopt.ai and three McKinsey
+    pages. This is a deliberate trade: the material is more useful published-with-a-caveat than
+    withheld, and the caveat is not a hedge about the *content* but a statement about the *link*.
+21б. Provenance that is missing entirely still blocks. So does a canon file that is our own excerpt
+    or note rather than the source text: those are our words, and attributing them to the source
+    would be a false quotation, which no caveat repairs.
 22. How a document was obtained does not affect whether it may be quoted (P11). Restrictions come
     from access classes (ADR-0005), never from the type of the source.
 
