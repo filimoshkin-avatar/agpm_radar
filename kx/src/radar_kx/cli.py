@@ -18,6 +18,7 @@ from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
+from radar_kx.search import SCOPES
 from radar_kx.worker import run_until_idle
 
 
@@ -55,6 +56,13 @@ def _parser() -> argparse.ArgumentParser:
     import_cache_parser = subparsers.add_parser("import-cache")
     import_cache_parser.add_argument("--metadata-dir", type=Path, required=True)
     import_cache_parser.add_argument("--fulltext-dir", type=Path, required=True)
+
+    search_parser = subparsers.add_parser("search")
+    search_parser.add_argument("query")
+    search_parser.add_argument("--scope", choices=sorted(SCOPES), default="current")
+    search_parser.add_argument("--limit", type=int, default=10)
+
+    subparsers.add_parser("coverage-report")
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--workers", type=int, default=8)
@@ -136,6 +144,22 @@ def main() -> None:
     if args.command == "run":
         _print_json(run_until_idle(settings, workers=args.workers))
         return
+    if args.command == "search":
+        _print_json(
+            {
+                "query": args.query,
+                "scope": args.scope,
+                "hits": [
+                    hit.as_json()
+                    for hit in database.search(args.query, scope=args.scope, limit=args.limit)
+                ],
+            }
+        )
+        return
+    if args.command == "coverage-report":
+        coverage = database.coverage_report()
+        _print_json(coverage)
+        raise SystemExit(0 if coverage["status"] == "ok" else 1)
     if args.command == "status":
         _print_json(database.status())
         return

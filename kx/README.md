@@ -47,6 +47,13 @@ Only a faithful conversion of a source may back a quotation attributed to it; a 
 a note we wrote is imported with provenance that blocks public quotation.
 `docs/radar-kb-canon-corpus-2026-08-22.md` records the measurement and the fidelity table.
 
+`radar_kx search` is the internal lexical search: PostgreSQL full text over the existing Russian and
+English indexes, fused by reciprocal rank, scoped to one membership class the caller names. Every
+snippet reports the character range it occupies in the version's canonical text, and the range is
+checked against the stored text before the hit is returned. `radar_kx coverage-report` counts each
+class separately and gates on perimeter completeness plus two full-text smoke floors.
+`docs/radar-kb-internal-search-2026-08-22.md` records the design and the production check.
+
 See `docs/radar-kx-production-fulltext-2026-08-21.md` for the accepted topology and operational
 evidence, and `docs/radar-kx-issue-perimeter-2026-08-21.md` for the perimeter contract, the robots
 override policy, and its production evidence.

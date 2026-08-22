@@ -29,6 +29,7 @@ from radar_kx.identifiers import (
 from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
+from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 
 SCHEMA_VERSION = 3
@@ -120,6 +121,14 @@ class ProvenanceOutcome:
     document_id: str
     appended: int
     unchanged: int
+
+
+def one_row(cursor: psycopg.Cursor[dict[str, Any]]) -> dict[str, Any]:
+    """The single row an aggregate query always returns."""
+    row = cursor.fetchone()
+    if row is None:
+        raise RuntimeError("aggregate query returned no row")
+    return row
 
 
 class Database:
@@ -1411,6 +1420,131 @@ class Database:
                 (limit,),
             )
             yield from cursor.fetchall()
+
+    def search(self, query: str, *, scope: str, limit: int) -> list[SearchHit]:
+        """Lexical search over one membership class, fused across ru and en.
+
+        The snippet offsets each hit reports are checked against the stored
+        canonical text before the hit is returned: an offset that does not
+        reproduce its own snippet is a lie the evidence layer would then build on.
+        """
+        statement = search_sql(scope)
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    statement,
+                    {"query": query, "limit": limit, "rrf_k": RRF_K},
+                )
+                rows = cursor.fetchall()
+                hits = [build_hit(row) for row in rows]
+                self._assert_offsets_reproduce_snippets(cursor, hits)
+        return hits
+
+    @staticmethod
+    def _assert_offsets_reproduce_snippets(
+        cursor: psycopg.Cursor[dict[str, Any]], hits: Sequence[SearchHit]
+    ) -> None:
+        if not hits:
+            return
+        cursor.execute(
+            """
+            SELECT version_id, char_start, char_end, expected,
+                   substr(canonical_text, char_start + 1, char_end - char_start) AS actual
+            FROM unnest(%s::text[], %s::int[], %s::int[], %s::text[])
+                 AS spans(version_id, char_start, char_end, expected)
+            JOIN kx.document_versions USING (version_id)
+            """,
+            (
+                [hit.version_id for hit in hits],
+                [hit.char_start for hit in hits],
+                [hit.char_end for hit in hits],
+                [hit.snippet for hit in hits],
+            ),
+        )
+        for row in cursor.fetchall():
+            if row["actual"] != row["expected"]:
+                raise RuntimeError(
+                    "search snippet does not match its own offsets in version "
+                    f"{row['version_id']} [{row['char_start']}, {row['char_end']})"
+                )
+
+    def coverage_report(self) -> dict[str, Any]:
+        """Counts per membership class, plus the full-text smoke gate.
+
+        The classes are reported separately and never summed: coverage over the
+        issue perimeter, over the whole corpus and over the canon answer three
+        different questions, and a single percentage over their union would be
+        meaningless (corpus-membership contract §9).
+        """
+        report: dict[str, Any] = {"scopes": {}, "smoke": [], "gate": {}}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                for scope, documents in SCOPES.items():
+                    cursor.execute(
+                        f"""
+                        WITH scope_documents AS ({documents})
+                        SELECT count(DISTINCT documents.document_id) AS documents,
+                               count(DISTINCT versions.document_id)
+                                   FILTER (WHERE versions.is_complete) AS complete_documents,
+                               count(versions.version_id)
+                                   FILTER (WHERE versions.is_complete) AS complete_versions,
+                               coalesce(sum(length(versions.canonical_text))
+                                   FILTER (WHERE versions.is_complete), 0) AS characters
+                        FROM scope_documents
+                        JOIN kx.documents USING (document_id)
+                        LEFT JOIN kx.document_versions AS versions USING (document_id)
+                        """  # noqa: S608 - `documents` is a constant from SCOPES, never input
+                    )
+                    counts = dict(one_row(cursor))
+                    cursor.execute(
+                        f"""
+                        WITH scope_documents AS ({documents})
+                        SELECT count(*) AS chunks
+                        FROM kx.chunks
+                        JOIN kx.document_versions AS versions USING (version_id)
+                        JOIN scope_documents USING (document_id)
+                        WHERE versions.is_complete
+                        """  # noqa: S608 - same constant
+                    )
+                    counts["chunks"] = one_row(cursor)["chunks"]
+                    total = int(counts["documents"])
+                    complete = int(counts["complete_documents"])
+                    counts["completeShare"] = (complete / total) if total else 0.0
+                    report["scopes"][scope] = counts
+
+                for query, configuration, floor in SMOKE_QUERIES:
+                    cursor.execute(
+                        """
+                        SELECT count(*) AS chunks
+                        FROM kx.chunks
+                        WHERE to_tsvector(%s::regconfig, text)
+                              @@ websearch_to_tsquery(%s::regconfig, %s)
+                        """,
+                        (configuration, configuration, query),
+                    )
+                    found = int(one_row(cursor)["chunks"])
+                    report["smoke"].append(
+                        {
+                            "query": query,
+                            "configuration": configuration,
+                            "floor": floor,
+                            "chunks": found,
+                            "ok": found >= floor,
+                        }
+                    )
+
+        perimeter = report["scopes"]["current"]
+        report["gate"] = {
+            # An empty perimeter is not a complete one. Vacuous truth here would
+            # report a green gate on a store that holds nothing.
+            "perimeterFullTextComplete": int(perimeter["documents"]) > 0
+            and perimeter["documents"] == perimeter["complete_documents"],
+            "smokeQueriesMeetTheirFloor": all(item["ok"] for item in report["smoke"]),
+        }
+        report["status"] = "ok" if all(report["gate"].values()) else "failed"
+        return report
 
     def verify(self, *, full: bool) -> dict[str, Any]:
         errors: list[str] = []
