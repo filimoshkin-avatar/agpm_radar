@@ -36,6 +36,17 @@ from radar_kx.url_policy import UnsafeUrlError, canonical_identity_url
 
 SCOPES = ("source_fulltext", "discovery_registry")
 
+#: Whether "KX holds this and the file store does not" means anything for a
+#: scope. The text cache is a working copy of a handful of documents and was never
+#: meant to mirror the store, so reporting the other 5945 as divergence is noise
+#: that hides the five that matter. The discovery registry is different: it is
+#: supposed to be where everything was first seen, so a document KX holds and the
+#: registry does not is a real gap.
+KX_SIDE_IS_MEANINGFUL = {"source_fulltext": False, "discovery_registry": True}
+
+#: Whether the scope compares text as well as existence.
+SCOPE_COMPARES_TEXT = {"source_fulltext": True, "discovery_registry": False}
+
 #: How many diverging items the report names. The counts are exact; the lists are
 #: capped so one bad day cannot write a megabyte into an immutable table.
 MAX_LISTED = 200
@@ -108,6 +119,7 @@ class Reconciliation:
             "onlyInKx": list(self.only_in_kx[:MAX_LISTED]),
             "differing": [dict(item) for item in self.differing[:MAX_LISTED]],
             "unaddressable": list(self.unaddressable[:MAX_LISTED]),
+            "kxSideCompared": KX_SIDE_IS_MEANINGFUL.get(self.scope, True),
             "listCap": MAX_LISTED,
             "truncated": {
                 "onlyInFileStore": max(0, len(self.only_in_file_store) - MAX_LISTED),
@@ -137,10 +149,15 @@ def compare(
 ) -> Reconciliation:
     """Compare the file inventory with what KX holds, keyed by document id.
 
-    ``kx`` maps document id to at least ``hasCompleteVersion`` and ``chars``. For
-    ``source_fulltext`` a document that exists without a complete version counts
-    as divergent: the file contour has readable text and the evidence base does
-    not, which is precisely the case that breaks a citation.
+    ``kx`` maps document id to ``hasCompleteVersion`` and ``canonicalUrl``, and
+    carries **every** document - including those nothing could fetch. That matters:
+    a document KX knows about but holds no text for is the case that breaks a
+    citation, and filtering it out of the lookup would silently reclassify it as
+    "the file store invented this".
+
+    What the scope decides is the direction. For the text cache only file -> KX is
+    meaningful; the store holds 6015 texts and the cache 75, and reporting the
+    difference as divergence buries the finding.
     """
     only_in_files: list[str] = []
     differing: list[dict[str, Any]] = []
@@ -157,7 +174,7 @@ def compare(
         if known is None:
             only_in_files.append(entry.canonical_url)
             continue
-        if scope == "source_fulltext" and not bool(known.get("hasCompleteVersion")):
+        if SCOPE_COMPARES_TEXT.get(scope, False) and not bool(known.get("hasCompleteVersion")):
             differing.append(
                 {
                     "canonicalUrl": entry.canonical_url,
@@ -167,8 +184,12 @@ def compare(
                 }
             )
 
-    only_in_kx = sorted(
-        str(value.get("canonicalUrl") or key) for key, value in kx.items() if key not in seen
+    only_in_kx = (
+        sorted(
+            str(value.get("canonicalUrl") or key) for key, value in kx.items() if key not in seen
+        )
+        if KX_SIDE_IS_MEANINGFUL.get(scope, True)
+        else []
     )
     return Reconciliation(
         scope=scope,

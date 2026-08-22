@@ -80,14 +80,26 @@ def test_the_registry_scope_does_not_ask_for_text() -> None:
     assert result.differing == ()
 
 
-def test_documents_only_kx_holds_are_named() -> None:
-    result = compare(
+def test_documents_only_kx_holds_are_named_where_that_direction_means_something() -> None:
+    # The registry is supposed to be where everything was first seen, so a
+    # document KX holds and the registry does not is a real gap.
+    registry = compare(
+        "discovery_registry",
+        [_entry("https://example.com/a")],
+        _kx("https://example.com/a", "https://example.com/kx-only"),
+        source={},
+    )
+    assert registry.only_in_kx == ("https://example.com/kx-only",)
+    # The text cache is a working copy of a handful of documents. Reporting the
+    # other six thousand as divergence would bury the five that matter.
+    cache = compare(
         "source_fulltext",
         [_entry("https://example.com/a")],
         _kx("https://example.com/a", "https://example.com/kx-only"),
         source={},
     )
-    assert result.only_in_kx == ("https://example.com/kx-only",)
+    assert cache.only_in_kx == ()
+    assert cache.payload()["kxSideCompared"] is False
 
 
 def test_a_url_that_cannot_be_addressed_is_reported_not_silently_dropped() -> None:
@@ -183,18 +195,22 @@ def test_the_report_is_recorded_and_immutable(migrated_dsn: str) -> None:
             cursor.execute("UPDATE kx.store_reconciliation_reports SET scope = 'edited'")
 
 
-def test_the_fulltext_scope_ignores_documents_kx_could_not_fetch(migrated_dsn: str) -> None:
-    # 2334 documents in production have no complete version. Counting them as
-    # "only in KX" against a 75-file text cache would bury the real finding under
-    # a known and separate problem.
+def test_a_document_kx_knows_but_holds_no_text_for_is_divergence_not_absence(
+    migrated_dsn: str,
+) -> None:
+    # The first production run got this wrong: filtering unfetched documents out
+    # of the lookup reclassified them as "only in the file store", which reads as
+    # "the cache invented this" instead of "we cannot cite what we can read".
     database = Database(_settings(migrated_dsn))
+    url = "https://example.com/known-but-empty"
     with connect(migrated_dsn) as connection, connection.cursor() as cursor:
         cursor.execute(
             "INSERT INTO kx.documents (document_id, canonical_url) VALUES (%s, %s)",
-            ("f" * 64, "https://example.com/never-fetched"),
+            (_entry(url).document_id, url),
         )
     outcome = database.record_store_reconciliation(
-        "source_fulltext", [], source={}, generated_by="test"
+        "source_fulltext", [_entry(url, chars=16_026)], source={}, generated_by="test"
     )
-    assert outcome["kxCount"] == 0
+    assert outcome["onlyInFileStore"] == 0
+    assert outcome["differing"] == 1
     assert outcome["onlyInKx"] == 0
