@@ -1,0 +1,754 @@
+{
+  "families": [
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "aiagenta.ru"
+        ],
+        "registrableDomain": "aiagenta.ru"
+      },
+      "action": "confirmed",
+      "displayName": "aiagenta.ru",
+      "documentIds": [
+        "0fc3a4c3bb697c29e8fb769b714df11b7d4031bb87fe7dadb39e1ddb99e738a8",
+        "b459ff0640bc2ddfadb982a94cc9a0df8515e1578ea46ec0cd92122ab1f14ff1"
+      ],
+      "familyKey": "aiagenta-ru",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain aiagenta.ru; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "aiagentsdirectory.com"
+        ],
+        "registrableDomain": "aiagentsdirectory.com"
+      },
+      "action": "confirmed",
+      "displayName": "aiagentsdirectory.com",
+      "documentIds": [
+        "9ea6b007fe59aefab4d8be62750b8633358eccddc675aab7e7c66c8d52af5976",
+        "b7e099c0be2833b715c8a011014503d89543374a91da0c45293b36777e4806ac"
+      ],
+      "familyKey": "aiagentsdirectory-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain aiagentsdirectory.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "aigovernance.com"
+        ],
+        "registrableDomain": "aigovernance.com"
+      },
+      "action": "confirmed",
+      "displayName": "aigovernance.com",
+      "documentIds": [
+        "2c4b1a4bb6feef9caa0433ea8dc9212337e5338d7dc473816aed2ff9ca46acf9",
+        "63b0a476dacb5a5d44fbabb2c2853ea1af27ee2fbf9c04bc669d2e55b4ccf6fb",
+        "8afe398b2633f096181c0d19bc047d43bc48dde9e429dd4a0a97a75cc3ca5a2e"
+      ],
+      "familyKey": "aigovernance-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain aigovernance.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 6,
+        "hosts": [
+          "arxiv.org"
+        ],
+        "registrableDomain": "arxiv.org"
+      },
+      "action": "confirmed",
+      "displayName": "arxiv.org",
+      "documentIds": [
+        "33ebdc85c6d4c95a7fc9f134a5d8488d0c27bc86adc77b5239b2eb2a187f2c78",
+        "5b351d8aea691f61d6305a1026672cb73dbdf9bc555d27754ccb0b5eacd28dbe",
+        "98aed69579fa834129519cc50b7304a92c3367f2dd20a025ea0677a3735368d3",
+        "a28808538027948505aa8bd606adb89c463af0429b5d6908710ba707867a5c7e",
+        "a55dafd4b6b3b2c1a4cfcb1998d5ae419617661f0aa70bc89e369ad0d8212b34",
+        "c5078a47a6fbb85b25c5b220c30cb5110d2250b79774e754eddba8f0c9592f96"
+      ],
+      "familyKey": "arxiv-org",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain arxiv.org; 6 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "bcg.com"
+        ],
+        "registrableDomain": "bcg.com"
+      },
+      "action": "confirmed",
+      "displayName": "bcg.com",
+      "documentIds": [
+        "6dbf4e77b92d07fef69b744e7b29aebd43a5ac4dd8ae44563e9fb9e744bf33a6",
+        "bac05dfbc53a7a5c2c80546b8738f3440c4e4a11a307d9e1f5a8af078b71e975",
+        "e5cdd0824d05c86241cf5e79504d4040ca39f5b293515d11c0dc28fdd49d997d"
+      ],
+      "familyKey": "bcg-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain bcg.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "boostedcrm.com"
+        ],
+        "registrableDomain": "boostedcrm.com"
+      },
+      "action": "confirmed",
+      "displayName": "boostedcrm.com",
+      "documentIds": [
+        "8a70563675a2844fd066fad0325ac2c72da6ba7b4fe93983cd47f865c3007d1e",
+        "97d8322419d1829b4a8b0989c70860e5e8d27da2d3119d8d30a1a48cb431aa4e"
+      ],
+      "familyKey": "boostedcrm-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain boostedcrm.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "buttondown.com"
+        ],
+        "registrableDomain": "buttondown.com"
+      },
+      "action": "confirmed",
+      "displayName": "buttondown.com",
+      "documentIds": [
+        "89d220af0f1a59a1e744bd163bc02bcb4d723f5dd8e845cfc8f64b0874e9653c",
+        "981ab8b1389224ac805760879702bda2b78070233b6ab2bb92f284c534a49621"
+      ],
+      "familyKey": "buttondown-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain buttondown.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 4,
+        "hosts": [
+          "cloudsecurityalliance.org",
+          "labs.cloudsecurityalliance.org"
+        ],
+        "registrableDomain": "cloudsecurityalliance.org"
+      },
+      "action": "confirmed",
+      "displayName": "cloudsecurityalliance.org",
+      "documentIds": [
+        "03454d6faf238772a9acd8970104326d309dafab49f22106e1d8944c2ec89bd8",
+        "0ddaabdeb6b0396cbb96e49b17c91644113f0b8f74464209c90e6e7ad3f647e6",
+        "6e5459acb21acb27205bbc66a6ee6f015723a7407bfd035cd33f37d7fc84bb6a",
+        "71e98d6a44aed312514e12b4f559649ad4880f795c90e4898836d64ddc734b7d"
+      ],
+      "familyKey": "cloudsecurityalliance-org",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain cloudsecurityalliance.org; 4 documents across 2 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "dataiku.com"
+        ],
+        "registrableDomain": "dataiku.com"
+      },
+      "action": "confirmed",
+      "displayName": "dataiku.com",
+      "documentIds": [
+        "544c5994bcccf0d0c5cb1a31ab32ef1c628f6a09cf0fa46064b0df9324792c6e",
+        "828572a3028af089ac41c6c1e5e21fee5db1e5135ba00ac35716d6553415e313"
+      ],
+      "familyKey": "dataiku-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain dataiku.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 5,
+        "hosts": [
+          "deloitte.com"
+        ],
+        "registrableDomain": "deloitte.com"
+      },
+      "action": "confirmed",
+      "displayName": "deloitte.com",
+      "documentIds": [
+        "1ac512026f1d3e0aa5a7beeb617c2a7ff4d05713b30fbdb415f840f8edb24dce",
+        "92be79bf5730b8a92c34541065a9fae8b9cc86ad8436472c7105d23560caf14c",
+        "a17fbc49f83951938c44c8cbb756e6e252182e6e1afe722c897116c394b90712",
+        "e0cd583002eba1eac621831d7750cd8ae41ac9bf28bf84f8257fafe435911855",
+        "e8329ef18a40bd4b7ee4bbf85233ec1510e07de5e265f28f58976c75cb7e050f"
+      ],
+      "familyKey": "deloitte-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain deloitte.com; 5 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "dust.tt"
+        ],
+        "registrableDomain": "dust.tt"
+      },
+      "action": "confirmed",
+      "displayName": "dust.tt",
+      "documentIds": [
+        "91ea530190326835bf22e619ba76dcaa874e9bdf769b7c4745bdd198c68b3526",
+        "b5ab48ae580d6ca238e27e79b47b141ed37433047e7390c1a518d18b2692f0af"
+      ],
+      "familyKey": "dust-tt",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain dust.tt; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "ey.com"
+        ],
+        "registrableDomain": "ey.com"
+      },
+      "action": "confirmed",
+      "displayName": "ey.com",
+      "documentIds": [
+        "0b3d95f2816f82c0fc338821e820361c9edd9ea8a5c4e842ea2fb3d5cdd21284",
+        "998403e803fb428e69106a41ae9ba1c60a00e9b357fa92d837262dee1629eb01"
+      ],
+      "familyKey": "ey-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain ey.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "ezintegrations.ai"
+        ],
+        "registrableDomain": "ezintegrations.ai"
+      },
+      "action": "confirmed",
+      "displayName": "ezintegrations.ai",
+      "documentIds": [
+        "103447486af1abb9085debc33ba31823c6f7ab672402f985dc03b17d47070c85",
+        "a523af8cb6bcbf252db9df43790db90696221ae2e5d0e7507b6baf152ad98a8d"
+      ],
+      "familyKey": "ezintegrations-ai",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain ezintegrations.ai; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "forbes.com"
+        ],
+        "registrableDomain": "forbes.com"
+      },
+      "action": "confirmed",
+      "displayName": "forbes.com",
+      "documentIds": [
+        "2a7b7db0cb50861c4351e3c9d2b85f72dd7e1d94a5a81a949c898cbf0ed2d025",
+        "a3696cd6ba517216e44fe8d93a54a6ed4fdc19fce34c498c418a370957b0a68b",
+        "e165bf368f7eea8789719f27f4ece6bf6bdb94fa0fcb0391625e5f6c552485f0"
+      ],
+      "familyKey": "forbes-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain forbes.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 7,
+        "hosts": [
+          "forbes.ru"
+        ],
+        "registrableDomain": "forbes.ru"
+      },
+      "action": "confirmed",
+      "displayName": "forbes.ru",
+      "documentIds": [
+        "11ea4294d705782e6a643668501853d6198a67f87f44b392c233c1849be6776d",
+        "41a9c641d25baa43b029d47816fad67e1577554c4369a2146b9ec109d8cc04dd",
+        "4d58da3726389b9f348691ca669ed815f7533e94c905e6b90a684e82b129d9b4",
+        "7ccc5c499322983d20ae68b50105b07a6ec0f1116cfcf671014228e670b572c5",
+        "952caa4cf293f8023333e61413d319db0f8b7b39a58231f66d5b8946f2dbf7bb",
+        "a932b2ecf7cd0090c375e6c08ab6ee19cfccaf6b376810c3b08a77ccbbb97127",
+        "c432208c6732939b47dd374caf3a8882912413e875cc94032209bf7d5a5d89e8"
+      ],
+      "familyKey": "forbes-ru",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain forbes.ru; 7 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "galileo.ai"
+        ],
+        "registrableDomain": "galileo.ai"
+      },
+      "action": "confirmed",
+      "displayName": "galileo.ai",
+      "documentIds": [
+        "b8959c9aaf897cd9dd9882dedb1f32c53d67d908a76550e367fd5542518d380a",
+        "f7af84e33845c4157c7278de0a1f6f163825ae8fe006c65b8cc04e0f308e1fbb"
+      ],
+      "familyKey": "galileo-ai",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain galileo.ai; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "gartner.com"
+        ],
+        "registrableDomain": "gartner.com"
+      },
+      "action": "confirmed",
+      "displayName": "gartner.com",
+      "documentIds": [
+        "331fff66a1840f11f67806dbfb967274fa500c9015eae09f6ea7377fc84137a3",
+        "d066995b52492b42f708af91c3a77ec05d7c3a99cf31c57a01889b0e05e34c79",
+        "ef542f21a8e903dbbfa77d819eac5ecc565502e186ccc9d07784710ac3363217"
+      ],
+      "familyKey": "gartner-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain gartner.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "github.com"
+        ],
+        "registrableDomain": "github.com"
+      },
+      "action": "confirmed",
+      "displayName": "github.com",
+      "documentIds": [
+        "38aca578c779f7ce62832b8ce04ae96ea9ff4e5552d5ef9ba5f0931b64a55db7",
+        "872178780cb4ed91da4b8b0c8263cf133d1c37e73264d31c0daf87708fd8f0d0"
+      ],
+      "familyKey": "github-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain github.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "cloud.google.com",
+          "docs.cloud.google.com"
+        ],
+        "registrableDomain": "google.com"
+      },
+      "action": "confirmed",
+      "displayName": "google.com",
+      "documentIds": [
+        "478c0c18afb4aaee07b0f6fa13444ca2a7dfc3dd617df41a0c08705c28e0ee82",
+        "e2288aea35c8fd868077c21c0d1a641249bc73483cb9adc86fd9fd5a6a881f03"
+      ],
+      "familyKey": "google-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain google.com; 2 documents across 2 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 8,
+        "hosts": [
+          "habr.com"
+        ],
+        "registrableDomain": "habr.com"
+      },
+      "action": "confirmed",
+      "displayName": "habr.com",
+      "documentIds": [
+        "36ecd3553ddcf2934e962fbf23d6fb949fab20d320c2ca3f7dac4e184df99e0c",
+        "5baf5d039b623f473d52827231eccc847327d752d3584cc84822afcb54bd1399",
+        "6ffaa1cc79c10784e41691896a01a5a9c7f2a64f54d08a2f35966aea952f9205",
+        "9f21146747277b4dbc3c78bc4134dbe6b41dc9d29cbc4655b9c30afb6e8e62af",
+        "c884a10e008bacd78a0a6a9aed7c15e38a7201b0281ff1e11840982cd05c250d",
+        "e4547eb9b6c98be974ff071a29da7db7aad1df03933c4cbef4ae410d6874f5e0",
+        "ee25dc442bfd7745b8569b90f46c485065ac1ee2f93c15ae16380f8f7b8533c0",
+        "f84113b14153d313205847735b2377baf4acff70366757eaa88f3dcb46e0b249"
+      ],
+      "familyKey": "habr-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain habr.com; 8 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "holert.com"
+        ],
+        "registrableDomain": "holert.com"
+      },
+      "action": "confirmed",
+      "displayName": "holert.com",
+      "documentIds": [
+        "211f17fb2b20df154e481fdf03ff355c17cab5c5aa83cbb12515c26c7a4d9528",
+        "ef04650177f59fffafb8ebf29c93c2c9ddc9225cc69b3a880eb2490ef8efa95e"
+      ],
+      "familyKey": "holert-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain holert.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "ibm.com"
+        ],
+        "registrableDomain": "ibm.com"
+      },
+      "action": "confirmed",
+      "displayName": "ibm.com",
+      "documentIds": [
+        "72f05a169c3b10c7ad0d43a87077146837b471fd3cd2af68c749d431948f7081",
+        "fff3bf6f362e74ac2650225a3257222cfe44a08b40cbf760dd09bdc9a8bd9190"
+      ],
+      "familyKey": "ibm-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain ibm.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "kiplot.com"
+        ],
+        "registrableDomain": "kiplot.com"
+      },
+      "action": "confirmed",
+      "displayName": "kiplot.com",
+      "documentIds": [
+        "1015665c899e447dd880008fce16c2cfd0193d4d5a3ea10858174867671802f6",
+        "37a92c3c6e7a81a53b7fb5f8fbcb967c1c97dafa2e7a9ef581387d87f7611e16",
+        "3f85e9ead5fc2c9f0531bd06b31e8e12ae5e1775195dea1444524a347943676b"
+      ],
+      "familyKey": "kiplot-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain kiplot.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "linkedin.com"
+        ],
+        "registrableDomain": "linkedin.com"
+      },
+      "action": "confirmed",
+      "displayName": "linkedin.com",
+      "documentIds": [
+        "6d4b7f717bbc79d54f217e2a269daf6c436b1564a1ef3757ae2460e9c1aab1d2",
+        "84af0f524baf853f8f58274610c7d464fb5b32792d034749ef5d5e9751877133",
+        "87857e45d36784b05c8865cbfa37c7d79911f130026ddb12c1207d784eb28c02"
+      ],
+      "familyKey": "linkedin-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain linkedin.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "mckinsey.com"
+        ],
+        "registrableDomain": "mckinsey.com"
+      },
+      "action": "confirmed",
+      "displayName": "mckinsey.com",
+      "documentIds": [
+        "942b120c6a50dedf4013cd2cf73aa31834b46a2b3bef070fcf7aedf0fca2f6b8",
+        "c162f4e16b76806e8fdb32f8c6f3340b4a15ce0ae8bc92e12d2b3da49e408662",
+        "dc10626694a6e22f8c025cbaed57ab6c5589b363babe2fecd021b710f8f8c039"
+      ],
+      "familyKey": "mckinsey-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain mckinsey.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 4,
+        "hosts": [
+          "adoption.microsoft.com",
+          "techcommunity.microsoft.com"
+        ],
+        "registrableDomain": "microsoft.com"
+      },
+      "action": "confirmed",
+      "displayName": "microsoft.com",
+      "documentIds": [
+        "2c7db1768f0fc11820c7849ccbf3ccdaf48163c662f63346faad9e1a12e588ee",
+        "405a0022689ceeeb2ae7a1092b15f982a8c4a4b0bdc77ed907a2b5413b3edb05",
+        "50f7fdd7ac420a3352ee984f9d78aa307d1cad9a267a0ae554379d9ade5fa3ba",
+        "9c8023a4585874a06f40a98b48e3dea89e14804b618e2a39b8d8c31d9667970a"
+      ],
+      "familyKey": "microsoft-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain microsoft.com; 4 documents across 2 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "mindstudio.ai"
+        ],
+        "registrableDomain": "mindstudio.ai"
+      },
+      "action": "confirmed",
+      "displayName": "mindstudio.ai",
+      "documentIds": [
+        "05f0cf066abb0651168d88f27cd5073355bf3eb04e251844f775b828f600fb2c",
+        "2b3e99dc1ae1f6e65426f0c532b3cf21cba895e65a4699c728f20e690da34959"
+      ],
+      "familyKey": "mindstudio-ai",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain mindstudio.ai; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "mitsloan.mit.edu",
+          "sloanreview.mit.edu"
+        ],
+        "registrableDomain": "mit.edu"
+      },
+      "action": "confirmed",
+      "displayName": "mit.edu",
+      "documentIds": [
+        "474ee6a45ea60366c5677e98f027697dfa86dee1c5836444630ec2df25b2c5ab",
+        "aef42e43221a8afad666bf07626f66a158cc658757ef6b2d2acaf659f6101629"
+      ],
+      "familyKey": "mit-edu",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain mit.edu; 2 documents across 2 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "pandaily.com"
+        ],
+        "registrableDomain": "pandaily.com"
+      },
+      "action": "confirmed",
+      "displayName": "pandaily.com",
+      "documentIds": [
+        "74c825854e24133a8b255734a1d0dd621beb531d9e2e84d31f12722c852aa3e6",
+        "75b37a85741eafe5c32977a77653ab989471d7faacac6ed0e637600c171e6f7a",
+        "866851b91877d87d243f3d07997922b309dedf3cefe9ca0b23e1253e5d696e2d"
+      ],
+      "familyKey": "pandaily-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain pandaily.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "pmpractice.ru"
+        ],
+        "registrableDomain": "pmpractice.ru"
+      },
+      "action": "confirmed",
+      "displayName": "pmpractice.ru",
+      "documentIds": [
+        "36cc81595f37ec3d49847f414b511f519c70d4d17add060af8b0f3961d372273",
+        "71ecbbf354c3bdc506d9a82d01d1591388971bb5a664ad1b09f9d10da8d1daf8"
+      ],
+      "familyKey": "pmpractice-ru",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain pmpractice.ru; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "projectmanagement.com"
+        ],
+        "registrableDomain": "projectmanagement.com"
+      },
+      "action": "confirmed",
+      "displayName": "projectmanagement.com",
+      "documentIds": [
+        "484c56d05edffc0e73015167f1ff9d057267876d0cfd2edbb7aa54c7298c35e2",
+        "85243584a28cb2682f067cdcbedef78b28aae8e0db989a960ece0cf36fd2cd2a"
+      ],
+      "familyKey": "projectmanagement-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain projectmanagement.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 3,
+        "hosts": [
+          "reddit.com"
+        ],
+        "registrableDomain": "reddit.com"
+      },
+      "action": "confirmed",
+      "displayName": "reddit.com",
+      "documentIds": [
+        "0c4fc1fd9f163209621fe42a7a0ab44894a67bd16450ef8b051273c2783162d8",
+        "3882f90065233178c9368f16afb4bc9babca4d19cf31c1580e4fa0960c66417a",
+        "725fc39d7e6bfddfbeac09a0221bd19bc58b9757667cc8bb61167910eac0e4f3"
+      ],
+      "familyKey": "reddit-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain reddit.com; 3 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "sostav.ru"
+        ],
+        "registrableDomain": "sostav.ru"
+      },
+      "action": "confirmed",
+      "displayName": "sostav.ru",
+      "documentIds": [
+        "305599c6979039eabd21b90320527d11ecc196785052443b6516e28e5ba4e5ac",
+        "bf145dd3d7dc00c32f6c58b607dd6478a511e429d28927c9fc23845309015e7e"
+      ],
+      "familyKey": "sostav-ru",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain sostav.ru; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "stackai.com"
+        ],
+        "registrableDomain": "stackai.com"
+      },
+      "action": "confirmed",
+      "displayName": "stackai.com",
+      "documentIds": [
+        "256539a2ff7806ca002790a8abb67be32f82b683a5976a6cf6aadaad7e804b2b",
+        "a01545eaa119af3e0036ca0620b917d60c4b338bf1d83f50cf43df6a20ca43c4"
+      ],
+      "familyKey": "stackai-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain stackai.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "techtarget.com"
+        ],
+        "registrableDomain": "techtarget.com"
+      },
+      "action": "confirmed",
+      "displayName": "techtarget.com",
+      "documentIds": [
+        "b541a8097d88a615874ac397b2a54f3119bec0444240bad0e6886aafb63470c3",
+        "e93bb80bf50b0c583cf9c18b8029229b23f81e84e6e6d67334a52805ccdaccad"
+      ],
+      "familyKey": "techtarget-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain techtarget.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "theagenttimes.com"
+        ],
+        "registrableDomain": "theagenttimes.com"
+      },
+      "action": "confirmed",
+      "displayName": "theagenttimes.com",
+      "documentIds": [
+        "0086756a5fe916b2a049551f40a4b5f228809bd4a35cdde93f76e8adb4d92a89",
+        "608ea09c06af0026d53e86a9eed265eb3a75e974a0170bd2d5ed7e14ddd84116"
+      ],
+      "familyKey": "theagenttimes-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain theagenttimes.com; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 2,
+        "hosts": [
+          "vdf.ai"
+        ],
+        "registrableDomain": "vdf.ai"
+      },
+      "action": "confirmed",
+      "displayName": "vdf.ai",
+      "documentIds": [
+        "2cf6459d3989efb951488c2a242154e37eeb794465935e22978c8d741e1f358c",
+        "4131e25ed2f08c72a8b70307910e44c12a41baac57571282ef1f66151d7df66b"
+      ],
+      "familyKey": "vdf-ai",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain vdf.ai; 2 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 6,
+        "hosts": [
+          "finance.yahoo.com"
+        ],
+        "registrableDomain": "yahoo.com"
+      },
+      "action": "confirmed",
+      "displayName": "yahoo.com",
+      "documentIds": [
+        "126a52c7c30767592ccbffe0401334a508084415f5a402cd3d05a35e74a466f7",
+        "3ed25666b4fa7d6886128a35352c934df271e4fc97af89d8fb3ff6eb95b202f5",
+        "7ce529e5f3443455911533060eed504f56e09a019d281c25fb9a6b59b2dfcf79",
+        "8b374506961247098c5f1f5289b6a2031310dbd57abc3edd8fc28a9148b4d3a0",
+        "beaefd54de01cf58ff2dbfcc369f01c4abc0cee10244d047a1a42dfb4eb5befb",
+        "c6440d6a9fdf973ec3da2c4d2867bfbf2c9f7ea66f2dd69f75e9b9f7402a99ef"
+      ],
+      "familyKey": "yahoo-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain yahoo.com; 6 documents across 1 host(s)"
+    },
+    {
+      "_evidence": {
+        "documentCount": 9,
+        "hosts": [
+          "youtube.com"
+        ],
+        "registrableDomain": "youtube.com"
+      },
+      "action": "confirmed",
+      "displayName": "youtube.com",
+      "documentIds": [
+        "4f31a04b0e70b25bd228be2ba499a7981dfaa0c3e68b91e7fa3b7b326479417e",
+        "5b6034691dd9e65d6548673fbe11ec5044a4a35c05e37016264f9c7c6ebfb312",
+        "669dac7ab80d1124186683287f94c2d515ad1168c5d85458e82d729331989396",
+        "6fec77c5fffcf5670cfbefbc29daf59229177ab96e145060c904b2d22ba12673",
+        "811e836c06e1f49ab780d7141ab844f1451fdda9fd4cbd09025842ef9bb136bb",
+        "8b0f73fd089b15a6d6a7cf4cc367f605dadca2f71272afa0ca08dee5a137806f",
+        "bb5f95b81e5339359da1809002e76659d01446cc667b213bdd7f478cedc14f08",
+        "bf96980dc9ffbaddcd3fcb8becadc300b11f87bfa4098e3af374e26c9c8ceb90",
+        "d05dc349e71a2e3c01538d7465482e0856f8c068c7ab138bc0f3a83dbe3931fb"
+      ],
+      "familyKey": "youtube-com",
+      "familyKind": "owner",
+      "rationale": "grouped by registrable domain youtube.com; 9 documents across 1 host(s)"
+    }
+  ],
+  "note": "Proposed by registrable domain on the issue perimeter, 2026-08-22 (slice 2.4, ADR-0007 §11a). To apply: add a top-level \"decidedBy\" with your name, edit or delete entries, then `kxrun apply-families --batch <file>`. Without decidedBy the file is refused - a family is an editorial fact and the record has to name who decided it. A correction later is a new decision, never an edit of this one. THIS FILE IS THE ONE THAT NEEDS JUDGEMENT: each entry asserts that several documents, and sometimes several hosts, are one source. The machine grouped by domain, which finds the same outlet under several hosts and misses two unrelated domains sharing an editorial desk. The second half is what you are for.",
+  "scope": "perimeter"
+}
