@@ -239,15 +239,26 @@ def next_step(
                 "owner",
                 f"{profile.host} denies robots and has no recorded override",
             )
-        # A rung that would help and is not enabled for this host is one decision
-        # away, not a page anybody needs to read. Measured on production the
-        # difference is 324 documents: without this they read as "somebody look at
-        # these", and what they are is "write a profile for these hosts".
+        if hinted in AUTOMATIC_RUNGS:
+            # A rung the fetcher can climb and this host does not allow is one
+            # decision away, not a page anybody needs to read. Measured on
+            # production that is 324 documents: without this they read as
+            # "somebody look at these" and what they are is "write a profile".
+            return LadderStep(
+                None,
+                "blocked_by_host",
+                "owner",
+                f"{profile.host} would need {hinted}, and no profile allows it",
+            )
+        # A rung no machine here can climb, whatever the profile says. These rows
+        # are the measured need ADR-0005 §11 asks for before the browser unit of
+        # slice 2.3a is built: on production, 80 documents whose text only a
+        # renderer gets.
         return LadderStep(
             None,
-            "blocked_by_host",
-            "owner",
-            f"{profile.host} would need {hinted}, and no profile allows it",
+            "ladder_exhausted",
+            "operator",
+            f"{error_code} needs {hinted}, which needs a person",
         )
 
     for rung in profile.rungs:

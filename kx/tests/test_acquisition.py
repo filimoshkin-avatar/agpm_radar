@@ -367,3 +367,17 @@ def test_every_escalation_hint_names_an_error_the_fetcher_can_emit() -> None:
 def test_every_hinted_rung_is_a_real_rung() -> None:
     for rung in ESCALATION_HINT.values():
         assert rung in LADDER
+
+
+def test_a_rung_no_machine_can_climb_is_a_person_even_without_a_profile() -> None:
+    # 80 documents on production whose text only a renderer gets. These rows are
+    # the measured need ADR-0005 §11 asks for before the browser unit is built,
+    # and they must not be filed as "the host blocked us" - nothing blocked us.
+    step = next_step(
+        profile=HostProfile(host="x.example"),
+        tried=["network"],
+        error_code="weak_or_missing_text",
+    )
+    assert step.terminal_reason == "ladder_exhausted"
+    assert step.next_action_owner == "operator"
+    assert "browser_render" in step.detail
