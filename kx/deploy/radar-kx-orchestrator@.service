@@ -20,7 +20,13 @@ Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
 WorkingDirectory=/opt/radar-kx/current
-ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx %I
+# %I is one string however it is escaped: systemd expands a specifier without
+# splitting it into arguments. An unbraced $VARIABLE is split, so the instance
+# name goes through the environment and `radar-kx-orchestrator@model-probe` and
+# `...@model\x2dprobe\x20\x2d\x2dmodel\x20MiniMax\x2dM3` both work. Use kxorch
+# rather than escaping by hand.
+Environment=RADAR_KX_ORCHESTRATOR_ARGS=%I
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx $RADAR_KX_ORCHESTRATOR_ARGS
 TimeoutStartSec=1800s
 UMask=0077
 

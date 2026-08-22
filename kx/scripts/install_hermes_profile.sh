@@ -106,8 +106,9 @@ say "5/8 units"
 for unit in radar-kx-egress-proxy.service radar-kx-hermes-extraction.service radar-kx-orchestrator@.service; do
   install -o root -g root -m 0644 "$RELEASE/deploy/$unit" "/etc/systemd/system/$unit"
 done
+install -o root -g root -m 0755 "$RELEASE/deploy/kxorch" /usr/local/sbin/kxorch
 systemctl daemon-reload
-say "    installed 3 units"
+say "    installed 3 units and /usr/local/sbin/kxorch"
 
 say "6/8 egress proxy"
 systemctl enable --now radar-kx-egress-proxy.service

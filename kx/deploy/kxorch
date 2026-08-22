@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Run one orchestrator command inside the unit that has no internet.
+#
+# The instance name carries the command, and systemd wants it escaped: a dash is a
+# path separator in an instance name and a space needs \x20. Getting that wrong is
+# how the first production run of this unit failed, so it is not an operator's job.
+set -euo pipefail
+[[ $# -gt 0 ]] || { echo "usage: kxorch <radar_kx subcommand> [args...]" >&2; exit 2; }
+instance="$(systemd-escape -- "$*")"
+unit="radar-kx-orchestrator@${instance}.service"
+systemctl start "$unit" || true
+journalctl -u "$unit" --no-pager -o cat -n 200 --since "-5 min"
+systemctl is-failed --quiet "$unit" && exit 1
+exit 0

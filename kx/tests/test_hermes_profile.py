@@ -94,6 +94,19 @@ def test_the_orchestrator_has_no_internet() -> None:
     assert "IPAddressAllow=localhost" in unit
 
 
+def test_the_orchestrator_instance_name_reaches_the_command_as_arguments() -> None:
+    # systemd expands %I without splitting it, so a two-word command passed straight
+    # into ExecStart arrives as one argv entry and argparse rejects it. That is how
+    # the first production run of this unit failed. An unbraced $VARIABLE is split.
+    unit = _unit("radar-kx-orchestrator@.service")
+    assert "Environment=RADAR_KX_ORCHESTRATOR_ARGS=%I" in unit
+    assert any(
+        line.startswith("ExecStart=") and line.endswith("$RADAR_KX_ORCHESTRATOR_ARGS")
+        for line in unit
+    )
+    assert not any(line.startswith("ExecStart=") and line.endswith("%I") for line in unit)
+
+
 def test_the_proxy_unit_serves_the_port_the_contract_names() -> None:
     unit = _unit("radar-kx-egress-proxy.service")
     port = CONTRACT["egress"]["proxy_url"].rsplit(":", 1)[1]
