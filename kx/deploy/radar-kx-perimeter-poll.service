@@ -32,6 +32,12 @@ UMask=0077
 Nice=10
 TimeoutStartSec=600s
 
+# systemd creates this before the mount namespace, which ReadWritePaths cannot:
+# the first attempt at this unit named a directory the privileged step was
+# supposed to create, and namespacing failed before the step could run.
+StateDirectory=radar-kx/perimeter
+StateDirectoryMode=0750
+
 # No internet at all: everything this unit touches is on the host. The export
 # reads a file, the import writes to a unix socket.
 IPAddressDeny=any
@@ -61,7 +67,7 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
 AmbientCapabilities=
 
 ReadOnlyPaths=/opt/radar-kx /etc/radar-kx /var/lib/radar-v2
-ReadWritePaths=/var/lib/radar-kx/perimeter /var/run/postgresql
+ReadWritePaths=/var/run/postgresql
 InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv
 
 [Install]

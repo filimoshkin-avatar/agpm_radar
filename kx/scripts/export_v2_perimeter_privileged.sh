@@ -21,9 +21,10 @@ TARGET="$TARGET_DIR/latest.json"
     exit 1
 }
 
-install -d -o root -g radar_kx -m 0750 "$TARGET_DIR"
+# The directory is systemd's StateDirectory; only the artifact is ours to place.
+[[ -d "$TARGET_DIR" ]] || { echo "[perimeter-poll] $TARGET_DIR is missing" >&2; exit 1; }
 /usr/bin/python3 "$RELEASE/scripts/export_v2_perimeter.py" \
     --content-root "$CONTENT_ROOT" --output "$TARGET.new"
-chown root:radar_kx "$TARGET.new"
+chown radar_kx:radar_kx "$TARGET.new"
 chmod 0640 "$TARGET.new"
 mv -f "$TARGET.new" "$TARGET"
