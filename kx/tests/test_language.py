@@ -109,3 +109,27 @@ def test_the_detection_reports_what_it_leaned_on() -> None:
     assert detection.script == "latin"
     assert detection.script_share > 0.9
     assert detection.confidence is not None and detection.confidence > 0.4
+
+
+def test_a_russian_text_with_a_hard_sign_is_not_bulgarian() -> None:
+    # Measured on production: a Habr Telegram post came out `bg` because it
+    # carried one ъ and no ы э ё. In Bulgarian ъ is an ordinary vowel running to
+    # a percent or two of all letters; in Russian it appears once in a page.
+    # Ordinary Russian prose: one hard sign in three hundred letters, and no
+    # ы э ё at all, which is what made the production case tie.
+    russian = (
+        "Команда объявила о новой модели агента. Работа над задачами идёт по плану, "
+        "и релиз намечен на конец месяца. Каждая проверка попадает в журнал решений "
+        "с отметкой времени, чтобы любой участник видел, кто и когда её утвердил. "
+        "Отдельно ведётся список открытых вопросов к следующей итерации."
+    )
+    assert detect(russian).language == "ru"
+
+
+def test_bulgarian_is_still_recognised_by_how_often_it_uses_the_hard_sign() -> None:
+    bulgarian = (
+        "Първият български център за управление на проекти въведе нов подход към "
+        "възлагането на задачи. Ръководителят на екипа съобщи, че всеки резултат "
+        "трябва да бъде прегледан преди пускане. "
+    ) * 3
+    assert detect(bulgarian).language == "bg"

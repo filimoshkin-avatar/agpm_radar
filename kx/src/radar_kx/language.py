@@ -137,12 +137,24 @@ _FUNCTION_WORDS: dict[str, frozenset[str]] = {
 #: first attempt at this. The alphabets do not overlap - Ukrainian has і ї є ґ and
 #: no ы э ъ, Russian the reverse - so the letters answer in one pass what a
 #: word list answers badly in several.
-_CYRILLIC_MARKERS: dict[str, tuple[frozenset[str], frozenset[str]]] = {
-    "uk": (frozenset("іїєґ"), frozenset("ыэъё")),
-    "ru": (frozenset("ыэёъ"), frozenset("іїєґўђћџ")),
-    "bg": (frozenset("ъщ"), frozenset("ыэіїєё")),
-    "sr": (frozenset("ђћџљњ"), frozenset("ыэіъ")),
-    "kk": (frozenset("әғқңөұүһ"), frozenset("їєђћџ")),
+#:
+#: The third element is a floor on the marker rate, needed where a marker is not
+#: exclusive. Bulgarian and Russian share ъ, so counting it found a Russian
+#: Telegram post that happened to carry one and no ы э ё. But the two languages
+#: use it differently: in Bulgarian ъ is an ordinary vowel and runs to a percent
+#: or two of all letters, while in Russian it is a separator that appears once in
+#: a page. A rate tells them apart where a count cannot. (щ was a marker in the
+#: first version of this and had to go: it is entirely ordinary in Russian.)
+_CYRILLIC_MARKERS: dict[str, tuple[frozenset[str], frozenset[str], float]] = {
+    "uk": (frozenset("іїєґ"), frozenset("ыэъё"), 0.0),
+    # ъ is deliberately not a Russian marker: it is rare here and ordinary in
+    # Bulgarian, so claiming it for both makes every Bulgarian page a tie that
+    # dictionary order decides. Russian is carried by ы э ё, which Bulgarian
+    # does not have at all.
+    "ru": (frozenset("ыэё"), frozenset("іїєґўђћџ"), 0.0),
+    "bg": (frozenset("ъ"), frozenset("ыэіїєё"), 0.01),
+    "sr": (frozenset("ђћџљњ"), frozenset("ыэіъ"), 0.0),
+    "kk": (frozenset("әғқңөұүһ"), frozenset("їєђћџ"), 0.0),
 }
 
 #: Which languages compete inside a script, and which one wins a tie.
@@ -172,9 +184,12 @@ def _cyrillic(text: str, share: float, fallback: str) -> Detection:
     """Decide a Cyrillic language by its alphabet rather than by its word list."""
     lowered = text.casefold()
     counts = Counter(character for character in lowered if character.isalpha())
+    letters = sum(counts.values()) or 1
     scored: dict[str, int] = {}
-    for language, (markers, against) in _CYRILLIC_MARKERS.items():
+    for language, (markers, against, floor) in _CYRILLIC_MARKERS.items():
         for_it = sum(counts[character] for character in markers)
+        if for_it / letters < floor:
+            for_it = 0
         against_it = sum(counts[character] for character in against)
         scored[language] = for_it - against_it
     best_language = max(scored, key=lambda name: scored[name])
