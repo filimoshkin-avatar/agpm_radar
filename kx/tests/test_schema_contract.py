@@ -164,7 +164,7 @@ def test_the_worker_gate_matches_the_migration_it_requires() -> None:
     # order "database first, release second".
     # The constant tracks what is applied, not what is written: require_schema is a
     # hard gate, so a repository ahead of production cannot be released at all.
-    assert "SCHEMA_VERSION = 4" in source
+    assert "SCHEMA_VERSION = 5" in source
     assert "UPDATE metadata SET value = '3'::jsonb" in schema
     caveat = (Path(__file__).parents[1] / "sql" / "004_publication_caveat.sql").read_text(
         encoding="utf-8"
@@ -173,6 +173,16 @@ def test_the_worker_gate_matches_the_migration_it_requires() -> None:
     # A refusal and a caveat are different answers and must be different views.
     assert "CREATE VIEW version_publication_block" in caveat
     assert "CREATE VIEW version_publication_caveat" in caveat
+    independence = (Path(__file__).parents[1] / "sql" / "005_source_independence.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "UPDATE metadata SET value = '5'::jsonb" in independence
+    # Two documents citing one press release is a hint, never a cluster on its own
+    # (ADR-0007 §10). The type carries the rule: there is no formation method for it.
+    assert (
+        "formation_method IN ('canonical_text_hash', 'shingle_overlap', 'manual')" in independence
+    )
+    assert "'shared_cited_primary_source'" in independence
 
 
 def test_a_network_fetch_can_never_be_recorded_as_an_operator_artifact() -> None:

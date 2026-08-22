@@ -15,6 +15,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from radar_kx.config import Settings
+from radar_kx.duplicates import DocumentText, DuplicateProposal
 from radar_kx.fetcher import DocumentTask, FetchResult
 from radar_kx.identifiers import (
     PARSER_CONFIG_HASH,
@@ -31,13 +32,26 @@ from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
+from radar_kx.source_families import DocumentHost, FamilyDecision
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 
 #: The schema version the deployed worker requires. It is bumped **when a
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+#: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
+#: documents of the issue perimeter, which is where hand-curation is affordable;
+#: "corpus" is everything KX holds.
+_SCOPE_SOURCES = {
+    "perimeter": "kx.issue_perimeter_documents",
+    "corpus": "kx.documents",
+}
+
+#: The scopes a caller may name. Derived from the mapping so the CLI's choices
+#: and the queries cannot disagree.
+SCAN_SCOPES = tuple(_SCOPE_SOURCES)
 PERIMETER_PRIORITY = 100
 
 #: Source kinds a network fetch may record. The ladder rungs that are HTTP
@@ -1605,6 +1619,219 @@ class Database:
                     },
                 )
                 return int(one_row(cursor)["egress_id"])
+
+    # ---------------------------------------------------------------------
+    # Source independence (slice 2.4, ADR-0007)
+    # ---------------------------------------------------------------------
+
+    def documents_for_family_proposal(self, *, scope: str) -> list[DocumentHost]:
+        """Every document in scope, as a document id and the URL it came from."""
+        source = _SCOPE_SOURCES[scope]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(f"SELECT document_id, canonical_url FROM {source}")  # noqa: S608 - a constant from _SCOPE_SOURCES
+                return [
+                    DocumentHost(
+                        document_id=str(row["document_id"]),
+                        canonical_url=str(row["canonical_url"]),
+                    )
+                    for row in cursor.fetchall()
+                ]
+
+    def apply_family_batch(
+        self, *, decided_by: str, decisions: Sequence[FamilyDecision]
+    ) -> dict[str, Any]:
+        """Record one weekly batch of family decisions (ADR-0007 §11a).
+
+        Everything here is append-only. A family that already exists is not
+        edited: a new decision row is written and, for anything but a retirement,
+        a fresh assignment row per member. What "the family is now" is a view over
+        the latest rows, so a correction next month cannot change what a score
+        meant last month.
+        """
+        batch_id = str(uuid.uuid4())
+        applied: dict[str, Any] = {
+            "batchId": batch_id,
+            "families": 0,
+            "assignments": 0,
+            "retired": 0,
+        }
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for decision in decisions:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.source_families
+                            (family_key, display_name, family_kind, created_by)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (family_key) DO UPDATE SET family_key = EXCLUDED.family_key
+                        RETURNING family_id
+                        """,
+                        (
+                            decision.family_key,
+                            decision.display_name,
+                            decision.family_kind,
+                            decided_by,
+                        ),
+                    )
+                    family_id = one_row(cursor)["family_id"]
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.source_family_decisions
+                            (family_id, batch_id, action, decided_by, rationale, members_sha256)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING decision_id
+                        """,
+                        (
+                            family_id,
+                            batch_id,
+                            decision.action,
+                            decided_by,
+                            decision.rationale,
+                            decision.members_sha256,
+                        ),
+                    )
+                    decision_id = one_row(cursor)["decision_id"]
+                    applied["families"] = int(applied["families"]) + 1
+                    if decision.action == "retired":
+                        applied["retired"] = int(applied["retired"]) + 1
+                        continue
+                    for document_id in decision.document_ids:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.document_source_family
+                                (document_id, family_id, decision_id)
+                            VALUES (%s, %s, %s)
+                            """,
+                            (document_id, family_id, decision_id),
+                        )
+                        applied["assignments"] = int(applied["assignments"]) + 1
+        return applied
+
+    def documents_for_duplicate_scan(self, *, scope: str) -> list[DocumentText]:
+        """Documents in scope that have a complete best version, with their text."""
+        source = _SCOPE_SOURCES[scope]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT scoped.document_id,
+                           scoped.canonical_url,
+                           versions.canonical_text_sha256,
+                           versions.canonical_text
+                    FROM {source} AS scoped
+                    JOIN kx.documents AS documents USING (document_id)
+                    JOIN kx.document_versions AS versions
+                      ON versions.version_id = documents.best_version_id
+                    WHERE versions.is_complete
+                    """  # noqa: S608 - same constant
+                )
+                return [
+                    DocumentText(
+                        document_id=str(row["document_id"]),
+                        canonical_url=str(row["canonical_url"]),
+                        text_sha256=str(row["canonical_text_sha256"]),
+                        text=str(row["canonical_text"]),
+                    )
+                    for row in cursor.fetchall()
+                ]
+
+    def record_duplicate_proposals(
+        self, proposals: Sequence[DuplicateProposal], *, proposed_by: str
+    ) -> dict[str, Any]:
+        """Store proposed clusters and their evidence. Nothing is confirmed here."""
+        batch_id = str(uuid.uuid4())
+        recorded: dict[str, Any] = {
+            "batchId": batch_id,
+            "clusters": 0,
+            "members": 0,
+            "evidence": 0,
+        }
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for proposal in proposals:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.content_duplicate_clusters
+                            (cluster_kind, formation_method, shingle_threshold,
+                             shingle_width, proposed_by, batch_id)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING cluster_id
+                        """,
+                        (
+                            proposal.cluster_kind,
+                            proposal.formation_method,
+                            proposal.shingle_threshold,
+                            proposal.shingle_width,
+                            proposed_by,
+                            batch_id,
+                        ),
+                    )
+                    cluster_id = one_row(cursor)["cluster_id"]
+                    recorded["clusters"] = int(recorded["clusters"]) + 1
+                    for document_id in proposal.document_ids:
+                        cursor.execute(
+                            "INSERT INTO kx.content_duplicate_cluster_members"
+                            " (cluster_id, document_id) VALUES (%s, %s)",
+                            (cluster_id, document_id),
+                        )
+                        recorded["members"] = int(recorded["members"]) + 1
+                    for left, right, similarity in proposal.pairs:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.duplicate_evidence
+                                (cluster_id, evidence_kind, left_document_id,
+                                 right_document_id, similarity, recorded_by)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            """,
+                            (
+                                cluster_id,
+                                proposal.formation_method,
+                                left,
+                                right,
+                                similarity,
+                                proposed_by,
+                            ),
+                        )
+                        recorded["evidence"] = int(recorded["evidence"]) + 1
+        return recorded
+
+    def confirm_duplicate_clusters(self, *, batch_id: str, confirmed_by: str) -> int:
+        """Confirm every cluster of one batch. Only confirmed clusters collapse a count."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE kx.content_duplicate_clusters
+                    SET confirmed_at = clock_timestamp(), confirmed_by = %s
+                    WHERE batch_id = %s AND confirmed_at IS NULL
+                    """,
+                    (confirmed_by, batch_id),
+                )
+                return cursor.rowcount
+
+    def independence_report(self, document_ids: Sequence[str]) -> dict[str, Any]:
+        """Apply the counting rules of ADR-0007 §2 to a set of documents."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT * FROM kx.independence_report(%s::char(64)[])",
+                    (list(document_ids),),
+                )
+                row = one_row(cursor)
+        return {
+            "documentsConsidered": int(row["documents_considered"]),
+            "independentSources": int(row["independent_sources"]),
+            "unknownDocuments": int(row["unknown_documents"]),
+            "collapsedByFamily": int(row["collapsed_by_family"]),
+            "collapsedByCluster": int(row["collapsed_by_cluster"]),
+        }
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

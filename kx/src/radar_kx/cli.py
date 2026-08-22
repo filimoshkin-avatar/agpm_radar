@@ -15,13 +15,24 @@ from radar_kx.artifact_import import (
 from radar_kx.cache_import import import_caches
 from radar_kx.canon_corpus import canon_summary, import_canon, scan_canon
 from radar_kx.config import Settings
-from radar_kx.database import Database
+from radar_kx.database import SCAN_SCOPES, Database
+from radar_kx.duplicates import (
+    DEFAULT_SHINGLE_THRESHOLD,
+    DEFAULT_SHINGLE_WIDTH,
+    find_hash_clusters,
+    find_shingle_clusters,
+)
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import ALLOWED_MODELS, RUN_TYPES, ModelGateway
 from radar_kx.reconciliation import load_inventory
 from radar_kx.search import MATCH_MODES, SCOPES
+from radar_kx.source_families import (
+    batch_payload,
+    load_family_batch,
+    propose_families,
+)
 from radar_kx.vertical_slice import load_candidates
 from radar_kx.vertical_slice import select as select_slice
 from radar_kx.worker import run_until_idle
@@ -89,6 +100,28 @@ def _parser() -> argparse.ArgumentParser:
     eval_parser = subparsers.add_parser("eval-retrieval")
     eval_parser.add_argument("--gold-set", type=Path, required=True)
     eval_parser.add_argument("--k", type=int, default=10)
+
+    # Slice 2.4: source independence. The machine proposes, the owner confirms.
+    propose_families_parser = subparsers.add_parser("propose-families")
+    propose_families_parser.add_argument("--scope", choices=SCAN_SCOPES, default="perimeter")
+
+    apply_families_parser = subparsers.add_parser("apply-families")
+    apply_families_parser.add_argument("--batch", type=Path, required=True)
+
+    propose_duplicates_parser = subparsers.add_parser("propose-duplicates")
+    propose_duplicates_parser.add_argument("--scope", choices=SCAN_SCOPES, default="perimeter")
+    propose_duplicates_parser.add_argument(
+        "--threshold", type=float, default=DEFAULT_SHINGLE_THRESHOLD
+    )
+    propose_duplicates_parser.add_argument("--width", type=int, default=DEFAULT_SHINGLE_WIDTH)
+    propose_duplicates_parser.add_argument("--dry-run", action="store_true")
+
+    confirm_duplicates_parser = subparsers.add_parser("confirm-duplicates")
+    confirm_duplicates_parser.add_argument("--batch-id", required=True)
+    confirm_duplicates_parser.add_argument("--confirmed-by", required=True)
+
+    independence_parser = subparsers.add_parser("independence")
+    independence_parser.add_argument("--scope", choices=SCAN_SCOPES, default="perimeter")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -175,6 +208,56 @@ def main() -> None:
             fulltext_dir=args.fulltext_dir,
         )
         _print_json(dataclasses.asdict(cache_result))
+        return
+    if args.command == "propose-families":
+        proposals = propose_families(database.documents_for_family_proposal(scope=args.scope))
+        _print_json(batch_payload(proposals, scope=args.scope))
+        return
+    if args.command == "apply-families":
+        decided_by, decisions = load_family_batch(args.batch)
+        _print_json(database.apply_family_batch(decided_by=decided_by, decisions=decisions))
+        return
+    if args.command == "propose-duplicates":
+        texts = database.documents_for_duplicate_scan(scope=args.scope)
+        hash_clusters = find_hash_clusters(texts)
+        already = frozenset(
+            document_id for cluster in hash_clusters for document_id in cluster.document_ids
+        )
+        shingle_clusters, stats = find_shingle_clusters(
+            texts, threshold=args.threshold, width=args.width, exclude=already
+        )
+        clusters = (*hash_clusters, *shingle_clusters)
+        summary: dict[str, Any] = {
+            "scope": args.scope,
+            "hashClusters": len(hash_clusters),
+            "shingleClusters": len(shingle_clusters),
+            "shingleScan": stats,
+        }
+        if args.dry_run:
+            summary["clusters"] = [cluster.as_json() for cluster in clusters]
+        else:
+            summary["recorded"] = database.record_duplicate_proposals(
+                clusters, proposed_by=f"radar-kx-propose-duplicates:{args.scope}"
+            )
+        _print_json(summary)
+        return
+    if args.command == "confirm-duplicates":
+        _print_json(
+            {
+                "confirmed": database.confirm_duplicate_clusters(
+                    batch_id=args.batch_id, confirmed_by=args.confirmed_by
+                )
+            }
+        )
+        return
+    if args.command == "independence":
+        hosts = database.documents_for_family_proposal(scope=args.scope)
+        _print_json(
+            {
+                "scope": args.scope,
+                **database.independence_report([item.document_id for item in hosts]),
+            }
+        )
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
