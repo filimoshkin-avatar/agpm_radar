@@ -2,8 +2,11 @@
 
 Date: 2026-08-20
 
-Status: complete. This is the final implementation stage in the owner-agreed migration boundary;
-Stages 17–19 are not part of the current plan. Legacy, DNS and cutover were not changed.
+Status: complete. This is the final implementation stage in the owner-agreed migration boundary.
+On 2026-08-22 the owner confirmed that the previous 19-stage migration/cutover plan should be
+treated as complete for the current goal: Legacy exists, production V2 exists on Local Ru, both are
+under owner observation, and future development focuses on V2 knowledge-base capabilities. Legacy,
+DNS and cutover were not changed by Stage 16.
 
 ## Pre-Stage 16 correction
 
@@ -107,6 +110,9 @@ The independent Legacy cron was not modified. The Stage 15 V2 cron
 `0af53bc1-2fea-4b66-bce6-b5d3a8e4f064` remains enabled at 08:25 Europe/Moscow with last status
 `ok`, successful Telegram delivery and zero consecutive errors. Its next absent-date publication
 is an observation event, not an additional implementation stage under the owner's final boundary.
+
+Post-migration development source of truth:
+`docs/radar-v2-knowledge-base-roadmap-2026-08-22.md`.
 
 GRACE-Delta: skip — Radar has no GRACE module metadata. The defect, regression coverage,
 publication, backups, reboot, rollback timings, recovery requirements, reconciliation and final

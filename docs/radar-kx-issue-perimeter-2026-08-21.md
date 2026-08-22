@@ -2,8 +2,10 @@
 
 Date: 2026-08-21
 
-Status: production issue-perimeter layer deployed; remaining unavailable full texts are explicitly
-classified.
+Status: production issue-perimeter layer deployed. The 2026-08-21 report below records the first
+perimeter pass; the 2026-08-22 closeout completed the active 77-issue selected-document perimeter
+to 275/275 complete full texts. The current product direction is a self-populating Radar V2
+knowledge base over KX, recorded in `docs/radar-v2-knowledge-base-roadmap-2026-08-22.md`.
 
 ## START_CHANGE_SUMMARY
 
@@ -18,6 +20,13 @@ classified.
   tests, production evidence and residual gaps are recorded here.
 
 ## Agreed Product Plan
+
+Owner update 2026-08-22: the migration/cutover framing is closed. Future planning should treat KX
+as the foundation for a full Radar V2 knowledge base:
+
+- searchable article knowledge base;
+- knowledge graphs, visualization, idea ratings and insight ratings;
+- LLM-assisted research answers with exact numbers, quotes, facts and source links.
 
 1. Source-of-truth layer: keep immutable raw HTTP bodies, canonical document versions, chunks and
    exact evidence spans in PostgreSQL. Treat embeddings, extracted claims, entities, graph edges,
@@ -126,6 +135,10 @@ or an explicitly approved credentials/subscription path.
   `041f654dbcca2bfd5246474f04ba072089669f0bf936e22add5b2531c3cd6990`.
 
 ## Next Acceptance Gates
+
+Current first engineering gate after the 2026-08-22 full-text closeout: normalize the
+`operator_artifact` hotfix path into a proper KX schema migration, CLI import command, tests,
+release evidence and restore-verified backup before using it as routine production workflow.
 
 1. ADR: freeze the evidence/answer contract, strict factual mode and unsupported-claim behavior.
 2. Schema v3: add extraction job contracts for LangExtract runs, claim candidate review states,
