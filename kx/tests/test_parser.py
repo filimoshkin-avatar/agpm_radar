@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 
-from radar_kx.parser import parse_content
+import pytest
+
+from radar_kx.parser import (
+    DOCX_CONTENT_TYPE,
+    MAX_DOCX_XML_BYTES,
+    _docx_text,
+    parse_content,
+)
 
 
 def test_parses_article_html() -> None:
@@ -281,3 +290,137 @@ def test_corrupt_pdf_is_isolated() -> None:
     assert parsed.text == ""
     assert parsed.quality == "pdf_parse_error"
     assert not parsed.is_complete
+
+
+def _docx(document_xml: str, *, core_xml: str | None = None) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", document_xml)
+        if core_xml is not None:
+            archive.writestr("docProps/core.xml", core_xml)
+    return buffer.getvalue()
+
+
+DOCX_BODY = """<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Агентное управление проектами</w:t></w:r></w:p>
+    <w:p><w:r><w:t>First</w:t></w:r><w:tab/><w:r><w:t>second</w:t></w:r></w:p>
+    <w:p/>
+    <w:p><w:r><w:t xml:space="preserve">Split </w:t></w:r><w:r><w:t>run</w:t></w:r></w:p>
+  </w:body>
+</w:document>"""
+
+DOCX_CORE = """<?xml version="1.0"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+                   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>AgPMBoK v0.7</dc:title>
+</cp:coreProperties>"""
+
+
+def test_docx_paragraphs_become_lines_and_runs_are_joined() -> None:
+    parsed = parse_content(
+        body=_docx(DOCX_BODY, core_xml=DOCX_CORE),
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=10,
+    )
+    assert parsed.quality == "docx_text"
+    assert parsed.is_complete is True
+    assert parsed.title == "AgPMBoK v0.7"
+    # A paragraph is one line; a tab is a space; an empty paragraph is dropped; and
+    # runs split mid-sentence by Word rejoin without a seam.
+    assert parsed.text.split("\n\n") == [
+        "Агентное управление проектами",
+        "First second",
+        "Split run",
+    ]
+
+
+def test_a_docx_without_core_properties_still_reads() -> None:
+    parsed = parse_content(
+        body=_docx(DOCX_BODY),
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=10,
+    )
+    assert parsed.quality == "docx_text"
+    assert parsed.title == ""
+
+
+def test_a_docx_is_recognised_by_extension_as_well_as_content_type() -> None:
+    parsed = parse_content(
+        body=_docx(DOCX_BODY),
+        content_type="application/octet-stream",
+        source_url="agpm-canon:/originals/x.DOCX",
+        min_text_chars=10,
+    )
+    assert parsed.quality == "docx_text"
+
+
+def test_a_short_docx_is_read_but_not_complete() -> None:
+    short = DOCX_BODY.replace("Агентное управление проектами", "Hi")
+    parsed = parse_content(
+        body=_docx(short),
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=10_000,
+    )
+    assert parsed.quality == "docx_text"
+    assert parsed.is_complete is False
+
+
+def test_a_broken_docx_does_not_abort_the_batch() -> None:
+    parsed = parse_content(
+        body=b"PK\x03\x04 not really a zip",
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=10,
+    )
+    assert parsed.quality == "docx_parse_error"
+    assert parsed.text == ""
+
+
+def test_a_docx_missing_its_body_is_an_error_not_an_empty_document() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("docProps/core.xml", DOCX_CORE)
+    parsed = parse_content(
+        body=buffer.getvalue(),
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=10,
+    )
+    assert parsed.quality == "docx_parse_error"
+
+
+def test_a_docx_that_declares_entities_is_refused() -> None:
+    # The classic billion-laughs shape. ElementTree does not fetch external
+    # entities, but an internal one can still expand, so a doctype is refused
+    # outright rather than parsed and hoped about.
+    bomb = (
+        '<?xml version="1.0"?>\n<!DOCTYPE w:document [ <!ENTITY a "aaaaaaaaaa"> ]>\n'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body><w:p><w:r><w:t>&a;</w:t></w:r></w:p></w:body></w:document>"
+    )
+    parsed = parse_content(
+        body=_docx(bomb),
+        content_type=DOCX_CONTENT_TYPE,
+        source_url="agpm-canon:/originals/x.docx",
+        min_text_chars=1,
+    )
+    assert parsed.quality == "docx_parse_error"
+
+
+def test_an_oversized_docx_body_is_refused_before_it_is_read() -> None:
+    with pytest.raises(ValueError, match="over the limit"):
+        _docx_text(_oversized_docx())
+
+
+def _oversized_docx() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        # Highly compressible, so the archive stays small while the entry declares
+        # a size past the cap - exactly the shape the cap exists for.
+        archive.writestr("word/document.xml", "<a/>" + " " * (MAX_DOCX_XML_BYTES + 1))
+    return buffer.getvalue()

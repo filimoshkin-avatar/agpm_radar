@@ -9,9 +9,11 @@ import pytest
 from conftest import connect, one
 from radar_kx.canon_corpus import (
     CANON_FIDELITY,
+    CANON_ORIGINALS,
     CanonCorpusError,
     build_canon_artifact,
     canon_corpus_sha256,
+    canon_provenance,
     canon_summary,
     import_canon,
     scan_canon,
@@ -211,3 +213,67 @@ def test_radar_materials_may_not_be_registered_through_the_canon_path(
             source_kind="radar_materials",
             members=[],
         )
+
+
+AGPM_INBOUND = Path("/root/.openclaw-projectmanager/media/inbound")
+
+
+def test_our_own_document_is_quotable_without_reservation(canon_directory: Path) -> None:
+    # P2 restricts republishing other people's material. "Why AgPM v3" is Radar's
+    # own text, so the excerpt of it carries no attribution risk at all.
+    (canon_directory / "why-agpm-v3-executive-rationale-extract.md").write_text(
+        BODY, encoding="utf-8"
+    )
+    files = {item.relative_path: item for item in scan_canon(canon_directory)}
+    own = files["why-agpm-v3-executive-rationale-extract.md"]
+    assert own.fidelity == "own_text"
+    assert own.quotable is True
+    assert canon_provenance(own, provided_by="pm").manual_review_required is False
+
+
+def test_a_declared_original_that_is_absent_stops_the_import(
+    canon_directory: Path, tmp_path: Path
+) -> None:
+    # Silently importing the excerpt in place of the original it names would leave
+    # the store claiming we hold a source we do not.
+    empty = tmp_path / "no-originals"
+    empty.mkdir()
+    with pytest.raises(CanonCorpusError, match="declared canon originals are absent"):
+        scan_canon(canon_directory, originals_directory=empty)
+
+
+def test_an_original_is_imported_beside_the_reading_of_it(
+    canon_directory: Path, tmp_path: Path
+) -> None:
+    originals = tmp_path / "originals"
+    originals.mkdir()
+    for file_name, _, _ in CANON_ORIGINALS:
+        (originals / file_name).write_bytes(b"stand-in bytes")
+    files = {
+        item.relative_path: item
+        for item in scan_canon(canon_directory, originals_directory=originals)
+    }
+    iso_original = next(
+        item for path, item in files.items() if path.startswith("originals/GOST_R_ISO_21502")
+    )
+    assert iso_original.fidelity == "full_text"
+    assert iso_original.quotable is True
+    assert iso_original.content_type == "application/pdf"
+    assert iso_original.reading_of == "iso-21502-2024-classical-reference-extract"
+    assert iso_original.canonical_url.startswith("agpm-canon:/originals/")
+    # The reading stays, and stays blocked: it is still our words, not the standard's.
+    reading = files["iso-21502-2024-classical-reference-extract.md"]
+    assert reading.fidelity == "extract"
+    assert reading.quotable is False
+
+
+def test_the_canon_originals_are_present_on_this_host() -> None:
+    if not AGPM_INBOUND.exists():
+        pytest.skip("the Project Manager workspace is not present on this host")
+    missing = [name for name, _, _ in CANON_ORIGINALS if not (AGPM_INBOUND / name).is_file()]
+    assert missing == []
+
+
+def test_every_original_names_a_reading_that_exists_in_the_fidelity_table() -> None:
+    for _, _, reading in CANON_ORIGINALS:
+        assert CANON_FIDELITY[reading] == "extract"

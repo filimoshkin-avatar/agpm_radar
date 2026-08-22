@@ -41,6 +41,11 @@ def _parser() -> argparse.ArgumentParser:
     # Load the AgPM canon and the external standards as their own corpus.
     import_canon_parser = subparsers.add_parser("import-canon")
     import_canon_parser.add_argument("--raw-dir", type=Path, required=True)
+    import_canon_parser.add_argument(
+        "--originals-dir",
+        type=Path,
+        help="where the Word and PDF originals live for sources held only as an excerpt",
+    )
     import_canon_parser.add_argument("--source-name", default="agpm-canon")
     import_canon_parser.add_argument("--provided-by", default="project-manager")
     import_canon_parser.add_argument(
@@ -111,7 +116,7 @@ def main() -> None:
         _print_json(import_artifact(database, artifact).as_json())
         return
     if args.command == "import-canon":
-        canon = scan_canon(args.raw_dir)
+        canon = scan_canon(args.raw_dir, originals_directory=args.originals_dir)
         if args.dry_run:
             _print_json(canon_summary(canon))
             return

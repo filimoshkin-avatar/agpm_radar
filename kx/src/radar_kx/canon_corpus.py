@@ -38,15 +38,19 @@ from typing import Any
 from radar_kx.artifact_import import ArtifactDocument, ArtifactManifest, import_artifact
 from radar_kx.database import CorpusMember, Database, VersionProvenance
 from radar_kx.identifiers import document_id
+from radar_kx.parser import DOCX_CONTENT_TYPE
 from radar_kx.url_policy import canon_url
 
-#: How faithfully a file in ``agpm/raw/`` represents the source it names.
+#: How faithfully a file represents the source it names.
 #:
 #: ``full_text``
-#:     a conversion of the document itself - a DOCX or PDF rendered to markdown.
-#:     Quotable, with attribution, like any other converted source in KX.
+#:     the document itself - the original, or a conversion of it. Quotable with
+#:     attribution, like any other converted source in KX.
+#: ``own_text``
+#:     a document Radar wrote. P2 restricts republishing other people's material
+#:     and has nothing to say about ours, so it is quotable without reservation.
 #: ``extract``
-#:     a curated excerpt, written by us, of a source we hold only in part.
+#:     a curated excerpt, written by us, of somebody else's source.
 #: ``note``
 #:     our own summary of a source. Says what the source is about; contains none
 #:     of its words.
@@ -80,17 +84,49 @@ CANON_FIDELITY: dict[str, str] = {
     "sber-ai-disrupt-pdlc-full-docx-2026-06-14": "full_text",
     "sber-ai-disrupt-pdlc-whitepaper-2026-05": "full_text",
     # Curated excerpts. Our selection and our wording, so a quotation from one is
-    # not a quotation from the standard.
+    # not a quotation from the standard. Where CANON_ORIGINALS names the original,
+    # the original is what gets quoted and the excerpt stays a reading of it.
     "agpmbok-v0.7-working-draft-extract": "extract",
     "aws-agentic-ai-business-extract": "extract",
     "iso-21502-2024-classical-reference-extract": "extract",
     "pmbok-8-2025-ai-automation-bridge-extract": "extract",
-    "why-agpm-v3-executive-rationale-extract": "extract",
+    # Radar's own document, not a third party's, so nothing restricts quoting it.
+    "why-agpm-v3-executive-rationale-extract": "own_text",
     # Notes about a source rather than any of its text.
     "agentic-business-process-management-arxiv-2603.18916v2": "note",
     "gost-r-72514-2026-public-reference-note-2026-05-02": "note",
     "toward-agentic-software-project-management-arxiv-2601.16392v1": "note",
 }
+
+#: Originals we hold for sources whose ``raw/*.md`` is only our own reading of
+#: them. Both are imported: the original is the quotable document, the reading
+#: stays a reading. Word and PDF are read by the parser directly, so nothing is
+#: transcribed by hand and nothing is lost in a conversion nobody can check.
+CANON_ORIGINALS: tuple[tuple[str, str, str], ...] = (
+    # (file name, content type, the raw/*.md stem it is the source of)
+    (
+        "AgPMBoK_v0_7_Агентное_управление_проектами_2---4a9b5d2e-baf0-467b-9513-f228b502868c.docx",
+        DOCX_CONTENT_TYPE,
+        "agpmbok-v0.7-working-draft-extract",
+    ),
+    (
+        "aws_agentic_ai---e27dee8f-8753-46ee-8f69-83ca7f5ee22d.pdf",
+        "application/pdf",
+        "aws-agentic-ai-business-extract",
+    ),
+    (
+        "GOST_R_ISO_21502-2024---ce3d79e1-6b35-4e31-826c-9dddae405831.pdf",
+        "application/pdf",
+        "iso-21502-2024-classical-reference-extract",
+    ),
+    (
+        "PMBOK-8-2025_output_ru-1---48f41247-d9a4-4a60-9193-d4bdef40e6f8.docx",
+        DOCX_CONTENT_TYPE,
+        "pmbok-8-2025-ai-automation-bridge-extract",
+    ),
+)
+
+QUOTABLE_FIDELITY = frozenset({"full_text", "own_text"})
 
 _BLOCK_REASON = {
     "extract": (
@@ -116,13 +152,16 @@ class CanonFile:
     material_id: str
     title: str
     fidelity: str
+    content_type: str
     bytes: int
     sha256: str
     modified_at: datetime
+    #: For an original, the ``raw/*.md`` reading of it that we also hold.
+    reading_of: str | None = None
 
     @property
     def quotable(self) -> bool:
-        return self.fidelity == "full_text"
+        return self.fidelity in QUOTABLE_FIDELITY
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -130,10 +169,12 @@ class CanonFile:
             "canonicalUrl": self.canonical_url,
             "title": self.title,
             "fidelity": self.fidelity,
+            "contentType": self.content_type,
             "bytes": self.bytes,
             "sha256": self.sha256,
             "modifiedAt": self.modified_at.isoformat(),
             "quotable": self.quotable,
+            "readingOf": self.reading_of,
         }
 
 
@@ -146,13 +187,40 @@ def _title(path: Path) -> str:
     return path.stem
 
 
-def scan_canon(raw_directory: Path) -> tuple[CanonFile, ...]:
-    """Read ``agpm/raw/*.md`` and declare what each file is.
+def _canon_file(
+    path: Path,
+    *,
+    relative_path: str,
+    fidelity: str,
+    content_type: str,
+    reading_of: str | None = None,
+) -> CanonFile:
+    payload = path.read_bytes()
+    return CanonFile(
+        path=path,
+        relative_path=relative_path,
+        canonical_url=canon_url(relative_path),
+        material_id=f"canon:{relative_path}",
+        title=_title(path) if content_type.startswith("text/") else path.stem,
+        fidelity=fidelity,
+        content_type=content_type,
+        bytes=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+        modified_at=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
+        reading_of=reading_of,
+    )
 
-    Only markdown is read. ``raw/originals/`` holds the DOCX and PDF the markdown
-    was converted from; the parser does not support DOCX and Docling was rejected
-    (plan §11.1), so widening the format is a separate decision rather than a
-    silent skip.
+
+def scan_canon(
+    raw_directory: Path, *, originals_directory: Path | None = None
+) -> tuple[CanonFile, ...]:
+    """Read the canon and declare what each file is.
+
+    ``agpm/raw/*.md`` is the compiled layer: source conversions, our excerpts and
+    our notes, side by side. ``originals_directory`` is where the Word and PDF
+    originals live for the sources we hold only as an excerpt; naming an original
+    that is not there stops the import rather than quietly importing the excerpt
+    in its place.
     """
     files: list[CanonFile] = []
     unknown: list[str] = []
@@ -161,19 +229,12 @@ def scan_canon(raw_directory: Path) -> tuple[CanonFile, ...]:
         if fidelity is None:
             unknown.append(path.name)
             continue
-        payload = path.read_bytes()
-        relative_path = path.name
         files.append(
-            CanonFile(
-                path=path,
-                relative_path=relative_path,
-                canonical_url=canon_url(relative_path),
-                material_id=f"canon:{relative_path}",
-                title=_title(path),
+            _canon_file(
+                path,
+                relative_path=path.name,
                 fidelity=fidelity,
-                bytes=len(payload),
-                sha256=hashlib.sha256(payload).hexdigest(),
-                modified_at=datetime.fromtimestamp(path.stat().st_mtime, tz=UTC),
+                content_type="text/plain; charset=utf-8",
             )
         )
     if unknown:
@@ -185,6 +246,28 @@ def scan_canon(raw_directory: Path) -> tuple[CanonFile, ...]:
         )
     if not files:
         raise CanonCorpusError(f"no canon markdown found under {raw_directory}")
+
+    if originals_directory is not None:
+        missing: list[str] = []
+        for file_name, content_type, reading in CANON_ORIGINALS:
+            original = originals_directory / file_name
+            if not original.is_file():
+                missing.append(file_name)
+                continue
+            files.append(
+                _canon_file(
+                    original,
+                    relative_path=f"originals/{file_name}",
+                    fidelity="full_text",
+                    content_type=content_type,
+                    reading_of=reading,
+                )
+            )
+        if missing:
+            raise CanonCorpusError(
+                "declared canon originals are absent from "
+                f"{originals_directory}: " + ", ".join(missing)
+            )
     return tuple(files)
 
 
@@ -223,7 +306,7 @@ def build_canon_artifact(
             ArtifactDocument(
                 canonical_url=item.canonical_url,
                 path=item.path,
-                content_type="text/plain; charset=utf-8",
+                content_type=item.content_type,
                 source_kind="local_import",
                 fetched_at=item.modified_at,
                 provenance=canon_provenance(item, provided_by=provided_by),
@@ -293,6 +376,9 @@ def canon_summary(files: Sequence[CanonFile]) -> dict[str, Any]:
         "corpusSha256": canon_corpus_sha256(files),
         "byFidelity": dict(sorted(by_fidelity.items())),
         "quotable": sum(1 for item in files if item.quotable),
+        "originalsLoaded": sorted(
+            item.relative_path for item in files if item.reading_of is not None
+        ),
         "blockedFromQuotation": sorted(item.relative_path for item in files if not item.quotable),
         "documents": [item.as_json() for item in files],
     }

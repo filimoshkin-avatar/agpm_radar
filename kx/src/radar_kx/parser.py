@@ -4,10 +4,13 @@ import io
 import json
 import logging
 import re
+import zipfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
+from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 
 import trafilatura
 from bs4 import BeautifulSoup
@@ -39,6 +42,13 @@ ARTICLE_LD_TYPES = frozenset(
 )
 INLINE_RICH_TEXT_NODES = frozenset({"text", "hyperlink", "entry-hyperlink", "asset-hyperlink"})
 MAX_RICH_TEXT_DEPTH = 32
+
+DOCX_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+DOCX_BODY_ENTRY = "word/document.xml"
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+#: A zip entry declares its uncompressed size, so an archive that would expand
+#: past this is refused before a byte of it is read.
+MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,6 +387,71 @@ def _parse_reddit_json(value: Any) -> tuple[str, str]:
     return canonicalize_text("\n\n".join(parts)), title[:1000]
 
 
+def _docx_text(body: bytes) -> tuple[str, str]:
+    """Read the paragraph text of a DOCX. Returns ``(text, title)``.
+
+    Deliberately minimal, and deliberately not Docling (plan §11.1): a DOCX is a
+    zip holding ``word/document.xml``, and the paragraph text is what evidence
+    needs. Layout, tables, footnotes and numbering are not reconstructed - a
+    quotation is a run of characters, and this produces exactly the run the
+    document contains. It is what makes the canon sources that are held only as
+    Word originals readable, with no new dependency.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(body)) as archive:
+            entry = archive.getinfo(DOCX_BODY_ENTRY)
+            if entry.file_size > MAX_DOCX_XML_BYTES:
+                raise ValueError(f"docx body is {entry.file_size} bytes, over the limit")
+            document = archive.read(DOCX_BODY_ENTRY)
+            title = _docx_title(archive)
+    except (KeyError, OSError, zipfile.BadZipFile) as exc:
+        raise ValueError(f"not a readable docx: {exc}") from exc
+    return canonicalize_text(_docx_paragraphs(document)), title
+
+
+def _docx_title(archive: zipfile.ZipFile) -> str:
+    try:
+        properties = archive.read("docProps/core.xml")
+    except KeyError:
+        return ""
+    for element in _parse_office_xml(properties).iter():
+        if element.tag.endswith("}title") and element.text:
+            return canonicalize_text(element.text)[:1000]
+    return ""
+
+
+def _docx_paragraphs(document: bytes) -> str:
+    text_tag = f"{{{DOCX_NAMESPACE}}}t"
+    spacing_tags = {f"{{{DOCX_NAMESPACE}}}tab", f"{{{DOCX_NAMESPACE}}}br"}
+    lines: list[str] = []
+    for paragraph in _parse_office_xml(document).iter(f"{{{DOCX_NAMESPACE}}}p"):
+        pieces: list[str] = []
+        for node in paragraph.iter():
+            if node.tag == text_tag and node.text:
+                pieces.append(node.text)
+            elif node.tag in spacing_tags:
+                pieces.append(" ")
+        line = "".join(pieces).strip()
+        if line:
+            lines.append(line)
+    return "\n\n".join(lines)
+
+
+def _parse_office_xml(payload: bytes) -> Element:
+    """Parse Office XML, refusing anything that declares entities.
+
+    ``ElementTree`` does not resolve external entities, and refusing a DOCTYPE
+    outright removes internal-entity expansion as well, so a file of unknown
+    origin cannot turn a parse into a denial of service.
+    """
+    if b"<!DOCTYPE" in payload[:4096] or b"<!ENTITY" in payload[:4096]:
+        raise ValueError("office xml declares a doctype or entity")
+    try:
+        return ElementTree.fromstring(payload)  # noqa: S314 - doctype refused above
+    except ElementTree.ParseError as exc:
+        raise ValueError(f"office xml is not well formed: {exc}") from exc
+
+
 def parse_content(
     *,
     body: bytes,
@@ -406,6 +481,15 @@ def parse_content(
             # still retains their raw entity body, and one bad document must not
             # abort the production batch.
             quality = "pdf_parse_error"
+    elif lowered_type.startswith(DOCX_CONTENT_TYPE) or source_url.lower().endswith(".docx"):
+        try:
+            text, title = _docx_text(body)
+            quality = "docx_text"
+            complete = len(text) >= min_text_chars
+        except ValueError:
+            # A corrupt or password-protected Word file must not abort a batch; the
+            # raw bytes stay retained and the failure is visible in the quality.
+            quality = "docx_parse_error"
     elif "json" in lowered_type or source_url.lower().endswith(".json"):
         value = json.loads(_decode_text(body, content_type))
         host = (urlsplit(source_url).hostname or "").lower()
