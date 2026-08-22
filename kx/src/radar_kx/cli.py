@@ -16,9 +16,12 @@ from radar_kx.cache_import import import_caches
 from radar_kx.canon_corpus import canon_summary, import_canon, scan_canon
 from radar_kx.config import Settings
 from radar_kx.database import Database
+from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.search import SCOPES
+from radar_kx.vertical_slice import load_candidates
+from radar_kx.vertical_slice import select as select_slice
 from radar_kx.worker import run_until_idle
 
 
@@ -68,6 +71,17 @@ def _parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--limit", type=int, default=10)
 
     subparsers.add_parser("coverage-report")
+
+    # Choose the documents the vertical slice runs on, from the extract that
+    # scripts/vertical_slice_candidates.sql produced.
+    slice_parser = subparsers.add_parser("vertical-slice")
+    slice_parser.add_argument("--candidates", type=Path, required=True)
+    slice_parser.add_argument("--size", type=int, default=24)
+
+    # Measure retrieval against a gold set. Prints numbers, never a pass mark.
+    eval_parser = subparsers.add_parser("eval-retrieval")
+    eval_parser.add_argument("--gold-set", type=Path, required=True)
+    eval_parser.add_argument("--k", type=int, default=10)
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--workers", type=int, default=8)
@@ -158,6 +172,21 @@ def main() -> None:
                     hit.as_json()
                     for hit in database.search(args.query, scope=args.scope, limit=args.limit)
                 ],
+            }
+        )
+        return
+    if args.command == "vertical-slice":
+        payload = json.loads(args.candidates.read_text(encoding="utf-8"))
+        _print_json(select_slice(load_candidates(payload), size=args.size).as_json())
+        return
+    if args.command == "eval-retrieval":
+        name, questions = load_gold_set(args.gold_set)
+        results, summary = evaluate(database.search, questions, k=args.k)
+        _print_json(
+            {
+                "goldSet": name,
+                "summary": summary,
+                "results": [item.as_json() for item in results],
             }
         )
         return

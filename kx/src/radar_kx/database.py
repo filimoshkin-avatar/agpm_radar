@@ -1509,6 +1509,33 @@ class Database:
                         """  # noqa: S608 - same constant
                     )
                     counts["chunks"] = one_row(cursor)["chunks"]
+                    cursor.execute(
+                        f"""
+                        WITH scope_documents AS ({documents}),
+                        best AS (
+                            SELECT DISTINCT ON (versions.document_id)
+                                   versions.document_id, versions.canonical_text_sha256
+                            FROM kx.document_versions AS versions
+                            JOIN scope_documents USING (document_id)
+                            WHERE versions.is_complete
+                            ORDER BY versions.document_id, versions.fetched_at DESC
+                        )
+                        SELECT count(DISTINCT canonical_text_sha256) AS distinct_texts,
+                               coalesce(sum(shared.members), 0) AS sharing
+                        FROM best
+                        LEFT JOIN (
+                            SELECT canonical_text_sha256, count(*) AS members
+                            FROM best GROUP BY 1 HAVING count(*) > 1
+                        ) AS shared USING (canonical_text_sha256)
+                        """  # noqa: S608 - same constant
+                    )
+                    # A document whose text another document already carries adds no
+                    # evidence, and nine perimeter documents share one 215-character
+                    # page footer. Counted here so the number is watched rather than
+                    # rediscovered.
+                    duplicates = one_row(cursor)
+                    counts["distinct_texts"] = duplicates["distinct_texts"]
+                    counts["documents_sharing_a_text"] = duplicates["sharing"]
                     total = int(counts["documents"])
                     complete = int(counts["complete_documents"])
                     counts["completeShare"] = (complete / total) if total else 0.0

@@ -1,0 +1,597 @@
+{
+  "name": "vertical-slice-selection-2026-08-22",
+  "perimeterSourceId": "v2_content_release:rel_473de6c600563860305e2bd0",
+  "size": 24,
+  "hosts": 22,
+  "population": {
+    "documents": 275,
+    "distinctTexts": 266,
+    "documentsSharingAText": 11,
+    "boilerplateDocuments": 9,
+    "crossHostReprints": 0,
+    "hosts": 198
+  },
+  "documents": [
+    {
+      "documentId": "9669cd875a5478e94b9c779d74aaf8268c6d9bbbb3cf59ec07271fbc00621ca7",
+      "versionId": "482253ea84d5f5d68ab487de6a3bb89d2ac36786b22383792589fe0626583fd3",
+      "canonicalUrl": "https://75way.com/blog/top-ai-agent-business-ideas",
+      "host": "75way.com",
+      "title": "Top AI Agent Business Ideas Founders Can Launch in 2026",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 46049,
+      "chunks": 12,
+      "numericDensity": 1.65,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "diversity_fill"
+      ]
+    },
+    {
+      "documentId": "72c24f80cbefed16bb9d94b16f48f2fb6d6037f1599d03c1685dfd46dd759dac",
+      "versionId": "7f758cd2cab376b08b97adcc8a9109f83cac159fd912f015c33bf65de6fb832c",
+      "canonicalUrl": "https://adopt.ai/blog/enterprise-ai-agents",
+      "host": "adopt.ai",
+      "title": "We Tested 6 Enterprise AI Agents on Real Workflows - Our Learnings",
+      "language": "en",
+      "quality": "operator_artifact_html",
+      "sourceKind": "operator_artifact",
+      "chars": 28124,
+      "chunks": 8,
+      "numericDensity": 1.07,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": "web_archive",
+      "manualReviewRequired": true,
+      "selectedFor": [
+        "web_archive",
+        "language_en",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "7435228908a5c34a38f06446d7df952beddcdf81e946bc9e35d90a208235e5de",
+      "versionId": "586b05c57f4ea64965ebd174974cb40223d6bfbcecec0848ff9547ff939fb014",
+      "canonicalUrl": "https://aeaweb.org/content/file?id=23290",
+      "host": "aeaweb.org",
+      "title": "AI Agents for Economic Research",
+      "language": "en",
+      "quality": "pdf_text",
+      "sourceKind": "network",
+      "chars": 151631,
+      "chunks": 38,
+      "numericDensity": 10.47,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "diversity_fill"
+      ]
+    },
+    {
+      "documentId": "0bf026a07ef589ded4c51e5ae8d28cc76d4ef6b6b8e451410f3c88b4cc1ede3a",
+      "versionId": "3908cedf17d9143e247414b3c24e9a1b40fad08cf6b4227f2a5c4b3ee303d6e7",
+      "canonicalUrl": "https://agentry.news/deloitte-42-of-enterprises-test-ai-agents-but-scaling-lags",
+      "host": "agentry.news",
+      "title": "AI agent adoption: 42% testing, 15% scaling | Deloitte",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "legacy_snapshot",
+      "chars": 2486,
+      "chunks": 1,
+      "numericDensity": 6.44,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "short_document",
+        "perimeter_far"
+      ]
+    },
+    {
+      "documentId": "2a872891d16c677aa8697902fc2631d21154bf07276b688a8621c2eed56944d9",
+      "versionId": "0a9390b3e20e45b66833daa3f1df70d1f715d5401693ba72ea68a553d3b57254",
+      "canonicalUrl": "https://aigov.solutions/daily",
+      "host": "aigov.solutions",
+      "title": "AI Governance Update",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 16233,
+      "chunks": 5,
+      "numericDensity": 20.76,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "numeric",
+        "perimeter_far",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "397e1ea623ceb310349ad65fa8c30aca8019542a976c29459749de1ab3d60ca4",
+      "versionId": "86b24c27b3a5e50e9a08bf015763332845cbbcc1fbcc411ffc58afc590f4e45c",
+      "canonicalUrl": "https://appian.com/blog/pm/building-enterprise-grade-ai-agents",
+      "host": "appian.com",
+      "title": "Building Enterprise-Grade AI Agents: From Prototype to Production",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "operator_artifact",
+      "chars": 13111,
+      "chunks": 4,
+      "numericDensity": 0.08,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": "browser_headers",
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "not_an_ordinary_request",
+        "language_en",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "02d3394f427b2524e99e7ba559eef6315c2dc6a784b8feeb29697e5e431464f7",
+      "versionId": "0489f8a2bfcee1c4d755eb084df66bf98fd391dc1180dcc994cb0f47be6d64ba",
+      "canonicalUrl": "https://artefact.com/blog/can-you-really-build-enterprise-grade-ai-agents-within-a-few-hours",
+      "host": "artefact.com",
+      "title": "Can you really build enterprise grade AI agents within a few hours?",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "legacy_snapshot",
+      "chars": 45299,
+      "chunks": 12,
+      "numericDensity": 1.06,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "diversity_fill"
+      ]
+    },
+    {
+      "documentId": "c5078a47a6fbb85b25c5b220c30cb5110d2250b79774e754eddba8f0c9592f96",
+      "versionId": "055eac396a1c2aee6ed90a3f0fc9b6e5cccd5b5d6c109192fee63cf389e9e7d9",
+      "canonicalUrl": "https://arxiv.org/pdf/2603.23300",
+      "host": "arxiv.org",
+      "title": "Designing Agentic AI-Based Screening for Portfolio ...",
+      "language": "en",
+      "quality": "pdf_text",
+      "sourceKind": "network",
+      "chars": 193217,
+      "chunks": 49,
+      "numericDensity": 27.98,
+      "selections": 1,
+      "perimeters": "near",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_en",
+        "long_document",
+        "numeric",
+        "perimeter_near",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "8a70563675a2844fd066fad0325ac2c72da6ba7b4fe93983cd47f865c3007d1e",
+      "versionId": "4e965d93adbfce489ce53e9ee0a1fb2f5d27b909afa238a8de412827ff9caa1f",
+      "canonicalUrl": "https://boostedcrm.com/ai-agent-case-study-for-business-automation",
+      "host": "boostedcrm.com",
+      "title": "AI Agent Case Study for Business Automation | Success Story",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 7524,
+      "chunks": 2,
+      "numericDensity": 0.53,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "content_duplicate_pair",
+        "language_en",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "97d8322419d1829b4a8b0989c70860e5e8d27da2d3119d8d30a1a48cb431aa4e",
+      "versionId": "cfc70ca70eead7cfcd7f38b12ab0e84954d1769453d1a2860bd8a83584911327",
+      "canonicalUrl": "https://boostedcrm.com/ai-agent-useful-case-study",
+      "host": "boostedcrm.com",
+      "title": "AI Agent Useful Case Study: Automating Enterprise Workflows",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 7524,
+      "chunks": 2,
+      "numericDensity": 0.53,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "content_duplicate_pair",
+        "language_en",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "76f041981f7bf5b1d1ee5962af0d3bec50ed16b9ac684fd25ca41160ee6f3da3",
+      "versionId": "e60140bca8e7f76daafc8e15be375a02a98e4f3aba45c4832f46ad153fdeaf5a",
+      "canonicalUrl": "https://computer-agents.com/enterprise",
+      "host": "computer-agents.com",
+      "title": "Enterprise | Computer Agents | Computer Agents",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 2435,
+      "chunks": 1,
+      "numericDensity": 0.41,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "short_document",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "92be79bf5730b8a92c34541065a9fae8b9cc86ad8436472c7105d23560caf14c",
+      "versionId": "56b4eb1498d24f3016093c644a62212641c3a568ca068a05358b0e94cee311b3",
+      "canonicalUrl": "https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html",
+      "host": "deloitte.com",
+      "title": "Unlocking exponential value with AI agent orchestration",
+      "language": "en",
+      "quality": "operator_artifact_html",
+      "sourceKind": "operator_artifact",
+      "chars": 29845,
+      "chunks": 8,
+      "numericDensity": 5.93,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": "operator_file",
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "operator_artifact",
+        "language_en",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "04f9572f256b7ad690ee6bb9e9b4540c416989339dc147cc36251ddfb5883f57",
+      "versionId": "8a04a3b796af9f19414e3284497aedccbb60eb87f42f4b4b34a0ce5491af6b5c",
+      "canonicalUrl": "https://geopolitechs.org/p/chinas-first-policy-framework-for",
+      "host": "geopolitechs.org",
+      "title": "China's first policy framework for AI agents",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 43792,
+      "chunks": 11,
+      "numericDensity": 1.6,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "diversity_fill"
+      ]
+    },
+    {
+      "documentId": "0b9c4e2edb98d8d541df0698287f50bcbee6342f685daf71211454080da57d8b",
+      "versionId": "e6de050822b499c46cd09d460c378c5cc0bd3df0a6e287f2c4042d0bea273620",
+      "canonicalUrl": "https://gravitee.io/state-of-ai-agent-security",
+      "host": "gravitee.io",
+      "title": "State of AI Agent Security Report 2026",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 20364,
+      "chunks": 6,
+      "numericDensity": 18.91,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "numeric",
+        "perimeter_far",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "ee25dc442bfd7745b8569b90f46c485065ac1ee2f93c15ae16380f8f7b8533c0",
+      "versionId": "7318c0cc0c459319ecfdae63acf717efb69ac209cbbd3eeca7413fb0f7a36724",
+      "canonicalUrl": "https://habr.com/ru/articles/1067234",
+      "host": "habr.com",
+      "title": "Я собрал 33 ИИ-агента на одном движке. Показываю, как устроены пять из них",
+      "language": "ru",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 47114,
+      "chunks": 12,
+      "numericDensity": 7.92,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_ru",
+        "long_document",
+        "perimeter_far"
+      ]
+    },
+    {
+      "documentId": "6ffaa1cc79c10784e41691896a01a5a9c7f2a64f54d08a2f35966aea952f9205",
+      "versionId": "fdfbc1aa3f557c70a823886faf7aeb0ef76fc3ca131a155ebda13dd0a9e02c81",
+      "canonicalUrl": "https://habr.com/ru/companies/selectel/articles/1069388",
+      "host": "habr.com",
+      "title": "Как оптимизировать расходы на инфраструктуру для искусственного интеллекта. Выбираем железо и модели под разные задачи",
+      "language": "ru",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 19784,
+      "chunks": 5,
+      "numericDensity": 7.58,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_ru",
+        "perimeter_mid"
+      ]
+    },
+    {
+      "documentId": "b30ed9f3e0bb9c8691f3708573773de2d9537ec1753549abb0feb5b416dc0d2d",
+      "versionId": "48be3c3c9e0362ea490a082f3c446b04b23f49cce059194c0a1056631b727366",
+      "canonicalUrl": "https://livebusiness.ru/tags/ii_agenty",
+      "host": "livebusiness.ru",
+      "title": "Топ 10: Платформы для создания ИИ агентов для бизнеса",
+      "language": "ru",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 23624,
+      "chunks": 6,
+      "numericDensity": 3.3,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_ru",
+        "perimeter_far"
+      ]
+    },
+    {
+      "documentId": "05f0cf066abb0651168d88f27cd5073355bf3eb04e251844f775b828f600fb2c",
+      "versionId": "d4ef12c57027610bd5292564bed81a70055f5b7816016b1461065a5a72db7209",
+      "canonicalUrl": "https://mindstudio.ai/blog/perplexity-computer-vs-openclaw-comparison",
+      "host": "mindstudio.ai",
+      "title": "Perplexity Computer vs OpenClaw: Which AI Agent Platform Should ...",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 14170,
+      "chunks": 4,
+      "numericDensity": 0.42,
+      "selections": 2,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "multi_issue"
+      ]
+    },
+    {
+      "documentId": "dec1ec281d94bccc4610732ab80fef30e3a44c9c9131ffed5efedddb4ee3d6a4",
+      "versionId": "cf878403bcc2ad263c7e1309c8c4261f3be7720237afd9ab22fd505b88a22868",
+      "canonicalUrl": "https://projects.directum.ru/blog-post/top-sistem-upravlenija-proektami",
+      "host": "projects.directum.ru",
+      "title": "Топ-10 российских систем управления проектами в 2026 году",
+      "language": "ru",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 16218,
+      "chunks": 5,
+      "numericDensity": 3.58,
+      "selections": 1,
+      "perimeters": "near",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_ru",
+        "perimeter_near",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "2bdab0741b982fec1b4fce805faad18b3e6649370b85a06b42f489590fbf0ef7",
+      "versionId": "93cb57910440111f091ace3512fd301fe93552a424494a52154e4eaef5f36ff5",
+      "canonicalUrl": "https://rasa.com/blog/best-ai-agents-for-enterprise",
+      "host": "rasa.com",
+      "title": "15 Best AI Agents for Enterprise in 2026",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 74150,
+      "chunks": 19,
+      "numericDensity": 6.59,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "diversity_fill"
+      ]
+    },
+    {
+      "documentId": "305599c6979039eabd21b90320527d11ecc196785052443b6516e28e5ba4e5ac",
+      "versionId": "48fc8dc2abd527ae2ea256bb8acee3edd071af36e043361d4751fec702045d9f",
+      "canonicalUrl": "https://sostav.ru/blogs/288561/92124",
+      "host": "sostav.ru",
+      "title": "10 лучших ИИ-агентов для бизнеса в 2026: платформы ...",
+      "language": "ru",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 39566,
+      "chunks": 10,
+      "numericDensity": 0.38,
+      "selections": 1,
+      "perimeters": "far",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "language_ru",
+        "perimeter_far"
+      ]
+    },
+    {
+      "documentId": "bead655dfbb16f801afd8091b7faea6a6ca794b4f35ff79e1ffcd4c4e6a3384a",
+      "versionId": "2571a5b94865e9399e9e1aedfb471326684fa2599f9ab8997076717968c0d48c",
+      "canonicalUrl": "https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205",
+      "host": "tandfonline.com",
+      "title": "Artificial Intelligence agents and autonomous decision-making in business: a review",
+      "language": "en",
+      "quality": "operator_artifact_html",
+      "sourceKind": "operator_artifact",
+      "chars": 92371,
+      "chunks": 24,
+      "numericDensity": 11.57,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": true,
+      "accessMethod": "operator_file",
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "operator_artifact",
+        "language_en",
+        "long_document",
+        "perimeter_mid",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "f88d037b997e6163ac0d4426f556f435753b3ad0ad9cb54081311d6494066af6",
+      "versionId": "4c6e571505c2aa74ba677c260b5a122fe9fc2153ff366f956858fe5a2baa9462",
+      "canonicalUrl": "https://v7labs.com/blog/ai-agents-examples",
+      "host": "v7labs.com",
+      "title": "21 Real-World AI Agent Examples [2025 Overview]",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "network",
+      "chars": 56263,
+      "chunks": 15,
+      "numericDensity": 3.15,
+      "selections": 1,
+      "perimeters": "near",
+      "keyMaterial": true,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "perimeter_near",
+        "key_material"
+      ]
+    },
+    {
+      "documentId": "8b0f73fd089b15a6d6a7cf4cc367f605dadca2f71272afa0ca08dee5a137806f",
+      "versionId": "3886e2547b726c55a0241dc82a9f6e33b9257d07fe826a522efd9083a44831bc",
+      "canonicalUrl": "https://youtube.com/watch?v=5IAo8lXWhU0&vl=ru",
+      "host": "youtube.com",
+      "title": "I Created an AI Agent That Will Put My Team Out of Business",
+      "language": "en",
+      "quality": "trafilatura",
+      "sourceKind": "legacy_snapshot",
+      "chars": 215,
+      "chunks": 1,
+      "numericDensity": 9.3,
+      "selections": 1,
+      "perimeters": "mid",
+      "keyMaterial": false,
+      "accessMethod": null,
+      "manualReviewRequired": false,
+      "selectedFor": [
+        "boilerplate_negative",
+        "language_en",
+        "perimeter_mid"
+      ]
+    }
+  ],
+  "requirementGaps": [
+    {
+      "requirement": "cross_host_reprint",
+      "why": "the same text republished by a different outlet: the source-independence rule of ADR-0007 has to be exercised against a real reprint",
+      "wanted": 2,
+      "available": 0
+    }
+  ],
+  "duplicateGroups": [
+    {
+      "kind": "exact",
+      "crossHost": false,
+      "boilerplate": false,
+      "hosts": [
+        "boostedcrm.com"
+      ],
+      "chars": 7524,
+      "documents": [
+        "https://boostedcrm.com/ai-agent-case-study-for-business-automation",
+        "https://boostedcrm.com/ai-agent-useful-case-study"
+      ]
+    },
+    {
+      "kind": "exact",
+      "crossHost": false,
+      "boilerplate": true,
+      "hosts": [
+        "youtube.com"
+      ],
+      "chars": 215,
+      "documents": [
+        "https://youtube.com/watch?v=5IAo8lXWhU0&vl=ru",
+        "https://youtube.com/watch?v=D5TvEB7S7_4",
+        "https://youtube.com/watch?v=KomAKiGIn2c",
+        "https://youtube.com/watch?v=QW_jIOKhGeU",
+        "https://youtube.com/watch?v=_Kid54bovJQ",
+        "https://youtube.com/watch?v=aDng_Yt56Vs",
+        "https://youtube.com/watch?v=bu8TyU6Mmo0",
+        "https://youtube.com/watch?v=sqFyBRlwBrw",
+        "https://youtube.com/watch?v=uJaYt8_h06w"
+      ]
+    }
+  ]
+}

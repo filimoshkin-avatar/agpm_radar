@@ -1,0 +1,242 @@
+{
+  "name": "vertical-slice-probes-2026-08-22",
+  "purpose": "Retrieval probes over the 2.1 vertical-slice documents. A probe measures whether the index finds text it demonstrably holds; it does not measure whether the system understands a question. Authored questions of kind 'question' are a separate set and are counted separately.",
+  "skipped": {
+    "documents": [
+      "https://youtube.com/watch?v=5IAo8lXWhU0&vl=ru"
+    ],
+    "why": "their complete text is a 215-character page footer that nine perimeter documents share, so no phrase from it identifies one document"
+  },
+  "questions": [
+    {
+      "questionId": "probe-75way-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Inventory accuracy improves as predictive models align stock levels with real purchasing behavior",
+      "expectedDocuments": [
+        "9669cd875a5478e94b9c779d74aaf8268c6d9bbbb3cf59ec07271fbc00621ca7"
+      ],
+      "note": "phrase from https://75way.com/blog/top-ai-agent-business-ideas"
+    },
+    {
+      "questionId": "probe-adopt-ai",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Systems that treat integrations as static dependencies fail when real-world conditions change. Inte",
+      "expectedDocuments": [
+        "72c24f80cbefed16bb9d94b16f48f2fb6d6037f1599d03c1685dfd46dd759dac"
+      ],
+      "note": "phrase from https://adopt.ai/blog/enterprise-ai-agents"
+    },
+    {
+      "questionId": "probe-aeaweb-org",
+      "kind": "probe",
+      "scope": "current",
+      "question": "(4) Analyze the benefits of *designing* AI agents, with a primary focus on Agent-Based",
+      "expectedDocuments": [
+        "7435228908a5c34a38f06446d7df952beddcdf81e946bc9e35d90a208235e5de"
+      ],
+      "note": "phrase from https://aeaweb.org/content/file?id=23290"
+    },
+    {
+      "questionId": "probe-agentry-news",
+      "kind": "probe",
+      "scope": "current",
+      "question": "tical industry challenge: proof-of-concept agents are relatively easy to build and validate, but moving",
+      "expectedDocuments": [
+        "0bf026a07ef589ded4c51e5ae8d28cc76d4ef6b6b8e451410f3c88b4cc1ede3a"
+      ],
+      "note": "phrase from https://agentry.news/deloitte-42-of-enterprises-test-ai-agents-but-scaling-lags"
+    },
+    {
+      "questionId": "probe-aigov-solutions",
+      "kind": "probe",
+      "scope": "current",
+      "question": "July 28, 2026 Daily Digest: July 28, 2026 EU AI Act GPAI enforcement and",
+      "expectedDocuments": [
+        "2a872891d16c677aa8697902fc2631d21154bf07276b688a8621c2eed56944d9"
+      ],
+      "note": "phrase from https://aigov.solutions/daily"
+    },
+    {
+      "questionId": "probe-appian-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Evaluation becomes part of the same workflow used to design and refine agents, making",
+      "expectedDocuments": [
+        "397e1ea623ceb310349ad65fa8c30aca8019542a976c29459749de1ab3d60ca4"
+      ],
+      "note": "phrase from https://appian.com/blog/pm/building-enterprise-grade-ai-agents"
+    },
+    {
+      "questionId": "probe-artefact-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "What do good use cases have in common? A useful heuristic, which we use",
+      "expectedDocuments": [
+        "02d3394f427b2524e99e7ba559eef6315c2dc6a784b8feeb29697e5e431464f7"
+      ],
+      "note": "phrase from https://artefact.com/blog/can-you-really-build-enterprise-grade-ai-agents-within-a-few-hours"
+    },
+    {
+      "questionId": "probe-arxiv-org",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Logically, the set of stocks with high alpha should be the ones that have",
+      "expectedDocuments": [
+        "c5078a47a6fbb85b25c5b220c30cb5110d2250b79774e754eddba8f0c9592f96"
+      ],
+      "note": "phrase from https://arxiv.org/pdf/2603.23300"
+    },
+    {
+      "questionId": "probe-boostedcrm-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Unified AI Orchestration Layer The AI agent acted as a central orchestration layer, connecting",
+      "expectedDocuments": [
+        "8a70563675a2844fd066fad0325ac2c72da6ba7b4fe93983cd47f865c3007d1e"
+      ],
+      "note": "phrase from https://boostedcrm.com/ai-agent-case-study-for-business-automation"
+    },
+    {
+      "questionId": "probe-boostedcrm-com-2",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Unified AI Orchestration Layer The AI agent acted as a central orchestration layer, connecting",
+      "expectedDocuments": [
+        "97d8322419d1829b4a8b0989c70860e5e8d27da2d3119d8d30a1a48cb431aa4e"
+      ],
+      "note": "phrase from https://boostedcrm.com/ai-agent-useful-case-study"
+    },
+    {
+      "questionId": "probe-computer-agents-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Project workspaces for agent teams Give agents a strategy, releases, tickets, reviewers, files, resources",
+      "expectedDocuments": [
+        "76f041981f7bf5b1d1ee5962af0d3bec50ed16b9ac684fd25ca41160ee6f3da3"
+      ],
+      "note": "phrase from https://computer-agents.com/enterprise"
+    },
+    {
+      "questionId": "probe-deloitte-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "For example, central in-house platforms can limit vendor dependency and increase data and agent",
+      "expectedDocuments": [
+        "92be79bf5730b8a92c34541065a9fae8b9cc86ad8436472c7105d23560caf14c"
+      ],
+      "note": "phrase from https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html"
+    },
+    {
+      "questionId": "probe-geopolitechs-org",
+      "kind": "probe",
+      "scope": "current",
+      "question": "aturing multi-stakeholder governance and prudent security management, creating an institutional environment that both regulates",
+      "expectedDocuments": [
+        "04f9572f256b7ad690ee6bb9e9b4540c416989339dc147cc36251ddfb5883f57"
+      ],
+      "note": "phrase from https://geopolitechs.org/p/chinas-first-policy-framework-for"
+    },
+    {
+      "questionId": "probe-gravitee-io",
+      "kind": "probe",
+      "scope": "current",
+      "question": "During a routine review, an internal AI assistant was pulling data from sou",
+      "expectedDocuments": [
+        "0b9c4e2edb98d8d541df0698287f50bcbee6342f685daf71211454080da57d8b"
+      ],
+      "note": "phrase from https://gravitee.io/state-of-ai-agent-security"
+    },
+    {
+      "questionId": "probe-habr-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "(3) Фильтр служебных утечек в адаптере. Фреймворк иногда пишет пользователю сам, мимо модели: баннеры",
+      "expectedDocuments": [
+        "ee25dc442bfd7745b8569b90f46c485065ac1ee2f93c15ae16380f8f7b8533c0"
+      ],
+      "note": "phrase from https://habr.com/ru/articles/1067234"
+    },
+    {
+      "questionId": "probe-habr-com-2",
+      "kind": "probe",
+      "scope": "current",
+      "question": "| | NVIDIA RTX PRO 6000 (96 ГБ GDDR7) | Уровень workstation-карты, адаптированный для",
+      "expectedDocuments": [
+        "6ffaa1cc79c10784e41691896a01a5a9c7f2a64f54d08a2f35966aea952f9205"
+      ],
+      "note": "phrase from https://habr.com/ru/companies/selectel/articles/1069388"
+    },
+    {
+      "questionId": "probe-livebusiness-ru",
+      "kind": "probe",
+      "scope": "current",
+      "question": "ИИ-агент помогает ускорить обработку заявок, снизить нагрузку на сотрудников и сохранить единый стиль коммуникации",
+      "expectedDocuments": [
+        "b30ed9f3e0bb9c8691f3708573773de2d9537ec1753549abb0feb5b416dc0d2d"
+      ],
+      "note": "phrase from https://livebusiness.ru/tags/ii_agenty"
+    },
+    {
+      "questionId": "probe-mindstudio-ai",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Not vibe-coded. Remy manages the project — every layer architected, not stitched together at",
+      "expectedDocuments": [
+        "05f0cf066abb0651168d88f27cd5073355bf3eb04e251844f775b828f600fb2c"
+      ],
+      "note": "phrase from https://mindstudio.ai/blog/perplexity-computer-vs-openclaw-comparison"
+    },
+    {
+      "questionId": "probe-projects-directum-ru",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Для быстрого получения информации вендор разработал telegram-бот. Плюсы: - масштабируемость на большое количество пользователей",
+      "expectedDocuments": [
+        "dec1ec281d94bccc4610732ab80fef30e3a44c9c9131ffed5efedddb4ee3d6a4"
+      ],
+      "note": "phrase from https://projects.directum.ru/blog-post/top-sistem-upravlenija-proektami"
+    },
+    {
+      "questionId": "probe-rasa-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "The Wizr Enterprise AI Platform enables organizations to build, deploy, and govern AI Agents",
+      "expectedDocuments": [
+        "2bdab0741b982fec1b4fce805faad18b3e6649370b85a06b42f489590fbf0ef7"
+      ],
+      "note": "phrase from https://rasa.com/blog/best-ai-agents-for-enterprise"
+    },
+    {
+      "questionId": "probe-sostav-ru",
+      "kind": "probe",
+      "scope": "current",
+      "question": "Главная идея платформы заключается в принципе «поставил задачу — получил результат». Пользователь не обязан",
+      "expectedDocuments": [
+        "305599c6979039eabd21b90320527d11ecc196785052443b6516e28e5ba4e5ac"
+      ],
+      "note": "phrase from https://sostav.ru/blogs/288561/92124"
+    },
+    {
+      "questionId": "probe-tandfonline-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "s essential for both theory development and practice, helping practitioners to determine whether AI",
+      "expectedDocuments": [
+        "bead655dfbb16f801afd8091b7faea6a6ca794b4f35ff79e1ffcd4c4e6a3384a"
+      ],
+      "note": "phrase from https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205"
+    },
+    {
+      "questionId": "probe-v7labs-com",
+      "kind": "probe",
+      "scope": "current",
+      "question": "An AI Real Estate Lease Abstraction & Analysis Agent can extract these terms and",
+      "expectedDocuments": [
+        "f88d037b997e6163ac0d4426f556f435753b3ad0ad9cb54081311d6494066af6"
+      ],
+      "note": "phrase from https://v7labs.com/blog/ai-agents-examples"
+    }
+  ]
+}
