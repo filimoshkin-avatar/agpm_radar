@@ -23,9 +23,16 @@ from radar_kx.duplicates import (
     find_shingle_clusters,
 )
 from radar_kx.evaluation import evaluate, load_gold_set
+from radar_kx.extraction import ExtractionError, ProposedClaim, align_all, prompt_sha256
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
-from radar_kx.orchestrator import ALLOWED_MODELS, RUN_TYPES, ModelGateway
+from radar_kx.orchestrator import (
+    ALLOWED_MODELS,
+    RUN_TYPES,
+    HermesExtractor,
+    ModelGateway,
+    OrchestratorError,
+)
 from radar_kx.reconciliation import load_inventory
 from radar_kx.search import MATCH_MODES, SCOPES
 from radar_kx.source_families import (
@@ -122,6 +129,15 @@ def _parser() -> argparse.ArgumentParser:
 
     independence_parser = subparsers.add_parser("independence")
     independence_parser.add_argument("--scope", choices=SCAN_SCOPES, default="perimeter")
+
+    # Slice 2.6: extraction. The model proposes a verbatim quotation; the offsets
+    # are found here, and only an exact span becomes evidence.
+    extract_parser = subparsers.add_parser("extract-claims")
+    extract_parser.add_argument("--scope", choices=SCAN_SCOPES, default="perimeter")
+    extract_parser.add_argument("--limit", type=int, default=20)
+    extract_parser.add_argument("--model", choices=sorted(ALLOWED_MODELS), default=None)
+
+    subparsers.add_parser("extraction-report")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -258,6 +274,41 @@ def main() -> None:
                 **database.independence_report([item.document_id for item in hosts]),
             }
         )
+        return
+    if args.command == "extract-claims":
+        gateway = ModelGateway(database, settings)
+        extractor = HermesExtractor(gateway, **({"model": args.model} if args.model else {}))
+        fragment_results: list[dict[str, Any]] = []
+        for fragment in database.extraction_fragments(scope=args.scope, limit=args.limit):
+            failure: str | None = None
+            extracted: tuple[ProposedClaim, ...] = ()
+            try:
+                extracted = extractor.propose(fragment)
+            except (ExtractionError, OrchestratorError) as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+            aligned = align_all(fragment, database.canonical_text(fragment.version_id), extracted)
+            fragment_results.append(
+                database.record_extraction(
+                    fragment,
+                    aligned,
+                    model=extractor.model,
+                    prompt_sha256=prompt_sha256(fragment),
+                    failure=failure,
+                )
+            )
+        _print_json(
+            {
+                "scope": args.scope,
+                "fragments": len(fragment_results),
+                "claims": sum(int(item.get("claims", 0)) for item in fragment_results),
+                "candidates": sum(int(item.get("candidates", 0)) for item in fragment_results),
+                "skipped": sum(1 for item in fragment_results if "skipped" in item),
+                "fragmentResults": fragment_results,
+            }
+        )
+        return
+    if args.command == "extraction-report":
+        _print_json(database.extraction_report())
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])

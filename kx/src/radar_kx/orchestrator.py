@@ -44,6 +44,14 @@ import httpx
 
 from radar_kx.config import Settings
 from radar_kx.database import Database
+from radar_kx.extraction import (
+    EXTRACTOR_VERSION,
+    ExtractionError,
+    Fragment,
+    ProposedClaim,
+    build_prompt,
+    parse_answer,
+)
 from radar_kx.identifiers import sha256_bytes
 
 #: Model alias to provider, exactly as the extraction profile's ``model_routes``
@@ -95,9 +103,27 @@ REACHABILITY_PROBE = RunType(
     max_payload_chars=200,
 )
 
+
+CLAIM_EXTRACTION = RunType(
+    name="claim_extraction",
+    purpose="claim extraction from one fragment",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "one chunk of one document version and a fixed instruction block - never the "
+        "whole document. A chunk is capped at 4000 characters by the store, so the cap "
+        "here is that plus the instructions and nothing more. Extraction does not need "
+        "the document to read a fragment, and sending it would send other people's text "
+        "that no claim will ever rest on."
+    ),
+    max_payload_chars=6000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
-RUN_TYPES: dict[str, RunType] = {REACHABILITY_PROBE.name: REACHABILITY_PROBE}
+RUN_TYPES: dict[str, RunType] = {
+    REACHABILITY_PROBE.name: REACHABILITY_PROBE,
+    CLAIM_EXTRACTION.name: CLAIM_EXTRACTION,
+}
 
 PROBE_PROMPT = "Reply with the single word: ready."
 
@@ -251,3 +277,48 @@ class ModelGateway:
     def probe(self, *, model: str | None = None) -> ModelResult:
         """Prove the whole chain end to end and leave a row saying so."""
         return self.run(REACHABILITY_PROBE, PROBE_PROMPT, model=model)
+
+
+class HermesExtractor:
+    """The first :class:`~radar_kx.extraction.ExtractionAdapter`, over the profile.
+
+    It proposes and nothing else. Whether a proposal becomes evidence is decided
+    by aligning its quotation against the store, in code, with no model involved.
+    """
+
+    def __init__(self, gateway: ModelGateway, *, model: str = DEFAULT_MODEL) -> None:
+        self.gateway = gateway
+        self._model = model
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def propose(self, fragment: Fragment) -> tuple[ProposedClaim, ...]:
+        result = self.gateway.run(
+            CLAIM_EXTRACTION,
+            build_prompt(fragment),
+            model=self._model,
+            version_id=fragment.version_id,
+            chunk_id=fragment.chunk_id,
+        )
+        return parse_answer(result.content)
+
+    @property
+    def extractor_version(self) -> str:
+        return EXTRACTOR_VERSION
+
+
+__all__ = [
+    "ALLOWED_MODELS",
+    "CLAIM_EXTRACTION",
+    "DEFAULT_MODEL",
+    "REACHABILITY_PROBE",
+    "RUN_TYPES",
+    "ExtractionError",
+    "HermesExtractor",
+    "ModelGateway",
+    "ModelResult",
+    "OrchestratorError",
+    "RunType",
+]

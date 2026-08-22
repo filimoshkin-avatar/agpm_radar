@@ -16,6 +16,14 @@ from psycopg.types.json import Jsonb
 
 from radar_kx.config import Settings
 from radar_kx.duplicates import DocumentText, DuplicateProposal
+from radar_kx.extraction import (
+    EXTRACTOR_VERSION,
+    MAX_CLAIMS_PER_FRAGMENT,
+    MIN_QUOTE_CHARS,
+    AlignedClaim,
+    Fragment,
+    normalized_claim_text,
+)
 from radar_kx.fetcher import DocumentTask, FetchResult
 from radar_kx.identifiers import (
     PARSER_CONFIG_HASH,
@@ -39,7 +47,7 @@ from radar_kx.url_policy import canonical_identity_url, normalize_url
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -1847,6 +1855,300 @@ class Database:
             "unknownDocuments": int(row["unknown_documents"]),
             "collapsedByFamily": int(row["collapsed_by_family"]),
             "collapsedByCluster": int(row["collapsed_by_cluster"]),
+        }
+
+    # ---------------------------------------------------------------------
+    # Extraction (slice 2.6, plan §10.2 and §11.3)
+    # ---------------------------------------------------------------------
+
+    def extraction_fragments(self, *, scope: str, limit: int) -> list[Fragment]:
+        """Chunks in scope that no successful extraction run has covered yet."""
+        source = _SCOPE_SOURCES[scope]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT chunks.chunk_id,
+                           chunks.version_id,
+                           chunks.char_start,
+                           chunks.char_end,
+                           chunks.text
+                    FROM {source} AS scoped
+                    JOIN kx.documents AS documents USING (document_id)
+                    JOIN kx.chunks AS chunks ON chunks.version_id = documents.best_version_id
+                    JOIN kx.document_versions AS versions
+                      ON versions.version_id = chunks.version_id
+                    WHERE versions.is_complete
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.processing_runs AS runs
+                          WHERE runs.version_id = chunks.version_id
+                            AND runs.processor = 'claim_extraction'
+                            AND runs.status = 'succeeded'
+                            AND runs.raw_output ->> 'chunkId' = chunks.chunk_id
+                      )
+                    ORDER BY chunks.version_id, chunks.ordinal
+                    LIMIT %s
+                    """,  # noqa: S608 - a constant from _SCOPE_SOURCES
+                    (limit,),
+                )
+                return [
+                    Fragment(
+                        version_id=str(row["version_id"]),
+                        chunk_id=str(row["chunk_id"]),
+                        char_start=int(row["char_start"]),
+                        char_end=int(row["char_end"]),
+                        text=str(row["text"]),
+                    )
+                    for row in cursor.fetchall()
+                ]
+
+    @staticmethod
+    def extraction_parameters(fragment: Fragment) -> dict[str, Any]:
+        """What identifies this run, including which fragment it read.
+
+        The fragment belongs in the parameters because ``processing_runs`` is
+        unique on them: without it, the second chunk of a document would collide
+        with the first and a whole document would get one run.
+        """
+        return {
+            "extractor": EXTRACTOR_VERSION,
+            "chunkId": fragment.chunk_id,
+            "charStart": fragment.char_start,
+            "charEnd": fragment.char_end,
+            "minQuoteChars": MIN_QUOTE_CHARS,
+            "maxClaims": MAX_CLAIMS_PER_FRAGMENT,
+        }
+
+    def canonical_text(self, version_id: str) -> str:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT canonical_text FROM kx.document_versions WHERE version_id = %s",
+                (version_id,),
+            )
+            return str(one_row(cursor)["canonical_text"])
+
+    def record_extraction(
+        self,
+        fragment: Fragment,
+        aligned: Sequence[AlignedClaim],
+        *,
+        model: str,
+        prompt_sha256: str,
+        failure: str | None = None,
+    ) -> dict[str, Any]:
+        """Write one extraction run: exact spans as evidence, the rest as candidates.
+
+        Idempotent on the recipe. ``processing_runs`` is unique on
+        ``(version_id, processor, processor_version, parameters_sha256, model_id)``
+        and the parameters name the fragment, so re-running the same fragment with
+        the same recipe records nothing twice and says so.
+        """
+        parameters = self.extraction_parameters(fragment)
+        outcome: dict[str, Any] = {
+            "chunkId": fragment.chunk_id,
+            "claims": 0,
+            "candidates": 0,
+            "byReason": {},
+        }
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.processing_runs
+                        (version_id, processor, processor_version, parameters_sha256,
+                         model_id, status, prompt_sha256, raw_output)
+                    VALUES (%s, 'claim_extraction', %s, %s, %s, 'running', %s, %s)
+                    ON CONFLICT (version_id, processor, processor_version,
+                                 parameters_sha256, model_id) DO NOTHING
+                    RETURNING run_id
+                    """,
+                    (
+                        fragment.version_id,
+                        EXTRACTOR_VERSION,
+                        sha256_bytes(stable_json_bytes(parameters)),
+                        model,
+                        prompt_sha256,
+                        Jsonb({"chunkId": fragment.chunk_id}),
+                    ),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    outcome["skipped"] = "this fragment already has a run of this recipe"
+                    return outcome
+                run_id = row["run_id"]
+                outcome["runId"] = str(run_id)
+
+                if failure is not None:
+                    self._record_candidate_row(
+                        cursor,
+                        fragment,
+                        run_id,
+                        predicate="(none)",
+                        object_text="(none)",
+                        quote=failure[:2000],
+                        reason="malformed_output",
+                        detail=failure[:2000],
+                        model=model,
+                        prompt_sha=prompt_sha256,
+                    )
+                    outcome["candidates"] = 1
+                    outcome["byReason"] = {"malformed_output": 1}
+                    cursor.execute(
+                        "UPDATE kx.processing_runs SET status = 'failed',"
+                        " finished_at = clock_timestamp(), error_detail = %s WHERE run_id = %s",
+                        (failure[:2000], run_id),
+                    )
+                    return outcome
+
+                reasons: dict[str, int] = {}
+                for item in aligned:
+                    if item.alignment.is_exact:
+                        self._record_claim_row(cursor, fragment, run_id, item)
+                        outcome["claims"] = int(outcome["claims"]) + 1
+                        continue
+                    reason = item.alignment.reason or "malformed_output"
+                    self._record_candidate_row(
+                        cursor,
+                        fragment,
+                        run_id,
+                        predicate=item.proposed.predicate,
+                        object_text=item.proposed.object_text,
+                        quote=item.proposed.quote,
+                        reason=reason,
+                        detail=item.alignment.detail,
+                        model=model,
+                        prompt_sha=prompt_sha256,
+                    )
+                    reasons[reason] = reasons.get(reason, 0) + 1
+                outcome["candidates"] = sum(reasons.values())
+                outcome["byReason"] = reasons
+                cursor.execute(
+                    "UPDATE kx.processing_runs SET status = 'succeeded',"
+                    " finished_at = clock_timestamp() WHERE run_id = %s",
+                    (run_id,),
+                )
+        return outcome
+
+    @staticmethod
+    def _record_claim_row(
+        cursor: psycopg.Cursor[dict[str, Any]],
+        fragment: Fragment,
+        run_id: Any,
+        item: AlignedClaim,
+    ) -> None:
+        cursor.execute(
+            """
+            INSERT INTO kx.claims
+                (version_id, processing_run_id, claim_kind, predicate,
+                 object_text, normalized_text)
+            VALUES (%s, %s, 'asserted', %s, %s, %s)
+            RETURNING claim_id
+            """,
+            (
+                fragment.version_id,
+                run_id,
+                item.proposed.predicate,
+                item.proposed.object_text,
+                normalized_claim_text(item.proposed.predicate, item.proposed.object_text),
+            ),
+        )
+        claim_id = one_row(cursor)["claim_id"]
+        # The quotation stored here came out of the store, not out of the answer.
+        # That is what makes the exactness structural rather than hopeful.
+        quote = item.alignment.quote_text or ""
+        cursor.execute(
+            """
+            INSERT INTO kx.claim_evidence
+                (claim_id, version_id, char_start, char_end, quote_text,
+                 quote_sha256, match_status)
+            VALUES (%s, %s, %s, %s, %s, %s, 'exact')
+            """,
+            (
+                claim_id,
+                fragment.version_id,
+                item.alignment.char_start,
+                item.alignment.char_end,
+                quote,
+                sha256_bytes(quote.encode("utf-8")),
+            ),
+        )
+
+    @staticmethod
+    def _record_candidate_row(
+        cursor: psycopg.Cursor[dict[str, Any]],
+        fragment: Fragment,
+        run_id: Any,
+        *,
+        predicate: str,
+        object_text: str,
+        quote: str,
+        reason: str,
+        detail: str | None,
+        model: str,
+        prompt_sha: str,
+    ) -> None:
+        cursor.execute(
+            """
+            INSERT INTO kx.extraction_candidates
+                (version_id, chunk_id, run_id, predicate, object_text, proposed_quote,
+                 proposed_quote_sha256, reason, reason_detail, model, prompt_sha256,
+                 extractor_version)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                fragment.version_id,
+                fragment.chunk_id,
+                run_id,
+                predicate,
+                object_text,
+                quote,
+                sha256_bytes(quote.encode("utf-8")),
+                reason,
+                detail,
+                model,
+                prompt_sha,
+                EXTRACTOR_VERSION,
+            ),
+        )
+
+    def extraction_report(self) -> dict[str, Any]:
+        """What extraction has produced, and where it is losing quotations."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT count(*) FILTER (WHERE status = 'succeeded') AS succeeded,
+                           count(*) FILTER (WHERE status = 'failed') AS failed,
+                           count(*) FILTER (WHERE status = 'running') AS running
+                    FROM kx.processing_runs WHERE processor = 'claim_extraction'
+                    """
+                )
+                runs = dict(one_row(cursor))
+                cursor.execute(
+                    "SELECT count(*) AS claims,"
+                    " count(DISTINCT version_id) AS versions FROM kx.claims"
+                )
+                claims = dict(one_row(cursor))
+                cursor.execute(
+                    "SELECT reason, count(*) AS total FROM kx.extraction_candidates"
+                    " WHERE status = 'open' GROUP BY reason ORDER BY total DESC"
+                )
+                reasons = {str(row["reason"]): int(row["total"]) for row in cursor.fetchall()}
+        total_claims = int(claims["claims"])
+        total_candidates = sum(reasons.values())
+        attempted = total_claims + total_candidates
+        return {
+            "runs": {key: int(value) for key, value in runs.items()},
+            "claims": total_claims,
+            "versionsWithClaims": int(claims["versions"]),
+            "openCandidates": total_candidates,
+            "candidatesByReason": reasons,
+            # The number that says whether the recipe works: of everything the model
+            # proposed, what share could be pinned to an exact span.
+            "exactShare": round(total_claims / attempted, 4) if attempted else None,
         }
 
     def coverage_report(self) -> dict[str, Any]:
