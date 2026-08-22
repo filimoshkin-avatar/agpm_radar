@@ -28,13 +28,11 @@ BASELINE_MIGRATIONS = (
     "001_initial.sql",
     "002_issue_perimeter.sql",
 )
-#: The migration the deployed release requires. Kept in step with
+#: The migrations the deployed release requires, in order. Kept in step with
 #: ``SCHEMA_VERSION`` so the fixture builds the database the code says it needs.
 MIGRATION_003 = "003_provenance_and_publication.sql"
-
-#: Written, verified, not yet applied to production. Exercised by its own fixture
-#: rather than by the default one, because the code still requires schema 3.
 MIGRATION_004 = "004_publication_caveat.sql"
+ADOPTED_MIGRATIONS = (MIGRATION_003, MIGRATION_004)
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
 #: was added straight to the running database, so the repository schema and
@@ -118,16 +116,22 @@ def drifted_dsn() -> Iterator[str]:
 
 
 @pytest.fixture
+def schema3_dsn(baseline_dsn: str) -> str:
+    """A database at schema 3 - what production looked like before 004."""
+    _apply(baseline_dsn, (MIGRATION_003,))
+    return baseline_dsn
+
+
+@pytest.fixture
 def caveat_dsn(migrated_dsn: str) -> str:
-    """A database at schema 4, for the migration that is written but not applied."""
-    _apply(migrated_dsn, (MIGRATION_004,))
+    """Alias kept for the tests written against 004 specifically."""
     return migrated_dsn
 
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 3 - the version the deployed release requires."""
-    _apply(baseline_dsn, (MIGRATION_003,))
+    """A database at schema 4 - the version the deployed release requires."""
+    _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
 
@@ -135,8 +139,8 @@ def apply_migration_003(dsn: str) -> None:
     _apply(dsn, (MIGRATION_003,))
 
 
-def apply_migration_004(dsn: str) -> None:
-    _apply(dsn, (MIGRATION_004,))
+def apply_adopted_migrations(dsn: str) -> None:
+    _apply(dsn, ADOPTED_MIGRATIONS)
 
 
 def connect(dsn: str) -> Connection[dict[str, object]]:

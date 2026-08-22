@@ -9,7 +9,7 @@ from typing import Any
 import psycopg
 import pytest
 
-from conftest import apply_migration_003, connect, one
+from conftest import MIGRATION_004, _apply, apply_migration_003, connect, one
 
 NOW = datetime(2026, 8, 22, 6, 19, 43, tzinfo=UTC)
 
@@ -221,10 +221,12 @@ def test_publication_blocks_default_to_no(migrated_dsn: str) -> None:
     assert clean not in blocks
 
 
-def test_before_004_an_archive_without_a_snapshot_is_refused(migrated_dsn: str) -> None:
-    archived = _seed_version(migrated_dsn, url="https://adopt.ai/blog/enterprise-ai-agents")
+def test_before_004_an_archive_without_a_snapshot_is_refused(schema3_dsn: str) -> None:
+    # Kept as the record of what 004 changed: before it, an archive with no
+    # snapshot identity was refused outright.
+    archived = _seed_version(schema3_dsn, url="https://adopt.ai/blog/enterprise-ai-agents")
     _insert_provenance(
-        migrated_dsn,
+        schema3_dsn,
         archived,
         source_access_method="web_archive",
         archive_used=True,
@@ -233,7 +235,7 @@ def test_before_004_an_archive_without_a_snapshot_is_refused(migrated_dsn: str) 
     )
     assert (
         _scalar(
-            migrated_dsn,
+            schema3_dsn,
             "SELECT block_reason FROM kx.version_publication_block WHERE version_id = %s",
             (archived,),
         )
@@ -241,8 +243,9 @@ def test_before_004_an_archive_without_a_snapshot_is_refused(migrated_dsn: str) 
     )
 
 
-def test_004_lands_on_top_of_003(caveat_dsn: str) -> None:
-    assert _scalar(caveat_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
+def test_004_lands_on_top_of_003(schema3_dsn: str) -> None:
+    _apply(schema3_dsn, (MIGRATION_004,))
+    assert _scalar(schema3_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
 
 
 def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(caveat_dsn: str) -> None:

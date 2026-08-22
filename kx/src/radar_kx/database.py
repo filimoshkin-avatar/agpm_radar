@@ -35,10 +35,8 @@ from radar_kx.url_policy import canonical_identity_url, normalize_url
 #: The schema version the deployed worker requires. It is bumped **when a
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
-#: cannot be released at all. `sql/004_publication_caveat.sql` is written and
-#: verified, awaiting the owner's decision to apply it; adopting it means moving
-#: this constant to 4 in the same change.
-SCHEMA_VERSION = 3
+#: cannot be released at all.
+SCHEMA_VERSION = 4
 PERIMETER_PRIORITY = 100
 
 #: Source kinds a network fetch may record. The ladder rungs that are HTTP
