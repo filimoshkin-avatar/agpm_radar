@@ -58,7 +58,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;

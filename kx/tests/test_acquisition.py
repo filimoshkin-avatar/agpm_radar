@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,10 @@ from conftest import connect
 from radar_kx.acquisition import (
     AUTOMATIC_RUNGS,
     DEFAULT_RUNGS,
+    ESCALATION_HINT,
     LADDER,
+    TERMINAL_BY_ERROR,
+    TRANSIENT_ERRORS,
     AcquisitionError,
     HostProfile,
     next_step,
@@ -95,7 +99,7 @@ def test_an_empty_ladder_is_a_decision() -> None:
         ("http_410", "removed_at_source", "machine"),
         ("http_401", "requires_credentials", "owner"),
         ("http_451", "no_public_text", "owner"),
-        ("parser_no_text", "no_public_text", "operator"),
+        ("http_407", "requires_credentials", "owner"),
     ],
 )
 def test_some_failures_mean_something_and_end_the_ladder(
@@ -141,9 +145,14 @@ def test_a_host_declining_this_client_is_not_the_document_being_unavailable() ->
         rationale="tries browser headers",
         decided_by="o",
     )
-    for error_code in ("http_403", "http_429", "http_503"):
+    for error_code in ("http_403", "http_429"):
         step = next_step(profile=profile, tried=["network"], error_code=error_code)
         assert step.rung == "network_browser_headers"
+    # A 5xx is the host having a bad minute, not the host declining this client.
+    assert (
+        next_step(profile=profile, tried=["network"], error_code="http_503").terminal_reason
+        == "transient_exhausted"
+    )
 
 
 def test_a_rung_the_fetcher_cannot_climb_stops_and_names_a_person() -> None:
@@ -322,3 +331,32 @@ def test_an_override_profile_must_carry_a_real_reason(migrated_dsn: str) -> None
                 decided_by="owner",
             )
         )
+
+
+@pytest.mark.parametrize("error_code", ["timeout", "network_error", "http_503"])
+def test_a_transient_failure_says_nothing_about_the_document(error_code: str) -> None:
+    # 79 documents in production were filed under "a person must decide" because
+    # a request timed out. That is how a gap queue stops being read.
+    step = next_step(profile=HostProfile(host="x"), tried=["network"], error_code=error_code)
+    assert step.terminal_reason == "transient_exhausted"
+    assert step.next_action_owner == "machine"
+
+
+def test_every_escalation_hint_names_an_error_the_fetcher_can_emit() -> None:
+    # Two of the first five rules named codes that do not exist and could never
+    # have fired. The vocabulary is the fetcher's, not this module's guess at it.
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "fetcher.py").read_text(
+        encoding="utf-8"
+    )
+    emitted = set(re.findall(r'"([a-z_0-9]+)"', source)) | {
+        f"http_{code}" for code in (401, 403, 404, 429, 500, 503)
+    }
+    for error_code in (*ESCALATION_HINT, *TERMINAL_BY_ERROR, *TRANSIENT_ERRORS):
+        if error_code.startswith("http_"):
+            continue
+        assert error_code in emitted, f"{error_code} is not a code the fetcher emits"
+
+
+def test_every_hinted_rung_is_a_real_rung() -> None:
+    for rung in ESCALATION_HINT.values():
+        assert rung in LADDER

@@ -66,6 +66,7 @@ TERMINAL_REASONS = (
     "blocked_by_host",
     "ladder_exhausted",
     "refused_by_policy",
+    "transient_exhausted",
 )
 
 #: Failures that end the ladder, with what they mean and whose move it is. Anything
@@ -75,19 +76,43 @@ TERMINAL_BY_ERROR: dict[str, tuple[str, str]] = {
     "http_410": ("removed_at_source", "machine"),
     "http_401": ("requires_credentials", "owner"),
     "http_402": ("requires_credentials", "owner"),
+    "http_407": ("requires_credentials", "owner"),
     "http_451": ("no_public_text", "owner"),
-    "parser_no_text": ("no_public_text", "operator"),
 }
+
+#: Failures that say nothing about the document. The attempts ran out; a requeue
+#: is the whole action, and nobody needs to look at the page. Reported separately
+#: because filing 79 timeouts under "a person must decide" is how a gap queue
+#: stops being read.
+TRANSIENT_ERRORS = frozenset(
+    {
+        "timeout",
+        "network_error",
+        "parse_or_io_error",
+        "empty_response",
+        "redirect_without_location",
+        "http_500",
+        "http_502",
+        "http_503",
+        "http_504",
+    }
+)
 
 #: Which rung a failure suggests trying next, when the profile allows it. A 403 or
 #: a 429 is a host declining this client, not declining the document.
+#: Verified against the codes the fetcher actually emits and the counts production
+#: actually holds, rather than against a guess: robots_denied 1 876, http_403 294,
+#: weak_or_missing_text 86, http_429 40. The first version of this table named
+#: `parser_no_text` and `empty_body`, neither of which exists, so two of its five
+#: rules could never have fired.
 ESCALATION_HINT: dict[str, str] = {
     "robots_denied": "network_robots_override",
     "http_403": "network_browser_headers",
     "http_429": "network_browser_headers",
-    "http_503": "network_browser_headers",
-    "parser_failed": "source_specific_parse",
-    "empty_body": "browser_render",
+    "content_parse_error": "source_specific_parse",
+    "weak_or_missing_text": "browser_render",
+    "body_too_large": "web_archive",
+    "too_many_redirects": "web_archive",
 }
 
 
@@ -181,6 +206,14 @@ def next_step(
     if error_code in TERMINAL_BY_ERROR:
         reason, owner = TERMINAL_BY_ERROR[error_code]
         return LadderStep(None, reason, owner, f"{error_code} ends the ladder")
+
+    if error_code in TRANSIENT_ERRORS:
+        return LadderStep(
+            None,
+            "transient_exhausted",
+            "machine",
+            f"{error_code} says nothing about the document; requeue is the action",
+        )
 
     already = set(tried)
     hinted = ESCALATION_HINT.get(error_code or "")
