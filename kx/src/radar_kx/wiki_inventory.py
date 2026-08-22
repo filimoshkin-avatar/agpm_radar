@@ -113,8 +113,8 @@ RELATIONSHIP_TYPES = (
     "depends-on",
 )
 
-_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-_LIST_ITEM = re.compile(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+(.+)$")
+HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+LIST_ITEM = re.compile(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+(.+)$")
 _MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 _BARE_URL = re.compile(r"(?<![(\[])\bhttps?://[^\s<>\")]+")
 _PUNCTUATION = re.compile(r"[^\w\s/]+", re.UNICODE)
@@ -256,7 +256,7 @@ class Page:
         }
 
 
-def _layer_for(relative_path: str) -> str:
+def layer_for(relative_path: str) -> str:
     name = Path(relative_path).name
     root_relative = "/".join(Path(relative_path).parts[1:])
     if root_relative in _ROOT_FILE_LAYERS:
@@ -279,7 +279,7 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _fenced_lines(lines: Sequence[str]) -> frozenset[int]:
+def fenced_lines(lines: Sequence[str]) -> frozenset[int]:
     """Line numbers inside a fenced code block, fence markers included.
 
     A wiki page that documents markdown - and several of them do - would otherwise
@@ -297,11 +297,11 @@ def _fenced_lines(lines: Sequence[str]) -> frozenset[int]:
     return frozenset(fenced)
 
 
-def _iter_headings(lines: Sequence[str], fenced: frozenset[int]) -> Iterator[Heading]:
+def iter_headings(lines: Sequence[str], fenced: frozenset[int]) -> Iterator[Heading]:
     for number, line in enumerate(lines, start=1):
         if number in fenced:
             continue
-        match = _HEADING.match(line)
+        match = HEADING.match(line)
         if match is None:
             continue
         text = match.group(2).strip()
@@ -313,7 +313,7 @@ def _iter_headings(lines: Sequence[str], fenced: frozenset[int]) -> Iterator[Hea
         )
 
 
-def _claim_sections(headings: Sequence[Heading]) -> dict[int, tuple[str, str]]:
+def claim_sections(headings: Sequence[Heading]) -> dict[int, tuple[str, str]]:
     """Line number -> (canonical section, heading text) for sections that carry claims."""
     wanted = {"core_claims", "implications", "tensions", "open_questions"}
     return {
@@ -327,11 +327,11 @@ def _read_page(path: Path, relative_path: str, roots: dict[str, Path]) -> Page:
     raw = path.read_bytes()
     text = raw.decode("utf-8", errors="replace")
     lines = text.splitlines()
-    fenced = _fenced_lines(lines)
-    headings = tuple(_iter_headings(lines, fenced))
+    fenced = fenced_lines(lines)
+    headings = tuple(iter_headings(lines, fenced))
     title = next((item.text for item in headings if item.level == 1), path.stem)
 
-    starts = _claim_sections(headings)
+    starts = claim_sections(headings)
     boundaries = sorted(item.line for item in headings)
     claims: list[Claim] = []
     for start, (section, heading_text) in sorted(starts.items()):
@@ -339,7 +339,7 @@ def _read_page(path: Path, relative_path: str, roots: dict[str, Path]) -> Page:
         for number in range(start + 1, min(following, len(lines) + 1)):
             if number in fenced:
                 continue
-            match = _LIST_ITEM.match(lines[number - 1])
+            match = LIST_ITEM.match(lines[number - 1])
             if match is None:
                 continue
             claim = _EMPHASIS.sub("", match.group(1)).strip()
@@ -370,7 +370,7 @@ def _read_page(path: Path, relative_path: str, roots: dict[str, Path]) -> Page:
 
     return Page(
         relative_path=relative_path,
-        layer=_layer_for(relative_path),
+        layer=layer_for(relative_path),
         section_directory="/".join(Path(relative_path).parts[:-1]),
         title=title,
         bytes=len(raw),
@@ -404,7 +404,7 @@ def collect(roots: dict[str, Path]) -> tuple[tuple[Page, ...], tuple[JsonObject,
             assets.append(
                 {
                     "relativePath": relative_path,
-                    "layer": _layer_for(relative_path),
+                    "layer": layer_for(relative_path),
                     "bytes": path.stat().st_size,
                     "suffix": path.suffix.lower(),
                     "sha256": _sha256_file(path) if path.stat().st_size < (1 << 24) else None,

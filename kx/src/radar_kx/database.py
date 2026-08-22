@@ -44,13 +44,20 @@ from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.source_families import DocumentHost, FamilyDecision
 from radar_kx.url_policy import canonical_identity_url, normalize_url
+from radar_kx.wiki_import import (
+    DEFAULT_RELEVANCE_FLOOR,
+    EVIDENCE_SEARCH_SQL,
+    ParsedPage,
+    is_authored,
+    parse_page,
+)
 from radar_kx.wiki_snapshot import WikiSnapshot, compress
 
 #: The schema version the deployed worker requires. It is bumped **when a
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -2288,6 +2295,267 @@ class Database:
                 (limit,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    # ---------------------------------------------------------------------
+    # The authored wiki as concepts (slice 2.5, P24)
+    # ---------------------------------------------------------------------
+
+    def snapshot_pages(self, snapshot_id: str, *, perimeter: str) -> list[ParsedPage]:
+        """Parse the authored markdown of one stored snapshot.
+
+        Read out of the store rather than off a filesystem: the snapshot is
+        content-addressed and immutable, so an import is reproducible from KX
+        alone and a concept version can name exactly which bytes it came from.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT files.relative_path, blobs.content"
+                    " FROM kx.wiki_snapshot_files AS files"
+                    " JOIN kx.wiki_blobs AS blobs USING (blob_sha256)"
+                    " WHERE files.snapshot_id = %s ORDER BY files.relative_path",
+                    (snapshot_id,),
+                )
+                rows = cursor.fetchall()
+        if not rows:
+            raise ValueError(f"snapshot {snapshot_id} holds no files")
+        pages: list[ParsedPage] = []
+        for row in rows:
+            relative = str(row["relative_path"])
+            if not relative.endswith(".md") or not is_authored(relative, perimeter=perimeter):
+                continue
+            body = gzip.decompress(cast(bytes, row["content"])).decode("utf-8", errors="replace")
+            pages.append(parse_page(relative, body, perimeter=perimeter))
+        return pages
+
+    def import_wiki_concepts(
+        self, *, snapshot_id: str, perimeter: str, imported_by: str
+    ) -> dict[str, Any]:
+        """Import one snapshot's authored pages as concepts and their statements."""
+        pages = self.snapshot_pages(snapshot_id, perimeter=perimeter)
+        imported: dict[str, Any] = {
+            "snapshotId": snapshot_id,
+            "pages": len(pages),
+            "concepts": 0,
+            "versions": 0,
+            "sections": 0,
+            "mappedSections": 0,
+            "statements": 0,
+            "alreadyImported": 0,
+        }
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for page in pages:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.concepts (relative_path, perimeter, layer, created_by)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (perimeter, relative_path)
+                            DO UPDATE SET relative_path = EXCLUDED.relative_path
+                        RETURNING concept_id
+                        """,
+                        (page.relative_path, perimeter, page.layer, imported_by),
+                    )
+                    concept_id = str(one_row(cursor)["concept_id"])
+                    imported["concepts"] = int(imported["concepts"]) + 1
+                    version_id = page.concept_version_id(concept_id, snapshot_id)
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.concept_versions
+                            (concept_version_id, concept_id, snapshot_id, title, body,
+                             body_sha256, word_count, language, imported_by)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (concept_version_id) DO NOTHING
+                        """,
+                        (
+                            version_id,
+                            concept_id,
+                            snapshot_id,
+                            page.title,
+                            page.body,
+                            page.body_sha256,
+                            page.word_count,
+                            page.language,
+                            imported_by,
+                        ),
+                    )
+                    if not cursor.rowcount:
+                        imported["alreadyImported"] = int(imported["alreadyImported"]) + 1
+                        continue
+                    imported["versions"] = int(imported["versions"]) + 1
+                    section_ids: dict[int, str] = {}
+                    for section in page.sections:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.concept_sections
+                                (concept_version_id, ordinal, heading, heading_level,
+                                 convention, char_start, char_end)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            RETURNING section_id
+                            """,
+                            (
+                                version_id,
+                                section.ordinal,
+                                section.heading,
+                                section.heading_level,
+                                section.convention,
+                                section.char_start,
+                                section.char_end,
+                            ),
+                        )
+                        section_ids[section.ordinal] = str(one_row(cursor)["section_id"])
+                        imported["sections"] = int(imported["sections"]) + 1
+                        if section.convention:
+                            imported["mappedSections"] = int(imported["mappedSections"]) + 1
+                    for statement in page.statements:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.concept_claims
+                                (concept_version_id, section_id, ordinal, char_start,
+                                 char_end, statement, statement_sha256, claim_nature,
+                                 segmentation)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'list_item')
+                            """,
+                            (
+                                version_id,
+                                section_ids[statement.section_ordinal],
+                                statement.ordinal,
+                                statement.char_start,
+                                statement.char_end,
+                                statement.statement,
+                                statement.statement_sha256,
+                                statement.claim_nature,
+                            ),
+                        )
+                        imported["statements"] = int(imported["statements"]) + 1
+        return imported
+
+    def bind_concept_evidence(
+        self,
+        *,
+        snapshot_id: str,
+        scope: str,
+        per_statement: int = 5,
+        floor: float = DEFAULT_RELEVANCE_FLOOR,
+        created_by: str,
+    ) -> dict[str, Any]:
+        """Propose evidence for every statement of one snapshot. Confirms nothing."""
+        if scope not in SCOPES:
+            raise ValueError(f"scope must be one of {sorted(SCOPES)}")
+        sql = EVIDENCE_SEARCH_SQL.format(scope=SCOPES[scope])
+        outcome: dict[str, Any] = {
+            "snapshotId": snapshot_id,
+            "membershipClass": scope,
+            "statements": 0,
+            "statementsWithProposal": 0,
+            "proposals": 0,
+            "floor": floor,
+        }
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT claims.concept_claim_id, claims.statement"
+                    " FROM kx.concept_claims AS claims"
+                    " JOIN kx.concept_versions AS versions USING (concept_version_id)"
+                    " WHERE versions.snapshot_id = %s",
+                    (snapshot_id,),
+                )
+                statements = [
+                    (str(row["concept_claim_id"]), str(row["statement"]))
+                    for row in cursor.fetchall()
+                ]
+            outcome["statements"] = len(statements)
+            for concept_claim_id, statement in statements:
+                with connection.transaction(), connection.cursor() as cursor:
+                    cursor.execute(
+                        sql,
+                        {
+                            "statement": statement,
+                            "k": RRF_K,
+                            "limit": per_statement,
+                        },
+                    )
+                    hits = [
+                        (str(row["claim_id"]), float(row["relevance"]))
+                        for row in cursor.fetchall()
+                        if float(row["relevance"]) >= floor
+                    ]
+                    if hits:
+                        outcome["statementsWithProposal"] = (
+                            int(outcome["statementsWithProposal"]) + 1
+                        )
+                    for claim_id, relevance in hits:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.concept_evidence
+                                (concept_claim_id, claim_id, membership_class,
+                                 binding_method, relevance, created_by)
+                            VALUES (%s, %s, %s, 'search_proposed', %s, %s)
+                            ON CONFLICT (concept_claim_id, claim_id) DO NOTHING
+                            """,
+                            (concept_claim_id, claim_id, scope, relevance, created_by),
+                        )
+                        outcome["proposals"] = int(outcome["proposals"]) + cursor.rowcount
+        return outcome
+
+    def statements_without_evidence(self, *, snapshot_id: str) -> dict[str, Any]:
+        """The report ADR-0008 §2.3 asks for.
+
+        A statement with no confirmed binding is not thereby false. It is
+        unsupported, it is counted, and it is not published as evidence-backed.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT support.claim_nature,
+                           count(*) AS statements,
+                           count(*) FILTER (WHERE support.confirmed_bindings > 0) AS supported,
+                           count(*) FILTER (
+                               WHERE support.confirmed_bindings = 0
+                                 AND support.proposed_bindings > 0
+                           ) AS proposed_only,
+                           count(*) FILTER (WHERE support.proposed_bindings = 0) AS untouched
+                    FROM kx.concept_claim_support AS support
+                    JOIN kx.concept_versions AS versions USING (concept_version_id)
+                    WHERE versions.snapshot_id = %s
+                    GROUP BY support.claim_nature
+                    ORDER BY statements DESC
+                    """,
+                    (snapshot_id,),
+                )
+                by_nature = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    """
+                    SELECT concepts.relative_path, count(*) AS statements
+                    FROM kx.concept_claim_support AS support
+                    JOIN kx.concept_versions AS versions USING (concept_version_id)
+                    JOIN kx.concepts AS concepts USING (concept_id)
+                    WHERE versions.snapshot_id = %s AND support.proposed_bindings = 0
+                    GROUP BY concepts.relative_path
+                    ORDER BY statements DESC
+                    LIMIT 15
+                    """,
+                    (snapshot_id,),
+                )
+                worst = [dict(row) for row in cursor.fetchall()]
+        total = sum(int(row["statements"]) for row in by_nature)
+        supported = sum(int(row["supported"]) for row in by_nature)
+        return {
+            "snapshotId": snapshot_id,
+            "statements": total,
+            "withConfirmedEvidence": supported,
+            "withProposalsOnly": sum(int(row["proposed_only"]) for row in by_nature),
+            "withNothing": sum(int(row["untouched"]) for row in by_nature),
+            # byNature, never averaged: an open question and a normative statement
+            # are not the same kind of thing to be unsupported.
+            "byNature": by_nature,
+            "pagesWithNothing": worst,
+        }
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

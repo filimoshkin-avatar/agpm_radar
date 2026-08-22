@@ -153,6 +153,20 @@ def _parser() -> argparse.ArgumentParser:
     snapshots_parser = subparsers.add_parser("wiki-snapshots")
     snapshots_parser.add_argument("--limit", type=int, default=20)
 
+    # Slice 2.5: the wiki as concepts, and evidence bound to its statements.
+    concepts_parser = subparsers.add_parser("import-wiki-concepts")
+    concepts_parser.add_argument("--snapshot-id", required=True)
+    concepts_parser.add_argument("--perimeter", default="agpm")
+
+    bind_parser = subparsers.add_parser("bind-concept-evidence")
+    bind_parser.add_argument("--snapshot-id", required=True)
+    bind_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
+    bind_parser.add_argument("--per-statement", type=int, default=5)
+    bind_parser.add_argument("--floor", type=float, default=None)
+
+    unsupported_parser = subparsers.add_parser("statements-without-evidence")
+    unsupported_parser.add_argument("--snapshot-id", required=True)
+
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
     subparsers.add_parser("model-run-types")
@@ -339,6 +353,29 @@ def main() -> None:
         return
     if args.command == "wiki-snapshots":
         _print_json(database.wiki_snapshots(limit=args.limit))
+        return
+    if args.command == "import-wiki-concepts":
+        _print_json(
+            database.import_wiki_concepts(
+                snapshot_id=args.snapshot_id,
+                perimeter=args.perimeter,
+                imported_by=f"radar-kx-import-wiki-concepts:{args.perimeter}",
+            )
+        )
+        return
+    if args.command == "bind-concept-evidence":
+        _print_json(
+            database.bind_concept_evidence(
+                snapshot_id=args.snapshot_id,
+                scope=args.scope,
+                per_statement=args.per_statement,
+                created_by=f"radar-kx-bind-concept-evidence:{args.scope}",
+                **({"floor": args.floor} if args.floor is not None else {}),
+            )
+        )
+        return
+    if args.command == "statements-without-evidence":
+        _print_json(database.statements_without_evidence(snapshot_id=args.snapshot_id))
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
