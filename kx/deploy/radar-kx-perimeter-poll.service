@@ -1,0 +1,68 @@
+[Unit]
+Description=Radar KX self-populating perimeter: poll Radar V2 and import what is new
+Documentation=file:///opt/radar-kx/current/README.md
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+# Slice 2.2. KX polls; V2 is not modified and has no hook into this. A publication
+# path that had to call the knowledge base would make the knowledge base able to
+# break a publication, and ADR-0005 §18 says the coupling runs the other way.
+#
+# Poll every time and let the import decide: `source_sha256` is the hash of the
+# release database file, so re-exporting an unchanged release produces an
+# identical artifact and `import_issue_perimeter` recognises it. There is no
+# "has it changed" check here to get wrong.
+Type=oneshot
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/worker.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+
+# The `+` runs this one step as root, because Radar V2's content directory is
+# closed to everyone but its own user and that is not this project's to change.
+ExecStartPre=+/opt/radar-kx/current/scripts/export_v2_perimeter_privileged.sh
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx import-perimeter \
+    --path /var/lib/radar-kx/perimeter/latest.json
+
+UMask=0077
+Nice=10
+TimeoutStartSec=600s
+
+# No internet at all: everything this unit touches is on the host. The export
+# reads a file, the import writes to a unix socket.
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+AmbientCapabilities=
+
+ReadOnlyPaths=/opt/radar-kx /etc/radar-kx /var/lib/radar-v2
+ReadWritePaths=/var/lib/radar-kx/perimeter /var/run/postgresql
+InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv
+
+[Install]
+WantedBy=multi-user.target

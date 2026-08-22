@@ -125,3 +125,24 @@ def test_the_profile_refuses_to_start_on_a_contract_violation() -> None:
     # unit would restart forever against whatever the drifted profile now is.
     assert _verifier_constant("EXIT_CONTRACT_VIOLATION") == 78
     assert "RestartPreventExitStatus=78" in _unit("radar-kx-hermes-extraction.service")
+
+
+def test_the_perimeter_poll_is_a_poll_and_not_a_hook() -> None:
+    # Slice 2.2. A publication path that had to call the knowledge base would make
+    # the knowledge base able to break a publication. V2 is not modified, has no
+    # hook, and does not know this exists: KX asks on a timer.
+    unit = _unit("radar-kx-perimeter-poll.service")
+    timer = _unit("radar-kx-perimeter-poll.timer")
+    assert any(line.startswith("OnUnitInactiveSec=") for line in timer)
+    assert "Unit=radar-kx-perimeter-poll.service" in timer
+    # Reads V2, never writes it.
+    assert any(line.startswith("ReadOnlyPaths=") and "/var/lib/radar-v2" in line for line in unit)
+    assert not any("ReadWritePaths=" in line and "radar-v2" in line for line in unit)
+    # One privileged step, and only one: V2's content directory is closed to
+    # everyone but its own user and that is not this project's to change.
+    privileged = [line for line in unit if line.startswith("ExecStartPre=+")]
+    assert len(privileged) == 1
+    assert privileged[0].endswith("export_v2_perimeter_privileged.sh")
+    assert any(line.startswith("ExecStart=") and "import-perimeter" in line for line in unit)
+    # Nothing here talks to the internet.
+    assert "IPAddressDeny=any" in unit

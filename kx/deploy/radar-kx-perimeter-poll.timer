@@ -1,0 +1,15 @@
+[Unit]
+Description=Poll Radar V2 for a new content release
+
+[Timer]
+# Half-hourly. V2 publishes at most a few times a day, so this is not about
+# latency - it is about the perimeter never being stale by more than one poll
+# without anybody having to remember.
+OnBootSec=5min
+OnUnitInactiveSec=30min
+RandomizedDelaySec=3min
+Persistent=true
+Unit=radar-kx-perimeter-poll.service
+
+[Install]
+WantedBy=timers.target
