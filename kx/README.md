@@ -25,6 +25,11 @@ with four different units, and `scripts/corpus_membership_kx_extract.sql` plus
 between two layers stops being explained. `src/radar_kx/corpus_membership.py` holds the logic;
 `docs/radar-kb-corpus-membership-contract-2026-08-22.md` is the agreed contract it enforces.
 
+`scripts/wiki_inventory.py` reads the AgPM file wiki the Project Manager maintains and reports what
+is in it: layers, which SCHEMA.md page conventions each page follows, atomic claim candidates with
+line numbers, which pages cite a source, and the untyped link graph. It writes nothing back;
+`docs/radar-kb-wiki-inventory-2026-08-22.md` records the measurement and what it changes.
+
 See `docs/radar-kx-production-fulltext-2026-08-21.md` for the accepted topology and operational
 evidence, and `docs/radar-kx-issue-perimeter-2026-08-21.md` for the perimeter contract, the robots
 override policy, and its production evidence.
