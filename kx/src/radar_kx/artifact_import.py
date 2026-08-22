@@ -66,6 +66,20 @@ class ArtifactManifestError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class ProvenanceCorrection:
+    """Provenance to append to one document's versions.
+
+    ``source_kinds`` narrows the correction to the versions it is actually about.
+    ``None`` means every version of the document, which is right only when the
+    document has one.
+    """
+
+    canonical_url: str
+    provenance: VersionProvenance
+    source_kinds: frozenset[str] | None
+
+
+@dataclass(frozen=True, slots=True)
 class ArtifactDocument:
     canonical_url: str
     path: Path
@@ -135,6 +149,18 @@ def _flag(value: object, *, where: str, default: bool = False) -> bool:
     if not isinstance(value, bool):
         raise ArtifactManifestError(f"{where} must be true or false")
     return value
+
+
+def _source_kinds(value: object, *, where: str) -> frozenset[str] | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, list)
+        or not value
+        or not all(isinstance(item, str) and item for item in value)
+    ):
+        raise ArtifactManifestError(f"{where}.source_kinds must be a non-empty array of strings")
+    return frozenset(value)
 
 
 def _resolve_path(root: Path, raw: str, *, where: str) -> Path:
@@ -360,22 +386,28 @@ def import_artifact(
     )
 
 
-def load_provenance_corrections(
-    path: Path,
-) -> tuple[str, tuple[tuple[str, VersionProvenance], ...]]:
-    """Read a provenance-correction file: canonical URL -> provenance to append."""
+def load_provenance_corrections(path: Path) -> tuple[str, tuple[ProvenanceCorrection, ...]]:
+    """Read a provenance-correction file.
+
+    An entry names a document and, optionally, which of its versions the
+    correction is about. A document usually has several versions - earlier
+    partial captures, a legacy snapshot, the complete one - and they were not all
+    obtained the same way, so a correction that does not say which versions it
+    means writes something false onto the others.
+    """
     document = _object(json.loads(path.read_text(encoding="utf-8")), where="corrections")
     recorded_by = _text(document.get("recorded_by"), where="corrections.recorded_by")
     entries = document.get("corrections")
     if not isinstance(entries, list) or not entries:
         raise ArtifactManifestError("corrections.corrections must be a non-empty array")
-    corrections: list[tuple[str, VersionProvenance]] = []
+    corrections: list[ProvenanceCorrection] = []
     for index, raw in enumerate(entries):
         where = f"corrections[{index}]"
         entry = _object(raw, where=where)
         canonical_url = canonical_identity_url(
             str(_text(entry.get("canonical_url"), where=f"{where}.canonical_url"))
         )
+        source_kinds = _source_kinds(entry.get("source_kinds"), where=where)
         payload = _object(entry.get("provenance"), where=f"{where}.provenance")
         method = _text(payload.get("source_access_method"), where=f"{where}.source_access_method")
         provenance = VersionProvenance(
@@ -414,7 +446,13 @@ def load_provenance_corrections(
             notes=_text(payload.get("notes"), where=f"{where}.notes", required=False),
         )
         _reject_incoherent_provenance(provenance, where=where)
-        corrections.append((canonical_url, provenance))
+        corrections.append(
+            ProvenanceCorrection(
+                canonical_url=canonical_url,
+                provenance=provenance,
+                source_kinds=source_kinds,
+            )
+        )
     return str(recorded_by), tuple(corrections)
 
 
@@ -422,20 +460,21 @@ def record_provenance_corrections(
     database: Database,
     *,
     recorded_by: str,
-    corrections: Sequence[tuple[str, VersionProvenance]],
+    corrections: Sequence[ProvenanceCorrection],
 ) -> dict[str, Any]:
     """Append provenance for existing versions, skipping any that already say the same."""
     appended = 0
     unchanged = 0
     missing: list[str] = []
-    for canonical_url, provenance in corrections:
+    for correction in corrections:
         outcome = database.record_version_provenance(
-            canonical_url=canonical_url,
-            provenance=provenance,
+            canonical_url=correction.canonical_url,
+            provenance=correction.provenance,
             recorded_by=recorded_by,
+            source_kinds=correction.source_kinds,
         )
         if outcome is None:
-            missing.append(canonical_url)
+            missing.append(correction.canonical_url)
             continue
         appended += outcome.appended
         unchanged += outcome.unchanged

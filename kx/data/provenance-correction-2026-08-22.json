@@ -1,0 +1,41 @@
+{
+  "recorded_by": "radar-kx-provenance-correction-2026-08-22",
+  "corrections": [
+    {
+      "canonical_url": "https://adopt.ai/blog/enterprise-ai-agents",
+      "source_kinds": [
+        "network",
+        "legacy_snapshot",
+        "legacy_truncated"
+      ],
+      "provenance": {
+        "source_access_method": "http_default",
+        "notes": "ordinary HTTP acquisition, incomplete. Corrects the 2026-08-22 backfill, which named the operator handover but was applied to every version of the document instead of only the operator_artifact one."
+      }
+    },
+    {
+      "canonical_url": "https://mckinsey.com/capabilities/quantumblack/our-insights/cost-versus-value-managing-agentic-ai-system-performance",
+      "source_kinds": [
+        "network",
+        "legacy_snapshot",
+        "legacy_truncated"
+      ],
+      "provenance": {
+        "source_access_method": "http_default",
+        "notes": "ordinary HTTP acquisition, incomplete. Corrects the 2026-08-22 backfill, which named the operator handover but was applied to every version of the document instead of only the operator_artifact one."
+      }
+    },
+    {
+      "canonical_url": "https://programgovernance.com/insights/ai-agents-in-pmo",
+      "source_kinds": [
+        "network",
+        "legacy_snapshot",
+        "legacy_truncated"
+      ],
+      "provenance": {
+        "source_access_method": "http_default",
+        "notes": "ordinary HTTP acquisition, incomplete. Corrects the 2026-08-22 backfill, which named the operator handover but was applied to every version of the document instead of only the operator_artifact one."
+      }
+    }
+  ]
+}

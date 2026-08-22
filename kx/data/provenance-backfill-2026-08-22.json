@@ -11,7 +11,10 @@
         "provided_by": "ivan",
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://adopt.ai/blog/enterprise-ai-agents"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://aipolicyperspectives.com/p/an-agents-economy",
@@ -21,7 +24,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://aipolicyperspectives.com/p/an-agents-economy",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0",
@@ -31,7 +37,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://appian.com/blog/pm/building-enterprise-grade-ai-agents",
@@ -39,7 +48,10 @@
         "source_access_method": "browser_headers",
         "browser_used": false,
         "notes": "defect D9: recorded as operator_artifact by the 2026-08-22 hotfix, but fetch_attempts holds a successful HTTP 200 described as a direct browser-header fetch. No new version is possible - the version id does not cover the source kind - so the record is corrected here."
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html",
@@ -49,7 +61,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://finam.ru/publications/item/budushchee-uoll-strit-uzhe-nastupilo-startapy-i-brokery-sozdayut-ii-agentov-dlya-torgov-v-rezhime-247-20260801-1152",
@@ -59,7 +74,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://finam.ru/publications/item/budushchee-uoll-strit-uzhe-nastupilo-startapy-i-brokery-sozdayut-ii-agentov-dlya-torgov-v-rezhime-247-20260801-1152",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://futurumgroup.com/insights/salesforce-bets-the-platform-on-headless-360",
@@ -67,7 +85,10 @@
         "source_access_method": "browser_headers",
         "browser_used": false,
         "notes": "defect D9: recorded as operator_artifact by the 2026-08-22 hotfix, but fetch_attempts holds a successful HTTP 200 described as a direct browser-header fetch. No new version is possible - the version id does not cover the source kind - so the record is corrected here."
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://gartner.com/en/newsroom/press-releases/2025-08-17-gartner-says-shared-chro-cio-ownership-is-critical-for-ai-transformation",
@@ -77,7 +98,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://gartner.com/en/newsroom/press-releases/2025-08-17-gartner-says-shared-chro-cio-ownership-is-critical-for-ai-transformation",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
@@ -87,7 +111,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
@@ -97,7 +124,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/03/CSA_research_note_nist-ai-agent-standards-regulatory-framework_20260323-csa-styled.pdf",
@@ -107,7 +137,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/03/CSA_research_note_nist-ai-agent-standards-regulatory-framework_20260323-csa-styled.pdf",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://mckinsey.com/capabilities/operations/our-insights/agentic-and-gen-ai-in-operations",
@@ -119,7 +152,10 @@
         "provided_by": "ivan",
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://mckinsey.com/capabilities/operations/our-insights/agentic-and-gen-ai-in-operations"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://mckinsey.com/capabilities/people-and-organizational-performance/our-insights/the-agentic-organization-contours-of-the-next-paradigm-for-the-ai-era",
@@ -131,7 +167,10 @@
         "provided_by": "ivan",
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://mckinsey.com/capabilities/people-and-organizational-performance/our-insights/the-agentic-organization-contours-of-the-next-paradigm-for-the-ai-era"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://mckinsey.com/capabilities/quantumblack/our-insights/cost-versus-value-managing-agentic-ai-system-performance",
@@ -143,7 +182,10 @@
         "provided_by": "ivan",
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://mckinsey.com/capabilities/quantumblack/our-insights/cost-versus-value-managing-agentic-ai-system-performance"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://opkey.com/pmo-agent",
@@ -153,7 +195,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://opkey.com/pmo-agent",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://programgovernance.com/insights/ai-agents-in-pmo",
@@ -163,7 +208,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://programgovernance.com/insights/ai-agents-in-pmo",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://projectmanagement.com/discussion-topic/223546/empowering-projects-with-agentic-ai",
@@ -173,7 +221,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://projectmanagement.com/discussion-topic/223546/empowering-projects-with-agentic-ai",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://projectmanagement.com/videos/1168195/transforming-business-with-agentic-ai",
@@ -183,7 +234,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://projectmanagement.com/videos/1168195/transforming-business-with-agentic-ai",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://pwc.com/us/en/tech-effect/ai-analytics/ai-agent-survey.html",
@@ -193,7 +247,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://pwc.com/us/en/tech-effect/ai-analytics/ai-agent-survey.html",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://reddit.com/r/ClaudeCode/comments/1rl3wl1/project_management_for_agentichuman_collaboration",
@@ -203,7 +260,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://reddit.com/r/ClaudeCode/comments/1rl3wl1/project_management_for_agentichuman_collaboration",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://reddit.com/r/artificial/comments/1u3gv2i/i_think_ai_agents_are_going_to_need_an_operating",
@@ -213,7 +273,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://reddit.com/r/artificial/comments/1u3gv2i/i_think_ai_agents_are_going_to_need_an_operating",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://reddit.com/r/artificial/comments/1uc7mk8/maybe_the_ai_race_isnt_about_models_at_all_but",
@@ -223,7 +286,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://reddit.com/r/artificial/comments/1uc7mk8/maybe_the_ai_race_isnt_about_models_at_all_but",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://servicenow.com/products/ai-agents.html",
@@ -233,7 +299,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://servicenow.com/products/ai-agents.html",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://sloanreview.mit.edu/projects/scholars/the-emerging-agentic-enterprise-how-leaders-must-navigate-a-new-age-of-ai",
@@ -243,7 +312,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://sloanreview.mit.edu/projects/scholars/the-emerging-agentic-enterprise-how-leaders-must-navigate-a-new-age-of-ai",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     },
     {
       "canonical_url": "https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205",
@@ -253,7 +325,10 @@
         "provided_at": "2026-08-22T06:00:00+00:00",
         "original_url": "https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205",
         "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
-      }
+      },
+      "source_kinds": [
+        "operator_artifact"
+      ]
     }
   ]
 }

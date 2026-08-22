@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +13,7 @@ import pytest
 from conftest import connect, one
 from radar_kx.artifact_import import (
     ArtifactManifestError,
+    ProvenanceCorrection,
     import_artifact,
     load_artifact_manifest,
     load_provenance_corrections,
@@ -222,14 +224,14 @@ def test_the_shipped_backfill_file_is_loadable_and_complete() -> None:
     recorded_by, corrections = load_provenance_corrections(BACKFILL)
     assert recorded_by
     assert len(corrections) == 25
-    methods = [provenance.source_access_method for _, provenance in corrections]
+    methods = [item.provenance.source_access_method for item in corrections]
     # 23 documents came from the owner's HTML artifact, four of those actually from
     # a web archive; two were ordinary browser-header fetches mislabelled by the
     # hotfix (defect D9).
     assert methods.count("operator_file") == 19
     assert methods.count("web_archive") == 4
     assert methods.count("browser_headers") == 2
-    blocked = [url for url, provenance in corrections if provenance.manual_review_required]
+    blocked = [item.canonical_url for item in corrections if item.provenance.manual_review_required]
     assert len(blocked) == 4
     assert "https://adopt.ai/blog/enterprise-ai-agents" in blocked
 
@@ -369,14 +371,22 @@ def test_provenance_corrections_append_once_and_then_stay_quiet(
         database,
         recorded_by="test",
         corrections=[
-            ("https://appian.com/blog/pm/building-enterprise-grade-ai-agents", correction)
+            ProvenanceCorrection(
+                canonical_url="https://appian.com/blog/pm/building-enterprise-grade-ai-agents",
+                provenance=correction,
+                source_kinds=frozenset({"operator_artifact"}),
+            )
         ],
     )
     second = record_provenance_corrections(
         database,
         recorded_by="test",
         corrections=[
-            ("https://appian.com/blog/pm/building-enterprise-grade-ai-agents", correction)
+            ProvenanceCorrection(
+                canonical_url="https://appian.com/blog/pm/building-enterprise-grade-ai-agents",
+                provenance=correction,
+                source_kinds=frozenset({"operator_artifact"}),
+            )
         ],
     )
     assert (first["appended"], first["unchanged"]) == (1, 0)
@@ -397,9 +407,10 @@ def test_a_correction_for_a_document_we_do_not_hold_is_reported_not_swallowed(
         database,
         recorded_by="test",
         corrections=[
-            (
-                "https://example.com/never-seen",
-                VersionProvenance(source_access_method="http_default"),
+            ProvenanceCorrection(
+                canonical_url="https://example.com/never-seen",
+                provenance=VersionProvenance(source_access_method="http_default"),
+                source_kinds=None,
             )
         ],
     )
@@ -440,7 +451,118 @@ def test_canon_documents_import_under_the_reserved_scheme(
 
 def test_datetimes_in_the_backfill_are_timezone_aware() -> None:
     _, corrections = load_provenance_corrections(BACKFILL)
-    for _, provenance in corrections:
-        if provenance.provided_at is not None:
-            assert provenance.provided_at.tzinfo is not None
-            assert provenance.provided_at <= datetime(2026, 12, 31, tzinfo=UTC)
+    for item in corrections:
+        if item.provenance.provided_at is not None:
+            assert item.provenance.provided_at.tzinfo is not None
+            assert item.provenance.provided_at <= datetime(2026, 12, 31, tzinfo=UTC)
+
+
+CORRECTION = Path(__file__).resolve().parents[1] / "data" / "provenance-correction-2026-08-22.json"
+
+
+def test_a_correction_touches_only_the_versions_it_names(
+    database: Database, migrated_dsn: str, tmp_path: Path
+) -> None:
+    # A document usually has several versions obtained different ways. A
+    # correction that does not say which versions it means writes something false
+    # onto the others - which is exactly what the first production backfill did.
+    url = "https://programgovernance.com/insights/ai-agents-in-pmo"
+    import_artifact(
+        database,
+        load_artifact_manifest(
+            _manifest(
+                tmp_path,
+                [
+                    {
+                        "canonical_url": url,
+                        "path": _page(tmp_path),
+                        "provenance": {"source_access_method": "operator_file"},
+                    }
+                ],
+            )
+        ),
+    )
+    # A second, earlier version of the same document, obtained over the network.
+    _seed_network_version(migrated_dsn, url)
+
+    outcome = record_provenance_corrections(
+        database,
+        recorded_by="test",
+        corrections=[
+            ProvenanceCorrection(
+                canonical_url=url,
+                provenance=VersionProvenance(source_access_method="browser_headers"),
+                source_kinds=frozenset({"operator_artifact"}),
+            )
+        ],
+    )
+    assert outcome["appended"] == 1
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT versions.source_kind, current.source_access_method"
+            " FROM kx.document_versions AS versions"
+            " LEFT JOIN kx.version_provenance_current AS current USING (version_id)"
+            " ORDER BY versions.source_kind"
+        )
+        rows = {str(row["source_kind"]): row["source_access_method"] for row in cursor.fetchall()}
+    assert rows == {"operator_artifact": "browser_headers", "network": None}
+
+
+def _seed_network_version(dsn: str, url: str) -> None:
+    document = hashlib.sha256(url.encode()).hexdigest()
+    raw = hashlib.sha256(b"earlier body").hexdigest()
+    text_hash = hashlib.sha256(b"earlier text").hexdigest()
+    version = hashlib.sha256(f"{document}\0{raw}\0{text_hash}".encode()).hexdigest()
+    with connect(dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO kx.raw_blobs (raw_sha256, compression, raw_bytes, stored_bytes, content)"
+            " VALUES (%s, 'gzip', 12, 12, %s) ON CONFLICT DO NOTHING",
+            (raw, b"earlier body"),
+        )
+        cursor.execute(
+            """
+            INSERT INTO kx.document_versions (
+                version_id, document_id, raw_sha256, source_kind, canonical_text,
+                canonical_text_sha256, title, language, parser_name, parser_version,
+                parser_config_sha256, quality, is_complete, fetched_at
+            ) VALUES (%s, %s, %s, 'network', 'earlier text', %s, '', 'en', 'radar-kx',
+                      'canonical-v4', %s, 'trafilatura', false, %s)
+            """,
+            (version, document, raw, text_hash, text_hash, datetime(2026, 8, 1, tzinfo=UTC)),
+        )
+
+
+def test_the_shipped_correction_file_names_the_versions_it_fixes() -> None:
+    recorded_by, corrections = load_provenance_corrections(CORRECTION)
+    assert recorded_by
+    assert len(corrections) == 3
+    for item in corrections:
+        assert item.source_kinds == frozenset({"network", "legacy_snapshot", "legacy_truncated"})
+        assert item.provenance.source_access_method == "http_default"
+
+
+def test_the_shipped_backfill_names_only_the_operator_artifact_versions() -> None:
+    _, corrections = load_provenance_corrections(BACKFILL)
+    for item in corrections:
+        assert item.source_kinds == frozenset({"operator_artifact"})
+
+
+def test_a_correction_with_an_empty_version_filter_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "corrections.json"
+    path.write_text(
+        json.dumps(
+            {
+                "recorded_by": "test",
+                "corrections": [
+                    {
+                        "canonical_url": "https://example.com/a",
+                        "source_kinds": [],
+                        "provenance": {"source_access_method": "http_default"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ArtifactManifestError, match="source_kinds"):
+        load_provenance_corrections(path)
