@@ -19,6 +19,17 @@ say() { printf '[deploy] %s\n' "$*"; }
 die() { printf '[deploy] FAIL: %s\n' "$*" >&2; exit 1; }
 
 cd "$REPO_ROOT"
+
+# A migration moves the database out from under anything already running:
+# `require_schema` is a hard gate (defect D2) and a long batch loaded the old
+# constant at start. On 2026-08-22 applying migration 010 killed an extraction
+# pass 232 fragments into 1098. Deploying is safe; applying a migration is not,
+# and the runbook for one starts by stopping the orchestrator.
+if ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+       "systemctl list-units --state=active --no-legend 'radar-kx-orchestrator@*' | grep -q ." \
+       2>/dev/null; then
+    say "NOTE: an orchestrator instance is running; a migration would kill it mid-pass"
+fi
 [[ -z "$(git status --porcelain kx)" ]] || die "kx/ has uncommitted changes"
 commit="$(git rev-parse HEAD | cut -c1-12)"
 release="radar_kx_release_$(date -u +%Y%m%d)_${commit}"
