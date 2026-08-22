@@ -69,7 +69,7 @@ def _insert_provenance(dsn: str, version: str, **fields: Any) -> None:
 
 def test_migration_lands_on_the_repository_baseline(baseline_dsn: str) -> None:
     apply_migration_003(baseline_dsn)
-    assert _scalar(baseline_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
+    assert _scalar(baseline_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 3
 
 
 def test_migration_lands_on_the_drifted_production_schema(drifted_dsn: str) -> None:
@@ -77,7 +77,7 @@ def test_migration_lands_on_the_drifted_production_schema(drifted_dsn: str) -> N
     # migration has to be idempotent against it, or the repository can never
     # describe production again.
     apply_migration_003(drifted_dsn)
-    assert _scalar(drifted_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
+    assert _scalar(drifted_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 3
     definition = _scalar(
         drifted_dsn,
         "SELECT pg_get_constraintdef(oid) FROM pg_constraint"
@@ -221,10 +221,7 @@ def test_publication_blocks_default_to_no(migrated_dsn: str) -> None:
     assert clean not in blocks
 
 
-def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(migrated_dsn: str) -> None:
-    # Owner decision 2026-08-22 (ADR-0004, rule 21a). The words are the source's; what
-    # is missing is the reader's ability to re-check them at that snapshot. That is
-    # a statement about the link, and the reader is told it.
+def test_before_004_an_archive_without_a_snapshot_is_refused(migrated_dsn: str) -> None:
     archived = _seed_version(migrated_dsn, url="https://adopt.ai/blog/enterprise-ai-agents")
     _insert_provenance(
         migrated_dsn,
@@ -234,7 +231,34 @@ def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(migrated_dsn: s
         manual_review_required=True,
         manual_review_reason="snapshot URL and capture date were not recorded",
     )
-    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+    assert (
+        _scalar(
+            migrated_dsn,
+            "SELECT block_reason FROM kx.version_publication_block WHERE version_id = %s",
+            (archived,),
+        )
+        == "provenance_manual_review"
+    )
+
+
+def test_004_lands_on_top_of_003(caveat_dsn: str) -> None:
+    assert _scalar(caveat_dsn, "SELECT value FROM kx.metadata WHERE key='schema_version'") == 4
+
+
+def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(caveat_dsn: str) -> None:
+    # Owner decision 2026-08-22 (ADR-0004, rule 21a). The words are the source's; what
+    # is missing is the reader's ability to re-check them at that snapshot. That is
+    # a statement about the link, and the reader is told it.
+    archived = _seed_version(caveat_dsn, url="https://adopt.ai/blog/enterprise-ai-agents")
+    _insert_provenance(
+        caveat_dsn,
+        archived,
+        source_access_method="web_archive",
+        archive_used=True,
+        manual_review_required=True,
+        manual_review_reason="snapshot URL and capture date were not recorded",
+    )
+    with connect(caveat_dsn) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT count(*) AS count FROM kx.version_publication_block")
         assert one(cursor)["count"] == 0
         cursor.execute("SELECT caveat, caveat_detail FROM kx.version_publication_caveat")
@@ -243,17 +267,17 @@ def test_an_archive_without_a_snapshot_is_a_caveat_not_a_refusal(migrated_dsn: s
         assert "snapshot" in str(row["caveat_detail"])
 
 
-def test_an_archive_with_its_snapshot_carries_no_caveat_at_all(migrated_dsn: str) -> None:
-    archived = _seed_version(migrated_dsn, url="https://example.com/archived")
+def test_an_archive_with_its_snapshot_carries_no_caveat_at_all(caveat_dsn: str) -> None:
+    archived = _seed_version(caveat_dsn, url="https://example.com/archived")
     _insert_provenance(
-        migrated_dsn,
+        caveat_dsn,
         archived,
         source_access_method="web_archive",
         archive_used=True,
         archive_url="https://web.archive.org/web/20260101/https://example.com/archived",
         archive_captured_at=NOW,
     )
-    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+    with connect(caveat_dsn) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT count(*) AS count FROM kx.version_publication_caveat")
         assert one(cursor)["count"] == 0
         cursor.execute("SELECT count(*) AS count FROM kx.version_publication_block")

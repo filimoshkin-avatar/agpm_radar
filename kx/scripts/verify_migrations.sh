@@ -10,6 +10,9 @@
 # pgvector, reachable by a role that may CREATE DATABASE and CREATE EXTENSION.
 # Override the connection with RADAR_KX_TEST_ADMIN_DSN.
 #
+# It applies 003 and, in its own fixture, 004 - written and verified, awaiting
+# the owner's decision to apply it.
+#
 # It never touches Radar KX production: the DSN is local, the databases it
 # creates are named radar_kx_test_*, and it drops them when it is done.
 

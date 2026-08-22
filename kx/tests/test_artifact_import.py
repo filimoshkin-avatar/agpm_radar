@@ -271,8 +271,19 @@ def test_import_stores_the_version_and_its_provenance(
         cursor.execute("SELECT count(*) AS count FROM kx.fetch_attempts")
         # No HTTP request happened, so none is recorded. Inventing one is the D9 bug.
         assert one(cursor)["count"] == 0
-        cursor.execute("SELECT caveat FROM kx.version_publication_caveat")
-        assert one(cursor)["caveat"] == "archive_snapshot_not_recorded"
+        # Assert the provenance, not which view it lands in: migration 004 moves
+        # this case from "refused" to "published with a caveat", and the import
+        # path is unchanged by that.
+        cursor.execute(
+            "SELECT manual_review_required, archive_used, archive_url"
+            " FROM kx.version_provenance_current"
+        )
+        row = one(cursor)
+        assert (row["manual_review_required"], row["archive_used"], row["archive_url"]) == (
+            True,
+            True,
+            None,
+        )
 
 
 def test_reimporting_the_same_artifact_changes_nothing(
