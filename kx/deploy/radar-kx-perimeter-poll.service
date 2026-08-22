@@ -26,7 +26,7 @@ Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
 # closed to everyone but its own user and that is not this project's to change.
 ExecStartPre=+/opt/radar-kx/current/scripts/export_v2_perimeter_privileged.sh
 ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx import-perimeter \
-    --path /var/lib/radar-kx/perimeter/latest.json
+    /var/lib/radar-kx/perimeter/latest.json
 
 UMask=0077
 Nice=10
