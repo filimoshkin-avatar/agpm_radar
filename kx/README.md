@@ -30,6 +30,16 @@ is in it: layers, which SCHEMA.md page conventions each page follows, atomic cla
 line numbers, which pages cite a source, and the untyped link graph. It writes nothing back;
 `docs/radar-kb-wiki-inventory-2026-08-22.md` records the measurement and what it changes.
 
+The `003` boundary records how evidence was obtained and prepares publication: an append-only
+`version_provenance` beside every version (a version id does not cover its own acquisition method,
+so a wrong one can only be corrected beside it), a fail-closed `version_publication_block`, the
+egress audit, wiki snapshots, store-reconciliation reports and the corpus membership class.
+`radar_kx import-artifact` is the offline import path - files, never a fabricated HTTP 200 - and
+`radar_kx record-provenance` appends provenance to versions that already exist.
+`scripts/verify_migrations.sh` applies every migration to a throwaway database, on the repository
+baseline and on the schema production drifted into, and runs the SQL-backed tests that
+`scripts/verify.sh` skips. `docs/radar-kb-migration-003-runbook-2026-08-22.md` is the runbook.
+
 See `docs/radar-kx-production-fulltext-2026-08-21.md` for the accepted topology and operational
 evidence, and `docs/radar-kx-issue-perimeter-2026-08-21.md` for the perimeter contract, the robots
 override policy, and its production evidence.

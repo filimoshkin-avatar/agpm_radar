@@ -108,3 +108,71 @@ def test_ready_queue_order_is_source_diverse_not_import_timestamp_order() -> Non
     assert "row_number() OVER" in source
     assert "host_load.running_count" in source
     assert "attempt_count = greatest(attempt_count - 1, 0)" in source
+
+
+def test_migration_003_carries_every_object_the_plan_requires() -> None:
+    schema = (Path(__file__).parents[1] / "sql" / "003_provenance_and_publication.sql").read_text(
+        encoding="utf-8"
+    )
+    for table in (
+        "version_provenance",
+        "source_publication_policy",
+        "egress_audit",
+        "wiki_blobs",
+        "wiki_snapshots",
+        "wiki_snapshot_files",
+        "store_reconciliation_reports",
+    ):
+        assert f"CREATE TABLE {table}" in schema
+        assert f"{table}_immutable" in schema or table in {
+            "source_publication_policy",
+        }
+    for view in ("version_provenance_current", "version_publication_block"):
+        assert f"CREATE VIEW {view}" in schema
+    # The taxonomy gains the ladder rungs that had no name, and keeps the one that
+    # production acquired by hotfix.
+    for kind in (
+        "'network_browser_headers'",
+        "'browser_render'",
+        "'web_archive'",
+        "'operator_artifact'",
+        "'local_import'",
+    ):
+        assert schema.count(kind) >= 2
+    # DROP ... IF EXISTS is what makes the migration land on a database that already
+    # carries the hand-applied ALTER (defect D1).
+    assert "DROP CONSTRAINT IF EXISTS fetch_attempts_source_kind_check" in schema
+    assert "DROP CONSTRAINT IF EXISTS document_versions_source_kind_check" in schema
+    assert "ADD COLUMN source_kind text NOT NULL DEFAULT 'radar_materials'" in schema
+    assert "documents_canonical_url_scheme" in schema
+    assert "GRANT ALL ON version_provenance" in schema
+    assert (
+        "GRANT USAGE, SELECT ON SEQUENCE version_provenance_provenance_id_seq TO radar_kx" in schema
+    )
+    assert "UPDATE metadata SET value = '3'::jsonb" in schema
+
+
+def test_the_worker_gate_matches_the_migration_it_requires() -> None:
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "database.py").read_text(
+        encoding="utf-8"
+    )
+    schema = (Path(__file__).parents[1] / "sql" / "003_provenance_and_publication.sql").read_text(
+        encoding="utf-8"
+    )
+    # SCHEMA_VERSION is a hard gate (defect D2): the release refuses to run against
+    # a database at any other version, so the two must move together and in the
+    # order "database first, release second".
+    assert "SCHEMA_VERSION = 3" in source
+    assert "UPDATE metadata SET value = '3'::jsonb" in schema
+
+
+def test_a_network_fetch_can_never_be_recorded_as_an_operator_artifact() -> None:
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "database.py").read_text(
+        encoding="utf-8"
+    )
+    assert "a fetch may not record source kind" in source
+    assert "an offline import may not record source kind" in source
+    assert (
+        '"operator_artifact"'
+        not in source.split("NETWORK_SOURCE_KINDS = frozenset(", 1)[1].split(")", 1)[0]
+    )

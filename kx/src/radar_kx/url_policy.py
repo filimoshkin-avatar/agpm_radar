@@ -58,6 +58,38 @@ def normalize_url(value: str) -> str:
     return urlunsplit((scheme, netloc, path, urlencode(query, doseq=True), ""))
 
 
+#: Documents that were never on the web still need a canonical URL, because
+#: ``document_id`` is sha256 over one. The AgPM canon gets this reserved scheme:
+#: it cannot collide with a fetched page, it cannot be mistaken for one, and
+#: migration 003 constrains ``documents.canonical_url`` to http(s) or this.
+CANON_URL_SCHEME = "agpm-canon"
+
+
+def canon_url(relative_path: str) -> str:
+    """Build the canonical URL of a local canon document from its path under ``raw/``."""
+    cleaned = relative_path.strip().strip("/")
+    if not cleaned:
+        raise UnsafeUrlError("canon document path is required")
+    parts = cleaned.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise UnsafeUrlError(f"canon document path is not relative: {relative_path!r}")
+    return f"{CANON_URL_SCHEME}:/{'/'.join(parts)}"
+
+
+def canonical_identity_url(value: str) -> str:
+    """Normalize whatever addresses a document, on the web or on this host.
+
+    http(s) goes through the ordinary normalizer so a document keeps one identity
+    across every store. The reserved canon scheme is validated and passed through
+    unchanged - running it through ``normalize_url`` would reject it, and there is
+    nothing about a local path to normalize.
+    """
+    candidate = value.strip()
+    if candidate.lower().startswith(f"{CANON_URL_SCHEME}:"):
+        return canon_url(candidate[len(CANON_URL_SCHEME) + 1 :])
+    return normalize_url(candidate)
+
+
 def resolve_public_url(value: str) -> ResolvedUrl:
     normalized = normalize_url(value)
     parsed = urlsplit(normalized)

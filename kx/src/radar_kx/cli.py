@@ -6,6 +6,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from radar_kx.artifact_import import (
+    import_artifact,
+    load_artifact_manifest,
+    load_provenance_corrections,
+    record_provenance_corrections,
+)
 from radar_kx.cache_import import import_caches
 from radar_kx.config import Settings
 from radar_kx.database import Database
@@ -25,6 +31,14 @@ def _parser() -> argparse.ArgumentParser:
     import_manifest_parser = subparsers.add_parser("import-manifest")
     import_manifest_parser.add_argument("path", type=Path)
     import_manifest_parser.add_argument("--source-name", default="materials.jsonl")
+
+    # Rung seven of the acquisition ladder: material that arrived as a file.
+    import_artifact_parser = subparsers.add_parser("import-artifact")
+    import_artifact_parser.add_argument("--manifest", type=Path, required=True)
+
+    # Append provenance to versions that already exist, without touching them.
+    record_provenance_parser = subparsers.add_parser("record-provenance")
+    record_provenance_parser.add_argument("--file", type=Path, required=True)
 
     import_cache_parser = subparsers.add_parser("import-cache")
     import_cache_parser.add_argument("--metadata-dir", type=Path, required=True)
@@ -71,6 +85,18 @@ def main() -> None:
     if args.command == "import-manifest":
         manifest = load_manifest(args.path)
         _print_json(database.import_manifest(manifest, source_name=args.source_name))
+        return
+    if args.command == "import-artifact":
+        artifact = load_artifact_manifest(args.manifest)
+        _print_json(import_artifact(database, artifact).as_json())
+        return
+    if args.command == "record-provenance":
+        recorded_by, corrections = load_provenance_corrections(args.file)
+        _print_json(
+            record_provenance_corrections(
+                database, recorded_by=recorded_by, corrections=corrections
+            )
+        )
         return
     if args.command == "import-cache":
         cache_result = import_caches(

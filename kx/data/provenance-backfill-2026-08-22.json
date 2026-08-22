@@ -1,0 +1,259 @@
+{
+  "recorded_by": "radar-kx-provenance-backfill-2026-08-22",
+  "corrections": [
+    {
+      "canonical_url": "https://adopt.ai/blog/enterprise-ai-agents",
+      "provenance": {
+        "source_access_method": "web_archive",
+        "archive_used": true,
+        "manual_review_required": true,
+        "manual_review_reason": "text came from a web archive but the snapshot URL and capture date were not recorded; evidence-contract rule 19 cannot be satisfied, so public quotation stays blocked until they are",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://adopt.ai/blog/enterprise-ai-agents"
+      }
+    },
+    {
+      "canonical_url": "https://aipolicyperspectives.com/p/an-agents-economy",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://aipolicyperspectives.com/p/an-agents-economy",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://alfa-bank.ru/alfa-investor/posts/t/57d73ee5-a486-f111-91c8-0050569e1fd0",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://appian.com/blog/pm/building-enterprise-grade-ai-agents",
+      "provenance": {
+        "source_access_method": "browser_headers",
+        "browser_used": false,
+        "notes": "defect D9: recorded as operator_artifact by the 2026-08-22 hotfix, but fetch_attempts holds a successful HTTP 200 described as a direct browser-header fetch. No new version is possible - the version id does not cover the source kind - so the record is corrected here."
+      }
+    },
+    {
+      "canonical_url": "https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://deloitte.com/us/en/insights/industry/technology/technology-media-and-telecom-predictions/2026/ai-agent-orchestration.html",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://finam.ru/publications/item/budushchee-uoll-strit-uzhe-nastupilo-startapy-i-brokery-sozdayut-ii-agentov-dlya-torgov-v-rezhime-247-20260801-1152",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://finam.ru/publications/item/budushchee-uoll-strit-uzhe-nastupilo-startapy-i-brokery-sozdayut-ii-agentov-dlya-torgov-v-rezhime-247-20260801-1152",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://futurumgroup.com/insights/salesforce-bets-the-platform-on-headless-360",
+      "provenance": {
+        "source_access_method": "browser_headers",
+        "browser_used": false,
+        "notes": "defect D9: recorded as operator_artifact by the 2026-08-22 hotfix, but fetch_attempts holds a successful HTTP 200 described as a direct browser-header fetch. No new version is possible - the version id does not cover the source kind - so the record is corrected here."
+      }
+    },
+    {
+      "canonical_url": "https://gartner.com/en/newsroom/press-releases/2025-08-17-gartner-says-shared-chro-cio-ownership-is-critical-for-ai-transformation",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://gartner.com/en/newsroom/press-releases/2025-08-17-gartner-says-shared-chro-cio-ownership-is-critical-for-ai-transformation",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://gartner.com/en/newsroom/press-releases/2026-04-02-gartner-says-general-counsel-should-assess-ai-insurace0to-mitigate-ai-risks",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://gartner.com/en/newsroom/press-releases/2026-05-26-gartner-says-applying-uniform-governance-across-ai-agents-will-lead-to-enterprise-ai-agent-failure",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/03/CSA_research_note_nist-ai-agent-standards-regulatory-framework_20260323-csa-styled.pdf",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://labs.cloudsecurityalliance.org/wp-content/uploads/2026/03/CSA_research_note_nist-ai-agent-standards-regulatory-framework_20260323-csa-styled.pdf",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://mckinsey.com/capabilities/operations/our-insights/agentic-and-gen-ai-in-operations",
+      "provenance": {
+        "source_access_method": "web_archive",
+        "archive_used": true,
+        "manual_review_required": true,
+        "manual_review_reason": "text came from a web archive but the snapshot URL and capture date were not recorded; evidence-contract rule 19 cannot be satisfied, so public quotation stays blocked until they are",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://mckinsey.com/capabilities/operations/our-insights/agentic-and-gen-ai-in-operations"
+      }
+    },
+    {
+      "canonical_url": "https://mckinsey.com/capabilities/people-and-organizational-performance/our-insights/the-agentic-organization-contours-of-the-next-paradigm-for-the-ai-era",
+      "provenance": {
+        "source_access_method": "web_archive",
+        "archive_used": true,
+        "manual_review_required": true,
+        "manual_review_reason": "text came from a web archive but the snapshot URL and capture date were not recorded; evidence-contract rule 19 cannot be satisfied, so public quotation stays blocked until they are",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://mckinsey.com/capabilities/people-and-organizational-performance/our-insights/the-agentic-organization-contours-of-the-next-paradigm-for-the-ai-era"
+      }
+    },
+    {
+      "canonical_url": "https://mckinsey.com/capabilities/quantumblack/our-insights/cost-versus-value-managing-agentic-ai-system-performance",
+      "provenance": {
+        "source_access_method": "web_archive",
+        "archive_used": true,
+        "manual_review_required": true,
+        "manual_review_reason": "text came from a web archive but the snapshot URL and capture date were not recorded; evidence-contract rule 19 cannot be satisfied, so public quotation stays blocked until they are",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://mckinsey.com/capabilities/quantumblack/our-insights/cost-versus-value-managing-agentic-ai-system-performance"
+      }
+    },
+    {
+      "canonical_url": "https://opkey.com/pmo-agent",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://opkey.com/pmo-agent",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://programgovernance.com/insights/ai-agents-in-pmo",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://programgovernance.com/insights/ai-agents-in-pmo",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://projectmanagement.com/discussion-topic/223546/empowering-projects-with-agentic-ai",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://projectmanagement.com/discussion-topic/223546/empowering-projects-with-agentic-ai",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://projectmanagement.com/videos/1168195/transforming-business-with-agentic-ai",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://projectmanagement.com/videos/1168195/transforming-business-with-agentic-ai",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://pwc.com/us/en/tech-effect/ai-analytics/ai-agent-survey.html",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://pwc.com/us/en/tech-effect/ai-analytics/ai-agent-survey.html",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://reddit.com/r/ClaudeCode/comments/1rl3wl1/project_management_for_agentichuman_collaboration",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://reddit.com/r/ClaudeCode/comments/1rl3wl1/project_management_for_agentichuman_collaboration",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://reddit.com/r/artificial/comments/1u3gv2i/i_think_ai_agents_are_going_to_need_an_operating",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://reddit.com/r/artificial/comments/1u3gv2i/i_think_ai_agents_are_going_to_need_an_operating",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://reddit.com/r/artificial/comments/1uc7mk8/maybe_the_ai_race_isnt_about_models_at_all_but",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://reddit.com/r/artificial/comments/1uc7mk8/maybe_the_ai_race_isnt_about_models_at_all_but",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://servicenow.com/products/ai-agents.html",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://servicenow.com/products/ai-agents.html",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://sloanreview.mit.edu/projects/scholars/the-emerging-agentic-enterprise-how-leaders-must-navigate-a-new-age-of-ai",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://sloanreview.mit.edu/projects/scholars/the-emerging-agentic-enterprise-how-leaders-must-navigate-a-new-age-of-ai",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    },
+    {
+      "canonical_url": "https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205",
+      "provenance": {
+        "source_access_method": "operator_file",
+        "provided_by": "ivan",
+        "provided_at": "2026-08-22T06:00:00+00:00",
+        "original_url": "https://tandfonline.com/doi/full/10.1080/23311975.2026.2692205",
+        "notes": "HTML artifact supplied by the owner to close the 2026-08-22 perimeter gap"
+      }
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import json
 import shutil
 import uuid
 from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -28,10 +29,85 @@ from radar_kx.identifiers import (
 from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
-from radar_kx.url_policy import normalize_url
+from radar_kx.url_policy import canonical_identity_url, normalize_url
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 PERIMETER_PRIORITY = 100
+
+#: Source kinds a network fetch may record. The ladder rungs that are HTTP
+#: requests, and nothing else - a fetch recorded as an operator artifact is
+#: defect D9, where two ordinary browser-header requests entered the evidence
+#: base as material an operator had handed over.
+NETWORK_SOURCE_KINDS = frozenset(
+    {
+        "network",
+        "network_robots_override",
+        "network_browser_headers",
+        "browser_render",
+        "web_archive",
+    }
+)
+
+#: Source kinds an offline file import may record. No HTTP request happened, so
+#: none of these may ever appear on a fetch result.
+ARTIFACT_SOURCE_KINDS = frozenset({"operator_artifact", "local_import"})
+
+#: Source kinds the one-shot legacy cache import may record.
+CACHE_SOURCE_KINDS = frozenset({"legacy_snapshot", "legacy_truncated"})
+
+
+@dataclass(frozen=True, slots=True)
+class VersionProvenance:
+    """How one version's bytes were actually obtained.
+
+    Append-only beside the version, because the version id is a hash over the
+    document, the raw bytes, the parser config and the text - the acquisition
+    method is not part of it, so a wrong one cannot be fixed by writing a new
+    version (defect D12).
+    """
+
+    source_access_method: str
+    archive_used: bool = False
+    archive_url: str | None = None
+    archive_captured_at: datetime | None = None
+    browser_used: bool = False
+    manual_review_required: bool = False
+    manual_review_reason: str | None = None
+    provided_by: str | None = None
+    provided_at: datetime | None = None
+    original_url: str | None = None
+    notes: str | None = None
+
+    def comparable(self) -> tuple[object, ...]:
+        """The fields that decide whether an append would say anything new."""
+        return (
+            self.source_access_method,
+            self.archive_used,
+            self.archive_url,
+            self.archive_captured_at,
+            self.browser_used,
+            self.manual_review_required,
+            self.manual_review_reason,
+            self.provided_by,
+            self.provided_at,
+            self.original_url,
+            self.notes,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactVersionOutcome:
+    document_id: str
+    version_id: str | None
+    created: bool
+    is_complete: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ProvenanceOutcome:
+    document_id: str
+    appended: int
+    unchanged: int
 
 
 class Database:
@@ -397,7 +473,199 @@ class Database:
             )
         return identifier
 
+    @staticmethod
+    def _insert_provenance(
+        cursor: psycopg.Cursor[dict[str, Any]],
+        *,
+        version: str,
+        provenance: VersionProvenance,
+        recorded_by: str,
+    ) -> bool:
+        """Append provenance unless the latest row already says exactly this.
+
+        The table is append-only, so re-running an import must not stack identical
+        rows: the history would fill with noise and "when did this change" would
+        stop being answerable.
+        """
+        cursor.execute(
+            """
+            SELECT source_access_method, archive_used, archive_url, archive_captured_at,
+                   browser_used, manual_review_required, manual_review_reason,
+                   provided_by, provided_at, original_url, notes
+            FROM kx.version_provenance_current
+            WHERE version_id = %s
+            """,
+            (version,),
+        )
+        row = cursor.fetchone()
+        if row is not None and tuple(row.values()) == provenance.comparable():
+            return False
+        cursor.execute(
+            """
+            INSERT INTO kx.version_provenance (
+                version_id, source_access_method, archive_used, archive_url,
+                archive_captured_at, browser_used, manual_review_required,
+                manual_review_reason, provided_by, provided_at, original_url,
+                notes, recorded_by
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                version,
+                provenance.source_access_method,
+                provenance.archive_used,
+                provenance.archive_url,
+                provenance.archive_captured_at,
+                provenance.browser_used,
+                provenance.manual_review_required,
+                provenance.manual_review_reason,
+                provenance.provided_by,
+                provenance.provided_at,
+                provenance.original_url,
+                provenance.notes,
+                recorded_by,
+            ),
+        )
+        return True
+
+    def store_artifact_version(
+        self,
+        *,
+        canonical_url: str,
+        body: bytes,
+        parsed: ParsedContent,
+        source_kind: str,
+        fetched_at: datetime,
+        provenance: VersionProvenance,
+        recorded_by: str,
+    ) -> ArtifactVersionOutcome:
+        """Store a document that arrived as a file, together with its provenance.
+
+        No ``fetch_attempts`` row is written: nothing was requested over the
+        network, and inventing an HTTP 200 for a file is how a browser fetch came
+        to be recorded as an operator artifact in the first place.
+        """
+        if source_kind not in ARTIFACT_SOURCE_KINDS:
+            raise ValueError(
+                f"an offline import may not record source kind {source_kind!r}; "
+                f"expected one of {sorted(ARTIFACT_SOURCE_KINDS)}"
+            )
+        identity = canonical_identity_url(canonical_url)
+        identifier = document_id(identity)
+        compressed_size = len(gzip.compress(body, compresslevel=6, mtime=0))
+        self._assert_capacity(compressed_size)
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.documents (document_id, canonical_url)
+                    VALUES (%s, %s)
+                    ON CONFLICT (document_id) DO NOTHING
+                    """,
+                    (identifier, identity),
+                )
+                raw_sha256, _ = self._insert_raw_blob(cursor, body=body)
+                text_sha256 = sha256_bytes(parsed.text.encode("utf-8"))
+                expected = version_id(
+                    document=identifier, raw_sha256=raw_sha256, text_sha256=text_sha256
+                )
+                cursor.execute(
+                    "SELECT 1 FROM kx.document_versions WHERE version_id = %s", (expected,)
+                )
+                created = cursor.fetchone() is None
+                version = self._insert_version(
+                    cursor,
+                    document=identifier,
+                    raw_sha256=raw_sha256,
+                    parsed=parsed,
+                    source_kind=source_kind,
+                    fetched_at=fetched_at,
+                )
+                if version is not None:
+                    self._insert_provenance(
+                        cursor,
+                        version=version,
+                        provenance=provenance,
+                        recorded_by=recorded_by,
+                    )
+                if version is not None and parsed.is_complete:
+                    # The queue exists to say "we still need the text". We have it.
+                    cursor.execute(
+                        """
+                        UPDATE kx.fetch_queue
+                        SET status = 'succeeded', lease_token = NULL, lease_until = NULL,
+                            updated_at = clock_timestamp()
+                        WHERE document_id = %s AND status <> 'succeeded'
+                        """,
+                        (identifier,),
+                    )
+            connection.commit()
+        return ArtifactVersionOutcome(
+            document_id=identifier,
+            version_id=version,
+            created=created and version is not None,
+            is_complete=parsed.is_complete,
+        )
+
+    def record_version_provenance(
+        self,
+        *,
+        canonical_url: str,
+        provenance: VersionProvenance,
+        recorded_by: str,
+        source_kinds: frozenset[str] | None = None,
+    ) -> ProvenanceOutcome | None:
+        """Append provenance to every version of one document, correcting the record.
+
+        Returns ``None`` when the document is not in the store, so a backfill can
+        report what it could not find instead of failing silently.
+        """
+        identity = canonical_identity_url(canonical_url)
+        identifier = document_id(identity)
+        appended = 0
+        unchanged = 0
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM kx.documents WHERE document_id = %s", (identifier,))
+                if cursor.fetchone() is None:
+                    return None
+                if source_kinds is None:
+                    cursor.execute(
+                        "SELECT version_id FROM kx.document_versions WHERE document_id = %s"
+                        " ORDER BY fetched_at, version_id",
+                        (identifier,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT version_id FROM kx.document_versions"
+                        " WHERE document_id = %s AND source_kind = ANY(%s)"
+                        " ORDER BY fetched_at, version_id",
+                        (identifier, sorted(source_kinds)),
+                    )
+                versions = [str(row["version_id"]) for row in cursor.fetchall()]
+                for version in versions:
+                    if self._insert_provenance(
+                        cursor,
+                        version=version,
+                        provenance=provenance,
+                        recorded_by=recorded_by,
+                    ):
+                        appended += 1
+                    else:
+                        unchanged += 1
+            connection.commit()
+        return ProvenanceOutcome(document_id=identifier, appended=appended, unchanged=unchanged)
+
     def record_fetch_result(self, result: FetchResult) -> dict[str, Any]:
+        if result.task.source_kind not in NETWORK_SOURCE_KINDS:
+            # A network request may never be recorded as material an operator
+            # handed over: that is defect D9, and once written the attempt row is
+            # immutable and only a provenance correction can say otherwise.
+            raise ValueError(
+                f"a fetch may not record source kind {result.task.source_kind!r}; "
+                f"expected one of {sorted(NETWORK_SOURCE_KINDS)}"
+            )
         now = datetime.now(UTC)
         response = result.response
         body = response.body if response is not None else None
@@ -505,7 +773,7 @@ class Database:
         content_type: str,
         error_detail: str | None = None,
     ) -> str | None:
-        if source_kind not in {"legacy_snapshot", "legacy_truncated"}:
+        if source_kind not in CACHE_SOURCE_KINDS:
             raise ValueError("invalid cache source kind")
         canonical_url = normalize_url(source_url)
         identifier = document_id(canonical_url)
