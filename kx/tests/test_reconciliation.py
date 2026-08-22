@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -145,8 +146,6 @@ def test_the_report_is_recorded_and_immutable(migrated_dsn: str) -> None:
         source_url=url,
         min_text_chars=200,
     )
-    from datetime import UTC, datetime
-
     database.store_artifact_version(
         canonical_url=url,
         body=NOW_TEXT.encode("utf-8"),
@@ -177,8 +176,9 @@ def test_the_report_is_recorded_and_immutable(migrated_dsn: str) -> None:
         row = one(cursor)
         assert row["scope"] == "source_fulltext"
         assert row["only_in_file_store"] == 1
-        assert row["payload"]["onlyInFileStore"] == ["https://example.com/never-imported"]
-        assert row["payload_sha256"] == payload_sha256(row["payload"])
+        payload = cast(dict[str, Any], row["payload"])
+        assert payload["onlyInFileStore"] == ["https://example.com/never-imported"]
+        assert row["payload_sha256"] == payload_sha256(payload)
         with pytest.raises(Exception, match="immutable|reject"):
             cursor.execute("UPDATE kx.store_reconciliation_reports SET scope = 'edited'")
 
