@@ -42,6 +42,7 @@ from radar_kx.source_families import (
 )
 from radar_kx.vertical_slice import load_candidates
 from radar_kx.vertical_slice import select as select_slice
+from radar_kx.wiki_snapshot import read_bundle
 from radar_kx.worker import run_until_idle
 
 
@@ -142,6 +143,15 @@ def _parser() -> argparse.ArgumentParser:
     # Slice 2.15: what a better detector would relabel, measured before deciding
     # whether a re-parse is worth its cost.
     subparsers.add_parser("language-drift")
+
+    # Slice 2.5a: the snapshot a knowledge_release_id points at (P27).
+    snapshot_parser = subparsers.add_parser("import-wiki-snapshot")
+    snapshot_parser.add_argument("--bundle", type=Path, required=True)
+    snapshot_parser.add_argument("--perimeter", default="agpm")
+    snapshot_parser.add_argument("--notes", default=None)
+
+    snapshots_parser = subparsers.add_parser("wiki-snapshots")
+    snapshots_parser.add_argument("--limit", type=int, default=20)
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -316,6 +326,19 @@ def main() -> None:
         return
     if args.command == "language-drift":
         _print_json(database.language_drift())
+        return
+    if args.command == "import-wiki-snapshot":
+        snapshot = read_bundle(args.bundle, perimeter=args.perimeter)
+        _print_json(
+            database.record_wiki_snapshot(
+                snapshot,
+                recorded_by=f"radar-kx-import-wiki-snapshot:{args.perimeter}",
+                notes=args.notes,
+            )
+        )
+        return
+    if args.command == "wiki-snapshots":
+        _print_json(database.wiki_snapshots(limit=args.limit))
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])

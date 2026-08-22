@@ -8,7 +8,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 from psycopg import Connection
@@ -44,6 +44,7 @@ from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.source_families import DocumentHost, FamilyDecision
 from radar_kx.url_policy import canonical_identity_url, normalize_url
+from radar_kx.wiki_snapshot import WikiSnapshot, compress
 
 #: The schema version the deployed worker requires. It is bumped **when a
 #: migration is applied to production**, not when it is written: `require_schema`
@@ -2200,6 +2201,93 @@ class Database:
                 for (stored, detected), count in moves.most_common(limit)
             ],
         }
+
+    def record_wiki_snapshot(
+        self, snapshot: WikiSnapshot, *, recorded_by: str, notes: str | None = None
+    ) -> dict[str, Any]:
+        """Store one snapshot of the file wiki, or recognise one already stored.
+
+        Content-addressed twice over. The snapshot id comes from the manifest hash,
+        so a second snapshot of unchanged files is the same snapshot and says so.
+        Blobs are keyed by their own hash, so the 30 MB PDF under `raw/originals`
+        is stored once however many snapshots contain it.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT taken_at, file_count FROM kx.wiki_snapshots WHERE snapshot_id = %s",
+                    (snapshot.snapshot_id,),
+                )
+                existing = cursor.fetchone()
+                if existing is not None:
+                    return {
+                        "snapshotId": snapshot.snapshot_id,
+                        "manifestSha256": snapshot.manifest_sha256,
+                        "alreadyStored": True,
+                        "takenAt": str(existing["taken_at"]),
+                        "fileCount": int(cast(int, existing["file_count"])),
+                    }
+
+                stored_blobs = 0
+                stored_bytes = 0
+                for item in snapshot.files:
+                    payload = compress(item.content)
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.wiki_blobs
+                            (blob_sha256, compression, raw_bytes, stored_bytes, content)
+                        VALUES (%s, 'gzip', %s, %s, %s)
+                        ON CONFLICT (blob_sha256) DO NOTHING
+                        """,
+                        (item.blob_sha256, item.bytes_, len(payload), payload),
+                    )
+                    if cursor.rowcount:
+                        stored_blobs += 1
+                        stored_bytes += len(payload)
+                cursor.execute(
+                    """
+                    INSERT INTO kx.wiki_snapshots
+                        (snapshot_id, taken_at, manifest_sha256, perimeter,
+                         file_count, total_bytes, notes, recorded_by)
+                    VALUES (%s, clock_timestamp(), %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        snapshot.snapshot_id,
+                        snapshot.manifest_sha256,
+                        snapshot.perimeter,
+                        len(snapshot.files),
+                        snapshot.total_bytes,
+                        notes,
+                        recorded_by,
+                    ),
+                )
+                for item in snapshot.files:
+                    cursor.execute(
+                        "INSERT INTO kx.wiki_snapshot_files"
+                        " (snapshot_id, relative_path, blob_sha256, bytes)"
+                        " VALUES (%s, %s, %s, %s)",
+                        (snapshot.snapshot_id, item.relative_path, item.blob_sha256, item.bytes_),
+                    )
+        return {
+            "snapshotId": snapshot.snapshot_id,
+            "manifestSha256": snapshot.manifest_sha256,
+            "alreadyStored": False,
+            "fileCount": len(snapshot.files),
+            "totalBytes": snapshot.total_bytes,
+            "newBlobs": stored_blobs,
+            "newStoredBytes": stored_bytes,
+        }
+
+    def wiki_snapshots(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT snapshot_id, taken_at, perimeter, file_count, total_bytes,"
+                " manifest_sha256, recorded_by, notes"
+                " FROM kx.wiki_snapshots ORDER BY taken_at DESC LIMIT %s",
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.
