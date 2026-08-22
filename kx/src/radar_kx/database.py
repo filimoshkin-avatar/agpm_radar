@@ -4,7 +4,7 @@ import gzip
 import json
 import shutil
 import uuid
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -93,6 +93,18 @@ class VersionProvenance:
             self.original_url,
             self.notes,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CorpusMember:
+    """One member of a corpus whose documents are files rather than URLs."""
+
+    material_id: str
+    document_id: str
+    canonical_url: str
+    title: str
+    seen_at: datetime
+    payload: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,6 +260,117 @@ class Database:
         return {
             "corpusSha256": manifest.source_sha256,
             "materials": len(manifest.records),
+            "documents": len(document_ids),
+        }
+
+    def register_corpus_members(
+        self,
+        *,
+        corpus_sha256: str,
+        source_name: str,
+        source_kind: str,
+        members: Sequence[CorpusMember],
+    ) -> dict[str, int | str]:
+        """Register a corpus whose documents are files, not URLs to fetch.
+
+        Same shape as ``import_manifest`` - a ``corpus_imports`` row with its
+        immutable revisions, so ``verify --full`` can reconcile the counts - minus
+        the ``fetch_queue`` row. A canon document has no web address; queueing one
+        would hand the fetcher a URL it cannot parse and it would fail forever.
+        """
+        if source_kind == "radar_materials":
+            raise ValueError("radar materials are imported by import_manifest, not here")
+        document_ids = {member.document_id for member in members}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.corpus_imports (
+                        corpus_sha256, source_name, row_count, document_count, source_kind
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (corpus_sha256) DO NOTHING
+                    """,
+                    (corpus_sha256, source_name, len(members), len(document_ids), source_kind),
+                )
+                for member in members:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.documents (
+                            document_id, canonical_url, first_seen_at, last_seen_at
+                        ) VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (document_id) DO UPDATE SET
+                            last_seen_at = GREATEST(
+                                kx.documents.last_seen_at, EXCLUDED.last_seen_at
+                            ),
+                            updated_at = clock_timestamp()
+                        """,
+                        (
+                            member.document_id,
+                            member.canonical_url,
+                            member.seen_at,
+                            member.seen_at,
+                        ),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.source_materials (
+                            material_id, source_url, canonical_url, title, summary,
+                            raw_excerpt, perimeter, published_raw, first_seen_at,
+                            last_seen_at, payload, payload_sha256, corpus_sha256
+                        ) VALUES (%s, %s, %s, %s, '', '', NULL, NULL, %s, %s, %s, %s, %s)
+                        ON CONFLICT (material_id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            last_seen_at = EXCLUDED.last_seen_at,
+                            payload = EXCLUDED.payload,
+                            payload_sha256 = EXCLUDED.payload_sha256,
+                            corpus_sha256 = EXCLUDED.corpus_sha256,
+                            updated_at = clock_timestamp()
+                        """,
+                        (
+                            member.material_id,
+                            member.canonical_url,
+                            member.canonical_url,
+                            member.title,
+                            member.seen_at,
+                            member.seen_at,
+                            Jsonb(member.payload),
+                            sha256_bytes(stable_json_bytes(member.payload)),
+                            corpus_sha256,
+                        ),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.source_material_revisions (
+                            material_id, corpus_sha256, document_id, source_url,
+                            canonical_url, payload, payload_sha256
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (material_id, corpus_sha256) DO NOTHING
+                        """,
+                        (
+                            member.material_id,
+                            corpus_sha256,
+                            member.document_id,
+                            member.canonical_url,
+                            member.canonical_url,
+                            Jsonb(member.payload),
+                            sha256_bytes(stable_json_bytes(member.payload)),
+                        ),
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.material_documents (material_id, document_id)
+                        VALUES (%s, %s)
+                        ON CONFLICT (material_id) DO UPDATE SET
+                            document_id = EXCLUDED.document_id
+                        """,
+                        (member.material_id, member.document_id),
+                    )
+            connection.commit()
+        return {
+            "corpusSha256": corpus_sha256,
+            "sourceKind": source_kind,
+            "materials": len(members),
             "documents": len(document_ids),
         }
 

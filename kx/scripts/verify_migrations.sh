@@ -33,6 +33,7 @@ esac
 printf '[verify-migrations] admin DSN: %s\n' "${RADAR_KX_TEST_ADMIN_DSN}"
 
 uv sync --locked --python 3.12 --group dev
-uv run --no-sync pytest tests/test_migration_003.py tests/test_artifact_import.py -q
+uv run --no-sync pytest tests/test_migration_003.py tests/test_artifact_import.py \
+  tests/test_canon_corpus.py -q
 
 printf 'Radar KX migration verification: PASS\n'

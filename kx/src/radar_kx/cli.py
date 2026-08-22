@@ -13,6 +13,7 @@ from radar_kx.artifact_import import (
     record_provenance_corrections,
 )
 from radar_kx.cache_import import import_caches
+from radar_kx.canon_corpus import canon_summary, import_canon, scan_canon
 from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.issue_perimeter import load_perimeter_export
@@ -35,6 +36,17 @@ def _parser() -> argparse.ArgumentParser:
     # Rung seven of the acquisition ladder: material that arrived as a file.
     import_artifact_parser = subparsers.add_parser("import-artifact")
     import_artifact_parser.add_argument("--manifest", type=Path, required=True)
+
+    # Load the AgPM canon and the external standards as their own corpus.
+    import_canon_parser = subparsers.add_parser("import-canon")
+    import_canon_parser.add_argument("--raw-dir", type=Path, required=True)
+    import_canon_parser.add_argument("--source-name", default="agpm-canon")
+    import_canon_parser.add_argument("--provided-by", default="project-manager")
+    import_canon_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="scan and report what would be imported, without touching the store",
+    )
 
     # Append provenance to versions that already exist, without touching them.
     record_provenance_parser = subparsers.add_parser("record-provenance")
@@ -89,6 +101,21 @@ def main() -> None:
     if args.command == "import-artifact":
         artifact = load_artifact_manifest(args.manifest)
         _print_json(import_artifact(database, artifact).as_json())
+        return
+    if args.command == "import-canon":
+        canon = scan_canon(args.raw_dir)
+        if args.dry_run:
+            _print_json(canon_summary(canon))
+            return
+        _print_json(
+            import_canon(
+                database,
+                canon,
+                source_name=args.source_name,
+                recorded_by=f"radar-kx-import-canon:{args.source_name}",
+                provided_by=args.provided_by,
+            )
+        )
         return
     if args.command == "record-provenance":
         recorded_by, corrections = load_provenance_corrections(args.file)

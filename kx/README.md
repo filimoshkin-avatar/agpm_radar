@@ -40,6 +40,13 @@ egress audit, wiki snapshots, store-reconciliation reports and the corpus member
 baseline and on the schema production drifted into, and runs the SQL-backed tests that
 `scripts/verify.sh` skips. `docs/radar-kb-migration-003-runbook-2026-08-22.md` is the runbook.
 
+`radar_kx import-canon` loads the AgPM canon and the external standards from `agpm/raw/*.md` as
+their own membership class: `corpus_imports.source_kind = 'canon_import'`, the reserved
+`agpm-canon:/` identity, no fetch queue and no fetch attempt, and a declared fidelity per file.
+Only a faithful conversion of a source may back a quotation attributed to it; a curated excerpt or
+a note we wrote is imported with provenance that blocks public quotation.
+`docs/radar-kb-canon-corpus-2026-08-22.md` records the measurement and the fidelity table.
+
 See `docs/radar-kx-production-fulltext-2026-08-21.md` for the accepted topology and operational
 evidence, and `docs/radar-kx-issue-perimeter-2026-08-21.md` for the perimeter contract, the robots
 override policy, and its production evidence.
