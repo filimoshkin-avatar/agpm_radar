@@ -169,3 +169,30 @@ def test_the_shipped_probe_set_loads() -> None:
     assert len(questions) >= 20
     assert {question.kind for question in questions} == {"probe"}
     assert {question.scope for question in questions} == {"current"}
+    assert len({question.question_id for question in questions}) == len(questions)
+
+
+def test_a_probe_phrase_is_taken_whole_from_one_line() -> None:
+    # The generator's whole job is that the phrase is a literal substring. The three
+    # ways an earlier version broke that - collapsing whitespace, cutting mid-word,
+    # crossing a chunk boundary - all produced a gold set that measured itself.
+    from build_probe_gold_set import phrase_from_line
+
+    chunk = (
+        "Short heading\n"
+        "Agentic project management changes what a project manager does every day, "
+        "and the change is not only in tooling but in who decides.\n"
+        "Another line."
+    )
+    phrase = phrase_from_line(chunk)
+    assert phrase is not None
+    assert phrase in chunk
+    assert "\n" not in phrase
+    assert not phrase.startswith(" ") and not phrase.endswith(" ")
+
+
+def test_a_chunk_of_short_lines_yields_no_probe() -> None:
+    from build_probe_gold_set import phrase_from_line
+
+    # The YouTube footer: every line is one or two words.
+    assert phrase_from_line("Info\nPresse\nUrheberrecht\nKontakt\n(c) 2026 Google LLC") is None

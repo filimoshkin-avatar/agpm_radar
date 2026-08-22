@@ -174,7 +174,11 @@ def test_the_shipped_selection_matches_the_shipped_probe_set() -> None:
     # is against documents the slice does not contain.
     payload = json.loads(PROBES.read_text(encoding="utf-8"))
     assert payload["questions"]
-    assert payload["skipped"]["documents"], "the boilerplate document is named, not silently gone"
+    # The boilerplate document yields no usable phrase and is named as such, not
+    # dropped: a gold set that quietly omits a document measures a smaller corpus
+    # than the one it claims to measure.
+    assert payload["unusable"]
+    assert "youtube.com" in payload["unusable"][0]["canonicalUrl"]
     for question in payload["questions"]:
         assert question["kind"] == "probe"
         assert len(question["expectedDocuments"]) == 1

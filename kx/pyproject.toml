@@ -34,7 +34,7 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 
 [tool.mypy]
 files = ["src", "tests"]
-mypy_path = "src"
+mypy_path = "src:scripts"
 python_version = "3.12"
 strict = true
 
@@ -44,5 +44,5 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers -q"
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
 testpaths = ["tests"]
