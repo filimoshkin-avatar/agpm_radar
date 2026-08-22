@@ -27,11 +27,13 @@ WorkingDirectory=/opt/radar-kx/current
 # rather than escaping by hand.
 Environment=RADAR_KX_ORCHESTRATOR_ARGS=%I
 ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx $RADAR_KX_ORCHESTRATOR_ARGS
-# Batch work is what this unit is for: a pass over the 1098 chunks of the
-# perimeter is a model call each and runs for over an hour. The first attempt
-# at this used 1800s, which was a guess rather than a bound and would have
-# killed the pass two thirds of the way through.
-TimeoutStartSec=7200s
+# Batch work is what this unit is for, and its length is set by the queue rather
+# than by a clock: a pass over the 1098 chunks of the perimeter is a model call
+# each and measured at about thirteen seconds apiece. Two guesses at a bound were
+# both wrong (1800s, then 7200s), which is the argument for not guessing. A stuck
+# call is bounded by the client's own timeout, the same way the ingest unit
+# reasons about it.
+TimeoutStartSec=infinity
 UMask=0077
 
 # ADR-0005 §6: the orchestrator has no internet. Loopback reaches Hermes; the
