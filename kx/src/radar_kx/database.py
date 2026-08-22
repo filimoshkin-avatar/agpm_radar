@@ -1545,6 +1545,67 @@ class Database:
             "generatedAt": row["generated_at"],
         }
 
+    def record_egress(
+        self,
+        *,
+        provider: str,
+        model: str,
+        purpose: str,
+        payload_chars: int,
+        payload_sha256: str,
+        outcome: str,
+        prompt_sha256: str | None = None,
+        error_detail: str | None = None,
+        run_id: str | None = None,
+        document_id: str | None = None,
+        version_id: str | None = None,
+        chunk_id: str | None = None,
+        request_tokens: int | None = None,
+        response_tokens: int | None = None,
+    ) -> int:
+        """Record one attempt to send something to a model, and return its id.
+
+        Written for refusals as well as for calls: ``egress_audit`` is the record of
+        what was attempted at the boundary (P18), and a refusal that leaves no row
+        cannot be distinguished later from a call nobody made.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.egress_audit (
+                        provider, model, purpose, run_id, document_id, version_id, chunk_id,
+                        payload_chars, payload_sha256, prompt_sha256,
+                        request_tokens, response_tokens, outcome, error_detail, worker_release
+                    ) VALUES (
+                        %(provider)s, %(model)s, %(purpose)s, %(run_id)s, %(document_id)s,
+                        %(version_id)s, %(chunk_id)s, %(payload_chars)s, %(payload_sha256)s,
+                        %(prompt_sha256)s, %(request_tokens)s, %(response_tokens)s,
+                        %(outcome)s, %(error_detail)s, %(worker_release)s
+                    )
+                    RETURNING egress_id
+                    """,
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "purpose": purpose,
+                        "run_id": run_id,
+                        "document_id": document_id,
+                        "version_id": version_id,
+                        "chunk_id": chunk_id,
+                        "payload_chars": payload_chars,
+                        "payload_sha256": payload_sha256,
+                        "prompt_sha256": prompt_sha256,
+                        "request_tokens": request_tokens,
+                        "response_tokens": response_tokens,
+                        "outcome": outcome,
+                        "error_detail": error_detail,
+                        "worker_release": self.settings.release_id,
+                    },
+                )
+                return int(one_row(cursor)["egress_id"])
+
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.
 

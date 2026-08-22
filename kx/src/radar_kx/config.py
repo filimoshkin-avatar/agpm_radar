@@ -54,6 +54,11 @@ class Settings:
     max_attempts: int
     max_in_flight_per_host: int
     respect_robots: bool
+    # Defaulted so a caller that does not talk to a model does not have to know
+    # these exist. An empty key fails closed at the call, never silently.
+    hermes_url: str = "http://127.0.0.1:19700/v1"
+    hermes_key: str = ""
+    hermes_timeout_seconds: float = 180.0
 
     @classmethod
     def from_environment(cls) -> Settings:
@@ -78,4 +83,9 @@ class Settings:
             max_attempts=_positive_int("RADAR_KX_MAX_ATTEMPTS", 4),
             max_in_flight_per_host=_positive_int("RADAR_KX_MAX_IN_FLIGHT_PER_HOST", 8),
             respect_robots=_boolean("RADAR_KX_RESPECT_ROBOTS", True),
+            # Loopback to the extraction profile. The orchestrator unit denies
+            # every address but localhost, so this is the only reachable model.
+            hermes_url=os.environ.get("RADAR_KX_HERMES_URL", "http://127.0.0.1:19700/v1"),
+            hermes_key=os.environ.get("RADAR_KX_HERMES_KEY", ""),
+            hermes_timeout_seconds=_positive_float("RADAR_KX_HERMES_TIMEOUT_SECONDS", 180.0),
         )

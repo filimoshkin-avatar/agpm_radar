@@ -19,6 +19,7 @@ from radar_kx.database import Database
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
+from radar_kx.orchestrator import ALLOWED_MODELS, RUN_TYPES, ModelGateway
 from radar_kx.reconciliation import load_inventory
 from radar_kx.search import MATCH_MODES, SCOPES
 from radar_kx.vertical_slice import load_candidates
@@ -88,6 +89,15 @@ def _parser() -> argparse.ArgumentParser:
     eval_parser = subparsers.add_parser("eval-retrieval")
     eval_parser.add_argument("--gold-set", type=Path, required=True)
     eval_parser.add_argument("--k", type=int, default=10)
+
+    # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
+    # is how the rule stays inspectable instead of living only in a document.
+    subparsers.add_parser("model-run-types")
+
+    # One end-to-end call: orchestrator -> profile -> egress proxy -> provider,
+    # and the audit row that proves it happened.
+    probe_parser = subparsers.add_parser("model-probe")
+    probe_parser.add_argument("--model", choices=sorted(ALLOWED_MODELS), default=None)
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--workers", type=int, default=8)
@@ -165,6 +175,12 @@ def main() -> None:
             fulltext_dir=args.fulltext_dir,
         )
         _print_json(dataclasses.asdict(cache_result))
+        return
+    if args.command == "model-run-types":
+        _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
+        return
+    if args.command == "model-probe":
+        _print_json(ModelGateway(database, settings).probe(model=args.model).as_json())
         return
     if args.command == "run":
         _print_json(run_until_idle(settings, workers=args.workers))

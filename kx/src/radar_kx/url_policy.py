@@ -90,13 +90,13 @@ def canonical_identity_url(value: str) -> str:
     return normalize_url(candidate)
 
 
-def resolve_public_url(value: str) -> ResolvedUrl:
-    normalized = normalize_url(value)
-    parsed = urlsplit(normalized)
-    host = parsed.hostname
-    if host is None:
-        raise UnsafeUrlError("URL host is required")
-    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+def resolve_public_host(host: str, port: int) -> tuple[str, ...]:
+    """Resolve a host and refuse it unless every address it answers with is public.
+
+    Every address, not the first: a name that resolves to one routable address and
+    one loopback address is a name that can be made to point inward on the next
+    lookup, and there is no reason to accept it here.
+    """
     try:
         results = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError as exc:
@@ -108,7 +108,17 @@ def resolve_public_url(value: str) -> ResolvedUrl:
         ip = ipaddress.ip_address(address)
         if not ip.is_global:
             raise UnsafeUrlError(f"non-public address is forbidden: {address}")
-    return ResolvedUrl(url=normalized, host=host, addresses=addresses)
+    return addresses
+
+
+def resolve_public_url(value: str) -> ResolvedUrl:
+    normalized = normalize_url(value)
+    parsed = urlsplit(normalized)
+    host = parsed.hostname
+    if host is None:
+        raise UnsafeUrlError("URL host is required")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    return ResolvedUrl(url=normalized, host=host, addresses=resolve_public_host(host, port))
 
 
 def reddit_json_url(value: str) -> str | None:

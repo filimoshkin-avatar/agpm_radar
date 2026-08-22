@@ -1,0 +1,62 @@
+[Unit]
+Description=Radar KX orchestrator: %I
+Documentation=file:///opt/radar-kx/current/README.md
+After=radar-kx-hermes-extraction.service postgresql.service
+Wants=radar-kx-hermes-extraction.service
+ConditionPathIsDirectory=/opt/radar-kx/current
+
+[Service]
+# The orchestrator runs as a command, not as a daemon: batch work is one invocation,
+# and the standby mode a later slice needs is the same code with a different
+# argument. What the unit exists for is the network policy below - running
+# `radar_kx` outside it would be running it with the host's internet.
+Type=oneshot
+User=radar_kx
+Group=radar_kx
+EnvironmentFile=/etc/radar-kx/worker.env
+EnvironmentFile=-/etc/radar-kx/orchestrator.env
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+WorkingDirectory=/opt/radar-kx/current
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx %I
+TimeoutStartSec=1800s
+UMask=0077
+
+# ADR-0005 §6: the orchestrator has no internet. Loopback reaches Hermes; the
+# PostgreSQL unix socket is a filesystem path and needs no address at all.
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateIPC=true
+PrivateMounts=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+KeyringMode=private
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+ReadOnlyPaths=/opt/radar-kx /etc/radar-kx
+ReadWritePaths=/var/run/postgresql
+InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv

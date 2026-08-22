@@ -1,0 +1,50 @@
+{
+  "api": {
+    "host": "127.0.0.1",
+    "key_secret_name": "API_SERVER_KEY",
+    "model_name": "radar-kx-extraction",
+    "port": 19700
+  },
+  "egress": {
+    "allowed_endpoints": [
+      "api.z.ai:443",
+      "api.minimax.io:443"
+    ],
+    "proxy_url": "http://127.0.0.1:19701"
+  },
+  "env_file": {
+    "mode": "0600",
+    "owner": "root",
+    "path": "/etc/radar-kx/hermes-extraction.env",
+    "secret_names": [
+      "API_SERVER_KEY",
+      "GLM_API_KEY",
+      "MINIMAX_API_KEY"
+    ]
+  },
+  "files": {
+    "config.yaml": "24d3d559de2b80f1dd38eee703e4074dc7b0da7381c0c86910f964bd228542f8",
+    "run_api_only.py": "1b29d0408e6ef9e2a6c3a6c37c8c3205dc5b2bcd1f896ba84f2ce5e15d6f65a8"
+  },
+  "hermes": {
+    "api_server_module": "gateway/platforms/api_server.py",
+    "config_version": 33,
+    "executable": "/usr/local/lib/radar-hermes-runtime/venv/bin/hermes-radar-kx",
+    "implementation_root": "/usr/local/lib/hermes-agent",
+    "patched_handlers": [
+      "_handle_chat_completions",
+      "_handle_responses",
+      "_handle_runs"
+    ],
+    "python": "/usr/local/lib/radar-hermes-runtime/venv/bin/python-radar-kx",
+    "version": "0.20.0"
+  },
+  "model_routes": {
+    "MiniMax-M3": "minimax",
+    "glm-5.2": "zai"
+  },
+  "profile": "extraction",
+  "profile_home": "/var/lib/radar-hermes/profiles/extraction",
+  "schema_version": "radar-kx-hermes-extraction/v1",
+  "slice": "2.0"
+}

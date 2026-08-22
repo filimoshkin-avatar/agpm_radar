@@ -1,0 +1,100 @@
+# Radar KX extraction profile, Hermes Agent 0.20.0.
+#
+# Shaped after the nrd-intake profile on the same host (ADR-0005 §8) and cut down
+# to what document work needs: one turn, no tools, no memory, no skills, no cron,
+# nothing that could reach a network by another route.
+#
+# The two models are P9's two and no others. model_routes is what run_api_only.py
+# builds its allowlist from, so adding a line here widens what the profile accepts.
+_config_version: 33
+model:
+  provider: zai
+  default: glm-5.2
+fallback_providers:
+- provider: minimax
+  model: MiniMax-M3
+platform_toolsets:
+  api_server: []
+known_plugin_toolsets:
+  api_server: []
+agent:
+  # One turn: the orchestrator composes the task, the model answers once. There is
+  # no loop for a prompt injected into a document to steer (ADR-0005 §15).
+  max_turns: 1
+  reasoning_effort: none
+  tool_use_enforcement: false
+  redact_secrets: true
+  disabled_toolsets:
+  - bfl
+  - browser
+  - clarify
+  - code_execution
+  - computer_use
+  - context_engine
+  - cronjob
+  - delegation
+  - desktop_ui
+  - discord
+  - discord_admin
+  - feishu_doc
+  - feishu_drive
+  - file
+  - homeassistant
+  - image_gen
+  - kanban
+  - memory
+  - project
+  - search
+  - session_search
+  - skills
+  - spotify
+  - terminal
+  - todo
+  - tts
+  - video
+  - video_gen
+  - vision
+  - web
+  - x_search
+  - yuanbao
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+  provider: ''
+checkpoints:
+  enabled: false
+compression:
+  enabled: false
+curator:
+  enabled: false
+delegation:
+  orchestrator_enabled: false
+kanban:
+  dispatch_in_gateway: false
+skills:
+  external_dirs: []
+  inline_shell: false
+  write_approval: true
+plugins:
+  enabled: []
+mcp_servers: {}
+onboarding:
+  profile_build: 'off'
+session_reset:
+  mode: none
+security:
+  allow_lazy_installs: false
+logging:
+  level: WARNING
+platforms:
+  api_server:
+    extra:
+      model_routes:
+        glm-5.2:
+          model: glm-5.2
+          provider: zai
+          allow_fallback: false
+        MiniMax-M3:
+          model: MiniMax-M3
+          provider: minimax
+          allow_fallback: false

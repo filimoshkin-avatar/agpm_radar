@@ -1,0 +1,110 @@
+[Unit]
+Description=Radar KX isolated Hermes extraction profile
+Documentation=file:///opt/radar-kx/current/README.md
+Wants=network-online.target
+After=network-online.target radar-kx-egress-proxy.service
+Requires=radar-kx-egress-proxy.service
+ConditionFileIsExecutable=/usr/local/lib/radar-hermes-runtime/venv/bin/hermes-radar-kx
+ConditionFileIsExecutable=/usr/local/lib/radar-hermes-runtime/venv/bin/python-radar-kx
+ConditionPathIsDirectory=/var/lib/radar-hermes/profiles/extraction
+ConditionPathExists=/etc/radar-kx/hermes-extraction.env
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=radar-hermes
+Group=radar-hermes
+EnvironmentFile=/etc/radar-kx/hermes-extraction.env
+Environment=HOME=/var/lib/radar-hermes
+Environment=HERMES_HOME=/var/lib/radar-hermes/profiles/extraction
+Environment=API_SERVER_ENABLED=true
+Environment=API_SERVER_HOST=127.0.0.1
+Environment=API_SERVER_PORT=19700
+Environment=API_SERVER_MODEL_NAME=radar-kx-extraction
+Environment=HERMES_DUMP_REQUESTS=false
+
+# The egress contract, P18 and ADR-0005 §2.2, in two directives that are properties
+# of this unit rather than settings of the application:
+#
+#   IPAddressDeny=any with IPAddressAllow=localhost means this process cannot open a
+#   socket to anything off this host, whatever its configuration says. Model traffic
+#   therefore has exactly one route out, the proxy on 127.0.0.1:19701, and that proxy
+#   knows two hostnames. Neither layer can be widened from inside the profile.
+#
+# NO_PROXY keeps the loopback call to the proxy itself from being proxied. The
+# profile verifier refuses to start if it ever names an approved endpoint.
+Environment=HTTPS_PROXY=http://127.0.0.1:19701
+Environment=HTTP_PROXY=http://127.0.0.1:19701
+Environment=NO_PROXY=127.0.0.1,localhost
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+WorkingDirectory=/var/lib/radar-hermes/profiles/extraction
+ExecStartPre=/usr/local/lib/radar-hermes-runtime/venv/bin/python-radar-kx /var/lib/radar-hermes/profiles/extraction/verify_profile.py --profile-home /var/lib/radar-hermes/profiles/extraction --contract /var/lib/radar-hermes/profiles/extraction/verification-contract.json
+ExecStart=/usr/local/lib/radar-hermes-runtime/venv/bin/python-radar-kx /var/lib/radar-hermes/profiles/extraction/run_api_only.py
+ExecStop=/usr/local/lib/radar-hermes-runtime/venv/bin/python-radar-kx /var/lib/radar-hermes/profiles/extraction/run_api_only.py --plan-stop $MAINPID
+Restart=on-failure
+# 78 is what the verifier exits with. A profile that failed its contract stays down.
+RestartPreventExitStatus=78
+RestartForceExitStatus=75
+RestartSec=5s
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+KillMode=mixed
+SendSIGKILL=yes
+UMask=0077
+
+StateDirectory=radar-hermes/profiles/extraction
+StateDirectoryMode=0700
+LogsDirectory=radar-kx-hermes-extraction
+LogsDirectoryMode=0700
+RuntimeDirectory=radar-kx-hermes-extraction
+RuntimeDirectoryMode=0700
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateIPC=true
+PrivateMounts=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RemoveIPC=true
+KeyringMode=private
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+ReadOnlyPaths=/usr/local/lib/hermes-agent
+ReadOnlyPaths=/var/lib/radar-hermes/profiles/extraction/config.yaml
+ReadOnlyPaths=/var/lib/radar-hermes/profiles/extraction/run_api_only.py
+ReadOnlyPaths=/var/lib/radar-hermes/profiles/extraction/verify_profile.py
+ReadOnlyPaths=/var/lib/radar-hermes/profiles/extraction/verification-contract.json
+ReadWritePaths=/var/lib/radar-hermes/profiles/extraction /var/log/radar-kx-hermes-extraction /run/radar-kx-hermes-extraction
+BindPaths=/var/log/radar-kx-hermes-extraction:/var/lib/radar-hermes/profiles/extraction/logs
+NoExecPaths=/var/lib/radar-hermes/profiles/extraction /var/log/radar-kx-hermes-extraction /run/radar-kx-hermes-extraction
+# The evidence store, its credentials and the other tenants of this host are not
+# this profile's business. It receives text from the orchestrator and nothing else.
+InaccessiblePaths=/etc/radar-kx /var/lib/nrd /var/lib/nrd-hermes /etc/nrd /opt/nrd-api /srv /var/run/postgresql
+SocketBindDeny=any
+SocketBindAllow=ipv4:tcp:19700
+
+[Install]
+WantedBy=multi-user.target
