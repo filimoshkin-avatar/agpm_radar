@@ -555,10 +555,9 @@ def test_the_queue_can_render_what_the_comparison_records(placed: dict[str, Any]
     total, items = queue.load(database, 25)
     assert total == 1
     quotes = [child["quote"] for child in items[0].children]
-    assert [child["id"] for child in items[0].children] == ["А", "Б"]
-    # Both sides quote something real, and the vote id carries both claim ids.
+    # Every candidate quotes something real and carries its own button.
     assert all(len(quote) > 20 for quote in quotes)
-    assert items[0].item_id.count("|") == 2
+    assert all(child["actions"] for child in items[0].children)
 
 
 # --------------------------------------------------------------------------
@@ -566,48 +565,84 @@ def test_the_queue_can_render_what_the_comparison_records(placed: dict[str, Any]
 # --------------------------------------------------------------------------
 
 
-def test_the_side_a_method_is_shown_on_is_stable_and_balanced() -> None:
-    from radar_kx.editor_queues import semantic_goes_first
-
-    ids = [f"{index:08d}-0000-0000-0000-000000000000" for index in range(400)]
-    first = [item for item in ids if semantic_goes_first(item)]
-    # Stable: the same statement draws the same way on every reload, so a reader
-    # who comes back to a pair sees the pair they left.
-    assert all(semantic_goes_first(item) == semantic_goes_first(item) for item in ids)
-    # And balanced, so the order carries no information about the method.
-    assert 0.4 < len(first) / len(ids) < 0.6
+def test_the_shortlist_alternates_between_the_two_rankings() -> None:
+    # A shortlist drawn from one method could only answer whether that method
+    # buries the right quotation. Alternating gives about three ranks of each.
+    merged = Database._merge_candidates(["s1", "s2", "s3"], ["l1", "s1", "l3"], shown=5)
+    assert [item["claimId"] for item in merged] == ["s1", "l1", "s2", "s3", "l3"]
+    # A quotation both methods found carries both ranks, and appears once.
+    assert merged[0] == {"claimId": "s1", "semanticRank": 1, "lexicalRank": 2}
 
 
-def test_a_side_is_translated_back_into_the_method_that_produced_it(
-    placed: dict[str, Any],
-) -> None:
-    from radar_kx.editor_queues import QUEUES_BY_KEY, decide, semantic_goes_first
-
-    database = cast(Database, placed["database"])
-    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
-    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
-    statement_id = items[0].item_id.split("|")[0]
-
-    decide(database, key="comparison", item_id=items[0].item_id, action="first", actor="owner")
-    expected = "semantic" if semantic_goes_first(statement_id) else "lexical"
-    assert database.method_vote_tally() == {expected: 1}
-
-
-def test_the_voter_is_never_told_which_method_produced_which_quote(
-    placed: dict[str, Any],
-) -> None:
+def test_the_page_says_nothing_about_the_method_or_the_rank(placed: dict[str, Any]) -> None:
     # The first eighteen votes were taken with the methods named, the semantic one
-    # first, and a score printed beside one of the two. That is three biases
-    # pointing the same way, and 12-0 under them is not 12-0.
+    # first, and a score printed beside one of the two. Three biases, all pointing
+    # the same way, and 12-0 under them is not 12-0.
     from radar_kx.editor_queues import QUEUES_BY_KEY
 
     database = cast(Database, placed["database"])
     database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    _, rows = database.method_comparison_queue()
+    sent = json.dumps(rows, ensure_ascii=False)
+    assert "Rank" not in sent
+    assert "semantic" not in sent and "lexical" not in sent
+    # Stable across reloads, so a reader who comes back sees the same page.
+    assert rows == database.method_comparison_queue()[1]
+
     _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
     rendered = json.dumps(items[0].as_json(), ensure_ascii=False)
-    for tell in ("СМЫСЛОВОЙ", "СЛОВЕСНЫЙ", "косинус", "полнотекстов"):
+    for tell in ("СМЫСЛОВОЙ", "СЛОВЕСНЫЙ", "косинус", "полнотекстов", "Rank"):
         assert tell not in rendered
     assert all(child["relevance"] is None for child in items[0].children)
+    assert all(child["quote"][0] in "АБВГД" for child in items[0].children)
+
+
+def test_the_choice_is_translated_back_into_a_method_and_a_rank(
+    placed: dict[str, Any],
+) -> None:
+    from radar_kx.editor_queues import QUEUES_BY_KEY, decide
+
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
+    statement_id = items[0].item_id
+    chosen = next(child for child in items[0].children if child["id"] == placed["paraphrase"])
+    outcome = decide(
+        database,
+        key="comparison",
+        item_id=f"{statement_id}/{chosen['id']}",
+        action="chosen",
+        actor="owner",
+    )
+    # The paraphrase is what the semantic side reached and the lexical side cannot.
+    assert outcome["winner"] == "semantic"
+    assert outcome["semanticRank"] == 1
+    assert outcome["lexicalRank"] is None
+    assert database.method_vote_tally() == {"semantic": 1}
+
+
+def test_a_quotation_that_was_never_offered_cannot_be_voted_for(
+    placed: dict[str, Any],
+) -> None:
+    # The id comes from a request body; a vote for something the person was not
+    # shown would record a preference nobody expressed.
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    with pytest.raises(ValueError, match="was not offered"):
+        database.record_candidate_vote(
+            concept_claim_id=placed["statementId"],
+            claim_id="00000000-0000-0000-0000-000000000000",
+            voted_by="owner",
+        )
+
+
+def test_all_five_missing_is_an_answer(placed: dict[str, Any]) -> None:
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    database.record_candidate_vote(
+        concept_claim_id=placed["statementId"], claim_id=None, voted_by="owner"
+    )
+    assert database.method_vote_tally() == {"neither": 1}
 
 
 def test_a_pair_that_quotes_the_same_words_is_not_a_choice(placed: dict[str, Any]) -> None:

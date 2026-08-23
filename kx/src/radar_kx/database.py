@@ -5118,6 +5118,38 @@ class Database:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    #: How many quotations one statement is offered. Five, because the question
+    #: the owner asked is whether the right one sits below the first, and five is
+    #: as deep as a person will read carefully.
+    CANDIDATES_SHOWN: ClassVar[int] = 5
+
+    @staticmethod
+    def _merge_candidates(
+        semantic: Sequence[str], lexical: Sequence[str], *, shown: int
+    ) -> list[dict[str, Any]]:
+        """Interleave both rankings into one shortlist, keeping where each came from.
+
+        Interleaved rather than one method's five, because a shortlist drawn from a
+        single method could only ever answer whether that method buries the right
+        quotation. Alternating gives about three ranks of each and lets one choice
+        answer both questions: which method found it, and how far down.
+        """
+        ranks: dict[str, dict[str, Any]] = {}
+        for method, ordered in (("semantic", semantic), ("lexical", lexical)):
+            for position, claim_id in enumerate(ordered, start=1):
+                ranks.setdefault(claim_id, {"claimId": claim_id})[f"{method}Rank"] = position
+        merged: list[dict[str, Any]] = []
+        for position in range(max(len(semantic), len(lexical))):
+            for ordered in (semantic, lexical):
+                if position >= len(ordered):
+                    continue
+                entry = ranks[ordered[position]]
+                if entry not in merged:
+                    merged.append(entry)
+                if len(merged) == shown:
+                    return merged
+        return merged
+
     def compare_binding_methods_within_topics(
         self, *, model_id: str = DEFAULT_MODEL, top: int = 5, ran_by: str = "radar-kx"
     ) -> dict[str, Any]:
@@ -5238,11 +5270,48 @@ class Database:
                     and answers["lexicalInTopic"][:1] == answers["semanticInTopic"][:1]
                 ):
                     agree_scoped += 1
+                candidates = self._merge_candidates(
+                    answers["semanticInTopic"],
+                    answers["lexicalInTopic"],
+                    shown=self.CANDIDATES_SHOWN,
+                )
+                if candidates:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT DISTINCT ON (evidence.claim_id)"
+                            " evidence.claim_id::text AS id, evidence.quote_text,"
+                            " documents.canonical_url"
+                            " FROM kx.claim_evidence AS evidence"
+                            " JOIN kx.document_versions AS versions USING (version_id)"
+                            " JOIN kx.documents AS documents USING (document_id)"
+                            " WHERE evidence.claim_id::text = ANY(%s)"
+                            "   AND evidence.match_status = 'exact'",
+                            ([item["claimId"] for item in candidates],),
+                        )
+                        texts = {
+                            str(item["id"]): (
+                                str(item["quote_text"]),
+                                str(item["canonical_url"]),
+                            )
+                            for item in cursor.fetchall()
+                        }
+                    seen_text: set[str] = set()
+                    kept: list[dict[str, Any]] = []
+                    for item in candidates:
+                        quote, url = texts.get(str(item["claimId"]), ("", ""))
+                        # Two claim ids over one span are one quotation to a reader,
+                        # and offering both spends a choice on nothing.
+                        if not quote or quote in seen_text:
+                            continue
+                        seen_text.add(quote)
+                        kept.append({**item, "quote": quote[:600], "url": url})
+                    candidates = kept
                 detail.append(
                     {
                         "conceptClaimId": statement_id,
                         "statement": statement[:300],
                         "topicIds": sorted({str(value) for value in row["topic_ids"]}),
+                        "candidates": candidates,
                         # The queue the owner votes in reads these two keys, and
                         # what they should now vote on is the in-topic pair.
                         "lexicalTop": (
@@ -5308,84 +5377,111 @@ class Database:
                 comparison_id = str(one_row(cursor)["comparison_id"])
         return {"comparisonId": comparison_id, **summary}
 
+    def _latest_comparison(self) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT detail FROM kx.binding_method_comparisons ORDER BY ran_at DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            return [] if row is None else cast(list[dict[str, Any]], row["detail"])
+
     def method_comparison_queue(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
-        """Statements where the two methods disagree, with both answers side by side.
+        """One statement and the five quotations offered for it, in a blind order.
 
-        A pair whose two sides quote the **same words** is not a choice, and asking
-        somebody to make it costs a vote and returns nothing: whichever side they
-        pick, the answer says which position they preferred, not which method. 28
-        of 224 pairs are like that - the two methods reached the same sentence,
-        sometimes through different claim ids over the same span - and they are
-        held back rather than shown.
+        The two methods are interleaved into one shortlist and then ordered by a
+        hash of the statement and the quotation together, so position says nothing
+        about which method found it or how highly that method ranked it. Which
+        method a chosen quotation came from is resolved afterwards, from the
+        recorded comparison, and is never sent to the browser.
         """
-        with self.connect() as connection:
-            self.require_schema(connection)
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT detail FROM kx.binding_method_comparisons ORDER BY ran_at DESC LIMIT 1"
-                )
-                row = cursor.fetchone()
-                if row is None:
-                    return 0, []
-                detail = cast(list[dict[str, Any]], row["detail"])
-                cursor.execute("SELECT concept_claim_id::text AS id FROM kx.binding_method_votes")
-                voted = {str(item["id"]) for item in cursor.fetchall()}
+        detail = self._latest_comparison()
+        if not detail:
+            return 0, []
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT concept_claim_id::text AS id FROM kx.binding_method_votes")
+            voted = {str(item["id"]) for item in cursor.fetchall()}
 
-                candidates = [
-                    item
-                    for item in detail
-                    if str(item["conceptClaimId"]) not in voted
-                    and item.get("semanticTop")
-                    and item.get("lexicalTop")
-                ]
-                cursor.execute(
-                    "SELECT claim_id::text AS id, quote_text FROM kx.claim_evidence"
-                    " WHERE claim_id::text = ANY(%s) AND match_status = 'exact'",
-                    (
-                        [str(item["lexicalTop"]["claimId"]) for item in candidates]
-                        + [str(item["semanticTop"]["claimId"]) for item in candidates],
-                    ),
-                )
-                text_of = {str(item["id"]): str(item["quote_text"]) for item in cursor.fetchall()}
-                waiting = [
-                    item
-                    for item in candidates
-                    if text_of.get(str(item["lexicalTop"]["claimId"]), "\x00")
-                    != text_of.get(str(item["semanticTop"]["claimId"]), "\x01")
-                ]
-                page = waiting[:limit]
-                lexical_ids = [str(item["lexicalTop"]["claimId"]) for item in page]
-                quotes: dict[str, tuple[str, str]] = {}
-                if lexical_ids:
-                    cursor.execute(
-                        "SELECT evidence.claim_id::text AS id, evidence.quote_text,"
-                        " documents.canonical_url"
-                        " FROM kx.claim_evidence AS evidence"
-                        " JOIN kx.document_versions AS versions USING (version_id)"
-                        " JOIN kx.documents AS documents USING (document_id)"
-                        " WHERE evidence.claim_id::text = ANY(%s)",
-                        (lexical_ids,),
-                    )
-                    quotes = {
-                        str(item["id"]): (str(item["quote_text"]), str(item["canonical_url"]))
-                        for item in cursor.fetchall()
-                    }
-                cursor.execute(
-                    "SELECT evidence.claim_id::text AS id, documents.canonical_url"
-                    " FROM kx.claim_evidence AS evidence"
-                    " JOIN kx.document_versions AS versions USING (version_id)"
-                    " JOIN kx.documents AS documents USING (document_id)"
-                    " WHERE evidence.claim_id::text = ANY(%s)",
-                    ([str(item["semanticTop"]["claimId"]) for item in page],),
-                )
-                semantic_urls = {
-                    str(item["id"]): str(item["canonical_url"]) for item in cursor.fetchall()
+        # A statement with one candidate is not a choice; it is shown when a second
+        # exists, and counted as waiting only then.
+        waiting = [
+            item
+            for item in detail
+            if str(item["conceptClaimId"]) not in voted
+            and len(cast(list[dict[str, Any]], item.get("candidates") or [])) > 1
+        ]
+        page: list[dict[str, Any]] = []
+        for item in waiting[:limit]:
+            statement_id = str(item["conceptClaimId"])
+            candidates = cast(list[dict[str, Any]], item["candidates"])
+            page.append(
+                {
+                    "conceptClaimId": statement_id,
+                    "statement": str(item["statement"]),
+                    "candidates": [
+                        {
+                            "claimId": str(candidate["claimId"]),
+                            "quote": str(candidate.get("quote") or ""),
+                            "sourceUrl": str(candidate.get("url") or ""),
+                        }
+                        for candidate in sorted(
+                            candidates,
+                            key=lambda candidate: sha256_bytes(
+                                f"{statement_id}{candidate['claimId']}".encode()
+                            ),
+                        )
+                    ],
                 }
-        for item in page:
-            lexical_id = str(item["lexicalTop"]["claimId"])
-            item["lexicalQuote"], item["lexicalUrl"] = quotes.get(lexical_id, ("", ""))
-            item["semanticUrl"] = semantic_urls.get(str(item["semanticTop"]["claimId"]), "")
+            )
         return len(waiting), page
+
+    def record_candidate_vote(
+        self, *, concept_claim_id: str, claim_id: str | None, voted_by: str
+    ) -> dict[str, Any]:
+        """Record which of the five a person chose, and what that says about the methods.
+
+        The choice is a claim id; which method produced it, and at what rank, is
+        looked up here rather than asked of the person - they were never told.
+        """
+        entry = next(
+            (
+                item
+                for item in self._latest_comparison()
+                if str(item["conceptClaimId"]) == concept_claim_id
+            ),
+            None,
+        )
+        candidates = cast(list[dict[str, Any]], (entry or {}).get("candidates") or [])
+        chosen = next((item for item in candidates if str(item["claimId"]) == claim_id), None)
+        if claim_id is not None and chosen is None:
+            raise ValueError(f"{claim_id} was not offered for this statement")
+
+        def top(method: str) -> str | None:
+            first = next((item for item in candidates if item.get(f"{method}Rank") == 1), None)
+            return str(first["claimId"]) if first else None
+
+        if chosen is None:
+            winner, lexical_id, semantic_id = "neither", top("lexical"), top("semantic")
+            ranks: dict[str, Any] = {}
+        else:
+            by_lexical = chosen.get("lexicalRank") is not None
+            by_semantic = chosen.get("semanticRank") is not None
+            winner = (
+                "both" if by_lexical and by_semantic else "lexical" if by_lexical else "semantic"
+            )
+            lexical_id = str(chosen["claimId"]) if by_lexical else None
+            semantic_id = str(chosen["claimId"]) if by_semantic else None
+            ranks = {
+                "lexicalRank": chosen.get("lexicalRank"),
+                "semanticRank": chosen.get("semanticRank"),
+            }
+        outcome = self.record_method_vote(
+            concept_claim_id=concept_claim_id,
+            winner=winner,
+            lexical_claim_id=lexical_id,
+            semantic_claim_id=semantic_id,
+            voted_by=voted_by,
+        )
+        return {**outcome, **ranks}
 
     def record_method_vote(
         self,

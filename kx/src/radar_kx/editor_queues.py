@@ -26,8 +26,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from radar_kx.identifiers import sha256_bytes
-
 if TYPE_CHECKING:
     from radar_kx.database import Database
 
@@ -366,67 +364,37 @@ def _decide_skeleton(database: Database, item_id: str, action: str, actor: str) 
 # ---------------------------------------------------------------------------
 
 
-def semantic_goes_first(statement_id: str) -> bool:
-    """Which side of the pair the semantic answer is shown on.
-
-    The first eighteen votes were taken on a tab that put the semantic quotation
-    first, labelled both by method and printed a cosine beside one of them and
-    nothing beside the other. It came back 12-0 for the semantic method, and a
-    12-0 from an instrument built like that is not 12-0 - it is a preference
-    elicited under order, label and annotation bias, all three pointing the same
-    way.
-
-    So the sides are hidden and their order is decided by the statement's own id:
-    deterministic, so a reload shows the same pair the same way and a vote can be
-    replayed, and unpredictable, so it carries no information about the method.
-    """
-    return sha256_bytes(statement_id.encode("utf-8"))[-1] in "02468ace"
+#: What each of the five is called on the page. Letters, not method names: the
+#: whole point is that the reader cannot tell which method offered which.
+_LABELS = ("А", "Б", "В", "Г", "Д")
 
 
 def _load_comparison(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
     total, rows = database.method_comparison_queue(limit=limit)
     items: list[QueueItem] = []
     for row in rows:
-        statement_id = str(row["conceptClaimId"])
-        semantic = row["semanticTop"]
-        sides = [
-            {
-                "id": "semantic",
-                "quote": str(semantic["quote"]),
-                "sourceUrl": str(row.get("semanticUrl") or ""),
-            },
-            {
-                "id": "lexical",
-                "quote": str(row.get("lexicalQuote") or "(нет цитаты)"),
-                "sourceUrl": str(row.get("lexicalUrl") or ""),
-            },
-        ]
-        if not semantic_goes_first(statement_id):
-            sides.reverse()
+        candidates = row["candidates"]
         items.append(
             QueueItem(
-                item_id=(f"{statement_id}|{row['lexicalTop']['claimId']}|{semantic['claimId']}"),
+                item_id=str(row["conceptClaimId"]),
                 primary=str(row["statement"]),
                 secondary=(
-                    "Какая из двух цитат ближе к утверждению? Чем они найдены — "
-                    "не показано намеренно: это и есть предмет замера."
+                    "Какая из цитат подтверждает это утверждение? Чем каждая найдена "
+                    "и на каком месте стояла — не показано намеренно: это и есть "
+                    "предмет замера."
                 ),
-                actions=(
-                    ("first", "Ближе А", "yes"),
-                    ("second", "Ближе Б", "yes"),
-                    ("neither", "Оба мимо", "no"),
-                ),
+                actions=(("neither", "Все мимо", "no"),),
                 children=tuple(
                     {
-                        "id": label,
-                        "quote": f"{label} · {side['quote']}",
-                        "sourceUrl": side["sourceUrl"],
+                        "id": str(candidate["claimId"]),
+                        "quote": f"{label} · {candidate['quote']}",
+                        "sourceUrl": str(candidate["sourceUrl"]),
                         "span": "",
                         "relevance": None,
                         "membershipClass": "",
-                        "actions": [],
+                        "actions": [{"action": "chosen", "label": "Эта", "kind": "yes"}],
                     }
-                    for label, side in zip(("А", "Б"), sides, strict=True)
+                    for label, candidate in zip(_LABELS, candidates, strict=False)
                 ),
             )
         )
@@ -434,20 +402,12 @@ def _load_comparison(database: Database, limit: int) -> tuple[int, list[QueueIte
 
 
 def _decide_comparison(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
-    statement_id, lexical_id, semantic_id = item_id.split("|")
-    # The person chose a side; which method that was is resolved here, from the
-    # same deterministic order the tab drew, and never shown to them.
-    if action in ("first", "second"):
-        semantic_first = semantic_goes_first(statement_id)
-        chose_first = action == "first"
-        winner = "semantic" if chose_first == semantic_first else "lexical"
-    else:
-        winner = action
-    return database.record_method_vote(
+    # A child button posts "<statement>/<claim>"; the card's own button posts the
+    # statement alone.
+    statement_id, _, claim_id = item_id.partition("/")
+    return database.record_candidate_vote(
         concept_claim_id=statement_id,
-        winner=winner,
-        lexical_claim_id=lexical_id,
-        semantic_claim_id=semantic_id,
+        claim_id=claim_id if action == "chosen" and claim_id else None,
         voted_by=actor,
     )
 
@@ -487,12 +447,17 @@ QUEUES: tuple[Queue, ...] = (
             "ограничение не добавило: первый выбор совпал у 25 утверждений из 228. "
             "Оценкам обоих верить нельзя — e5 даёт 0,89 хорошему совпадению и 0,86 "
             "бессмыслице, RRF упирается в потолок 2/61 — так что инструмент остался "
-            "один: посмотреть глазами.\n\n**Какая цитата чем найдена — не показано.** "
-            "Первые 18 голосов собирались на вкладке, где смысловая цитата стояла "
-            "первой, была подписана методом и одна из двух несла оценку. Счёт вышел "
-            "12:0 в её пользу — но это счёт инструмента, а не методов. Теперь стороны "
-            "скрыты, а порядок задан идентификатором утверждения. Полутора десятков "
-            "голосов вслепую хватит, чтобы решение стало решением."
+            "один: посмотреть глазами.\n\n**Теперь показаны пять цитат, а не две.** "
+            "Ваши первые 18 голосов дали 12:0 в пользу смыслового метода и 6 «оба "
+            "мимо» — и вот эта треть промахов не объясняется ни обрывками фраз, ни "
+            "бедным выбором: кандидатов внутри темы было в среднем 3 700. Значит "
+            "стоит проверить, не стоит ли верная цитата второй или третьей.\n\n"
+            "Пятёрка собрана из выдач обоих методов вперемежку, чем найдена каждая и "
+            "на каком месте стояла — **не показано**: первые 18 голосов собирались на "
+            "вкладке, где смысловая цитата шла первой, была подписана методом и одна "
+            "из двух несла оценку, и такой счёт принадлежит инструменту, а не методам. "
+            "Порядок здесь задан хешем и о методе ничего не говорит.\n\nПолутора "
+            "десятков голосов хватит: выбор покажет и метод, и позицию."
         ),
         load=_load_comparison,
         decide=_decide_comparison,
@@ -612,7 +577,7 @@ QUEUES_BY_KEY = {queue.key: queue for queue in QUEUES}
 #: Derived from the buttons each queue actually renders, so the two cannot
 #: disagree.
 ALLOWED_ACTIONS: dict[str, set[str]] = {
-    "comparison": {"first", "second", "neither"},
+    "comparison": {"chosen", "neither"},
 }
 
 
