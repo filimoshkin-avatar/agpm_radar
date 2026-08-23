@@ -1326,6 +1326,10 @@ document.addEventListener("click", event => {
     agentOpenTopic(button.dataset.agentTopic);
     return;
   }
+  if (button.dataset.agentPage) {
+    agentOpenPage(button.dataset.agentPage);
+    return;
+  }
   if (button.dataset.agentAdmission) {
     agentState.admission = button.dataset.agentAdmission;
     document.querySelectorAll("[data-agent-admission]").forEach(chip => {
@@ -1617,6 +1621,51 @@ async function agentOpenTopic(key) {
   }
 }
 
+async function agentLoadWiki() {
+  const box = document.getElementById("agentWiki");
+  if (!box || box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Загрузка страниц…</p>`;
+  try {
+    const data = await kbFetch("/pages");
+    const pages = data.pages || [];
+    box.innerHTML = `
+      <p class="agent-intro">Авторские страницы методики — как есть. Жанр по Diátaxis —
+      свойство раздела, а не страницы: страницы не режутся, навигация работает по разделам.</p>
+      <div class="agent-topics">
+        ${pages.map(page => `
+          <button class="agent-topic" type="button" data-agent-page="${escapeHtml(page.relative_path)}">
+            <span class="agent-topic__title">${escapeHtml(page.title || page.relative_path)}</span>
+            <span class="agent-topic__path">${escapeHtml(page.relative_path)}</span>
+            <span class="mono agent-topic__count">${page.chars} знаков</span>
+          </button>`).join("")}
+      </div>
+      <div id="agentPage"></div>`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function agentOpenPage(path) {
+  const card = document.getElementById("agentPage");
+  if (!card) return;
+  card.innerHTML = `<p class="agent-waiting">Загрузка страницы…</p>`;
+  try {
+    const data = await kbFetch(`/pages/${encodeURIComponent(path)}`);
+    if (data.error) {
+      card.innerHTML = `<p class="agent-waiting">${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    card.innerHTML = `
+      <h3 class="agent-section">${escapeHtml(data.title || path)}</h3>
+      <p class="agent-intro mono">${escapeHtml(data.signature || "")}</p>
+      <article class="card agent-page">${escapeHtml(data.body || "")}</article>`;
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    card.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 async function agentLoadGaps() {
   const box = document.getElementById("agentGaps");
   if (!box || box.dataset.loaded) return;
@@ -1641,7 +1690,13 @@ async function agentLoadGaps() {
 
 function setAgentTab(tab) {
   agentState.tab = tab;
-  const panels = { ask: "agentAsk", observatory: "agentObservatory", topics: "agentTopics", gaps: "agentGaps" };
+  const panels = {
+    ask: "agentAsk",
+    observatory: "agentObservatory",
+    topics: "agentTopics",
+    wiki: "agentWiki",
+    gaps: "agentGaps"
+  };
   Object.entries(panels).forEach(([name, id]) => {
     document.getElementById(id)?.toggleAttribute("hidden", name !== tab);
   });
@@ -1652,6 +1707,7 @@ function setAgentTab(tab) {
   });
   if (tab === "observatory") agentLoadObservatory();
   if (tab === "topics") agentLoadTopics();
+  if (tab === "wiki") agentLoadWiki();
   if (tab === "gaps") agentLoadGaps();
 }
 

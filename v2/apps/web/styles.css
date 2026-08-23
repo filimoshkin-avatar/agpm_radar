@@ -1409,6 +1409,15 @@ body.is-agent .agent-view { display: block; }
 .agent-topic__count { font-size: 11px; color: var(--muted); }
 .agent-topic__path { font-size: 11px; color: var(--muted); }
 
+.agent-page {
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #4a525a;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
 .agent-gap { display: flex; flex-direction: column; gap: 7px; border-left: 2px solid var(--accent); }
 .agent-gap__missing { margin: 0; font-size: 12px; font-weight: 600; color: var(--accent); }
 .agent-gap__statement { margin: 0; font-size: 13.5px; line-height: 1.45; }
