@@ -510,3 +510,20 @@ def test_only_the_decisions_that_are_current_are_on_the_wall() -> None:
     assert all(item.queue.key not in QUEUES_BY_KEY for item in RETIRED)
     # And each one says what would put it back, so this is a decision and not a loss.
     assert all(item.reason and item.returns_when for item in RETIRED)
+
+
+def test_a_statement_under_three_subjects_is_still_one_statement(placed: dict[str, Any]) -> None:
+    # The first version of this report joined the assignments and counted 448 of
+    # 233. A denominator that grows with the tagging measures the tagging.
+    database = cast(Database, placed["database"])
+    with connect(database.settings.dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO kx.concept_claim_topics"
+            " (concept_claim_id, topic_id, assigned_by, method)"
+            " SELECT %s, topic_id, 'test', 'manual' FROM kx.topics"
+            " WHERE topic_key IN ('risks', 'trust-and-control')",
+            (placed["statementId"],),
+        )
+    report = database.topic_assignment_report()
+    assert report["statements"] == 1
+    assert report["statements_placed"] == 1

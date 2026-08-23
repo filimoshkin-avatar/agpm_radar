@@ -340,7 +340,9 @@ def _authored_backbone(database: Database) -> list[QueueItem]:
             children=tuple(
                 {
                     "id": str(topic["topic_key"]),
-                    "quote": f"{topic['title']} — {below.get(str(topic['title']), 1) - 1} тем ниже",
+                    "quote": (
+                        f"{topic['title']} — тем ниже: {below.get(str(topic['title']), 1) - 1}"
+                    ),
                     "sourceUrl": "",
                     "span": "",
                     "relevance": None,

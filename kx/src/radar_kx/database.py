@@ -4756,13 +4756,20 @@ class Database:
     def topic_assignment_report(self) -> dict[str, Any]:
         """How much of each side now has a subject, and which subjects they are."""
         with self.connect() as connection, connection.cursor() as cursor:
+            # Counted without joining the assignments: a statement placed under
+            # three subjects is one statement, and a LEFT JOIN would report 448 of
+            # 233. Every count here is over its own population.
             cursor.execute(
                 """
-                SELECT count(*) FILTER (WHERE claims.claim_nature <> 'open_question')
-                           AS statements,
-                       count(DISTINCT assigned.concept_claim_id) AS statements_placed
+                SELECT count(*) AS statements,
+                       count(*) FILTER (
+                           WHERE EXISTS (
+                               SELECT 1 FROM kx.concept_claim_topics AS assigned
+                               WHERE assigned.concept_claim_id = claims.concept_claim_id
+                           )
+                       ) AS statements_placed
                 FROM kx.concept_claims AS claims
-                LEFT JOIN kx.concept_claim_topics AS assigned USING (concept_claim_id)
+                WHERE claims.claim_nature <> 'open_question'
                 """
             )
             statements = dict(one_row(cursor))
