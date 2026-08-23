@@ -237,6 +237,23 @@ def _parser() -> argparse.ArgumentParser:
     graph_parser.add_argument("--wiki-snapshot-id", default=None)
     graph_parser.add_argument("--dry-run", action="store_true")
 
+    # Slice 3.1: the published slice and the pointer that selects it.
+    build_release_parser = subparsers.add_parser("build-release")
+    build_release_parser.add_argument("--notes", default=None)
+    build_release_parser.add_argument("--dry-run", action="store_true")
+
+    publish_release_parser = subparsers.add_parser("publish-release")
+    publish_release_parser.add_argument("--release-id", required=True)
+    publish_release_parser.add_argument("--actor", required=True)
+    publish_release_parser.add_argument("--rationale", required=True)
+
+    rollback_parser = subparsers.add_parser("rollback-release")
+    rollback_parser.add_argument("--actor", required=True)
+    rollback_parser.add_argument("--rationale", required=True)
+
+    subparsers.add_parser("active-release")
+    subparsers.add_parser("reconcile-release")
+
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
     subparsers.add_parser("model-run-types")
@@ -547,6 +564,26 @@ def main() -> None:
         return
     if args.command == "backfill-provenance-from-fetches":
         _print_json(database.backfill_provenance_from_fetches(limit=args.limit))
+        return
+    if args.command == "build-release":
+        if args.dry_run:
+            _print_json(database.compose_release().as_json())
+            return
+        _print_json(database.build_release(built_by="radar-kx-build-release", notes=args.notes))
+        return
+    if args.command == "publish-release":
+        _print_json(
+            database.publish_release(args.release_id, actor=args.actor, rationale=args.rationale)
+        )
+        return
+    if args.command == "rollback-release":
+        _print_json(database.rollback_release(actor=args.actor, rationale=args.rationale))
+        return
+    if args.command == "active-release":
+        _print_json(database.active_release() or {"active": None})
+        return
+    if args.command == "reconcile-release":
+        _print_json(database.reconcile_release())
         return
     if args.command == "build-graph":
         graph = database.build_graph(wiki_snapshot_id=args.wiki_snapshot_id)

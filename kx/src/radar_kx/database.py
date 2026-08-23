@@ -51,6 +51,7 @@ from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
+from radar_kx.release import ReleaseComposition, ReleaseError, compose, reconcile
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.source_families import DocumentHost, FamilyDecision
 from radar_kx.url_policy import canonical_identity_url, normalize_url
@@ -67,7 +68,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -3450,6 +3451,393 @@ class Database:
             # the graph does not look complete.
             "unsupported": unsupported(graph),
         }
+
+    # ---------------------------------------------------------------------
+    # The knowledge release (slice 3.1, ADR-0006 §1)
+    # ---------------------------------------------------------------------
+
+    def _slice_rows(
+        self, connection: Connection[dict[str, Any]]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Read what a release may contain: only what somebody already confirmed."""
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT published.published_quote_id AS quote_id,
+                       published.original_text,
+                       translations.translated_text,
+                       translations.is_machine AS translation_is_machine,
+                       published.attribution,
+                       published.source_url,
+                       published.caveat,
+                       published.published_at,
+                       published.claim_id
+                FROM kx.published_quotes AS published
+                LEFT JOIN kx.quote_translations AS translations
+                       ON translations.translation_id = published.translation_id
+                      AND translations.state = 'verified'
+                """
+            )
+            quotes = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT DISTINCT ON (versions.concept_id)
+                       versions.concept_id, versions.title, versions.language,
+                       versions.body, versions.body_sha256, concepts.relative_path
+                FROM kx.concept_versions AS versions
+                JOIN kx.concepts AS concepts USING (concept_id)
+                ORDER BY versions.concept_id, versions.imported_at DESC
+                """
+            )
+            concepts = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT claims.concept_claim_id AS statement_id,
+                       versions.concept_id,
+                       claims.statement,
+                       claims.claim_nature,
+                       count(evidence.claim_id) FILTER (
+                           WHERE evidence.confirmed_at IS NOT NULL
+                       )::int AS confirmed_evidence
+                FROM kx.concept_claims AS claims
+                JOIN kx.concept_versions AS versions USING (concept_version_id)
+                LEFT JOIN kx.concept_evidence AS evidence USING (concept_claim_id)
+                GROUP BY 1, 2, 3, 4
+                """
+            )
+            statements = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT ideas.idea_id, ideas.title, ideas.statement, ideas.independent_sources
+                FROM kx.ideas AS ideas
+                WHERE ideas.admitted IS TRUE
+                """
+            )
+            ideas = [dict(row) for row in cursor.fetchall()]
+            # A statement's evidence is a confirmed binding to a claim that has a
+            # published quotation. A binding to a claim nobody published points at
+            # nothing a reader can open.
+            cursor.execute(
+                """
+                SELECT evidence.concept_claim_id AS statement_id,
+                       published.published_quote_id AS quote_id,
+                       evidence.membership_class
+                FROM kx.concept_evidence AS evidence
+                JOIN kx.published_quotes AS published USING (claim_id)
+                WHERE evidence.confirmed_at IS NOT NULL
+                """
+            )
+            statement_evidence = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT snapshot_id FROM kx.wiki_snapshots ORDER BY taken_at DESC LIMIT 1"
+            )
+            wiki = cursor.fetchone()
+            cursor.execute(
+                "SELECT graph_snapshot_id FROM kx.graph_snapshots ORDER BY built_at DESC LIMIT 1"
+            )
+            graph = cursor.fetchone()
+            cursor.execute(
+                "SELECT coalesce(max(decision_id), 0) AS high_water FROM kx.source_family_decisions"
+            )
+            high_water = int(cast(int, one_row(cursor)["high_water"]))
+        return {
+            "quotes": quotes,
+            "concepts": concepts,
+            "statements": statements,
+            "ideas": ideas,
+            "statement_evidence": statement_evidence,
+            "wiki": [dict(wiki)] if wiki else [],
+            "graph": [dict(graph)] if graph else [],
+            "high_water": [{"value": high_water}],
+        }
+
+    def compose_release(self) -> ReleaseComposition:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            rows = self._slice_rows(connection)
+        return compose(
+            quotes=rows["quotes"],
+            concepts=rows["concepts"],
+            statements=rows["statements"],
+            ideas=rows["ideas"],
+            wiki_snapshot_id=(str(rows["wiki"][0]["snapshot_id"]) if rows["wiki"] else None),
+            graph_snapshot_id=(
+                str(rows["graph"][0]["graph_snapshot_id"]) if rows["graph"] else None
+            ),
+            family_decision_high_water=int(rows["high_water"][0]["value"]),
+        )
+
+    def build_release(self, *, built_by: str, notes: str | None = None) -> dict[str, Any]:
+        """Project the confirmed slice into `kb`. Publishes nothing.
+
+        Content-addressed: the same store builds the same release id, so building
+        twice records nothing twice and a release identifier means one thing
+        forever.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            rows = self._slice_rows(connection)
+            composition = compose(
+                quotes=rows["quotes"],
+                concepts=rows["concepts"],
+                statements=rows["statements"],
+                ideas=rows["ideas"],
+                wiki_snapshot_id=(str(rows["wiki"][0]["snapshot_id"]) if rows["wiki"] else None),
+                graph_snapshot_id=(
+                    str(rows["graph"][0]["graph_snapshot_id"]) if rows["graph"] else None
+                ),
+                family_decision_high_water=int(rows["high_water"][0]["value"]),
+            )
+            release_id = composition.release_id
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT built_at FROM kx.knowledge_releases WHERE release_id = %s",
+                    (release_id,),
+                )
+                if cursor.fetchone() is not None:
+                    return {**composition.as_json(), "alreadyBuilt": True}
+
+                cursor.execute(
+                    """
+                    INSERT INTO kx.knowledge_releases
+                        (release_id, built_by, wiki_snapshot_id, graph_snapshot_id,
+                         family_decision_high_water, quote_count, concept_count,
+                         statement_count, idea_count, state_sha256, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        release_id,
+                        built_by,
+                        composition.wiki_snapshot_id,
+                        composition.graph_snapshot_id,
+                        composition.family_decision_high_water,
+                        composition.count("quote"),
+                        composition.count("concept"),
+                        composition.count("statement"),
+                        composition.count("idea"),
+                        composition.state_sha256,
+                        notes,
+                    ),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO kb.releases
+                        (release_id, built_at, state_sha256, quote_count, concept_count,
+                         statement_count, idea_count)
+                    VALUES (%s, clock_timestamp(), %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        release_id,
+                        composition.state_sha256,
+                        composition.count("quote"),
+                        composition.count("concept"),
+                        composition.count("statement"),
+                        composition.count("idea"),
+                    ),
+                )
+                for row in rows["concepts"]:
+                    cursor.execute(
+                        "INSERT INTO kb.concepts (release_id, concept_id, relative_path,"
+                        " title, language, body) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            release_id,
+                            row["concept_id"],
+                            row["relative_path"],
+                            row["title"],
+                            row["language"],
+                            row["body"],
+                        ),
+                    )
+                for row in rows["quotes"]:
+                    cursor.execute(
+                        "INSERT INTO kb.quotes (release_id, quote_id, original_text,"
+                        " translated_text, translation_is_machine, attribution, source_url,"
+                        " caveat, published_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            release_id,
+                            row["quote_id"],
+                            row["original_text"],
+                            row["translated_text"],
+                            row["translation_is_machine"],
+                            row["attribution"],
+                            row["source_url"],
+                            row["caveat"],
+                            row["published_at"],
+                        ),
+                    )
+                for row in rows["statements"]:
+                    cursor.execute(
+                        "INSERT INTO kb.statements (release_id, statement_id, concept_id,"
+                        " statement, claim_nature, confirmed_evidence)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            release_id,
+                            row["statement_id"],
+                            row["concept_id"],
+                            row["statement"],
+                            row["claim_nature"],
+                            row["confirmed_evidence"],
+                        ),
+                    )
+                for row in rows["statement_evidence"]:
+                    cursor.execute(
+                        "INSERT INTO kb.statement_evidence (release_id, statement_id,"
+                        " quote_id, membership_class) VALUES (%s, %s, %s, %s)"
+                        " ON CONFLICT DO NOTHING",
+                        (
+                            release_id,
+                            row["statement_id"],
+                            row["quote_id"],
+                            row["membership_class"],
+                        ),
+                    )
+                for row in rows["ideas"]:
+                    cursor.execute(
+                        "INSERT INTO kb.ideas (release_id, idea_id, title, statement,"
+                        " independent_sources) VALUES (%s, %s, %s, %s, %s)",
+                        (
+                            release_id,
+                            row["idea_id"],
+                            row["title"],
+                            row["statement"],
+                            row["independent_sources"],
+                        ),
+                    )
+                cursor.execute(
+                    "INSERT INTO kx.knowledge_release_events"
+                    " (release_id, action, actor, rationale) VALUES (%s, 'built', %s, %s)",
+                    (release_id, built_by, notes or "built from the confirmed slice"),
+                )
+        return {**composition.as_json(), "alreadyBuilt": False}
+
+    def publish_release(self, release_id: str, *, actor: str, rationale: str) -> dict[str, Any]:
+        """Move the active pointer. One UPDATE, one transaction, one event."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT release_id FROM kb.releases WHERE release_id = %s", (release_id,)
+                )
+                if cursor.fetchone() is None:
+                    raise ReleaseError(f"{release_id} has not been built")
+                cursor.execute("SELECT release_id FROM kb.active_release")
+                previous = cursor.fetchone()
+                previous_id = str(previous["release_id"]) if previous else None
+                if previous_id == release_id:
+                    return {"releaseId": release_id, "alreadyActive": True}
+                cursor.execute(
+                    """
+                    INSERT INTO kb.active_release (only_row, release_id, switched_by)
+                    VALUES (true, %s, %s)
+                    ON CONFLICT (only_row) DO UPDATE
+                        SET release_id = EXCLUDED.release_id,
+                            switched_at = clock_timestamp(),
+                            switched_by = EXCLUDED.switched_by
+                    """,
+                    (release_id, actor),
+                )
+                cursor.execute(
+                    "INSERT INTO kx.knowledge_release_events"
+                    " (release_id, action, previous_release_id, actor, rationale)"
+                    " VALUES (%s, 'published', %s, %s, %s)",
+                    (release_id, previous_id, actor, rationale),
+                )
+                if previous_id is not None:
+                    cursor.execute(
+                        "INSERT INTO kx.knowledge_release_events"
+                        " (release_id, action, previous_release_id, actor, rationale)"
+                        " VALUES (%s, 'superseded', %s, %s, %s)",
+                        (previous_id, release_id, actor, rationale),
+                    )
+        return {
+            "releaseId": release_id,
+            "previousReleaseId": previous_id,
+            "alreadyActive": False,
+        }
+
+    def rollback_release(self, *, actor: str, rationale: str) -> dict[str, Any]:
+        """Move the pointer back to whatever was active before the last publish.
+
+        Rolling back is not a special mechanism: it is the same pointer moving the
+        other way, recorded like any other event. A rollback that left no trace
+        would make the event log a story about what was meant to happen.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT release_id, previous_release_id FROM kx.knowledge_release_events"
+                    " WHERE action = 'published' ORDER BY event_id DESC LIMIT 1"
+                )
+                last = cursor.fetchone()
+            if last is None or last["previous_release_id"] is None:
+                raise ReleaseError("there is no earlier release to roll back to")
+            target = str(last["previous_release_id"])
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE kb.active_release SET release_id = %s,"
+                    " switched_at = clock_timestamp(), switched_by = %s",
+                    (target, actor),
+                )
+                cursor.execute(
+                    "INSERT INTO kx.knowledge_release_events"
+                    " (release_id, action, previous_release_id, actor, rationale)"
+                    " VALUES (%s, 'rolled_back', %s, %s, %s)",
+                    (target, str(last["release_id"]), actor, rationale),
+                )
+        return {"releaseId": target, "rolledBackFrom": str(last["release_id"])}
+
+    def active_release(self) -> dict[str, Any] | None:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT active.release_id, active.switched_at, active.switched_by,"
+                " releases.state_sha256, releases.quote_count, releases.concept_count,"
+                " releases.statement_count, releases.idea_count"
+                " FROM kb.active_release AS active"
+                " JOIN kb.releases AS releases USING (release_id)"
+            )
+            row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def reconcile_release(self) -> dict[str, Any]:
+        """Compare the active slice with what the store would build now."""
+        active = self.active_release()
+        if active is None:
+            raise ReleaseError("no release is active")
+        release_id = str(active["release_id"])
+        current = {
+            f"{element.kind}:{element.element_id}": element.fingerprint
+            for element in self.compose_release().elements
+        }
+        with self.connect() as connection, connection.cursor() as cursor:
+            published: dict[str, str] = {}
+            cursor.execute(
+                "SELECT quote_id, original_text, coalesce(translated_text, '') AS translated,"
+                " attribution, coalesce(caveat, '') AS caveat"
+                " FROM kb.quotes WHERE release_id = %s",
+                (release_id,),
+            )
+            for row in cursor.fetchall():
+                published[f"quote:{row['quote_id']}"] = sha256_bytes(
+                    "\n".join(
+                        (
+                            str(row["original_text"]),
+                            str(row["translated"]),
+                            str(row["attribution"]),
+                            str(row["caveat"]),
+                        )
+                    ).encode("utf-8")
+                )
+            cursor.execute(
+                "SELECT statement_id, statement, confirmed_evidence FROM kb.statements"
+                " WHERE release_id = %s",
+                (release_id,),
+            )
+            for row in cursor.fetchall():
+                published[f"statement:{row['statement_id']}"] = sha256_bytes(
+                    f"{row['statement']}\n{row['confirmed_evidence']}".encode()
+                )
+        return reconcile(release_id, active=True, published=published, current=current).as_json()
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

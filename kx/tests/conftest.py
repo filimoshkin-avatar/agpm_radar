@@ -42,6 +42,7 @@ MIGRATION_011 = "011_transient_exhausted.sql"
 MIGRATION_012 = "012_candidate_ideas.sql"
 MIGRATION_013 = "013_publication.sql"
 MIGRATION_014 = "014_graph.sql"
+MIGRATION_015 = "015_knowledge_release.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
     MIGRATION_004,
@@ -55,6 +56,7 @@ ADOPTED_MIGRATIONS = (
     MIGRATION_012,
     MIGRATION_013,
     MIGRATION_014,
+    MIGRATION_015,
 )
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
@@ -153,7 +155,7 @@ def caveat_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 14 - the version the deployed release requires."""
+    """A database at schema 15 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
