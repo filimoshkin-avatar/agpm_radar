@@ -975,7 +975,8 @@ def main() -> None:
         _print_json(database.traceability_report(sample=args.sample))
         return
     if args.command == "wiki-suggestions":
-        _print_json({"suggestions": database.wiki_suggestions(limit=args.limit)})
+        _, suggestions = database.wiki_suggestions(limit=args.limit)
+        _print_json({"suggestions": suggestions})
         return
     if args.command == "linking-report":
         _print_json(database.linking_report())

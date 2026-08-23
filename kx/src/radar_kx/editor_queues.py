@@ -477,6 +477,36 @@ def _decide_freshness(database: Database, item_id: str, action: str, actor: str)
     return database.decide_freshness(claim_id=item_id, verdict=action, actor=actor)
 
 
+def _load_wiki_suggestions(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    total, rows = database.wiki_suggestions(limit=limit)
+    items = [
+        QueueItem(
+            item_id=f"{row['concept_claim_id']}/{row['claim_id']}",
+            primary=str(row["page_statement"]),
+            secondary=str(row["quote_text"]),
+            meta=(
+                ("страница", str(row["page_title"] or row["relative_path"])),
+                ("общая тема", str(row["subject"])),
+                ("вид материала", str(row["material_kind"])),
+                ("статус", str(row["status"])),
+            ),
+            actions=(
+                ("confirmed", "Это подкрепляет", "yes"),
+                ("rejected", "Не подходит", "no"),
+            ),
+            link=str(row["canonical_url"]),
+        )
+        for row in rows
+    ]
+    return total, items
+
+
+def _decide_wiki_suggestion(
+    database: Database, item_id: str, action: str, actor: str
+) -> dict[str, Any]:
+    return database.decide_wiki_suggestion(item_id=item_id, verdict=action, actor=actor)
+
+
 QUEUES: tuple[Queue, ...] = (
     Queue(
         key="skeleton",
@@ -528,6 +558,25 @@ QUEUES: tuple[Queue, ...] = (
         decide=_decide_comparison,
         object_kind="binding_method_vote",
         empty="Все пары размечены.",
+    ),
+    Queue(
+        key="wiki",
+        title="Предложения для wiki",
+        why=(
+            "Утверждение из хранилища и предложение с вашей страницы встретились на "
+            "одной теме скелета — единственном месте, где оба были размещены чем-то, "
+            "что их прочитало. Это не совпадение слов: словесный метод давал ровно "
+            "то, из-за чего связанность и была посредственной.\n\nВопрос один: "
+            "подкрепляет ли цитата ровно это предложение страницы. «Да» записывает "
+            "привязку подтверждённой; «нет» тоже записывается — иначе страница, "
+            "которую вы посмотрели и отклонили, выглядит как страница, которую никто "
+            "не открывал, и завтра она предложится снова.\n\nТекст страниц не "
+            "меняется: wiki — авторский текст и остаётся вашим."
+        ),
+        load=_load_wiki_suggestions,
+        decide=_decide_wiki_suggestion,
+        object_kind="concept_evidence",
+        empty="Новых предложений нет.",
     ),
     Queue(
         key="promotion",

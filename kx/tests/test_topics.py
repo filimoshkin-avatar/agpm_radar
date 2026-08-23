@@ -518,6 +518,7 @@ def test_only_the_decisions_that_are_current_are_on_the_wall() -> None:
     assert [queue.key for queue in QUEUES] == [
         "skeleton",
         "comparison",
+        "wiki",
         "promotion",
         "freshness",
         "families",

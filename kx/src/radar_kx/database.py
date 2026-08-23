@@ -4915,7 +4915,7 @@ class Database:
             examples = [dict(row) for row in cursor.fetchall()]
         return {"forward": forward, "back": backward, "examples": examples}
 
-    def wiki_suggestions(self, *, limit: int = 25) -> list[dict[str, Any]]:
+    def wiki_suggestions(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
         """Statements that belong on a page the wiki already has (UC-09).
 
         Matched by subject, not by words: a page and a statement meet on the
@@ -4926,9 +4926,11 @@ class Database:
         with self.connect() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT DISTINCT ON (concepts.relative_path, claims.claim_id)
+                SELECT DISTINCT ON (page_claims.concept_claim_id, claims.claim_id)
                        concepts.relative_path,
                        versions.title AS page_title,
+                       page_claims.concept_claim_id,
+                       page_claims.statement AS page_statement,
                        topics.title AS subject,
                        claims.claim_id,
                        claims.normalized_text,
@@ -4961,12 +4963,12 @@ class Database:
                       WHERE bound.claim_id = claims.claim_id
                         AND bound.concept_claim_id = page_claims.concept_claim_id
                   )
-                ORDER BY concepts.relative_path, claims.claim_id
+                ORDER BY page_claims.concept_claim_id, claims.claim_id
                 LIMIT %s
                 """,
                 (limit,),
             )
-            return [dict(row) for row in cursor.fetchall()]
+            return len(rows := [dict(row) for row in cursor.fetchall()]), rows
 
     # ---------------------------------------------------------------------
     # Two queues the owner's own decisions create (6: promotion, 11: expiry)
@@ -5240,6 +5242,46 @@ class Database:
                     )
                     written += cursor.rowcount
         return {"written": written}
+
+    def decide_wiki_suggestion(self, *, item_id: str, verdict: str, actor: str) -> dict[str, Any]:
+        """Her verdict on "this statement belongs on that page".
+
+        The row is written at decision time rather than proposed in advance:
+        thousands of unreviewed bindings in `concept_evidence` is what the
+        retired queue already showed to be unworkable. A rejection is a row too -
+        without one, a page she looked at and said no to looks exactly like one
+        nobody opened, and the queue offers it again tomorrow.
+        """
+        if verdict not in ("confirmed", "rejected"):
+            raise ValueError("verdict must be 'confirmed' or 'rejected'")
+        concept_claim_id, _, claim_id = item_id.partition("/")
+        if not concept_claim_id or not claim_id:
+            raise ValueError("item id must be 'concept_claim_id/claim_id'")
+        stamped = (
+            "confirmed_at = clock_timestamp(), confirmed_by = %(actor)s"
+            if verdict == "confirmed"
+            else "rejected_at = clock_timestamp(), rejected_by = %(actor)s"
+        )
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    INSERT INTO kx.concept_evidence (
+                        concept_claim_id, claim_id, membership_class, binding_method,
+                        stance, created_by, {
+                        "confirmed_at, confirmed_by"
+                        if verdict == "confirmed"
+                        else "rejected_at, rejected_by"
+                    }
+                    )
+                    VALUES (%(concept_claim_id)s, %(claim_id)s, 'historical', 'manual',
+                            'supports', %(actor)s, clock_timestamp(), %(actor)s)
+                    ON CONFLICT (concept_claim_id, claim_id) DO UPDATE SET {stamped}
+                    """,  # noqa: S608 - both branches are constants chosen above
+                    {"concept_claim_id": concept_claim_id, "claim_id": claim_id, "actor": actor},
+                )
+        return {"conceptClaimId": concept_claim_id, "claimId": claim_id, "verdict": verdict}
 
     def linking_report(self) -> dict[str, Any]:
         """What the base is linked by, and how much of it is reachable at all."""
