@@ -1759,8 +1759,8 @@ class Database:
             with connection.cursor() as cursor:
                 cursor.execute(
                     f"""
-                    SELECT scoped.document_id,
-                           scoped.canonical_url,
+                    SELECT documents.document_id,
+                           documents.canonical_url,
                            versions.canonical_text_sha256,
                            versions.canonical_text
                     FROM ({source}) AS scoped
