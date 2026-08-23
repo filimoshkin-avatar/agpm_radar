@@ -34,6 +34,7 @@ from radar_kx.ideas import (
     ClaimRecord,
     IndependenceVerdict,
     group_claims,
+    term_coverage,
 )
 from radar_kx.identifiers import (
     PARSER_CONFIG_HASH,
@@ -3872,39 +3873,36 @@ class Database:
     # ---------------------------------------------------------------------
 
     def evidence_queue(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
-        """Proposed bindings a person has not decided on, strongest first.
+        """Proposed bindings a person has not decided on, most plausible first.
 
         Grouped by statement, because the decision a reviewer makes is about a
         statement: "which of these, if any, is what this sentence rests on". A flat
         list of 2 769 proposals is the same information arranged so nobody can act
         on it.
+
+        Ordered by **term coverage** - the share of the statement's content words
+        that appear in the quotation - and not by the retrieval score. Reciprocal
+        rank fusion saturates: anything that ranked first in both languages scores
+        2/61, so on the first production queue every one of the top proposals sat
+        at 0.0328 and the order was effectively arbitrary. A reviewer shown noise
+        first stops reading.
+
+        Open questions are left out. "Should AgPM define a fourth level?" is not a
+        statement anything can be evidence for, and nine of them were at the head
+        of the queue. They are still counted as statements without evidence, which
+        is correct: they do not need any (ADR-0008 §2.3).
         """
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT count(DISTINCT concept_claim_id) AS statements,"
-                    " count(*) AS proposals FROM kx.concept_evidence_queue"
-                )
-                totals = dict(one_row(cursor))
-                cursor.execute(
-                    """
-                    SELECT queue.*
-                    FROM kx.concept_evidence_queue AS queue
-                    JOIN (
-                        SELECT concept_claim_id
-                        FROM kx.concept_evidence_queue
-                        GROUP BY concept_claim_id
-                        ORDER BY max(relevance) DESC, concept_claim_id
-                        LIMIT %s OFFSET %s
-                    ) AS page USING (concept_claim_id)
-                    ORDER BY queue.relevance DESC, queue.claim_id
-                    """,
-                    (limit, offset),
+                    "SELECT * FROM kx.concept_evidence_queue WHERE claim_nature <> 'open_question'"
                 )
                 rows = [dict(row) for row in cursor.fetchall()]
+
         grouped: dict[str, dict[str, Any]] = {}
         for row in rows:
+            coverage = term_coverage(str(row["statement"]), str(row["quote_text"]))
             key = str(row["concept_claim_id"])
             entry = grouped.setdefault(
                 key,
@@ -3921,6 +3919,7 @@ class Database:
                 {
                     "claimId": str(row["claim_id"]),
                     "relevance": float(cast(float, row["relevance"] or 0)),
+                    "coverage": round(coverage, 3),
                     "membershipClass": row["membership_class"],
                     "quote": row["quote_text"],
                     "charStart": row["char_start"],
@@ -3928,11 +3927,22 @@ class Database:
                     "sourceUrl": row["canonical_url"],
                 }
             )
+
+        for entry in grouped.values():
+            entry["proposals"].sort(key=lambda item: -float(item["coverage"]))
+            # Six is what a person will actually read before deciding. The rest of
+            # a statement's proposals stay in the queue and come back if these are
+            # all rejected.
+            entry["proposals"] = entry["proposals"][:6]
+        ordered = sorted(
+            grouped.values(),
+            key=lambda entry: -max(float(item["coverage"]) for item in entry["proposals"]),
+        )
         return {
-            "statementsWaiting": int(cast(int, totals["statements"])),
-            "proposalsWaiting": int(cast(int, totals["proposals"])),
+            "statementsWaiting": len(grouped),
+            "proposalsWaiting": len(rows),
             "offset": offset,
-            "items": list(grouped.values()),
+            "items": ordered[offset : offset + limit] if limit else [],
         }
 
     def decide_binding(

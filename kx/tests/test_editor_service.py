@@ -408,3 +408,34 @@ def test_a_document_outside_the_listing_is_not_served(migrated_dsn: str, tmp_pat
     for name in ("secret.md", "../../etc/passwd", "/etc/passwd"):
         with pytest.raises(KeyError):
             service.document(name)
+
+
+def test_an_open_question_is_not_offered_for_binding(migrated_dsn: str) -> None:
+    # "Should AgPM define a fourth level?" is not a statement anything can be
+    # evidence for, and nine of them were at the head of the first production
+    # queue. They are still counted as statements without evidence, which is
+    # correct: they do not need any.
+    database = Database(_settings(migrated_dsn))
+    statement_id, _ = _proposal(database, migrated_dsn)
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE kx.concept_claims SET claim_nature = 'open_question'"
+            " WHERE concept_claim_id = %s",
+            (statement_id,),
+        )
+    assert database.evidence_queue()["proposalsWaiting"] == 0
+
+
+def test_the_queue_is_ordered_by_word_overlap_not_by_retrieval_rank(
+    migrated_dsn: str,
+) -> None:
+    # Reciprocal rank fusion saturates at 2/61, so on the first production queue
+    # every top proposal scored 0.0328 and the order was arbitrary. A reviewer
+    # shown noise first stops reading.
+    from radar_kx.ideas import term_coverage
+
+    statement = "An agentic run assigns accountability to one named human owner."
+    close = "the run assigns accountability to exactly one named human owner"
+    far = "procurement cycles lengthened after the regulator published guidance"
+    assert term_coverage(statement, close) > term_coverage(statement, far)
+    assert term_coverage(statement, far) < 0.2

@@ -51,7 +51,7 @@ function childRow(queueKey, itemId, child) {
   if (child.span) bits.push("символы " + child.span);
   if (child.membershipClass) bits.push(child.membershipClass);
   if (child.relevance !== null && child.relevance !== undefined) {
-    bits.push("релевантность " + child.relevance);
+    bits.push("совпадение слов " + Math.round(child.relevance * 100) + "%");
   }
   if (bits.length) src.appendChild(document.createTextNode(" · " + bits.join(" · ")));
   left.appendChild(src);

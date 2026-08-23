@@ -87,7 +87,7 @@ def _load_evidence(database: Database, limit: int) -> tuple[int, list[QueueItem]
                     "quote": proposal["quote"],
                     "sourceUrl": proposal["sourceUrl"],
                     "span": f"{proposal['charStart']}–{proposal['charEnd']}",
-                    "relevance": round(proposal["relevance"], 4),
+                    "relevance": proposal["coverage"],
                     "membershipClass": proposal["membershipClass"],
                     "actions": [
                         {"action": "confirmed", "label": "Подтвердить", "kind": "yes"},

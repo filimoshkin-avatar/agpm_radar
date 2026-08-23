@@ -325,3 +325,27 @@ def summarize(
             )
         },
     }
+
+
+def term_coverage(statement: str, quote: str) -> float:
+    """Share of the statement's content words that the quotation contains.
+
+    The number a reviewer actually needs. Retrieval rank says "this came back
+    high for that query"; coverage says "this quotation contains most of what the
+    sentence is about", and the two come apart badly when reciprocal rank fusion
+    saturates - every proposal that ranked first in both languages scores exactly
+    2/61, so ranking by it puts the queue in arbitrary order.
+    """
+    wanted = frozenset(
+        word
+        for word in _WORD.findall(unicodedata.normalize("NFC", statement).casefold())
+        if word not in STOP_WORDS
+    )
+    if not wanted:
+        return 0.0
+    present = frozenset(
+        word
+        for word in _WORD.findall(unicodedata.normalize("NFC", quote).casefold())
+        if word not in STOP_WORDS
+    )
+    return len(wanted & present) / len(wanted)
