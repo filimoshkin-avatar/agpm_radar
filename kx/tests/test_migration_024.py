@@ -10,8 +10,17 @@ from __future__ import annotations
 from conftest import connect
 
 
-def test_the_schema_says_it_is_at_twenty_four(agent_dsn: str) -> None:
-    with connect(agent_dsn) as connection, connection.cursor() as cursor:
+def test_024_leaves_the_schema_where_it_says_it_does(baseline_dsn: str) -> None:
+    """024's own stamp, checked on 024 rather than on the newest schema.
+
+    Third time this shape has gone red: a migration test that asserts a number on
+    "whatever production runs" blames the wrong migration the moment the next one
+    lands. The version a migration owns is the line it writes.
+    """
+    from conftest import ADOPTED_MIGRATIONS, MIGRATION_024, _apply
+
+    _apply(baseline_dsn, ADOPTED_MIGRATIONS[: ADOPTED_MIGRATIONS.index(MIGRATION_024) + 1])
+    with connect(baseline_dsn) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT value FROM kx.metadata WHERE key = 'schema_version'")
         row = cursor.fetchone()
         assert row is not None

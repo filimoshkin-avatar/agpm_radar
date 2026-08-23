@@ -8,8 +8,12 @@ import pytest
 from conftest import connect
 
 
-def test_the_schema_says_it_is_at_twenty_five(judged_dsn: str) -> None:
-    with connect(judged_dsn) as connection, connection.cursor() as cursor:
+def test_025_leaves_the_schema_where_it_says_it_does(baseline_dsn: str) -> None:
+    """Its own stamp, so the next migration does not make this one red."""
+    from conftest import ADOPTED_MIGRATIONS, MIGRATION_025, _apply
+
+    _apply(baseline_dsn, ADOPTED_MIGRATIONS[: ADOPTED_MIGRATIONS.index(MIGRATION_025) + 1])
+    with connect(baseline_dsn) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT value FROM kx.metadata WHERE key = 'schema_version'")
         row = cursor.fetchone()
         assert row is not None

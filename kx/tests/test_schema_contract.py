@@ -195,3 +195,24 @@ def test_a_network_fetch_can_never_be_recorded_as_an_operator_artifact() -> None
         '"operator_artifact"'
         not in source.split("NETWORK_SOURCE_KINDS = frozenset(", 1)[1].split(")", 1)[0]
     )
+
+
+def test_no_migration_test_asserts_the_newest_schema_version() -> None:
+    """A migration owns the line it writes, not whatever production runs today.
+
+    Three migration tests in a row went red for this: they read the version off
+    `migrated_dsn` - which is by definition the newest schema - so landing the
+    next migration blamed the previous one. The rule is checkable, so it is
+    checked here rather than remembered.
+    """
+    here = Path(__file__).parent
+    for test_file in sorted(here.glob("test_migration_*.py")):
+        source = test_file.read_text(encoding="utf-8")
+        for fixture in ("migrated_dsn", "agent_dsn", "dated_dsn", "judged_dsn"):
+            for block in source.split("def test_")[1:]:
+                head, _, body = block.partition("\n")
+                if fixture in head and "schema_version" in body:
+                    raise AssertionError(
+                        f"{test_file.name}: a test taking {fixture} reads schema_version; "
+                        "apply the migrations up to its own and assert the line it writes"
+                    )
