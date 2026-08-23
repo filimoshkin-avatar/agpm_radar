@@ -281,7 +281,11 @@ def _parser() -> argparse.ArgumentParser:
 
     # Slice 2.14: an answer from the evidence base, or a precise refusal.
     ask_parser = subparsers.add_parser("ask")
-    ask_parser.add_argument("question")
+    # A question in an instance name does not survive: systemd escapes every
+    # non-ASCII byte, and a Russian question comes back as forty \xd0 escapes.
+    # A path is ASCII, so free text travels in a file.
+    ask_parser.add_argument("question", nargs="?", default=None)
+    ask_parser.add_argument("--question-file", type=Path, default=None)
     ask_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
     ask_parser.add_argument("--mode", choices=("research", "strict"), default="research")
     ask_parser.add_argument(
@@ -621,6 +625,10 @@ def main() -> None:
         _print_json(database.reconcile_release())
         return
     if args.command == "ask":
+        if args.question_file is not None:
+            args.question = args.question_file.read_text(encoding="utf-8").strip()
+        if not args.question:
+            raise SystemExit("give a question, or --question-file with one in it")
         if not args.no_cache:
             cached = database.cached_answer(args.question, scope=args.asker_scope)
             if cached is not None:
