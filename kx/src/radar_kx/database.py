@@ -5013,7 +5013,8 @@ class Database:
     _SEMANTIC_SQL: ClassVar[str] = """
         SELECT DISTINCT ON (stored.owner_key)
                stored.owner_key AS claim_id,
-               1 - (asked.embedding <=> stored.embedding) AS score
+               1 - (asked.embedding <=> stored.embedding) AS score,
+               evidence.quote_text
         FROM kx.text_embeddings AS asked
         JOIN kx.text_embeddings AS stored
           ON stored.owner_kind = 'claim_evidence'
@@ -5033,7 +5034,8 @@ class Database:
     #: of the five places and the two methods are compared over different-sized
     #: shortlists.
     _SEMANTIC_RANKED_SQL: ClassVar[str] = (
-        "SELECT claim_id, score FROM ({inner}) AS best ORDER BY score DESC LIMIT %(limit)s"
+        "SELECT claim_id, score, quote_text FROM ({inner}) AS best"
+        " ORDER BY score DESC LIMIT %(limit)s"
     )
 
     _TOPIC_RESTRICTION: ClassVar[str] = (
@@ -5097,7 +5099,10 @@ class Database:
         model_id: str,
         top: int,
         topics: list[str] | None,
-    ) -> list[str]:
+    ) -> list[dict[str, Any]]:
+        """Rows, not ids: the queue the owner votes in shows the quotation and the
+        score beside it, and a comparison that recorded only ids would leave that
+        queue with nothing to render."""
         inner = self._SEMANTIC_SQL.format(
             restriction=self._TOPIC_RESTRICTION if topics is not None else ""
         )
@@ -5111,7 +5116,7 @@ class Database:
                     "topics": topics or [],
                 },
             )
-            return [str(row["claim_id"]) for row in cursor.fetchall()]
+            return [dict(row) for row in cursor.fetchall()]
 
     def compare_binding_methods_within_topics(
         self, *, model_id: str = DEFAULT_MODEL, top: int = 5, ran_by: str = "radar-kx"
@@ -5188,27 +5193,29 @@ class Database:
                         for member in subtrees.get(str(topic_id), [])
                     }
                 )
+                semantic = self._semantic_hits(
+                    connection,
+                    statement_id=statement_id,
+                    model_id=model_id,
+                    top=top,
+                    topics=None,
+                )
+                semantic_in_topic = self._semantic_hits(
+                    connection,
+                    statement_id=statement_id,
+                    model_id=model_id,
+                    top=top,
+                    topics=scope_ids,
+                )
                 answers = {
                     "lexical": self._lexical_hits(
                         connection, statement=statement, top=top, topics=None
                     ),
-                    "semantic": self._semantic_hits(
-                        connection,
-                        statement_id=statement_id,
-                        model_id=model_id,
-                        top=top,
-                        topics=None,
-                    ),
+                    "semantic": [str(row["claim_id"]) for row in semantic],
                     "lexicalInTopic": self._lexical_hits(
                         connection, statement=statement, top=top, topics=scope_ids
                     ),
-                    "semanticInTopic": self._semantic_hits(
-                        connection,
-                        statement_id=statement_id,
-                        model_id=model_id,
-                        top=top,
-                        topics=scope_ids,
-                    ),
+                    "semanticInTopic": [str(row["claim_id"]) for row in semantic_in_topic],
                 }
                 scope = set(scope_ids)
                 for name, claims in answers.items():
@@ -5244,8 +5251,12 @@ class Database:
                             else None
                         ),
                         "semanticTop": (
-                            {"claimId": answers["semanticInTopic"][0]}
-                            if answers["semanticInTopic"]
+                            {
+                                "claimId": str(semantic_in_topic[0]["claim_id"]),
+                                "score": round(float(semantic_in_topic[0]["score"]), 4),
+                                "quote": str(semantic_in_topic[0]["quote_text"])[:300],
+                            }
+                            if semantic_in_topic
                             else None
                         ),
                         "lexicalTopAnywhere": answers["lexical"][:1],

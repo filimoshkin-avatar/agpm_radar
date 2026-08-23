@@ -527,3 +527,22 @@ def test_a_statement_under_three_subjects_is_still_one_statement(placed: dict[st
     report = database.topic_assignment_report()
     assert report["statements"] == 1
     assert report["statements_placed"] == 1
+
+
+def test_the_queue_can_render_what_the_comparison_records(placed: dict[str, Any]) -> None:
+    # The first version recorded only claim ids, and the voting queue - which shows
+    # the quotation and the score beside it - died on the first request with a
+    # KeyError. A comparison nobody can look at is not a comparison.
+    from radar_kx.editor_queues import QUEUES
+
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    queue = next(item for item in QUEUES if item.key == "comparison")
+    total, items = queue.load(database, 25)
+    assert total == 1
+    quotes = [child["quote"] for child in items[0].children]
+    assert any("СМЫСЛОВОЙ" in quote for quote in quotes)
+    assert any("СЛОВЕСНЫЙ" in quote for quote in quotes)
+    # Both sides quote something real, and the vote id carries both claim ids.
+    assert all(len(quote) > 20 for quote in quotes)
+    assert items[0].item_id.count("|") == 2
