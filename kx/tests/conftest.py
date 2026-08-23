@@ -51,9 +51,6 @@ MIGRATION_020 = "020_text_embeddings.sql"
 MIGRATION_021 = "021_binding_method_votes.sql"
 MIGRATION_022 = "022_knowledge_units.sql"
 MIGRATION_023 = "023_document_dates.sql"
-#: Written and verified, awaiting the owner's word to apply it. Its own fixture
-#: rather than a place in ADOPTED_MIGRATIONS, because SCHEMA_VERSION tracks what
-#: production runs.
 MIGRATION_024 = "024_agent_surface.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
@@ -77,6 +74,7 @@ ADOPTED_MIGRATIONS = (
     MIGRATION_021,
     MIGRATION_022,
     MIGRATION_023,
+    MIGRATION_024,
 )
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
@@ -175,7 +173,7 @@ def caveat_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 23 - the version the deployed release requires."""
+    """A database at schema 24 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
@@ -188,8 +186,7 @@ def dated_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def agent_dsn(migrated_dsn: str) -> str:
-    """A database at schema 24 - the public agent surface, proposed."""
-    _apply(migrated_dsn, (MIGRATION_024,))
+    """Alias kept for the tests written against 024 specifically."""
     return migrated_dsn
 
 

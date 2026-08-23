@@ -111,13 +111,25 @@ def test_the_summary_names_what_it_could_not_read() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_table_refuses_a_shown_date_that_contradicts_its_label(dated_dsn: str) -> None:
-    with connect(dated_dsn) as connection, connection.cursor() as cursor:
+def test_023_leaves_the_schema_where_it_says_it_does(baseline_dsn: str) -> None:
+    """023's own stamp, checked on 023 rather than on the newest schema.
+
+    `migrated_dsn` is whatever production runs, so asserting a number on it goes
+    red the moment the next migration lands, blaming this one for a line it does
+    not own.
+    """
+    from conftest import ADOPTED_MIGRATIONS, MIGRATION_023, _apply
+
+    _apply(baseline_dsn, ADOPTED_MIGRATIONS[: ADOPTED_MIGRATIONS.index(MIGRATION_023) + 1])
+    with connect(baseline_dsn) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT value FROM kx.metadata WHERE key = 'schema_version'")
         row = cursor.fetchone()
         assert row is not None
         assert row["value"] == 23
 
+
+def test_the_table_refuses_a_shown_date_that_contradicts_its_label(dated_dsn: str) -> None:
+    with connect(dated_dsn) as connection, connection.cursor() as cursor:
         cursor.execute(
             "INSERT INTO kx.documents (document_id, canonical_url) VALUES (%s, %s)",
             ("f" * 64, "https://example.org/a"),
