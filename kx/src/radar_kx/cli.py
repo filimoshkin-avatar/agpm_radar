@@ -41,11 +41,17 @@ from radar_kx.ideas import (
 )
 from radar_kx.identifiers import sha256_bytes
 from radar_kx.issue_perimeter import load_perimeter_export
+from radar_kx.linking import BATCH as LINKING_BATCH
+from radar_kx.linking import INSTRUCTIONS as LINK_INSTRUCTIONS
+from radar_kx.linking import Judgement, LinkingError, Pair, parse_judgements
+from radar_kx.linking import build_payload as build_linking_payload
+from radar_kx.linking import summarize as summarize_links
 from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
     CLAIM_READING,
     IDEA_STATEMENT,
+    KNOWLEDGE_LINK,
     QUOTE_TRANSLATION,
     RESEARCH_ANSWER,
     RUN_TYPES,
@@ -332,6 +338,16 @@ def _parser() -> argparse.ArgumentParser:
     read_claims_parser.add_argument("--workers", type=int, default=8)
 
     subparsers.add_parser("reading-report")
+
+    # Stage 2: shortlist by both methods, then judge. No signature - decision 4
+    # leaves linking to the machine.
+    link_parser = subparsers.add_parser("link-claims")
+    link_parser.add_argument("--limit", type=int, default=4000)
+    link_parser.add_argument("--batch", type=int, default=LINKING_BATCH)
+    link_parser.add_argument("--workers", type=int, default=8)
+    link_parser.add_argument("--dry-run", action="store_true")
+
+    subparsers.add_parser("linking-report")
 
     # Stage 0a: quotation boundaries. Reports by default, writes only when told.
     repair_spans_parser = subparsers.add_parser("repair-spans")
@@ -885,6 +901,71 @@ def main() -> None:
                 **database.grant_birth_statuses(set_by="radar-kx-stage-0b"),
             }
         )
+        return
+    if args.command == "link-claims":
+        pairs = database.link_candidates(limit=args.limit)
+        if args.dry_run:
+            _print_json(
+                {
+                    "shortlisted": len(pairs),
+                    "batches": (len(pairs) + args.batch - 1) // args.batch,
+                    "examples": [
+                        {
+                            "sharedTopic": pair.shared_topic,
+                            "distance": round(pair.distance, 4),
+                            "a": pair.from_text[:120],
+                            "b": pair.to_text[:120],
+                        }
+                        for pair in pairs[:: max(1, len(pairs) // 8)][:8]
+                    ],
+                }
+            )
+            return
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch link-claims ...`.")
+        gateway = ModelGateway(database, settings)
+        pair_batches = [
+            pairs[start : start + args.batch] for start in range(0, len(pairs), args.batch)
+        ]
+        judgements: list[Judgement] = []
+        link_dropped: dict[str, int] = {}
+        refusals = 0
+        links_written = 0
+        lock = threading.Lock()
+
+        def judge(block: list[Pair]) -> None:
+            nonlocal refusals, links_written
+            try:
+                result = gateway.run(
+                    KNOWLEDGE_LINK, build_linking_payload(block), system=LINK_INSTRUCTIONS
+                )
+                found, thrown = parse_judgements(result.content, block)
+            except (OrchestratorError, LinkingError):
+                with lock:
+                    refusals += 1
+                return
+            stored = database.record_links(found, created_by=KNOWLEDGE_LINK.model)
+            with lock:
+                judgements.extend(found)
+                links_written += int(stored["written"])
+                for key, value in thrown.items():
+                    link_dropped[key] = link_dropped.get(key, 0) + value
+
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for _ in pool.map(judge, pair_batches):
+                pass
+
+        _print_json(
+            {
+                **summarize_links(judgements, len(pairs), link_dropped),
+                "written": links_written,
+                "batches": len(pair_batches),
+                "batchesRefused": refusals,
+            }
+        )
+        return
+    if args.command == "linking-report":
+        _print_json(database.linking_report())
         return
     if args.command == "reading-report":
         _print_json(database.reading_report())

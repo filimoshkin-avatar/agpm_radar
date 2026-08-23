@@ -49,6 +49,9 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 # The notices, the licence line and the reader-facing errors are the base's own
 # voice, and the base speaks Russian.
 "src/radar_kx/agent_api.py" = ["RUF001", "RUF003"]
+# The four relation types are named in English because the schema names them so;
+# everything the judge is told about them is Russian, like the statements it reads.
+"src/radar_kx/linking.py" = ["RUF001", "RUF003"]
 # The instruction block is the rules the owner wrote, in the language she wrote
 # them in, and the model is asked to answer about Russian sentences.
 "src/radar_kx/reading.py" = ["RUF001", "RUF003"]

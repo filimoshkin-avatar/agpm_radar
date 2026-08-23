@@ -58,6 +58,9 @@ from radar_kx.identifiers import (
 )
 from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.language import language_of
+from radar_kx.linking import MAX_DISTANCE as LINK_MAX_DISTANCE
+from radar_kx.linking import NEIGHBOURS as LINK_NEIGHBOURS
+from radar_kx.linking import Judgement, Pair
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
@@ -4800,6 +4803,142 @@ class Database:
             )
             per_topic = [dict(row) for row in cursor.fetchall()]
         return {**statements, **documents, "byTopic": per_topic}
+
+    # ---------------------------------------------------------------------
+    # Stage 2: what one statement does to another (owner decision 12)
+    # ---------------------------------------------------------------------
+
+    def link_candidates(
+        self,
+        *,
+        limit: int = 4000,
+        neighbours: int = LINK_NEIGHBOURS,
+        max_distance: float = LINK_MAX_DISTANCE,
+    ) -> list[Pair]:
+        """Pairs worth a judgement: near in meaning, sharing a subject, both knowledge.
+
+        Both methods are in this one query rather than two. The subject is the
+        lexical side's job - it came from a model reading the words - and the
+        neighbourhood is the semantic side's. A pair that fails either is not
+        shortlisted, which is what keeps a few thousand judgements out of ninety-six
+        million pairs.
+
+        Ordered `from` before `to` by id so a pair is offered once, not twice.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    WITH knowledge AS (
+                        SELECT claims.claim_id, claims.normalized_text, vectors.embedding
+                        FROM kx.claims AS claims
+                        JOIN kx.claim_reading AS reading USING (claim_id)
+                        JOIN kx.text_embeddings AS vectors
+                          ON vectors.owner_kind = 'claim_evidence'
+                         AND vectors.owner_key = claims.claim_id::text
+                         AND vectors.model_id = %(model)s
+                        WHERE reading.admission = 'knowledge'
+                    ),
+                    placed AS (
+                        SELECT claim_topics.claim_id, topics.topic_key, topics.title
+                        FROM kx.claim_topics
+                        JOIN kx.topics AS topics USING (topic_id)
+                        WHERE topics.state = 'accepted'
+                    ),
+                    nearest AS (
+                        SELECT source.claim_id AS from_id,
+                               source.normalized_text AS from_text,
+                               other.claim_id AS to_id,
+                               other.normalized_text AS to_text,
+                               source.embedding <=> other.embedding AS distance,
+                               shared.title AS shared_topic,
+                               row_number() OVER (
+                                   PARTITION BY source.claim_id
+                                   ORDER BY source.embedding <=> other.embedding
+                               ) AS rank
+                        FROM knowledge AS source
+                        JOIN placed AS source_topic ON source_topic.claim_id = source.claim_id
+                        JOIN placed AS shared
+                          ON shared.topic_key = source_topic.topic_key
+                         AND shared.claim_id <> source.claim_id
+                        JOIN knowledge AS other ON other.claim_id = shared.claim_id
+                        WHERE source.claim_id < other.claim_id
+                          AND source.embedding <=> other.embedding <= %(max_distance)s
+                          AND NOT EXISTS (
+                              SELECT 1 FROM kx.knowledge_links AS existing
+                              WHERE existing.from_kind = 'claim'
+                                AND existing.from_id = source.claim_id
+                                AND existing.to_kind = 'claim'
+                                AND existing.to_id = other.claim_id
+                          )
+                    )
+                    SELECT DISTINCT ON (from_id, to_id)
+                           from_id, from_text, to_id, to_text, distance, shared_topic
+                    FROM nearest
+                    WHERE rank <= %(neighbours)s
+                    ORDER BY from_id, to_id, distance
+                    LIMIT %(limit)s
+                    """,
+                    {
+                        "model": DEFAULT_MODEL,
+                        "neighbours": neighbours,
+                        "max_distance": max_distance,
+                        "limit": limit,
+                    },
+                )
+                rows = cursor.fetchall()
+        return [
+            Pair(
+                from_id=str(row["from_id"]),
+                to_id=str(row["to_id"]),
+                from_text=str(row["from_text"]),
+                to_text=str(row["to_text"]),
+                distance=float(row["distance"]),
+                shared_topic=str(row["shared_topic"]),
+            )
+            for row in rows
+        ]
+
+    def record_links(self, judgements: Sequence[Judgement], *, created_by: str) -> dict[str, int]:
+        """Write one batch of links. No signature: decision 4 leaves this to the machine."""
+        written = 0
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for judgement in judgements:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.knowledge_links
+                            (from_kind, from_id, to_kind, to_id, link_type, created_by, method)
+                        VALUES ('claim', %s, 'claim', %s, %s, %s, 'model')
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (judgement.from_id, judgement.to_id, judgement.link_type, created_by),
+                    )
+                    written += cursor.rowcount
+        return {"written": written}
+
+    def linking_report(self) -> dict[str, Any]:
+        """What the base is linked by, and how much of it is reachable at all."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT link_type, count(*) AS total FROM kx.knowledge_links"
+                " WHERE from_kind = 'claim' GROUP BY 1 ORDER BY 2 DESC"
+            )
+            by_type = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT count(DISTINCT claim_id) AS linked_statements
+                FROM (
+                    SELECT from_id AS claim_id FROM kx.knowledge_links WHERE from_kind = 'claim'
+                    UNION
+                    SELECT to_id FROM kx.knowledge_links WHERE to_kind = 'claim'
+                ) AS touched
+                """
+            )
+            reach = dict(one_row(cursor))
+        return {"byLinkType": by_type, **reach}
 
     # ---------------------------------------------------------------------
     # Stage 3: what the agent mode reads. Only `agent.*` - see migration 024.

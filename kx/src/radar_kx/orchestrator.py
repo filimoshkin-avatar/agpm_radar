@@ -194,6 +194,20 @@ CLAIM_READING = RunType(
     max_payload_chars=16000,
 )
 
+KNOWLEDGE_LINK = RunType(
+    name="knowledge_link",
+    purpose="judging what one statement does to another",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "a fixed instruction block naming the four relation types, and at most "
+        "twenty pairs of normalised statements capped at 300 characters each. "
+        "Never a quotation and never a document: the judgement is about what two "
+        "sentences say to each other, and the article around them is other "
+        "people's text that no link will rest on."
+    ),
+    max_payload_chars=14000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
@@ -204,6 +218,7 @@ RUN_TYPES: dict[str, RunType] = {
     RESEARCH_ANSWER.name: RESEARCH_ANSWER,
     TOPIC_ASSIGNMENT.name: TOPIC_ASSIGNMENT,
     CLAIM_READING.name: CLAIM_READING,
+    KNOWLEDGE_LINK.name: KNOWLEDGE_LINK,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."
