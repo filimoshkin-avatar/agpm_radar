@@ -2977,7 +2977,6 @@ class Database:
         candidates = self.publishable_quotes(scope=scope, limit=limit)
         published = 0
         awaiting_translation = 0
-        resolved = 0
         quarantined: dict[str, int] = {}
         with self.connect() as connection:
             self.require_schema(connection)
@@ -3043,13 +3042,6 @@ class Database:
                         # queue that reports work nobody has to do: the first
                         # production run left 298 provenance failures standing
                         # after the provenance was recorded.
-                        cursor.execute(
-                            "UPDATE kx.publication_quarantine"
-                            " SET resolved_at = clock_timestamp(), resolved_by = 'published'"
-                            " WHERE claim_id = %s AND resolved_at IS NULL",
-                            (row["claim_id"],),
-                        )
-                        resolved += cursor.rowcount
                         continue
                     for item in decision.quarantine:
                         cursor.execute(
@@ -3070,6 +3062,7 @@ class Database:
                         quarantined[item.failed_condition] = (
                             quarantined.get(item.failed_condition, 0) + 1
                         )
+        resolved = self.resolve_quarantine_for_published()
         return {
             "scope": scope,
             "targetLanguage": target_language,
@@ -3080,6 +3073,32 @@ class Database:
             "quarantined": sum(quarantined.values()),
             "byFailedCondition": quarantined,
         }
+
+    def resolve_quarantine_for_published(self) -> int:
+        """Close every open entry whose claim has since been published.
+
+        An open entry for a published claim is not open: the thing
+        `what_would_clear_it` asked for happened. Sweeping all of them rather than
+        only this batch's is deliberate - the first production run quarantined 298
+        claims for missing provenance, the provenance was recorded, the claims
+        published in a later batch, and the 298 rows stayed standing because
+        nothing revisited them.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE kx.publication_quarantine AS quarantine
+                    SET resolved_at = clock_timestamp(), resolved_by = 'published'
+                    WHERE quarantine.resolved_at IS NULL
+                      AND EXISTS (
+                          SELECT 1 FROM kx.published_quotes AS published
+                          WHERE published.claim_id = quarantine.claim_id
+                      )
+                    """
+                )
+                return cursor.rowcount
 
     def record_translation(
         self,
