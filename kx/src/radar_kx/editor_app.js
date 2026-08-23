@@ -167,4 +167,4 @@ async function showDocs(name) {
   body.replaceChildren(back, article);
 }
 
-drawNav().then(() => show("evidence"));
+drawNav().then(() => show("skeleton"));

@@ -61,6 +61,8 @@ from radar_kx.research import (
     normalize_question,
 )
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
+from radar_kx.skeleton import SkeletonCandidate
+from radar_kx.skeleton import candidates as skeleton_candidates
 from radar_kx.source_families import DocumentHost, FamilyDecision, propose_families
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 from radar_kx.wiki_import import (
@@ -76,7 +78,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4476,6 +4478,87 @@ class Database:
                 " VALUES (%s, %s, %s, %s, 'editor')",
                 (object_kind, object_key, verdict, actor),
             )
+
+    # ---------------------------------------------------------------------
+    # The topic skeleton (slice 2.5в)
+    # ---------------------------------------------------------------------
+
+    def skeleton_candidates(self) -> tuple[SkeletonCandidate, ...]:
+        """The backbones that exist today, read out of the stored wiki snapshot.
+
+        Out of the store rather than off a filesystem, so what the owner is shown
+        is what the base actually holds.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT DISTINCT ON (concepts.relative_path)"
+                    " concepts.relative_path, versions.body"
+                    " FROM kx.concept_versions AS versions"
+                    " JOIN kx.concepts AS concepts USING (concept_id)"
+                    " ORDER BY concepts.relative_path, versions.imported_at DESC"
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+        pages = {str(row["relative_path"]): str(row["body"]) for row in rows}
+        counts: dict[str, int] = {}
+        for path in pages:
+            parts = path.split("/")
+            if len(parts) >= 3 and parts[0] == "wiki":
+                counts[parts[1]] = counts.get(parts[1], 0) + 1
+        # The five directories the model declares and has no pages for are the
+        # finding, so they have to appear with a zero rather than be absent.
+        for empty in ("data", "market", "maturity", "open-questions", "risks"):
+            counts.setdefault(empty, 0)
+        return skeleton_candidates(pages=pages, section_counts=counts)
+
+    def accepted_skeleton(self) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_key, title, source, level, state, description"
+                " FROM kx.topics ORDER BY source, level, title"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def adopt_skeleton(self, source: str, *, actor: str) -> dict[str, Any]:
+        """Turn one candidate into the topic table. Nothing else changes yet."""
+        chosen = next((item for item in self.skeleton_candidates() if item.source == source), None)
+        if chosen is None:
+            raise ValueError(f"no skeleton candidate named {source!r}")
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for element in chosen.elements:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.topics
+                            (topic_key, title, source, level, description, state, created_by)
+                        VALUES (%s, %s, %s, 1, %s, 'accepted', %s)
+                        ON CONFLICT (topic_key) DO NOTHING
+                        """,
+                        (
+                            element.topic_key,
+                            element.title,
+                            chosen.source,
+                            element.description or None,
+                            actor,
+                        ),
+                    )
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope, rationale)"
+                    " VALUES ('topic_skeleton', %s, 'confirmed', %s, 'editor', %s)",
+                    (source, actor, f"adopted as the backbone: {chosen.title}"),
+                )
+        return {"source": source, "topics": len(chosen.elements)}
+
+    def decide_skeleton(self, *, source: str, verdict: str, actor: str) -> dict[str, Any]:
+        if verdict == "confirmed":
+            return self.adopt_skeleton(source, actor=actor)
+        self._record_editorial_decision(
+            object_kind="topic_skeleton", object_key=source, verdict=verdict, actor=actor
+        )
+        return {"source": source, "verdict": verdict}
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

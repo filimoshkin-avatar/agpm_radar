@@ -259,7 +259,74 @@ def _decide_alias(database: Database, item_id: str, action: str, actor: str) -> 
     return database.decide_alias_proposal(proposal_id=int(item_id), verdict=action, actor=actor)
 
 
+# ---------------------------------------------------------------------------
+# The topic skeleton
+# ---------------------------------------------------------------------------
+
+
+def _load_skeleton(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    accepted = {row["source"] for row in database.accepted_skeleton()}
+    items: list[QueueItem] = []
+    for candidate in database.skeleton_candidates():
+        adopted = candidate.source in accepted
+        items.append(
+            QueueItem(
+                item_id=candidate.source,
+                primary=candidate.title + (" — принят за основу" if adopted else ""),
+                secondary=candidate.note,
+                meta=(
+                    ("откуда", candidate.origin),
+                    ("элементов", str(len(candidate.elements))),
+                ),
+                actions=(
+                    ()
+                    if adopted
+                    else (
+                        ("confirmed", "Взять за основу", "yes"),
+                        ("rejected", "Не это", "no"),
+                    )
+                ),
+                children=tuple(
+                    {
+                        "id": str(element.ordinal),
+                        "quote": f"{element.ordinal}. {element.title}"
+                        + (f" — {element.description}" if element.description else ""),
+                        "sourceUrl": "",
+                        "span": "",
+                        "relevance": None,
+                        "membershipClass": "",
+                        "actions": [],
+                    }
+                    for element in candidate.elements
+                ),
+            )
+        )
+    return len([item for item in items if item.actions]), items
+
+
+def _decide_skeleton(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
+    return database.decide_skeleton(source=item_id, verdict=action, actor=actor)
+
+
 QUEUES: tuple[Queue, ...] = (
+    Queue(
+        key="skeleton",
+        title="Скелет тем",
+        why=(
+            "На чём строится база знаний. Сегодня — ни на чём: утверждения "
+            "сопоставлялись с цитатами по общим словам, и ничто не требовало, чтобы "
+            "совпадение было про один предмет. Именно отсюда посредственная "
+            "связанность.\n\nСкелет при этом существует — дважды, прозой, на двух "
+            "страницах wiki, которые не вполне согласны между собой, и ни один из них "
+            "не лежит в хранилище. Выберите тот, что берём за хребет: его элементы "
+            "станут таблицей тем, по которой пойдёт разметка материалов и ограничение "
+            "привязок."
+        ),
+        load=_load_skeleton,
+        decide=_decide_skeleton,
+        object_kind="topic_skeleton",
+        empty="Скелет принят.",
+    ),
     Queue(
         key="evidence",
         title="Привязки утверждений к доказательствам",
