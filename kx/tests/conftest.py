@@ -50,6 +50,10 @@ MIGRATION_019 = "019_topic_skeleton.sql"
 MIGRATION_020 = "020_text_embeddings.sql"
 MIGRATION_021 = "021_binding_method_votes.sql"
 MIGRATION_022 = "022_knowledge_units.sql"
+#: Written and verified, awaiting the owner's word to apply it. It has its own
+#: fixture rather than a place in ADOPTED_MIGRATIONS, because SCHEMA_VERSION
+#: tracks what production runs and production is still at 22.
+MIGRATION_023 = "023_document_dates.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
     MIGRATION_004,
@@ -172,6 +176,13 @@ def migrated_dsn(baseline_dsn: str) -> str:
     """A database at schema 22 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
+
+
+@pytest.fixture
+def dated_dsn(migrated_dsn: str) -> str:
+    """A database at schema 23 - stage 0a's dates, proposed and not yet applied."""
+    _apply(migrated_dsn, (MIGRATION_023,))
+    return migrated_dsn
 
 
 def apply_migration_003(dsn: str) -> None:

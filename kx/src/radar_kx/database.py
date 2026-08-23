@@ -17,6 +17,8 @@ from psycopg.types.json import Jsonb
 
 from radar_kx.acquisition import ESCALATION_HINT, HostProfile, next_step, profile_for
 from radar_kx.config import Settings
+from radar_kx.dates import ResolvedDate
+from radar_kx.dates import resolve as resolve_date
 from radar_kx.duplicates import DocumentText, DuplicateProposal
 from radar_kx.embeddings import (
     DEFAULT_DIMENSIONS,
@@ -4931,6 +4933,86 @@ class Database:
             ),
         )
         return str(one_row(cursor)["quote"])
+
+    def plan_document_dates(self) -> list[ResolvedDate]:
+        """Read what every document says about its own publication date.
+
+        The issue perimeter and the corpus row are read side by side rather than
+        coalesced in SQL, because which of the two answered has to end up in the
+        row: a date nobody can trace to the text it came from cannot be corrected
+        when it turns out to be wrong.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT documents.document_id,
+                           (SELECT max(members.published_raw)
+                              FROM kx.issue_perimeter_members AS members
+                             WHERE members.document_id = documents.document_id) AS issue_raw,
+                           (SELECT max(materials.published_raw)
+                              FROM kx.material_documents AS links
+                              JOIN kx.source_materials AS materials USING (material_id)
+                             WHERE links.document_id = documents.document_id) AS material_raw,
+                           coalesce(
+                               documents.first_seen_at,
+                               (SELECT min(versions.fetched_at)
+                                  FROM kx.document_versions AS versions
+                                 WHERE versions.document_id = documents.document_id)
+                           ) AS found_at
+                    FROM kx.documents AS documents
+                    ORDER BY documents.document_id
+                    """
+                )
+                rows = cursor.fetchall()
+        return [
+            resolve_date(
+                document_id=str(row["document_id"]),
+                issue_raw=row["issue_raw"],
+                material_raw=row["material_raw"],
+                found_at=row["found_at"],
+            )
+            for row in rows
+            if row["found_at"] is not None
+        ]
+
+    def apply_document_dates(self, dates: Sequence[ResolvedDate]) -> dict[str, Any]:
+        """Store one row per document, replacing whatever a previous pass left.
+
+        A recomputation, not a decision: re-running with a better parser has to
+        leave one row per document rather than a second opinion beside the first.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for resolved in dates:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.document_dates (
+                            document_id, published_raw, raw_source,
+                            published_on, date_precision, shown_on, shown_kind
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (document_id) DO UPDATE SET
+                            published_raw = EXCLUDED.published_raw,
+                            raw_source = EXCLUDED.raw_source,
+                            published_on = EXCLUDED.published_on,
+                            date_precision = EXCLUDED.date_precision,
+                            shown_on = EXCLUDED.shown_on,
+                            shown_kind = EXCLUDED.shown_kind,
+                            resolved_at = clock_timestamp()
+                        """,
+                        (
+                            resolved.document_id,
+                            resolved.published_raw,
+                            resolved.raw_source,
+                            resolved.published_on,
+                            resolved.date_precision,
+                            resolved.shown_on,
+                            resolved.shown_kind,
+                        ),
+                    )
+        return {"stored": len(dates)}
 
     # ---------------------------------------------------------------------
     # Embeddings and the comparison they exist for (owner request, 2026-08-23)

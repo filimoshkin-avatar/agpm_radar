@@ -18,6 +18,7 @@ from radar_kx.cache_import import import_caches
 from radar_kx.canon_corpus import canon_summary, import_canon, scan_canon
 from radar_kx.config import Settings
 from radar_kx.database import SCAN_SCOPES, Database
+from radar_kx.dates import summarize as summarize_dates
 from radar_kx.duplicates import (
     DEFAULT_SHINGLE_THRESHOLD,
     DEFAULT_SHINGLE_WIDTH,
@@ -288,6 +289,10 @@ def _parser() -> argparse.ArgumentParser:
     repair_spans_parser = subparsers.add_parser("repair-spans")
     repair_spans_parser.add_argument("--apply", action="store_true")
     repair_spans_parser.add_argument("--examples", type=int, default=0)
+
+    # Stage 0a, second half: a publication date, or the radar's own, labelled.
+    resolve_dates_parser = subparsers.add_parser("resolve-dates")
+    resolve_dates_parser.add_argument("--apply", action="store_true")
 
     # Local embeddings and the comparison the owner asked for.
     embed_parser = subparsers.add_parser("embed")
@@ -762,6 +767,15 @@ def main() -> None:
             report["examples"] = [repair.as_example() for repair in moved[::step][: args.examples]]
         if args.apply:
             report.update(database.apply_span_repair(repairs))
+        else:
+            report["applied"] = False
+        _print_json(report)
+        return
+    if args.command == "resolve-dates":
+        dates = database.plan_document_dates()
+        report = summarize_dates(dates)
+        if args.apply:
+            report.update(database.apply_document_dates(dates))
         else:
             report["applied"] = False
         _print_json(report)
