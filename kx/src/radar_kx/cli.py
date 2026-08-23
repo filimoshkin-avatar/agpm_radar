@@ -70,6 +70,7 @@ from radar_kx.source_families import (
     load_family_batch,
     propose_families,
 )
+from radar_kx.spans import summarize as summarize_spans
 from radar_kx.topics import (
     build_payload,
     build_rubricator,
@@ -282,6 +283,11 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("editor-token")
     subparsers.add_parser("editorial-history")
+
+    # Stage 0a: quotation boundaries. Reports by default, writes only when told.
+    repair_spans_parser = subparsers.add_parser("repair-spans")
+    repair_spans_parser.add_argument("--apply", action="store_true")
+    repair_spans_parser.add_argument("--examples", type=int, default=0)
 
     # Local embeddings and the comparison the owner asked for.
     embed_parser = subparsers.add_parser("embed")
@@ -746,6 +752,19 @@ def main() -> None:
         return
     if args.command == "evidence-queue":
         _print_json(database.evidence_queue(limit=args.limit))
+        return
+    if args.command == "repair-spans":
+        repairs = database.plan_span_repair()
+        report = summarize_spans(repairs)
+        if args.examples:
+            moved = [repair for repair in repairs if repair.changed]
+            step = max(1, len(moved) // args.examples)
+            report["examples"] = [repair.as_example() for repair in moved[::step][: args.examples]]
+        if args.apply:
+            report.update(database.apply_span_repair(repairs))
+        else:
+            report["applied"] = False
+        _print_json(report)
         return
     if args.command == "embed":
         _print_json(database.embed(args.owner_kind, limit=args.limit))

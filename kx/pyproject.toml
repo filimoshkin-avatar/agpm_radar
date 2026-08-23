@@ -46,6 +46,11 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 "src/radar_kx/editor_queues.py" = ["RUF001", "RUF003"]
 # Same reason: the skeleton candidates are described to the reader in Russian.
 "src/radar_kx/skeleton.py" = ["RUF001", "RUF003"]
+# The abbreviations a full stop may follow, the quotation marks that close a
+# sentence and the bullets that open a list item are Russian as well as English -
+# that is the corpus. The abbreviations stay a space-separated word list (SIM905)
+# for the same reason as the detector's: a word list has to read as one.
+"src/radar_kx/spans.py" = ["RUF001", "RUF003", "SIM905"]
 # The rubricator is the instruction the model is given, and it is written in the
 # language the corpus and the backbone are written in.
 "src/radar_kx/topics.py" = ["RUF001", "RUF003"]

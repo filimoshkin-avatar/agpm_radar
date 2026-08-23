@@ -72,6 +72,8 @@ from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, 
 from radar_kx.skeleton import AuthoredSkeleton, SkeletonCandidate, SkeletonError
 from radar_kx.skeleton import candidates as skeleton_candidates
 from radar_kx.source_families import DocumentHost, FamilyDecision, propose_families
+from radar_kx.spans import Repair
+from radar_kx.spans import expand as expand_span
 from radar_kx.topics import LEDE_CHARS, AssignableItem, Assignment, document_item
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 from radar_kx.wiki_import import (
@@ -4812,6 +4814,125 @@ class Database:
         return {**statements, **documents, "byTopic": per_topic}
 
     # ---------------------------------------------------------------------
+    # Stage 0a: putting quotation boundaries back on their sentences
+    # ---------------------------------------------------------------------
+
+    def plan_span_repair(self) -> list[Repair]:
+        """Read every exact span and work out where it should sit.
+
+        The canonical texts are read once and kept - 311 versions, seven megabytes
+        - because 13 876 spans point into them, and joining the text onto every row
+        would move the same documents across the wire forty-five times over.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT version_id, canonical_text FROM kx.document_versions
+                    WHERE version_id IN (
+                        SELECT DISTINCT version_id FROM kx.claim_evidence
+                        WHERE match_status = 'exact'
+                    )
+                    """
+                )
+                texts = {row["version_id"]: row["canonical_text"] for row in cursor.fetchall()}
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT claim_id, version_id, char_start, char_end, quote_text"
+                    " FROM kx.claim_evidence WHERE match_status = 'exact'"
+                    " ORDER BY version_id, char_start"
+                )
+                rows = cursor.fetchall()
+        repairs = []
+        for row in rows:
+            text = texts[row["version_id"]]
+            expansion = expand_span(text, row["char_start"], row["char_end"])
+            repairs.append(
+                Repair(
+                    claim_id=str(row["claim_id"]),
+                    version_id=str(row["version_id"]),
+                    old_start=row["char_start"],
+                    old_end=row["char_end"],
+                    quote=str(row["quote_text"]),
+                    widened=text[expansion.start : expansion.end],
+                    expansion=expansion,
+                )
+            )
+        return repairs
+
+    def apply_span_repair(self, repairs: Sequence[Repair]) -> dict[str, Any]:
+        """Widen the spans that moved, in place, one transaction for all of them.
+
+        The primary key of `claim_evidence` carries the coordinates, so this is an
+        update of the key itself. That is safe here and would not be elsewhere: one
+        claim has exactly one span, so no widening can land on another row. The
+        trigger re-derives the quotation from the canonical text on each of these
+        writes, which is what makes the repair checkable rather than trusted.
+
+        The vectors of the widened quotations are left stale on purpose - a text
+        update does not write a vector - and `embed` picks them up on its next pass
+        because their stored fingerprint stops matching the text they name.
+        """
+        moved = [repair for repair in repairs if repair.changed]
+        if not moved:
+            return {"updated": 0}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for repair in moved:
+                    quote = self._widened_quote(cursor, repair)
+                    if quote != repair.widened:
+                        raise RuntimeError(
+                            f"the canonical text behind claim {repair.claim_id} changed"
+                            " between the plan and the write; re-run the dry run"
+                        )
+                    cursor.execute(
+                        """
+                        UPDATE kx.claim_evidence
+                           SET char_start = %s, char_end = %s,
+                               quote_text = %s, quote_sha256 = %s
+                         WHERE claim_id = %s AND version_id = %s
+                           AND char_start = %s AND char_end = %s
+                        """,
+                        (
+                            repair.expansion.start,
+                            repair.expansion.end,
+                            quote,
+                            sha256_bytes(quote.encode("utf-8")),
+                            repair.claim_id,
+                            repair.version_id,
+                            repair.old_start,
+                            repair.old_end,
+                        ),
+                    )
+                    if cursor.rowcount != 1:
+                        raise RuntimeError(
+                            f"the span repair of claim {repair.claim_id} matched"
+                            f" {cursor.rowcount} rows rather than one"
+                        )
+        return {"updated": len(moved)}
+
+    @staticmethod
+    def _widened_quote(cursor: psycopg.Cursor[dict[str, Any]], repair: Repair) -> str:
+        """The widened quotation, cut out of the store rather than assembled here.
+
+        The plan read the canonical text minutes or hours before the write. Cutting
+        the span again at write time means the text that is stored is the text the
+        database itself produced, and the trigger then has something real to check.
+        """
+        cursor.execute(
+            "SELECT substr(canonical_text, %s, %s) AS quote FROM kx.document_versions"
+            " WHERE version_id = %s",
+            (
+                repair.expansion.start + 1,
+                repair.expansion.end - repair.expansion.start,
+                repair.version_id,
+            ),
+        )
+        return str(one_row(cursor)["quote"])
+
+    # ---------------------------------------------------------------------
     # Embeddings and the comparison they exist for (owner request, 2026-08-23)
     # ---------------------------------------------------------------------
 
@@ -4832,7 +4953,14 @@ class Database:
     def embed(
         self, owner_kind: str, *, model_id: str = DEFAULT_MODEL, limit: int = 100000
     ) -> dict[str, Any]:
-        """Encode everything of one kind that has no vector yet."""
+        """Encode everything of one kind whose stored vector is missing or stale.
+
+        Stale is checked, not assumed: `text_embeddings` records the hash of what
+        was encoded, so a row whose text has since changed is recognisable without
+        anybody having to remember to say so. Stage 0a widens 4 800 quotations, and
+        a vector still describing the torn version of one of them would quietly
+        answer searches with text that is no longer there.
+        """
         if owner_kind not in self._EMBED_SOURCES:
             raise ValueError(f"owner_kind must be one of {sorted(self._EMBED_SOURCES)}")
         query, is_query = self._EMBED_SOURCES[owner_kind]
@@ -4858,6 +4986,9 @@ class Database:
                           AND stored.owner_key = source.key::text
                           AND stored.model_id = %s
                     WHERE stored.owner_key IS NULL
+                       OR stored.text_sha256 <> encode(
+                              digest(convert_to(source.text, 'UTF8'), 'sha256'), 'hex'
+                          )
                     LIMIT %s
                     """,  # noqa: S608 - a constant from _EMBED_SOURCES
                     (owner_kind, model_id, limit),
@@ -4878,7 +5009,11 @@ class Database:
                             "INSERT INTO kx.text_embeddings"
                             " (owner_kind, owner_key, model_id, text_sha256, embedding)"
                             " VALUES (%s, %s, %s, %s, %s::vector)"
-                            " ON CONFLICT DO NOTHING",
+                            " ON CONFLICT (owner_kind, owner_key, model_id) DO UPDATE"
+                            " SET text_sha256 = EXCLUDED.text_sha256,"
+                            "     embedding = EXCLUDED.embedding,"
+                            "     created_at = clock_timestamp()"
+                            " WHERE text_embeddings.text_sha256 <> EXCLUDED.text_sha256",
                             (
                                 owner_kind,
                                 str(row["key"]),
