@@ -52,7 +52,6 @@ MIGRATION_021 = "021_binding_method_votes.sql"
 MIGRATION_022 = "022_knowledge_units.sql"
 MIGRATION_023 = "023_document_dates.sql"
 MIGRATION_024 = "024_agent_surface.sql"
-#: Written and verified, awaiting the owner's word to apply it.
 MIGRATION_025 = "025_link_judgements.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
@@ -77,6 +76,7 @@ ADOPTED_MIGRATIONS = (
     MIGRATION_022,
     MIGRATION_023,
     MIGRATION_024,
+    MIGRATION_025,
 )
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
@@ -175,7 +175,7 @@ def caveat_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 24 - the version the deployed release requires."""
+    """A database at schema 25 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
@@ -194,8 +194,7 @@ def agent_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def judged_dsn(migrated_dsn: str) -> str:
-    """A database at schema 25 - the negative verdicts, proposed."""
-    _apply(migrated_dsn, (MIGRATION_025,))
+    """Alias kept for the tests written against 025 specifically."""
     return migrated_dsn
 
 
