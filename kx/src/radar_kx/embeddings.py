@@ -58,6 +58,28 @@ class EmbeddingError(RuntimeError):
     """The embedder cannot be loaded or used."""
 
 
+def snapshot_path(name: str = DEFAULT_MODEL, *, cache: str = MODEL_CACHE) -> str | None:
+    """Where the installer put the weights, or ``None`` if they are not there.
+
+    Resolved to a directory rather than left as a model id. Offline, a model id
+    sends sentence-transformers down its local-path branch, where it opens
+    ``intfloat/multilingual-e5-small/modules.json`` relative to the working
+    directory - and if that directory is not readable the error is a permission
+    denial about a path that was never meant to exist.
+    """
+    from pathlib import Path as _Path
+
+    hub = _Path(cache) / "hub" / ("models--" + name.replace("/", "--")) / "snapshots"
+    if not hub.is_dir():
+        return None
+    revisions = sorted(
+        (path for path in hub.iterdir() if (path / "modules.json").is_file()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return str(revisions[0]) if revisions else None
+
+
 def load_model(name: str = DEFAULT_MODEL) -> Any:
     """Load the local model. Imported here so the worker never sees torch."""
     import os
@@ -74,10 +96,16 @@ def load_model(name: str = DEFAULT_MODEL) -> Any:
             "sentence-transformers is not installed in this runtime;"
             " run scripts/install_embedder.sh and use the embedder runtime"
         ) from exc
+    local = snapshot_path(name)
+    if local is None:
+        raise EmbeddingError(
+            f"{name} is not in {MODEL_CACHE}; this runtime has no internet on purpose."
+            " Run scripts/install_embedder.sh to download it once."
+        )
     try:
-        return SentenceTransformer(name, device="cpu", cache_folder=None)
+        return SentenceTransformer(local, device="cpu")
     except Exception as exc:  # pragma: no cover - depends on the cache
-        raise EmbeddingError(f"could not load {name}: {exc}") from exc
+        raise EmbeddingError(f"could not load {name} from {local}: {exc}") from exc
 
 
 def prepare(text: str, *, is_query: bool) -> str:
