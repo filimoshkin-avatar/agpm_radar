@@ -1,0 +1,83 @@
+[Unit]
+Description=Radar KX knowledge base, read-only, behind the agent mode
+Documentation=file:///opt/radar-kx/current/README.md
+After=postgresql.service radar-kx-hermes-extraction.service
+Requires=postgresql.service
+ConditionPathExists=/etc/radar-kx/kb.env
+
+[Service]
+# Stage 3. This is the first public HTTP surface KX has ever had, so the question
+# is not what it asks for but what it is *able* to read when somebody reaches it
+# another way.
+#
+# It connects as `radar_kb_public` (migration 024): USAGE on the `agent` schema,
+# SELECT on six views, INSERT on the two tables that record a question having
+# been asked, and no privilege anywhere else in `kx`. Full text, raw bodies,
+# chunks, fetch queues and every table the owner decides in are unreachable from
+# this connection - not by convention, by grant.
+#
+# It binds to loopback and the unit refuses any other socket. What reaches it
+# from outside is Caddy, at radar.agpm.space/kb, with no login: the agent mode is
+# public by the owner's decision of 2026-08-23.
+#
+# It runs under the embedder runtime rather than the worker's, because the
+# semantic arm of the search needs to turn a reader's question into a vector and
+# torch lives only there. The worker runtime deliberately does not have it.
+Type=exec
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/kb.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+Environment=HF_HOME=/usr/local/lib/radar-embed-runtime/models
+Environment=HF_HUB_OFFLINE=1
+Environment=OMP_NUM_THREADS=2
+ExecStart=/usr/local/lib/radar-embed-runtime/venv/bin/python -m radar_kx kb-service \
+    --host 127.0.0.1 --port 19703
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+
+# It reads the knowledge base and talks to the model profile on loopback. Nothing
+# else, and nothing outside this host.
+IPAddressDeny=any
+IPAddressAllow=localhost
+SocketBindDeny=any
+SocketBindAllow=ipv4:tcp:19703
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateIPC=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# torch maps its own executable pages, so MemoryDenyWriteExecute cannot be set
+# here the way it is on the editor. Recorded rather than dropped silently.
+ReadOnlyPaths=/opt/radar-kx /etc/radar-kx /usr/local/lib/radar-embed-runtime
+ReadWritePaths=/var/run/postgresql
+InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv
+
+[Install]
+WantedBy=multi-user.target

@@ -408,3 +408,106 @@ def evidence_sql(scope: str) -> str:
     if scope not in SCOPES:
         raise ValueError(f"unknown search scope {scope!r}; expected one of {sorted(SCOPES)}")
     return EVIDENCE_SQL_TEMPLATE.format(scope=SCOPES[scope].strip())
+
+
+#: The same three-armed retrieval, over the public surface rather than over `kx`.
+#: A second query rather than a parameter on the first, because the two read
+#: different things on purpose: this one can only see `agent.*`, and that is what
+#: the serving role is allowed to reach (migration 024).
+AGENT_SEARCH_SQL = """
+WITH asked AS (
+    SELECT replace(
+               plainto_tsquery('pg_catalog.russian', %(question)s)::text, ' & ', ' | '
+           )::tsquery AS ru,
+           replace(
+               plainto_tsquery('pg_catalog.english', %(question)s)::text, ' & ', ' | '
+           )::tsquery AS en
+),
+scoped AS (
+    SELECT statement.*
+    FROM agent.statement AS statement
+    WHERE (%(admission)s IS NULL OR statement.admission = %(admission)s)
+      AND (%(material_kind)s IS NULL OR statement.material_kind = %(material_kind)s)
+      AND (%(status)s IS NULL OR statement.status = %(status)s)
+      AND (
+          %(topic_key)s IS NULL
+          OR EXISTS (
+              SELECT 1 FROM agent.statement_topic AS placed
+              WHERE placed.claim_id = statement.claim_id
+                AND placed.topic_key = %(topic_key)s
+          )
+      )
+),
+ranked_ru AS (
+    SELECT scoped.claim_id,
+           row_number() OVER (
+               ORDER BY ts_rank(
+                   to_tsvector('pg_catalog.russian', scoped.quote_text), asked.ru
+               ) DESC, scoped.claim_id
+           ) AS position,
+           'слова' AS arm
+    FROM scoped, asked
+    WHERE to_tsvector('pg_catalog.russian', scoped.quote_text) @@ asked.ru
+),
+ranked_en AS (
+    SELECT scoped.claim_id,
+           row_number() OVER (
+               ORDER BY ts_rank(
+                   to_tsvector('pg_catalog.english', scoped.quote_text), asked.en
+               ) DESC, scoped.claim_id
+           ) AS position,
+           'слова' AS arm
+    FROM scoped, asked
+    WHERE to_tsvector('pg_catalog.english', scoped.quote_text) @@ asked.en
+),
+ranked_meaning AS (
+    SELECT claim_id, row_number() OVER (ORDER BY distance) AS position, 'смысл' AS arm
+    FROM (
+        SELECT scoped.claim_id,
+               vectors.embedding <=> %(question_vector)s::vector AS distance
+        FROM scoped
+        JOIN kx.text_embeddings AS vectors
+          ON vectors.owner_kind = 'claim_evidence'
+         AND vectors.owner_key = scoped.claim_id::text
+         AND vectors.model_id = %(embedding_model)s
+        WHERE %(question_vector)s IS NOT NULL
+        ORDER BY distance
+        LIMIT %(semantic_depth)s
+    ) AS nearest
+),
+ranked AS (
+    SELECT * FROM ranked_ru
+    UNION ALL SELECT * FROM ranked_en
+    UNION ALL SELECT * FROM ranked_meaning
+),
+fused AS (
+    SELECT claim_id,
+           sum(1.0 / (%(rrf_k)s + position)) AS relevance,
+           array_agg(DISTINCT arm ORDER BY arm) AS matched_by
+    FROM ranked GROUP BY claim_id
+)
+SELECT scoped.claim_id,
+       scoped.statement,
+       scoped.quote_text,
+       scoped.char_start,
+       scoped.char_end,
+       scoped.source_url,
+       scoped.source_title,
+       scoped.material_kind,
+       scoped.admission,
+       scoped.primary_source,
+       scoped.is_retelling,
+       scoped.shown_on,
+       scoped.shown_kind,
+       scoped.status,
+       fused.relevance,
+       fused.matched_by,
+       (
+           SELECT array_agg(placed.title ORDER BY placed.title)
+           FROM agent.statement_topic AS placed
+           WHERE placed.claim_id = scoped.claim_id
+       ) AS topics
+FROM fused JOIN scoped USING (claim_id)
+ORDER BY fused.relevance DESC, scoped.claim_id
+LIMIT %(limit)s
+"""

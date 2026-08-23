@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from radar_kx.acquisition import LADDER, HostProfile
+from radar_kx.agent_api import serve as serve_agent
 from radar_kx.artifact_import import (
     import_artifact,
     load_artifact_manifest,
@@ -313,6 +314,12 @@ def _parser() -> argparse.ArgumentParser:
     editor_parser.add_argument("--host", default="127.0.0.1")
     editor_parser.add_argument("--port", type=int, default=19702)
     editor_parser.add_argument("--actor", required=True)
+
+    # Stage 3: the read-only service behind the agent mode. Loopback only; Caddy
+    # puts it on /kb/*, and it connects as a role that can read only `agent.*`.
+    kb_parser = subparsers.add_parser("kb-service")
+    kb_parser.add_argument("--host", default="127.0.0.1")
+    kb_parser.add_argument("--port", type=int, default=19703)
 
     subparsers.add_parser("editor-token")
     subparsers.add_parser("editorial-history")
@@ -964,6 +971,11 @@ def main() -> None:
                 "dropped": dropped,
             }
         )
+        return
+    if args.command == "kb-service":
+        server = serve_agent(settings, host=args.host, port=args.port)
+        print(f"radar-kb on http://{args.host}:{args.port}", flush=True)
+        server.serve_forever()
         return
     if args.command == "editorial-history":
         _print_json(database.editorial_history())

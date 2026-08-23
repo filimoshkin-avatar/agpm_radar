@@ -73,6 +73,7 @@ from radar_kx.research import (
     normalize_question,
 )
 from radar_kx.search import (
+    AGENT_SEARCH_SQL,
     FILTERS,
     RRF_K,
     SCOPES,
@@ -4799,6 +4800,179 @@ class Database:
             )
             per_topic = [dict(row) for row in cursor.fetchall()]
         return {**statements, **documents, "byTopic": per_topic}
+
+    # ---------------------------------------------------------------------
+    # Stage 3: what the agent mode reads. Only `agent.*` - see migration 024.
+    # ---------------------------------------------------------------------
+
+    def agent_topics(self) -> list[dict[str, Any]]:
+        """The backbone, with how much the base holds under each subject."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_key, title, level, path, statements FROM agent.topic ORDER BY path"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def agent_concept(self, topic_key: str) -> dict[str, Any] | None:
+        """One card: the subject, what stands under it, and how strong that is.
+
+        Built from `claim_topics` rather than from the graph, because the graph
+        holds provenance and has neither subjects nor entities in it (measured
+        2026-08-23). The card is the statements, their labels and their spread.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_key, title, level, path, statements FROM agent.topic"
+                " WHERE topic_key = %s",
+                (topic_key,),
+            )
+            topic = cursor.fetchone()
+            if topic is None:
+                return None
+            cursor.execute(
+                """
+                SELECT statement.claim_id, statement.statement, statement.quote_text,
+                       statement.source_url, statement.source_title,
+                       statement.material_kind, statement.admission, statement.status,
+                       statement.primary_source, statement.is_retelling,
+                       statement.shown_on, statement.shown_kind
+                FROM agent.statement AS statement
+                JOIN agent.statement_topic AS placed USING (claim_id)
+                WHERE placed.topic_key = %s AND statement.admission = 'knowledge'
+                ORDER BY statement.shown_on DESC NULLS LAST, statement.claim_id
+                LIMIT 60
+                """,
+                (topic_key,),
+            )
+            statements = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT statement.material_kind, statement.status, count(*) AS total
+                FROM agent.statement AS statement
+                JOIN agent.statement_topic AS placed USING (claim_id)
+                WHERE placed.topic_key = %s
+                GROUP BY 1, 2 ORDER BY 3 DESC
+                """,
+                (topic_key,),
+            )
+            spread = [dict(row) for row in cursor.fetchall()]
+        return {**dict(topic), "statements": statements, "spread": spread}
+
+    def agent_observatory(
+        self, *, since: str | None = None, until: str | None = None, kind: str | None = None
+    ) -> list[dict[str, Any]]:
+        """A cut by class of event over a period (decision 4), not a feed.
+
+        Sorted newest first inside each class, and every row says which date it is
+        showing - the source's own, or the day the radar found it. A chronicle
+        that mixes the two silently dates an article to the day somebody crawled
+        it.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT claim_id, statement, quote_text, source_url, source_title,
+                       material_kind, primary_source, is_retelling,
+                       shown_on, shown_kind, status
+                FROM agent.statement
+                WHERE admission = 'observatory'
+                  AND (%s::date IS NULL OR shown_on >= %s::date)
+                  AND (%s::date IS NULL OR shown_on <= %s::date)
+                  AND (%s::text IS NULL OR material_kind = %s::text)
+                ORDER BY material_kind, shown_on DESC NULLS LAST, claim_id
+                LIMIT 400
+                """,
+                (since, since, until, until, kind, kind),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def agent_gaps(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT claim_id, missing, statement FROM agent.gap ORDER BY claim_id LIMIT %s",
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def agent_pages(self) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT relative_path, title, language, length(body) AS chars"
+                " FROM agent.page ORDER BY relative_path"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def agent_page(self, relative_path: str) -> dict[str, Any] | None:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT relative_path, title, body, language FROM agent.page"
+                " WHERE relative_path = %s",
+                (relative_path,),
+            )
+            row = cursor.fetchone()
+            return None if row is None else dict(row)
+
+    def agent_search(
+        self,
+        question: str,
+        *,
+        filters: Mapping[str, str | None] | None = None,
+        limit: int = 10,
+        question_vector: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """The reader's own search: hybrid, filtered, and saying why each hit is here."""
+        unknown = set(filters or ()) - set(FILTERS)
+        if unknown:
+            raise ValueError(f"unknown filters {sorted(unknown)}; expected {list(FILTERS)}")
+        parameters: dict[str, Any] = {
+            "question": question,
+            "rrf_k": RRF_K,
+            "limit": limit,
+            "question_vector": question_vector,
+            "embedding_model": DEFAULT_MODEL,
+            "semantic_depth": SEMANTIC_DEPTH,
+            **{name: (filters or {}).get(name) for name in FILTERS},
+        }
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(AGENT_SEARCH_SQL, parameters)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def agent_statement(self, claim_id: str) -> dict[str, Any] | None:
+        """One statement at all four levels, and what it has been linked to."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT claim_id, statement, quote_text, char_start, char_end,
+                       source_url, source_title, language, material_kind, admission,
+                       primary_source, is_retelling, valid_until,
+                       published_on, shown_on, shown_kind, status, status_method
+                FROM agent.statement WHERE claim_id = %s
+                """,
+                (claim_id,),
+            )
+            found = cursor.fetchone()
+            if found is None:
+                return None
+            cursor.execute(
+                "SELECT topic_key, title, level FROM agent.statement_topic"
+                " WHERE claim_id = %s ORDER BY level, title",
+                (claim_id,),
+            )
+            topics = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT link.link_type, link.to_id AS claim_id, other.statement,
+                       other.material_kind, other.status
+                FROM agent.link AS link
+                JOIN agent.statement AS other ON other.claim_id = link.to_id
+                WHERE link.from_id = %s
+                ORDER BY link.link_type, other.claim_id
+                LIMIT 40
+                """,
+                (claim_id,),
+            )
+            links = [dict(row) for row in cursor.fetchall()]
+        return {**dict(found), "topics": topics, "links": links}
 
     # ---------------------------------------------------------------------
     # Stage 0b: reading a statement (owner decisions 1, 3, 7, 8, 11)
