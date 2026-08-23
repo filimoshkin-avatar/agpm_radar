@@ -45,6 +45,9 @@ printf 'Legacy JavaScript syntax: PASS\n'
 step "frontend console smoke"
 node tools/frontend_console_smoke.mjs
 
+step "agent view console smoke"
+node tools/agent_console_smoke.mjs
+
 step "Legacy and V2 out-of-order reload regression"
 node "${repository_root}/tools/frontend_period_switch_race_smoke.mjs"
 
