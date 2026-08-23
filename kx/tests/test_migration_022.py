@@ -23,8 +23,16 @@ def _one(dsn: str, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any]:
         return dict(row)
 
 
-def test_the_schema_says_it_is_at_twenty_two(migrated_dsn: str) -> None:
-    row = _one(migrated_dsn, "SELECT value FROM kx.metadata WHERE key = 'schema_version'")
+def test_022_leaves_the_schema_where_it_says_it_does(baseline_dsn: str) -> None:
+    """022's own stamp, checked on 022 rather than on the newest schema.
+
+    `migrated_dsn` is whatever production runs, so asserting 22 on it broke the
+    moment 023 landed. What this migration is responsible for is its own line.
+    """
+    from conftest import ADOPTED_MIGRATIONS, MIGRATION_022, _apply
+
+    _apply(baseline_dsn, ADOPTED_MIGRATIONS[: ADOPTED_MIGRATIONS.index(MIGRATION_022) + 1])
+    row = _one(baseline_dsn, "SELECT value FROM kx.metadata WHERE key = 'schema_version'")
     assert row["value"] == 22
 
 
