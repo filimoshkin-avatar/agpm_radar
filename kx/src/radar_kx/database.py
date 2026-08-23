@@ -107,6 +107,12 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
+#: How many independent supporting observations the machine wants before it
+#: proposes moving a statement up a rung (decision 6). Two *other* sources, not
+#: two other articles: four outlets repeating one Gartner forecast are one
+#: observation, and the reading pass is what makes that countable.
+PROMOTION_FLOOR = 2
+
 SCHEMA_VERSION = 24
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
@@ -4803,6 +4809,322 @@ class Database:
             )
             per_topic = [dict(row) for row in cursor.fetchall()]
         return {**statements, **documents, "byTopic": per_topic}
+
+    # ---------------------------------------------------------------------
+    # The owner's acceptance criterion, measured rather than asserted
+    # ---------------------------------------------------------------------
+
+    def traceability_report(self, *, sample: int = 5) -> dict[str, Any]:
+        """Can the base be walked in both directions, on live data?
+
+        Her criterion, in her words: from a question to a conclusion, a statement,
+        an exact fragment and a primary source - and back, from a new issue
+        material to statements, concepts, links and a proposal to update the wiki.
+
+        This counts both walks over the whole store rather than demonstrating one
+        of each. A chain that holds for a hand-picked example and breaks for four
+        statements in five is not traceability; the percentages are the answer.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            # Forward: question -> statement -> quotation -> span -> source.
+            cursor.execute(
+                """
+                SELECT count(*) AS statements,
+                       count(*) FILTER (WHERE evidence.claim_id IS NOT NULL) AS with_a_quotation,
+                       count(*) FILTER (
+                           WHERE substr(versions.canonical_text, evidence.char_start + 1,
+                                        evidence.char_end - evidence.char_start)
+                                 = evidence.quote_text
+                       ) AS quotation_reproduces,
+                       count(*) FILTER (WHERE documents.canonical_url <> '') AS with_a_source,
+                       count(*) FILTER (WHERE reading.claim_id IS NOT NULL) AS read,
+                       count(*) FILTER (WHERE dates.document_id IS NOT NULL) AS dated
+                FROM kx.claims AS claims
+                JOIN kx.claim_evidence AS evidence
+                  ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
+                JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
+                JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+                LEFT JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
+                LEFT JOIN kx.document_dates AS dates ON dates.document_id = documents.document_id
+                """
+            )
+            forward = dict(one_row(cursor))
+
+            # Back: issue material -> statements -> subjects -> links -> a page.
+            cursor.execute(
+                """
+                WITH materials AS (
+                    SELECT DISTINCT members.document_id, members.issue_date, members.title
+                    FROM kx.issue_perimeter_members AS members
+                ),
+                walked AS (
+                    SELECT materials.document_id,
+                           materials.issue_date,
+                           materials.title,
+                           count(DISTINCT claims.claim_id) AS statements,
+                           count(DISTINCT placed.topic_id) AS subjects,
+                           count(DISTINCT links.to_id) AS linked,
+                           count(DISTINCT pages.concept_id) AS pages
+                    FROM materials
+                    LEFT JOIN kx.document_versions AS versions
+                           ON versions.document_id = materials.document_id
+                    LEFT JOIN kx.claims AS claims ON claims.version_id = versions.version_id
+                    LEFT JOIN kx.claim_topics AS placed ON placed.claim_id = claims.claim_id
+                    LEFT JOIN kx.knowledge_links AS links
+                           ON links.from_kind = 'claim' AND links.from_id = claims.claim_id
+                    LEFT JOIN kx.concept_claim_topics AS page_topics
+                           ON page_topics.topic_id = placed.topic_id
+                    LEFT JOIN kx.concept_claims AS page_claims
+                           ON page_claims.concept_claim_id = page_topics.concept_claim_id
+                    LEFT JOIN kx.concept_versions AS pages
+                           ON pages.concept_version_id = page_claims.concept_version_id
+                    GROUP BY 1, 2, 3
+                )
+                SELECT count(*) AS materials,
+                       count(*) FILTER (WHERE statements > 0) AS reach_statements,
+                       count(*) FILTER (WHERE subjects > 0) AS reach_subjects,
+                       count(*) FILTER (WHERE linked > 0) AS reach_links,
+                       count(*) FILTER (WHERE pages > 0) AS reach_a_page
+                FROM walked
+                """
+            )
+            backward = dict(one_row(cursor))
+
+            # One worked example of each, so the numbers can be checked by hand.
+            cursor.execute(
+                """
+                SELECT claims.claim_id, claims.normalized_text, evidence.quote_text,
+                       evidence.char_start, evidence.char_end, documents.canonical_url,
+                       reading.material_kind, status.status
+                FROM kx.claims AS claims
+                JOIN kx.claim_evidence AS evidence
+                  ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
+                JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
+                JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+                JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
+                JOIN kx.knowledge_status_current AS status
+                  ON status.unit_kind = 'claim' AND status.unit_id = claims.claim_id
+                WHERE EXISTS (
+                    SELECT 1 FROM kx.claim_topics WHERE claim_id = claims.claim_id
+                )
+                ORDER BY claims.claim_id
+                LIMIT %s
+                """,
+                (sample,),
+            )
+            examples = [dict(row) for row in cursor.fetchall()]
+        return {"forward": forward, "back": backward, "examples": examples}
+
+    def wiki_suggestions(self, *, limit: int = 25) -> list[dict[str, Any]]:
+        """Statements that belong on a page the wiki already has (UC-09).
+
+        Matched by subject, not by words: a page and a statement meet on the
+        backbone, which is the one place both have been placed by something that
+        read them. Machine-proposed and unsigned - the wiki is authored text and
+        stays hers (P4), so this is a queue rather than an edit.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT DISTINCT ON (concepts.relative_path, claims.claim_id)
+                       concepts.relative_path,
+                       versions.title AS page_title,
+                       topics.title AS subject,
+                       claims.claim_id,
+                       claims.normalized_text,
+                       evidence.quote_text,
+                       documents.canonical_url,
+                       reading.material_kind,
+                       status.status
+                FROM kx.claim_topics AS placed
+                JOIN kx.topics AS topics USING (topic_id)
+                JOIN kx.claims AS claims ON claims.claim_id = placed.claim_id
+                JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
+                JOIN kx.claim_evidence AS evidence
+                  ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
+                JOIN kx.document_versions AS document_version
+                  ON document_version.version_id = claims.version_id
+                JOIN kx.documents AS documents
+                  ON documents.document_id = document_version.document_id
+                JOIN kx.knowledge_status_current AS status
+                  ON status.unit_kind = 'claim' AND status.unit_id = claims.claim_id
+                JOIN kx.concept_claim_topics AS page_topics
+                  ON page_topics.topic_id = placed.topic_id
+                JOIN kx.concept_claims AS page_claims
+                  ON page_claims.concept_claim_id = page_topics.concept_claim_id
+                JOIN kx.concept_versions AS versions
+                  ON versions.concept_version_id = page_claims.concept_version_id
+                JOIN kx.concepts AS concepts ON concepts.concept_id = versions.concept_id
+                WHERE reading.admission = 'knowledge'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM kx.concept_evidence AS bound
+                      WHERE bound.claim_id = claims.claim_id
+                        AND bound.concept_claim_id = page_claims.concept_claim_id
+                  )
+                ORDER BY concepts.relative_path, claims.claim_id
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    # ---------------------------------------------------------------------
+    # Two queues the owner's own decisions create (6: promotion, 11: expiry)
+    # ---------------------------------------------------------------------
+
+    def promotion_candidates(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        """Statements the machine proposes moving up a rung, and what it counted.
+
+        Decision 6: the machine proposes by a threshold of independent
+        confirmations, the owner confirms. The threshold here is two *other*
+        statements that support it and come from different sources - a retelling
+        of the same forecast by four outlets is one observation, and the reading
+        pass is what makes that visible.
+
+        Only `observed_signal` is offered. A claim already at canon has nowhere to
+        go, and one born an external reference is somebody else's standard - moving
+        it is a judgement about the canon, which is hers to start, not the
+        machine's to suggest.
+        """
+        query = """
+            WITH support AS (
+                SELECT links.to_id AS claim_id,
+                       count(DISTINCT coalesce(
+                           nullif(reading.primary_source, ''), documents.canonical_url
+                       )) AS independent
+                FROM kx.knowledge_links AS links
+                JOIN kx.claims AS claims ON claims.claim_id = links.from_id
+                JOIN kx.claim_reading AS reading ON reading.claim_id = links.from_id
+                JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
+                JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+                WHERE links.link_type = 'supports'
+                  AND links.from_kind = 'claim' AND links.to_kind = 'claim'
+                GROUP BY 1
+            ),
+            candidates AS (
+                SELECT claims.claim_id, claims.normalized_text, evidence.quote_text,
+                       documents.canonical_url, reading.material_kind,
+                       reading.primary_source, reading.is_retelling,
+                       support.independent
+                FROM support
+                JOIN kx.claims AS claims USING (claim_id)
+                JOIN kx.claim_reading AS reading USING (claim_id)
+                JOIN kx.claim_evidence AS evidence
+                  ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
+                JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
+                JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+                JOIN kx.knowledge_status_current AS status
+                  ON status.unit_kind = 'claim' AND status.unit_id = claims.claim_id
+                WHERE support.independent >= %s
+                  AND status.status = 'observed_signal'
+                  AND reading.admission = 'knowledge'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM kx.editorial_decisions AS decided
+                      WHERE decided.object_kind = 'status_promotion'
+                        AND decided.object_key = claims.claim_id::text
+                  )
+            )
+            SELECT * FROM candidates
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT count(*) AS total FROM ({query}) AS all_of_them",  # noqa: S608
+                (PROMOTION_FLOOR,),
+            )
+            total = int(one_row(cursor)["total"])
+            cursor.execute(
+                f"{query} ORDER BY independent DESC, claim_id LIMIT %s",
+                (PROMOTION_FLOOR, limit),
+            )
+            return total, [dict(row) for row in cursor.fetchall()]
+
+    def decide_promotion(self, *, claim_id: str, verdict: str, actor: str) -> dict[str, Any]:
+        """Record her decision, and - only on a yes - the status it grants.
+
+        Both halves in one transaction: a promotion recorded without the status,
+        or a status granted without the decision behind it, are each worse than
+        neither. `method='manual'` is what makes it visible in
+        `knowledge_status_current`; the machine's proposal never is.
+        """
+        if verdict not in ("confirmed", "rejected"):
+            raise ValueError("verdict must be 'confirmed' or 'rejected'")
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.editorial_decisions
+                        (object_kind, object_key, verdict, actor, scope)
+                    VALUES ('status_promotion', %s, %s, %s, 'editor')
+                    """,
+                    (claim_id, verdict, actor),
+                )
+                granted = 0
+                if verdict == "confirmed":
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.knowledge_status
+                            (unit_kind, unit_id, status, method, rationale, set_by)
+                        VALUES ('claim', %s, 'operationalization', 'manual',
+                                'подтверждено независимыми наблюдениями, решение владельца', %s)
+                        """,
+                        (claim_id, actor),
+                    )
+                    granted = cursor.rowcount
+        return {"claimId": claim_id, "verdict": verdict, "statusGranted": granted}
+
+    def expired_statements(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        """What has passed its freshness rule and is waiting to be looked at again.
+
+        Decision 11: expiry queues a review and changes nothing on its own. A
+        forecast about 2027 stops being a forecast when 2027 arrives, and the base
+        should say so rather than quietly keep asserting it.
+        """
+        query = """
+            SELECT claims.claim_id, claims.normalized_text, evidence.quote_text,
+                   documents.canonical_url, reading.material_kind, reading.valid_until,
+                   dates.shown_on, dates.shown_kind
+            FROM kx.claim_reading AS reading
+            JOIN kx.claims AS claims USING (claim_id)
+            JOIN kx.claim_evidence AS evidence
+              ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
+            JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
+            JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+            LEFT JOIN kx.document_dates AS dates ON dates.document_id = documents.document_id
+            WHERE reading.valid_until IS NOT NULL
+              AND reading.valid_until < clock_timestamp()
+              AND reading.admission <> 'rejected'
+              AND NOT EXISTS (
+                  SELECT 1 FROM kx.editorial_decisions AS decided
+                  WHERE decided.object_kind = 'freshness_review'
+                    AND decided.object_key = claims.claim_id::text
+              )
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(f"SELECT count(*) AS total FROM ({query}) AS all_of_them")  # noqa: S608
+            total = int(one_row(cursor)["total"])
+            cursor.execute(
+                f"{query} ORDER BY reading.valid_until, claims.claim_id LIMIT %s",
+                (limit,),
+            )
+            return total, [dict(row) for row in cursor.fetchall()]
+
+    def decide_freshness(self, *, claim_id: str, verdict: str, actor: str) -> dict[str, Any]:
+        """Her verdict on an expired statement. Recorded; nothing else moves."""
+        if verdict not in ("confirmed", "rejected"):
+            raise ValueError("verdict must be 'confirmed' or 'rejected'")
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.editorial_decisions
+                        (object_kind, object_key, verdict, actor, scope)
+                    VALUES ('freshness_review', %s, %s, %s, 'editor')
+                    """,
+                    (claim_id, verdict, actor),
+                )
+        return {"claimId": claim_id, "verdict": verdict}
 
     # ---------------------------------------------------------------------
     # Stage 2: what one statement does to another (owner decision 12)

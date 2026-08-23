@@ -349,6 +349,13 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("linking-report")
 
+    # The owner's acceptance criterion, counted over the whole store.
+    trace_parser = subparsers.add_parser("traceability")
+    trace_parser.add_argument("--sample", type=int, default=3)
+
+    wiki_parser = subparsers.add_parser("wiki-suggestions")
+    wiki_parser.add_argument("--limit", type=int, default=25)
+
     # Stage 0a: quotation boundaries. Reports by default, writes only when told.
     repair_spans_parser = subparsers.add_parser("repair-spans")
     repair_spans_parser.add_argument("--apply", action="store_true")
@@ -963,6 +970,12 @@ def main() -> None:
                 "batchesRefused": refusals,
             }
         )
+        return
+    if args.command == "traceability":
+        _print_json(database.traceability_report(sample=args.sample))
+        return
+    if args.command == "wiki-suggestions":
+        _print_json({"suggestions": database.wiki_suggestions(limit=args.limit)})
         return
     if args.command == "linking-report":
         _print_json(database.linking_report())

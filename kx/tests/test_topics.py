@@ -511,9 +511,15 @@ def test_only_the_decisions_that_are_current_are_on_the_wall() -> None:
     # The owner asked for the tabs that need a decision today and nothing else.
     from radar_kx.editor_queues import QUEUES, QUEUES_BY_KEY, RETIRED
 
+    # Promotion and freshness are here because two of her own decisions create
+    # them: 6 leaves the status change to her after the machine proposes it, and
+    # 11 says an expired statement joins a review queue and nothing happens on
+    # its own. A wall without them would mean both decisions had nowhere to land.
     assert [queue.key for queue in QUEUES] == [
         "skeleton",
         "comparison",
+        "promotion",
+        "freshness",
         "families",
         "duplicates",
         "ideas",

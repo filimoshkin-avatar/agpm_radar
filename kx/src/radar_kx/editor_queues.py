@@ -419,6 +419,64 @@ def _decide_comparison(database: Database, item_id: str, action: str, actor: str
     )
 
 
+def _load_promotions(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    total, rows = database.promotion_candidates(limit=limit)
+    items = [
+        QueueItem(
+            item_id=str(row["claim_id"]),
+            primary=str(row["normalized_text"]),
+            secondary=str(row["quote_text"]),
+            meta=(
+                ("независимых подтверждений", str(row["independent"])),
+                ("вид материала", str(row["material_kind"])),
+                (
+                    "первоисточник",
+                    str(row["primary_source"]) if row["is_retelling"] else "издание само",
+                ),
+            ),
+            actions=(("confirmed", "Поднять статус", "yes"), ("rejected", "Оставить", "no")),
+            link=str(row["canonical_url"]),
+        )
+        for row in rows
+    ]
+    return total, items
+
+
+def _decide_promotion(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
+    return database.decide_promotion(claim_id=item_id, verdict=action, actor=actor)
+
+
+def _load_freshness(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    total, rows = database.expired_statements(limit=limit)
+    items = [
+        QueueItem(
+            item_id=str(row["claim_id"]),
+            primary=str(row["normalized_text"]),
+            secondary=str(row["quote_text"]),
+            meta=(
+                ("вид материала", str(row["material_kind"])),
+                ("срок истёк", str(row["valid_until"])[:10]),
+                (
+                    "дата материала",
+                    f"{str(row['shown_on'])[:10]} — "
+                    + ("публикация" if row["shown_kind"] == "published" else "обнаружение"),
+                ),
+            ),
+            actions=(
+                ("confirmed", "Ещё в силе", "yes"),
+                ("rejected", "Устарело", "no"),
+            ),
+            link=str(row["canonical_url"]),
+        )
+        for row in rows
+    ]
+    return total, items
+
+
+def _decide_freshness(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
+    return database.decide_freshness(claim_id=item_id, verdict=action, actor=actor)
+
+
 QUEUES: tuple[Queue, ...] = (
     Queue(
         key="skeleton",
@@ -470,6 +528,45 @@ QUEUES: tuple[Queue, ...] = (
         decide=_decide_comparison,
         object_kind="binding_method_vote",
         empty="Все пары размечены.",
+    ),
+    Queue(
+        key="promotion",
+        title="Повышение статуса",
+        why=(
+            "Ваше решение 6: машина предлагает по порогу независимых подтверждений, "
+            "статус поднимаете вы. Порог — два **других** утверждения, которые это "
+            "подтверждают и пришли из разных первоисточников. Четыре издания, "
+            "пересказавшие один прогноз Gartner, — это одно наблюдение, и прочтение "
+            "утверждений сделало эту разницу видимой.\n\nПредлагаются только "
+            "«наблюдаемые сигналы». Утверждению из канона подниматься некуда, а "
+            "утверждение из чужого стандарта — это чужой стандарт: двигать его "
+            "значит судить о каноне, и начинать такое не машине.\n\n«Поднять» "
+            "переводит в «операционализацию» — положение, которое база держит как "
+            "рабочее. «Оставить» — тоже решение: оно записывается, и утверждение "
+            "больше не всплывёт в очереди."
+        ),
+        load=_load_promotions,
+        decide=_decide_promotion,
+        object_kind="status_promotion",
+        empty="Ничего не набрало порога подтверждений.",
+    ),
+    Queue(
+        key="freshness",
+        title="Срок актуальности истёк",
+        why=(
+            "Ваше решение 11: срок задан правилом по типу материала, и по истечении "
+            "ничего не меняется само — утверждение просто попадает сюда.\n\n"
+            "Прогноз о 2027 годе перестаёт быть прогнозом, когда 2027 наступает; "
+            "релиз платформы устаревает за полгода; кейс живёт три года. Отсчёт "
+            "идёт от даты публикации материала там, где она известна, и от даты "
+            "обнаружения радаром там, где нет — в карточке видно, какая из двух."
+            "\n\n«Ещё в силе» и «устарело» одинаково записываются в журнал; ни то "
+            "ни другое не удаляет утверждение из базы."
+        ),
+        load=_load_freshness,
+        decide=_decide_freshness,
+        object_kind="freshness_review",
+        empty="Ничего не просрочено.",
     ),
     Queue(
         key="families",
