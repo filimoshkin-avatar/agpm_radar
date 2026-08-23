@@ -27,6 +27,12 @@ from radar_kx.extraction import (
     normalized_claim_text,
 )
 from radar_kx.fetcher import DocumentTask, FetchResult
+from radar_kx.ideas import (
+    CandidateGroup,
+    ClaimRecord,
+    IndependenceVerdict,
+    group_claims,
+)
 from radar_kx.identifiers import (
     PARSER_CONFIG_HASH,
     PARSER_NAME,
@@ -58,7 +64,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 #: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
 #: documents of the issue perimeter, which is where hand-curation is affordable;
@@ -2743,6 +2749,146 @@ class Database:
         return {
             "documentsWithoutText": sum(int(row["total"]) for row in rows),
             "byReason": rows[:40],
+        }
+
+    # ---------------------------------------------------------------------
+    # Candidate ideas (slice 2.9, P13 and ADR-0007 §4)
+    # ---------------------------------------------------------------------
+
+    def claims_for_ideas(self, *, scope: str, limit: int = 4000) -> list[ClaimRecord]:
+        """Accepted-or-proposed claims in scope, with the document behind each."""
+        source = SCOPES[scope]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    WITH scope AS ({source})
+                    SELECT claims.claim_id,
+                           versions.document_id,
+                           claims.predicate,
+                           claims.object_text,
+                           evidence.quote_text
+                    FROM kx.claims AS claims
+                    JOIN kx.claim_evidence AS evidence USING (claim_id)
+                    JOIN kx.document_versions AS versions
+                      ON versions.version_id = claims.version_id
+                    JOIN scope ON scope.document_id = versions.document_id
+                    WHERE claims.state <> 'rejected' AND evidence.match_status = 'exact'
+                    ORDER BY claims.claim_id
+                    LIMIT %s
+                    """,  # noqa: S608 - a constant from SCOPES
+                    (limit,),
+                )
+                return [
+                    ClaimRecord(
+                        claim_id=str(row["claim_id"]),
+                        document_id=str(row["document_id"]),
+                        predicate=str(row["predicate"]),
+                        object_text=str(row["object_text"]),
+                        quote_text=str(row["quote_text"]),
+                    )
+                    for row in cursor.fetchall()
+                ]
+
+    def independence_verdict(self, document_ids: Sequence[str]) -> IndependenceVerdict:
+        """The counting rules, plus the version of the data they were applied to."""
+        report = self.independence_report(document_ids)
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT coalesce(max(decision_id), 0) AS high_water FROM kx.source_family_decisions"
+            )
+            high_water = int(cast(int, one_row(cursor)["high_water"]))
+            cursor.execute(
+                "SELECT count(*) AS total FROM kx.content_duplicate_clusters"
+                " WHERE confirmed_at IS NOT NULL"
+            )
+            clusters = int(cast(int, one_row(cursor)["total"]))
+        return IndependenceVerdict(
+            independent_sources=int(report["independentSources"]),
+            unknown_documents=int(report["unknownDocuments"]),
+            collapsed_by_family=int(report["collapsedByFamily"]),
+            collapsed_by_cluster=int(report["collapsedByCluster"]),
+            family_decision_high_water=high_water,
+            confirmed_cluster_count=clusters,
+        )
+
+    def propose_candidate_groups(
+        self, *, scope: str, threshold: float, limit: int = 4000
+    ) -> list[tuple[CandidateGroup, IndependenceVerdict]]:
+        """Group claims and judge each group. Writes nothing."""
+        claims = self.claims_for_ideas(scope=scope, limit=limit)
+        groups = group_claims(claims, threshold=threshold)
+        return [(group, self.independence_verdict(group.document_ids)) for group in groups]
+
+    def record_idea(
+        self,
+        group: CandidateGroup,
+        verdict: IndependenceVerdict,
+        *,
+        title: str,
+        statement: str,
+        created_by: str,
+        model: str | None = None,
+        prompt_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        """Record one candidate idea with the verdict it was judged on.
+
+        An idea that failed the gate is recorded too, and stays `proposed`: a
+        CHECK stops it ever being shown. "Nothing was proposed this week" and
+        "eleven were proposed and none had two independent sources" are different
+        facts about the corpus, and only the second one is true today.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.ideas
+                        (title, statement, created_by, model, prompt_sha256,
+                         independent_sources, unknown_documents, collapsed_by_family,
+                         collapsed_by_cluster, family_decision_high_water,
+                         confirmed_cluster_count, admitted)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING idea_id
+                    """,
+                    (
+                        title,
+                        statement,
+                        created_by,
+                        model,
+                        prompt_sha256,
+                        verdict.independent_sources,
+                        verdict.unknown_documents,
+                        verdict.collapsed_by_family,
+                        verdict.collapsed_by_cluster,
+                        verdict.family_decision_high_water,
+                        verdict.confirmed_cluster_count,
+                        verdict.admitted,
+                    ),
+                )
+                idea_id = str(one_row(cursor)["idea_id"])
+                for claim in group.claims:
+                    cursor.execute(
+                        "INSERT INTO kx.idea_evidence (idea_id, claim_id, stance)"
+                        " VALUES (%s, %s, 'support')",
+                        (idea_id, claim.claim_id),
+                    )
+        return {"ideaId": idea_id, "admitted": verdict.admitted, **verdict.as_json()}
+
+    def idea_report(self) -> dict[str, Any]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT state, admitted, count(*) AS total,"
+                " min(independent_sources) AS min_sources,"
+                " max(independent_sources) AS max_sources"
+                " FROM kx.ideas GROUP BY state, admitted ORDER BY total DESC"
+            )
+            rows = [dict(row) for row in cursor.fetchall()]
+        return {
+            "ideas": sum(int(row["total"]) for row in rows),
+            "admitted": sum(int(row["total"]) for row in rows if row["admitted"]),
+            "byState": rows,
         }
 
     def coverage_report(self) -> dict[str, Any]:

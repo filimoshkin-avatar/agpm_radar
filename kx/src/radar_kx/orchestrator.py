@@ -118,11 +118,27 @@ CLAIM_EXTRACTION = RunType(
     max_payload_chars=6000,
 )
 
+
+IDEA_STATEMENT = RunType(
+    name="idea_statement",
+    purpose="phrasing a candidate idea from its quotations",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "the quotations of one candidate group and a fixed instruction block - never "
+        "the documents they came from. The group is capped at twelve claims and a "
+        "quotation at a few hundred characters, so the cap here is that. The model is "
+        "phrasing what the evidence already says; it does not need the articles to do "
+        "that, and sending them would send text no claim rests on."
+    ),
+    max_payload_chars=8000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
     REACHABILITY_PROBE.name: REACHABILITY_PROBE,
     CLAIM_EXTRACTION.name: CLAIM_EXTRACTION,
+    IDEA_STATEMENT.name: IDEA_STATEMENT,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."
@@ -313,6 +329,7 @@ __all__ = [
     "ALLOWED_MODELS",
     "CLAIM_EXTRACTION",
     "DEFAULT_MODEL",
+    "IDEA_STATEMENT",
     "REACHABILITY_PROBE",
     "RUN_TYPES",
     "ExtractionError",

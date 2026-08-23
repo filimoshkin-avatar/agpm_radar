@@ -25,10 +25,18 @@ from radar_kx.duplicates import (
 )
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.extraction import ExtractionError, ProposedClaim, align_all, prompt_sha256
+from radar_kx.ideas import (
+    DEFAULT_OVERLAP,
+    build_idea_prompt,
+    idea_prompt_sha256,
+    parse_idea,
+    summarize,
+)
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
+    IDEA_STATEMENT,
     RUN_TYPES,
     HermesExtractor,
     ModelGateway,
@@ -187,6 +195,15 @@ def _parser() -> argparse.ArgumentParser:
     plan_acquisition_parser.add_argument("--limit", type=int, default=500)
 
     subparsers.add_parser("acquisition-gaps")
+
+    # Slice 2.9: candidate ideas. Grouping is deterministic, the gate is
+    # arithmetic, and only then does a model write a sentence.
+    ideas_parser = subparsers.add_parser("propose-ideas")
+    ideas_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
+    ideas_parser.add_argument("--overlap", type=float, default=DEFAULT_OVERLAP)
+    ideas_parser.add_argument("--dry-run", action="store_true")
+
+    subparsers.add_parser("idea-report")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -432,6 +449,59 @@ def main() -> None:
         return
     if args.command == "acquisition-gaps":
         _print_json(database.acquisition_gaps())
+        return
+    if args.command == "propose-ideas":
+        judged = database.propose_candidate_groups(scope=args.scope, threshold=args.overlap)
+        verdicts = {group.fingerprint: verdict for group, verdict in judged}
+        overview = summarize([group for group, _ in judged], verdicts)
+        if args.dry_run:
+            _print_json(
+                {
+                    "scope": args.scope,
+                    **overview,
+                    "groups_detail": [
+                        {**group.as_json(), **verdict.as_json()} for group, verdict in judged
+                    ][:20],
+                }
+            )
+            return
+        if not settings.hermes_key:
+            raise SystemExit(
+                "RADAR_KX_HERMES_KEY is not set. Use `kxorch propose-ideas ...`, not `kxrun`."
+            )
+        gateway = ModelGateway(database, settings)
+        written: list[dict[str, Any]] = []
+        for group, verdict in judged:
+            if not verdict.admitted:
+                # Recorded, never phrased: P13 says it is not shown, and asking a
+                # model to write a sentence nobody will read is a call for nothing.
+                written.append(
+                    database.record_idea(
+                        group,
+                        verdict,
+                        title="(not shown: fewer than two independent sources)",
+                        statement=" | ".join(claim.quote_text[:120] for claim in group.claims),
+                        created_by="radar-kx-propose-ideas",
+                    )
+                )
+                continue
+            result = gateway.run(IDEA_STATEMENT, build_idea_prompt(group))
+            title, statement = parse_idea(result.content)
+            written.append(
+                database.record_idea(
+                    group,
+                    verdict,
+                    title=title,
+                    statement=statement,
+                    created_by="radar-kx-propose-ideas",
+                    model=IDEA_STATEMENT.model,
+                    prompt_sha256=idea_prompt_sha256(group),
+                )
+            )
+        _print_json({"scope": args.scope, **overview, "recorded": written})
+        return
+    if args.command == "idea-report":
+        _print_json(database.idea_report())
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
