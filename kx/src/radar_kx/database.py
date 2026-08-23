@@ -66,17 +66,19 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: cannot be released at all.
 SCHEMA_VERSION = 12
 
-#: Where a slice-2.4 scan reads its documents from. "perimeter" is the 275
-#: documents of the issue perimeter, which is where hand-curation is affordable;
-#: "corpus" is everything KX holds.
-_SCOPE_SOURCES = {
-    "perimeter": "kx.issue_perimeter_documents",
-    "corpus": "kx.documents",
-}
+#: Where a scan reads its documents from. One vocabulary, shared with search, so
+#: the canon cannot quietly fall out of one pipeline and not another: extraction
+#: first ran with a smaller two-name vocabulary, the canon was not in it, and the
+#: wiki's statements about the White Paper had nothing to bind to.
+#:
+#: "perimeter" is an alias for the historical issue perimeter, kept because the
+#: acquisition and family scans read better with it.
+_SCOPE_SOURCES = dict(SCOPES)
+_SCOPE_SOURCES["perimeter"] = SCOPES["historical"]
 
 #: The scopes a caller may name. Derived from the mapping so the CLI's choices
 #: and the queries cannot disagree.
-SCAN_SCOPES = tuple(_SCOPE_SOURCES)
+SCAN_SCOPES = tuple(sorted(_SCOPE_SOURCES))
 
 #: How a pair's measure is spelled in ``duplicate_evidence.evidence_kind``. Both
 #: numbers go into ``detail`` whichever fired, so a later review never has to
@@ -1664,7 +1666,12 @@ class Database:
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.cursor() as cursor:
-                cursor.execute(f"SELECT document_id, canonical_url FROM {source}")  # noqa: S608 - a constant from _SCOPE_SOURCES
+                query = (
+                    f"SELECT documents.document_id, documents.canonical_url"  # noqa: S608 - a constant from _SCOPE_SOURCES
+                    f" FROM ({source}) AS scoped"
+                    f" JOIN kx.documents AS documents USING (document_id)"
+                )
+                cursor.execute(query)
                 return [
                     DocumentHost(
                         document_id=str(row["document_id"]),
@@ -1756,7 +1763,7 @@ class Database:
                            scoped.canonical_url,
                            versions.canonical_text_sha256,
                            versions.canonical_text
-                    FROM {source} AS scoped
+                    FROM ({source}) AS scoped
                     JOIN kx.documents AS documents USING (document_id)
                     JOIN kx.document_versions AS versions
                       ON versions.version_id = documents.best_version_id
@@ -1891,7 +1898,7 @@ class Database:
                            chunks.char_start,
                            chunks.char_end,
                            chunks.text
-                    FROM {source} AS scoped
+                    FROM ({source}) AS scoped
                     JOIN kx.documents AS documents USING (document_id)
                     JOIN kx.chunks AS chunks ON chunks.version_id = documents.best_version_id
                     JOIN kx.document_versions AS versions
