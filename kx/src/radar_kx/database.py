@@ -3044,12 +3044,21 @@ class Database:
                         # after the provenance was recorded.
                         continue
                     for item in decision.quarantine:
+                        # One open entry per claim and condition. Without this a
+                        # queue of 69 stuck claims reads as 180 after three runs,
+                        # and the number people act on is the wrong one.
                         cursor.execute(
                             """
                             INSERT INTO kx.publication_quarantine
                                 (claim_id, translation_id, failed_condition, detail,
                                  what_would_clear_it)
-                            VALUES (%s, %s, %s, %s, %s)
+                            SELECT %s, %s, %s, %s, %s
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM kx.publication_quarantine AS existing
+                                WHERE existing.claim_id = %s
+                                  AND existing.failed_condition = %s
+                                  AND existing.resolved_at IS NULL
+                            )
                             """,
                             (
                                 row["claim_id"],
@@ -3057,11 +3066,14 @@ class Database:
                                 item.failed_condition,
                                 item.detail,
                                 item.what_would_clear_it,
+                                row["claim_id"],
+                                item.failed_condition,
                             ),
                         )
-                        quarantined[item.failed_condition] = (
-                            quarantined.get(item.failed_condition, 0) + 1
-                        )
+                        if cursor.rowcount:
+                            quarantined[item.failed_condition] = (
+                                quarantined.get(item.failed_condition, 0) + 1
+                            )
         resolved = self.resolve_quarantine_for_published()
         return {
             "scope": scope,
