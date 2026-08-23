@@ -726,7 +726,17 @@ def main() -> None:
                 "RADAR_KX_EDITOR_TOKEN is not set. Generate one with"
                 " `radar_kx editor-token` and put it in /etc/radar-kx/editor.env."
             )
-        server = serve(settings, host=args.host, port=args.port, token=token, actor=args.actor)
+        server = serve(
+            settings,
+            host=args.host,
+            port=args.port,
+            token=token,
+            actor=args.actor,
+            # Basic auth for a person in a browser; the bearer token stays for the
+            # loopback and scripted paths. Both are checked by the service itself.
+            username=os.environ.get("RADAR_KX_EDITOR_USER") or None,
+            password=os.environ.get("RADAR_KX_EDITOR_PASSWORD") or None,
+        )
         print(f"editor on http://{args.host}:{args.port}/?token=<your token>")
         with server:
             server.serve_forever()

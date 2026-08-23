@@ -160,3 +160,12 @@ def test_the_editor_process_still_binds_only_to_loopback() -> None:
     assert any("--host 127.0.0.1" in line for line in unit)
     # It reads full text, so nothing it does not need is reachable.
     assert any(line.startswith("InaccessiblePaths=") for line in unit)
+
+
+def test_the_editor_command_passes_the_browser_credentials_through() -> None:
+    # The service supported basic auth and the command never gave it the user or
+    # the password, so every browser request came back 401 with a correct
+    # password. A patch that does not apply is a feature that does not exist.
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "cli.py").read_text(encoding="utf-8")
+    assert 'username=os.environ.get("RADAR_KX_EDITOR_USER")' in source
+    assert 'password=os.environ.get("RADAR_KX_EDITOR_PASSWORD")' in source
