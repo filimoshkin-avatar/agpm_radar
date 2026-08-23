@@ -25,10 +25,13 @@ cd "$REPO_ROOT"
 # constant at start. On 2026-08-22 applying migration 010 killed an extraction
 # pass 232 fragments into 1098. Deploying is safe; applying a migration is not,
 # and the runbook for one starts by stopping the orchestrator.
+# --state=active does not match a running oneshot: it sits in `activating` for
+# its whole life. The first version of this guard used `active` alone and let a
+# migration kill a canon extraction pass while claiming to watch for exactly that.
 if ssh -i "$KEY" -o BatchMode=yes "$HOST" \
-       "systemctl list-units --state=active --no-legend 'radar-kx-orchestrator@*' | grep -q ." \
-       2>/dev/null; then
-    say "NOTE: an orchestrator instance is running; a migration would kill it mid-pass"
+       "systemctl list-units --state=active,activating --no-legend 'radar-kx-orchestrator@*' \
+        | grep -q ." 2>/dev/null; then
+    say "NOTE: an orchestrator batch is running; a migration would kill it mid-pass"
 fi
 [[ -z "$(git status --porcelain kx)" ]] || die "kx/ has uncommitted changes"
 commit="$(git rev-parse HEAD | cut -c1-12)"
