@@ -5246,6 +5246,11 @@ class Database:
             " WHERE match_status = 'exact'",
             False,
         ),
+        # Stage 1: the corpus itself, not only the 5% of it that was extracted
+        # from. A chunk is capped at 4 000 characters by the store and e5 reads
+        # about 2 000 of them, so a long chunk is embedded by its first half -
+        # which is the model's context window rather than a choice made here.
+        "chunk": ("SELECT chunk_id AS key, text FROM kx.chunks", False),
     }
 
     def embed(

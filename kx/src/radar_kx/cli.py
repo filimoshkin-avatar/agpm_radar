@@ -319,7 +319,7 @@ def _parser() -> argparse.ArgumentParser:
     # Local embeddings and the comparison the owner asked for.
     embed_parser = subparsers.add_parser("embed")
     embed_parser.add_argument(
-        "--owner-kind", choices=("concept_claim", "claim_evidence"), required=True
+        "--owner-kind", choices=("concept_claim", "claim_evidence", "chunk"), required=True
     )
     embed_parser.add_argument("--limit", type=int, default=100000)
 
