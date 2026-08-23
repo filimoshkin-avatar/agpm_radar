@@ -336,3 +336,51 @@ def test_an_owner_decision_is_append_only(migrated_dsn: str) -> None:
         )
         with pytest.raises(Exception, match="immutable|reject"):
             cursor.execute("UPDATE kx.idea_decisions SET verdict = 'rejected'")
+
+
+def test_the_index_finds_the_same_groups_as_a_full_pairwise_pass() -> None:
+    # The inverted index is an optimisation of one comparison, not a different
+    # rule. If it ever stops agreeing with the naive pass, the grouping a reader
+    # is shown is not the grouping the docstring describes.
+    claims = [
+        _claim("a", "d1", SHARED),
+        _claim("b", "d2", REPHRASED),
+        _claim("c", "d3", UNRELATED),
+        _claim("d", "d4", UNRELATED.replace("regulator", "supervisor")),
+        _claim("e", "d5", SHARED.replace("forty one", "forty two")),
+    ]
+    indexed = {group.fingerprint for group in group_claims(claims)}
+
+    naive: dict[str, set[str]] = {claim.claim_id: {claim.claim_id} for claim in claims}
+    for index, left in enumerate(claims):
+        for right in claims[index + 1 :]:
+            if left.document_id == right.document_id:
+                continue
+            if overlap(left, right) >= 0.45:
+                merged = naive[left.claim_id] | naive[right.claim_id]
+                for member in merged:
+                    naive[member] = merged
+    expected = {
+        CandidateGroup(
+            claims=tuple(
+                sorted((c for c in claims if c.claim_id in members), key=lambda i: i.claim_id)
+            )
+        ).fingerprint
+        for members in {frozenset(value) for value in naive.values()}
+        if 2 <= len(members) <= MAX_GROUP_SIZE
+    }
+    assert indexed == expected
+
+
+def test_a_word_the_whole_corpus_uses_does_not_propose_every_pair() -> None:
+    # Without the posting cap the inverted index degenerates back into O(n squared).
+    from radar_kx.ideas import MAX_POSTING_LENGTH
+
+    assert MAX_POSTING_LENGTH < 1000
+    shared_word_claims = [
+        _claim(f"c{index}", f"d{index}", f"{SHARED} variation {index}")
+        for index in range(MAX_POSTING_LENGTH + 50)
+    ]
+    # It still terminates, and it still returns something reproducible.
+    groups = group_claims(shared_word_claims)
+    assert all(len(group.claims) <= MAX_GROUP_SIZE for group in groups)

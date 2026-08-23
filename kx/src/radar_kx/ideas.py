@@ -50,6 +50,10 @@ MIN_CONTENT_WORDS = 8
 #: P13. Two supporting claims from different source families.
 MIN_INDEPENDENT_SOURCES = 2
 
+#: A word that this many claims use proposes nothing worth comparing, and
+#: iterating its postings puts the quadratic term straight back.
+MAX_POSTING_LENGTH = 400
+
 #: A group larger than this is a topic, not an idea, and asking a model to state
 #: it in one sentence produces something that says nothing.
 MAX_GROUP_SIZE = 12
@@ -175,7 +179,10 @@ class CandidateGroup:
 
 def overlap(left: ClaimRecord, right: ClaimRecord) -> float:
     """Shared content words as a share of the smaller vocabulary."""
-    first, second = left.content_words, right.content_words
+    return _overlap(left.content_words, right.content_words)
+
+
+def _overlap(first: frozenset[str], second: frozenset[str]) -> float:
     if len(first) < MIN_CONTENT_WORDS or len(second) < MIN_CONTENT_WORDS:
         return 0.0
     return len(first & second) / min(len(first), len(second))
@@ -188,9 +195,20 @@ def group_claims(
 
     Deterministic and reproducible: a reader can be shown why two claims are in
     one group, which is the property a candidate idea lives or dies on.
+
+    Two things keep the pairwise pass affordable on the 7 676 claims the perimeter
+    produced. The word sets are built once - reading them off the dataclass inside
+    the loop would run the tokeniser 59 million times - and pairs are proposed
+    through an inverted index on the rarest word of each claim, so two claims that
+    share no vocabulary at all are never compared. Both are optimisations of the
+    same comparison, not a different rule: the graph is the one the docstring
+    describes.
     """
     if not 0 < threshold <= 1:
         raise ValueError("threshold must be in (0, 1]")
+
+    words = {claim.claim_id: claim.content_words for claim in claims}
+    by_id = {claim.claim_id: claim for claim in claims}
     parent = {claim.claim_id: claim.claim_id for claim in claims}
 
     def find(node: str) -> str:
@@ -199,17 +217,36 @@ def group_claims(
             node = parent[node]
         return node
 
-    for index, left in enumerate(claims):
-        for right in claims[index + 1 :]:
-            if left.document_id == right.document_id:
-                # Two claims from one document are one voice. Grouping them adds a
-                # claim and no independence, and it is how a single article turns
-                # into a five-claim "idea".
-                continue
-            if overlap(left, right) >= threshold:
-                left_root, right_root = find(left.claim_id), find(right.claim_id)
-                if left_root != right_root:
-                    parent[right_root] = left_root
+    # Inverted index: a pair can only clear the threshold if it shares a word, so
+    # only claims that appear together under some word are worth comparing.
+    postings: dict[str, list[str]] = {}
+    for claim in claims:
+        if len(words[claim.claim_id]) < MIN_CONTENT_WORDS:
+            continue
+        for word in words[claim.claim_id]:
+            postings.setdefault(word, []).append(claim.claim_id)
+
+    compared: set[tuple[str, str]] = set()
+    for identifiers in postings.values():
+        # A word that half the corpus uses proposes nothing worth comparing and
+        # would put the quadratic term back.
+        if len(identifiers) > MAX_POSTING_LENGTH:
+            continue
+        for index, left_id in enumerate(identifiers):
+            for right_id in identifiers[index + 1 :]:
+                pair = (left_id, right_id) if left_id < right_id else (right_id, left_id)
+                if pair in compared:
+                    continue
+                compared.add(pair)
+                if by_id[left_id].document_id == by_id[right_id].document_id:
+                    # Two claims from one document are one voice. Grouping them
+                    # adds a claim and no independence, and it is how a single
+                    # article turns into a five-claim "idea".
+                    continue
+                if _overlap(words[left_id], words[right_id]) >= threshold:
+                    left_root, right_root = find(left_id), find(right_id)
+                    if left_root != right_root:
+                        parent[right_root] = left_root
 
     buckets: dict[str, list[ClaimRecord]] = {}
     for claim in claims:
