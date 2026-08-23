@@ -42,6 +42,7 @@ from radar_kx.orchestrator import (
     ALLOWED_MODELS,
     IDEA_STATEMENT,
     QUOTE_TRANSLATION,
+    RESEARCH_ANSWER,
     RUN_TYPES,
     HermesExtractor,
     ModelGateway,
@@ -53,6 +54,14 @@ from radar_kx.publication import (
     parse_translation,
 )
 from radar_kx.reconciliation import load_inventory
+from radar_kx.research import (
+    answer_prompt_sha256,
+    build_answer_prompt,
+    refuse,
+    render,
+    verify,
+)
+from radar_kx.research import parse_answer as parse_research_answer
 from radar_kx.search import MATCH_MODES, SCOPES
 from radar_kx.source_families import (
     batch_payload,
@@ -269,6 +278,16 @@ def _parser() -> argparse.ArgumentParser:
 
     queue_parser = subparsers.add_parser("evidence-queue")
     queue_parser.add_argument("--limit", type=int, default=5)
+
+    # Slice 2.14: an answer from the evidence base, or a precise refusal.
+    ask_parser = subparsers.add_parser("ask")
+    ask_parser.add_argument("question")
+    ask_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
+    ask_parser.add_argument("--mode", choices=("research", "strict"), default="research")
+    ask_parser.add_argument(
+        "--asker-scope", choices=("public", "research", "editor"), default="research"
+    )
+    ask_parser.add_argument("--no-cache", action="store_true")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -600,6 +619,88 @@ def main() -> None:
         return
     if args.command == "reconcile-release":
         _print_json(database.reconcile_release())
+        return
+    if args.command == "ask":
+        if not args.no_cache:
+            cached = database.cached_answer(args.question, scope=args.asker_scope)
+            if cached is not None:
+                _print_json({**cached, "fromCache": True})
+                return
+        package = database.evidence_for_question(args.question, scope=args.scope)
+        if not package:
+            # ADR-0004 §9 and §10: a structural refusal with a precise code, not a
+            # hedged sentence. There is nothing nearby either, because nothing came
+            # back for the question at all.
+            refusal = refuse("no_evidence", "nothing in the evidence base matched the question")
+            _print_json(
+                {
+                    **refusal.as_json(),
+                    **database.record_answer(
+                        question=args.question,
+                        scope=args.asker_scope,
+                        mode=args.mode,
+                        package=(),
+                        refusal=refusal,
+                        answered_by="radar-kx-ask",
+                    ),
+                }
+            )
+            return
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch ask ...`.")
+        gateway = ModelGateway(database, settings)
+        result = gateway.run(RESEARCH_ANSWER, build_answer_prompt(args.question, package))
+        clauses = parse_research_answer(result.content)
+        answer_check = verify(clauses, package, mode=args.mode)
+        if not clauses or not answer_check.passes:
+            # The draft did not survive checking. A refusal is the honest outcome,
+            # and what the base does support nearby is retrieved for the question -
+            # it is the same package - and returned as its own field so nothing can
+            # merge it into a paragraph that reads like an answer (§9a).
+            refusal = refuse(
+                "no_evidence",
+                "no clause survived verification against the cited spans"
+                if clauses
+                else "the evidence does not answer the question",
+                package,
+            )
+            _print_json(
+                {
+                    **refusal.as_json(),
+                    "verification": answer_check.as_json(),
+                    **database.record_answer(
+                        question=args.question,
+                        scope=args.asker_scope,
+                        mode=args.mode,
+                        package=package,
+                        refusal=refusal,
+                        verification=answer_check,
+                        model=RESEARCH_ANSWER.model,
+                        prompt_sha256=answer_prompt_sha256(args.question, package),
+                        answered_by="radar-kx-ask",
+                    ),
+                }
+            )
+            return
+        answer = render(clauses)
+        _print_json(
+            {
+                "answer": answer,
+                "evidence": [element.as_json() for element in package],
+                "verification": answer_check.as_json(),
+                **database.record_answer(
+                    question=args.question,
+                    scope=args.asker_scope,
+                    mode=args.mode,
+                    package=package,
+                    answer_text=answer,
+                    verification=answer_check,
+                    model=RESEARCH_ANSWER.model,
+                    prompt_sha256=answer_prompt_sha256(args.question, package),
+                    answered_by="radar-kx-ask",
+                ),
+            }
+        )
         return
     if args.command == "editor-token":
         print(generate_token())

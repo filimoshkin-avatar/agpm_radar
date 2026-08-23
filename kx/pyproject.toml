@@ -38,6 +38,9 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 # nineteen of them into quoted list literals would cost the readability that makes
 # them checkable by eye.
 "src/radar_kx/language.py" = ["RUF001", "RUF003", "SIM905"]
+# The hedges and connectives this module refuses are Russian as well as English;
+# that is the corpus, not a typo.
+"src/radar_kx/research.py" = ["RUF001", "RUF003"]
 
 [tool.mypy]
 files = ["src", "tests"]

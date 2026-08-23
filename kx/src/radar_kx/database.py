@@ -52,6 +52,13 @@ from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.release import ReleaseComposition, ReleaseError, compose, reconcile
+from radar_kx.research import (
+    EvidenceElement,
+    Refusal,
+    Verification,
+    build_package,
+    normalize_question,
+)
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.source_families import DocumentHost, FamilyDecision
 from radar_kx.url_policy import canonical_identity_url, normalize_url
@@ -68,7 +75,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -3975,6 +3982,149 @@ class Database:
                 (limit,),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    # ---------------------------------------------------------------------
+    # Research answers (slice 2.14, ADR-0004)
+    # ---------------------------------------------------------------------
+
+    def evidence_for_question(
+        self, question: str, *, scope: str = "historical", limit: int = 8
+    ) -> tuple[EvidenceElement, ...]:
+        """Retrieve numbered evidence for a question. No model is involved."""
+        source = SCOPES[scope]
+        query = f"""
+            WITH scope AS ({source}),
+            asked AS (
+                SELECT replace(
+                           plainto_tsquery('pg_catalog.russian', %(question)s)::text, ' & ', ' | '
+                       )::tsquery AS ru,
+                       replace(
+                           plainto_tsquery('pg_catalog.english', %(question)s)::text, ' & ', ' | '
+                       )::tsquery AS en
+            ),
+            scoped AS (
+                SELECT evidence.claim_id, evidence.quote_text, evidence.char_start,
+                       evidence.char_end, documents.canonical_url
+                FROM kx.claim_evidence AS evidence
+                JOIN kx.document_versions AS versions USING (version_id)
+                JOIN kx.documents AS documents USING (document_id)
+                JOIN scope ON scope.document_id = versions.document_id
+                WHERE evidence.match_status = 'exact'
+            ),
+            ranked_ru AS (
+                SELECT scoped.claim_id,
+                       row_number() OVER (
+                           ORDER BY ts_rank(
+                               to_tsvector('pg_catalog.russian', scoped.quote_text), asked.ru
+                           ) DESC, scoped.claim_id
+                       ) AS position
+                FROM scoped, asked
+                WHERE to_tsvector('pg_catalog.russian', scoped.quote_text) @@ asked.ru
+            ),
+            ranked_en AS (
+                SELECT scoped.claim_id,
+                       row_number() OVER (
+                           ORDER BY ts_rank(
+                               to_tsvector('pg_catalog.english', scoped.quote_text), asked.en
+                           ) DESC, scoped.claim_id
+                       ) AS position
+                FROM scoped, asked
+                WHERE to_tsvector('pg_catalog.english', scoped.quote_text) @@ asked.en
+            ),
+            fused AS (
+                SELECT coalesce(ranked_ru.claim_id, ranked_en.claim_id) AS claim_id,
+                       coalesce(1.0 / (%(k)s + ranked_ru.position), 0)
+                     + coalesce(1.0 / (%(k)s + ranked_en.position), 0) AS relevance
+                FROM ranked_ru FULL OUTER JOIN ranked_en USING (claim_id)
+            )
+            SELECT scoped.claim_id, scoped.quote_text, scoped.char_start, scoped.char_end,
+                   scoped.canonical_url AS source_url, fused.relevance
+            FROM fused JOIN scoped USING (claim_id)
+            ORDER BY fused.relevance DESC
+            LIMIT %(limit)s
+            """  # noqa: S608 - a constant from SCOPES
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(query, {"question": question, "k": RRF_K, "limit": limit * 3})
+                return build_package([dict(row) for row in cursor.fetchall()], size=limit)
+
+    def record_answer(
+        self,
+        *,
+        question: str,
+        scope: str,
+        mode: str,
+        package: Sequence[EvidenceElement],
+        answer_text: str | None = None,
+        refusal: Refusal | None = None,
+        verification: Verification | None = None,
+        model: str | None = None,
+        prompt_sha256: str | None = None,
+        answered_by: str,
+        release_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Record one answer or one refusal, under the cache key ADR-0006 §10 fixes."""
+        if (answer_text is None) == (refusal is None):
+            raise ValueError("an answer or a refusal, never both and never neither")
+        payload = verification.as_json() if verification else {"mode": mode, "passes": False}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.research_answers
+                        (normalized_question, scope, release_id, question, mode, answer_text,
+                         refusal_reason, adjacent_support, verification, evidence_package,
+                         clause_count, bound_clause_count, model, prompt_sha256, answered_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (normalized_question, scope, coalesce(release_id, ''))
+                        DO NOTHING
+                    RETURNING answer_id
+                    """,
+                    (
+                        normalize_question(question),
+                        scope,
+                        release_id,
+                        question,
+                        mode,
+                        answer_text,
+                        refusal.reason if refusal else None,
+                        Jsonb(
+                            [element.as_json() for element in refusal.adjacent] if refusal else []
+                        ),
+                        Jsonb(payload),
+                        Jsonb([element.as_json() for element in package]),
+                        len(verification.verdicts) if verification else 0,
+                        verification.bound_clauses if verification else 0,
+                        model,
+                        prompt_sha256,
+                        answered_by,
+                    ),
+                )
+                row = cursor.fetchone()
+        return {
+            "answerId": str(row["answer_id"]) if row else None,
+            "cached": row is None,
+            "refusal": refusal.reason if refusal else None,
+            "verification": payload,
+        }
+
+    def cached_answer(
+        self, question: str, *, scope: str, release_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """Read an answer by the key ADR-0006 §10 fixes: question, scope, release."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT answer_id, question, answer_text, refusal_reason, adjacent_support,"
+                " verification, evidence_package, answered_at"
+                " FROM kx.research_answers"
+                " WHERE normalized_question = %s AND scope = %s"
+                "   AND coalesce(release_id, '') = coalesce(%s, '')",
+                (normalize_question(question), scope, release_id),
+            )
+            row = cursor.fetchone()
+        return dict(row) if row else None
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

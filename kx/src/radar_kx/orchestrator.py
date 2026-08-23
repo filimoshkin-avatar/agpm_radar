@@ -149,6 +149,21 @@ QUOTE_TRANSLATION = RunType(
     max_payload_chars=3000,
 )
 
+
+RESEARCH_ANSWER = RunType(
+    name="research_answer",
+    purpose="drafting an answer from a numbered evidence package",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "one question and at most eight numbered quotations, and nothing else - not "
+        "the documents they came from and not the rest of the store. The model "
+        "drafts clauses and says which evidence each rests on; whether it holds is "
+        "decided here, in code, against the spans. Eight quotations at a paragraph "
+        "each is the cap."
+    ),
+    max_payload_chars=14000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
@@ -156,6 +171,7 @@ RUN_TYPES: dict[str, RunType] = {
     CLAIM_EXTRACTION.name: CLAIM_EXTRACTION,
     IDEA_STATEMENT.name: IDEA_STATEMENT,
     QUOTE_TRANSLATION.name: QUOTE_TRANSLATION,
+    RESEARCH_ANSWER.name: RESEARCH_ANSWER,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."
@@ -349,6 +365,7 @@ __all__ = [
     "IDEA_STATEMENT",
     "QUOTE_TRANSLATION",
     "REACHABILITY_PROBE",
+    "RESEARCH_ANSWER",
     "RUN_TYPES",
     "ExtractionError",
     "HermesExtractor",
