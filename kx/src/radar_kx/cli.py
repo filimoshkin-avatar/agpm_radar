@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from radar_kx.duplicates import (
     find_hash_clusters,
     find_shingle_clusters,
 )
+from radar_kx.editor_service import generate_token, serve
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.extraction import ExtractionError, ProposedClaim, align_all, prompt_sha256
 from radar_kx.graph import unsupported
@@ -253,6 +255,20 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("active-release")
     subparsers.add_parser("reconcile-release")
+
+    # Slice 2.12: the review queue as something a person can work. Loopback
+    # only — KX has no public access (ADR-0005 §16), so reaching it is an SSH
+    # tunnel and putting it behind a domain is a separate decision.
+    editor_parser = subparsers.add_parser("editor")
+    editor_parser.add_argument("--host", default="127.0.0.1")
+    editor_parser.add_argument("--port", type=int, default=19702)
+    editor_parser.add_argument("--actor", required=True)
+
+    subparsers.add_parser("editor-token")
+    subparsers.add_parser("editorial-history")
+
+    queue_parser = subparsers.add_parser("evidence-queue")
+    queue_parser.add_argument("--limit", type=int, default=5)
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -584,6 +600,27 @@ def main() -> None:
         return
     if args.command == "reconcile-release":
         _print_json(database.reconcile_release())
+        return
+    if args.command == "editor-token":
+        print(generate_token())
+        return
+    if args.command == "evidence-queue":
+        _print_json(database.evidence_queue(limit=args.limit))
+        return
+    if args.command == "editorial-history":
+        _print_json(database.editorial_history())
+        return
+    if args.command == "editor":
+        token = os.environ.get("RADAR_KX_EDITOR_TOKEN", "")
+        if not token:
+            raise SystemExit(
+                "RADAR_KX_EDITOR_TOKEN is not set. Generate one with"
+                " `radar_kx editor-token` and put it in /etc/radar-kx/editor.env."
+            )
+        server = serve(settings, host=args.host, port=args.port, token=token, actor=args.actor)
+        print(f"editor on http://{args.host}:{args.port}/?token=<your token>")
+        with server:
+            server.serve_forever()
         return
     if args.command == "build-graph":
         graph = database.build_graph(wiki_snapshot_id=args.wiki_snapshot_id)

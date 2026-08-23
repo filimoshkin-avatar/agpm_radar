@@ -146,3 +146,17 @@ def test_the_perimeter_poll_is_a_poll_and_not_a_hook() -> None:
     assert any(line.startswith("ExecStart=") and "import-perimeter" in line for line in unit)
     # Nothing here talks to the internet.
     assert "IPAddressDeny=any" in unit
+
+
+def test_the_editor_is_loopback_only() -> None:
+    # ADR-0005 §16: KX has no public access. The unit is what makes that true
+    # rather than the intention — reaching the editor is an SSH tunnel, and
+    # putting it behind a domain is a separate decision with a separate unit.
+    unit = _unit("radar-kx-editor.service")
+    assert "IPAddressDeny=any" in unit
+    assert "IPAddressAllow=localhost" in unit
+    assert "SocketBindDeny=any" in unit
+    assert "SocketBindAllow=ipv4:tcp:19702" in unit
+    assert any("--host 127.0.0.1" in line for line in unit)
+    # It reads full text, so nothing it does not need is reachable.
+    assert any(line.startswith("InaccessiblePaths=") for line in unit)

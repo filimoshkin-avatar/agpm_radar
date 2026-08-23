@@ -1,0 +1,70 @@
+[Unit]
+Description=Radar KX editor review queue (loopback only)
+Documentation=file:///opt/radar-kx/current/README.md
+After=postgresql.service
+Requires=postgresql.service
+ConditionPathExists=/etc/radar-kx/editor.env
+
+[Service]
+# Slice 2.12. Loopback only, and the unit is what makes that true rather than the
+# argument: KX has no public access — no public port, no Caddy route, no DNS
+# record (ADR-0005 §16). Reaching this is an SSH tunnel:
+#
+#   ssh -N -L 19702:127.0.0.1:19702 root@<host>
+#
+# Putting it behind radar.agpm.space/editor (P21) is a separate decision with a
+# separate unit, and it is on the list of things that need the owner's word.
+Type=exec
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/worker.env
+EnvironmentFile=/etc/radar-kx/editor.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx editor \
+    --host 127.0.0.1 --port 19702 --actor ${RADAR_KX_EDITOR_ACTOR}
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+
+# It reads full text out of KX and talks to nothing else.
+IPAddressDeny=any
+IPAddressAllow=localhost
+SocketBindDeny=any
+SocketBindAllow=ipv4:tcp:19702
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateIPC=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+ReadOnlyPaths=/opt/radar-kx /etc/radar-kx
+ReadWritePaths=/var/run/postgresql
+InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv
+
+[Install]
+WantedBy=multi-user.target

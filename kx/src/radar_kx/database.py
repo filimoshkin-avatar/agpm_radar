@@ -68,7 +68,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -3859,6 +3859,122 @@ class Database:
                     f"{row['title']}\n{row['statement']}\n{row['independent_sources']}".encode()
                 )
         return reconcile(release_id, active=True, published=published, current=current).as_json()
+
+    # ---------------------------------------------------------------------
+    # The editor's queue (slice 2.12, ADR-0006 §3)
+    # ---------------------------------------------------------------------
+
+    def evidence_queue(self, *, limit: int = 50, offset: int = 0) -> dict[str, Any]:
+        """Proposed bindings a person has not decided on, strongest first.
+
+        Grouped by statement, because the decision a reviewer makes is about a
+        statement: "which of these, if any, is what this sentence rests on". A flat
+        list of 2 769 proposals is the same information arranged so nobody can act
+        on it.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(DISTINCT concept_claim_id) AS statements,"
+                    " count(*) AS proposals FROM kx.concept_evidence_queue"
+                )
+                totals = dict(one_row(cursor))
+                cursor.execute(
+                    """
+                    SELECT queue.*
+                    FROM kx.concept_evidence_queue AS queue
+                    JOIN (
+                        SELECT concept_claim_id
+                        FROM kx.concept_evidence_queue
+                        GROUP BY concept_claim_id
+                        ORDER BY max(relevance) DESC, concept_claim_id
+                        LIMIT %s OFFSET %s
+                    ) AS page USING (concept_claim_id)
+                    ORDER BY queue.relevance DESC, queue.claim_id
+                    """,
+                    (limit, offset),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            key = str(row["concept_claim_id"])
+            entry = grouped.setdefault(
+                key,
+                {
+                    "conceptClaimId": key,
+                    "statement": row["statement"],
+                    "claimNature": row["claim_nature"],
+                    "page": row["relative_path"],
+                    "conceptTitle": row["concept_title"],
+                    "proposals": [],
+                },
+            )
+            entry["proposals"].append(
+                {
+                    "claimId": str(row["claim_id"]),
+                    "relevance": float(cast(float, row["relevance"] or 0)),
+                    "membershipClass": row["membership_class"],
+                    "quote": row["quote_text"],
+                    "charStart": row["char_start"],
+                    "charEnd": row["char_end"],
+                    "sourceUrl": row["canonical_url"],
+                }
+            )
+        return {
+            "statementsWaiting": int(cast(int, totals["statements"])),
+            "proposalsWaiting": int(cast(int, totals["proposals"])),
+            "offset": offset,
+            "items": list(grouped.values()),
+        }
+
+    def decide_binding(
+        self,
+        *,
+        concept_claim_id: str,
+        claim_id: str,
+        verdict: str,
+        actor: str,
+        scope: str = "editor",
+        rationale: str | None = None,
+    ) -> dict[str, Any]:
+        """Confirm or reject one proposed binding, and record who did.
+
+        The journal and the column are written in one transaction. The journal is
+        the record; the column is the projection a queue can be drawn from without
+        replaying it.
+        """
+        if verdict not in {"confirmed", "rejected"}:
+            raise ValueError("verdict must be confirmed or rejected")
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                column = "confirmed" if verdict == "confirmed" else "rejected"
+                cursor.execute(
+                    f"UPDATE kx.concept_evidence"  # noqa: S608 - `column` is one of two literals
+                    f" SET {column}_at = clock_timestamp(), {column}_by = %s"
+                    f" WHERE concept_claim_id = %s AND claim_id = %s"
+                    f"   AND confirmed_at IS NULL AND rejected_at IS NULL",
+                    (actor, concept_claim_id, claim_id),
+                )
+                if not cursor.rowcount:
+                    raise ValueError("that binding is not waiting for a decision")
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope, rationale)"
+                    " VALUES ('concept_evidence', %s, %s, %s, %s, %s)",
+                    (f"{concept_claim_id}/{claim_id}", verdict, actor, scope, rationale),
+                )
+        return {"conceptClaimId": concept_claim_id, "claimId": claim_id, "verdict": verdict}
+
+    def editorial_history(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT object_kind, object_key, verdict, actor, scope, decided_at, rationale"
+                " FROM kx.editorial_decisions ORDER BY decision_id DESC LIMIT %s",
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.
