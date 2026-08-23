@@ -217,6 +217,7 @@ def _parser() -> argparse.ArgumentParser:
     publish_parser = subparsers.add_parser("publish-quotes")
     publish_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
     publish_parser.add_argument("--limit", type=int, default=200)
+    publish_parser.add_argument("--target-language", default="ru")
 
     translate_parser = subparsers.add_parser("translate-quotes")
     translate_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
@@ -524,7 +525,11 @@ def main() -> None:
         _print_json(database.idea_report())
         return
     if args.command == "publish-quotes":
-        _print_json(database.publish_quotes(scope=args.scope, limit=args.limit))
+        _print_json(
+            database.publish_quotes(
+                scope=args.scope, limit=args.limit, target_language=args.target_language
+            )
+        )
         return
     if args.command == "publication-report":
         _print_json(database.publication_report())

@@ -273,7 +273,7 @@ def _claim(database: Database, dsn: str) -> dict[str, Any]:
 def test_a_quotation_publishes_automatically_and_says_so(migrated_dsn: str) -> None:
     database = Database(_settings(migrated_dsn))
     _claim(database, migrated_dsn)
-    outcome = database.publish_quotes(scope="corpus")
+    outcome = database.publish_quotes(scope="corpus", target_language="en")
     assert outcome["published"] == 1
     assert outcome["quarantined"] == 0
     with connect(migrated_dsn) as connection, connection.cursor() as cursor:
@@ -346,7 +346,7 @@ def test_a_rejected_translation_and_its_alias_proposals_are_recorded(
 def test_a_published_quotation_cannot_be_rewritten(migrated_dsn: str) -> None:
     database = Database(_settings(migrated_dsn))
     _claim(database, migrated_dsn)
-    database.publish_quotes(scope="corpus")
+    database.publish_quotes(scope="corpus", target_language="en")
     with (
         connect(migrated_dsn) as connection,
         connection.cursor() as cursor,
@@ -358,9 +358,22 @@ def test_a_published_quotation_cannot_be_rewritten(migrated_dsn: str) -> None:
 def test_the_report_separates_published_from_quarantined(migrated_dsn: str) -> None:
     database = Database(_settings(migrated_dsn))
     _claim(database, migrated_dsn)
-    database.publish_quotes(scope="corpus")
+    database.publish_quotes(scope="corpus", target_language="en")
     report: dict[str, Any] = database.publication_report()
     assert report["published"]["total"] == 1
     assert report["published"]["automatic"] == 1
     assert report["quarantineByCondition"] == {}
     assert report["openAliasProposals"] == 0
+
+
+def test_a_quotation_awaiting_translation_is_skipped_and_not_quarantined(
+    migrated_dsn: str,
+) -> None:
+    # Quarantine is for an item that failed a condition. Work not yet done is not
+    # a failure, and mixing the two makes the queue unreadable.
+    database = Database(_settings(migrated_dsn))
+    _claim(database, migrated_dsn)
+    outcome = database.publish_quotes(scope="corpus", target_language="ru")
+    assert outcome["published"] == 0
+    assert outcome["quarantined"] == 0
+    assert outcome["awaitingTranslation"] == 1

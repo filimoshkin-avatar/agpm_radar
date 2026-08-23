@@ -2942,6 +2942,7 @@ class Database:
               AND NOT EXISTS (
                   SELECT 1 FROM kx.published_quotes AS published
                   WHERE published.claim_id = evidence.claim_id
+                    AND published.translation_id IS NOT DISTINCT FROM translations.translation_id
               )
             ORDER BY evidence.claim_id
             LIMIT %s
@@ -2953,20 +2954,36 @@ class Database:
                 return [dict(row) for row in cursor.fetchall()]
 
     def publish_quotes(
-        self, *, scope: str, limit: int = 200, attribution_suffix: str = ""
+        self,
+        *,
+        scope: str,
+        limit: int = 200,
+        target_language: str = "ru",
+        attribution_suffix: str = "",
     ) -> dict[str, Any]:
         """Publish what clears the five conditions; quarantine the rest with a remedy.
 
         No approval gate, manual or batch: that is what P19 decided. What replaces
         it is that every condition is checked here and every failure is written
         down with what would clear it.
+
+        A quotation in a language the reader does not have, and with no verified
+        translation yet, is **skipped rather than quarantined**. Quarantine is for
+        an item that failed a condition; work that has not been done yet is not a
+        failure, and mixing the two makes the queue unreadable. It also has to be
+        skipped rather than published bare: a published row is immutable, so
+        publishing the original now would leave nowhere for the translation to go.
         """
         candidates = self.publishable_quotes(scope=scope, limit=limit)
         published = 0
+        awaiting_translation = 0
         quarantined: dict[str, int] = {}
         with self.connect() as connection:
             self.require_schema(connection)
             for row in candidates:
+                if str(row["language"]) != target_language and row["translation_id"] is None:
+                    awaiting_translation += 1
+                    continue
                 report = None
                 if row["invariant_report"]:
                     payload = cast(dict[str, Any], row["invariant_report"])
@@ -3042,8 +3059,10 @@ class Database:
                         )
         return {
             "scope": scope,
+            "targetLanguage": target_language,
             "considered": len(candidates),
             "published": published,
+            "awaitingTranslation": awaiting_translation,
             "quarantined": sum(quarantined.values()),
             "byFailedCondition": quarantined,
         }
