@@ -949,12 +949,14 @@ def main() -> None:
                 result = gateway.run(
                     KNOWLEDGE_LINK, build_linking_payload(block), system=LINK_INSTRUCTIONS
                 )
-                found, thrown = parse_judgements(result.content, block)
+                found, unrelated, thrown = parse_judgements(result.content, block)
             except (OrchestratorError, LinkingError):
                 with lock:
                     refusals += 1
                 return
-            stored = database.record_links(found, created_by=KNOWLEDGE_LINK.model)
+            stored = database.record_links(
+                found, created_by=KNOWLEDGE_LINK.model, unrelated=unrelated
+            )
             with lock:
                 judgements.extend(found)
                 links_written += int(stored["written"])

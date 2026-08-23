@@ -71,7 +71,7 @@ def test_a_long_statement_is_cut_rather_than_sent_whole() -> None:
 
 @pytest.mark.parametrize("link_type", LINK_TYPES)
 def test_each_of_the_four_types_is_recorded(link_type: str) -> None:
-    judged, dropped = parse_judgements(answer(link_type), [pair()])
+    judged, unrelated, dropped = parse_judgements(answer(link_type), [pair()])
     assert len(judged) == 1
     assert judged[0].link_type == link_type
     assert not dropped["unknownLink"]
@@ -79,27 +79,38 @@ def test_each_of_the_four_types_is_recorded(link_type: str) -> None:
 
 def test_none_is_an_answer_not_a_failure() -> None:
     """The expected answer for most pairs: the shortlist is wide on purpose."""
-    judged, dropped = parse_judgements(answer("none"), [pair()])
+    judged, unrelated, dropped = parse_judgements(answer("none"), [pair()])
     assert judged == ()
     assert dropped == {"unknownItem": 0, "unknownLink": 0}
+    # And it comes back, because a negative nobody wrote down is re-judged on
+    # every run - and the judge is not deterministic, so that drifts the base
+    # toward "everything is related" one run at a time.
+    assert len(unrelated) == 1
+    assert unrelated[0].from_id == "a"
+
+
+def test_a_link_is_not_also_recorded_as_no_link() -> None:
+    judged, unrelated, _ = parse_judgements(answer("supports"), [pair()])
+    assert len(judged) == 1
+    assert unrelated == ()
 
 
 def test_a_relation_the_owner_did_not_keep_is_dropped() -> None:
     """Fourteen of her eighteen types wait in her document, not in the store."""
-    judged, dropped = parse_judgements(answer("broader_than"), [pair()])
+    judged, unrelated, dropped = parse_judgements(answer("broader_than"), [pair()])
     assert judged == ()
     assert dropped["unknownLink"] == 1
 
 
 def test_a_pair_number_nobody_offered_is_dropped() -> None:
-    judged, dropped = parse_judgements(answer("supports", item=9), [pair()])
+    judged, unrelated, dropped = parse_judgements(answer("supports", item=9), [pair()])
     assert judged == ()
     assert dropped["unknownItem"] == 1
 
 
 def test_the_same_pair_judged_twice_counts_once() -> None:
     doubled = json.dumps(json.loads(answer("supports")) * 2, ensure_ascii=False)
-    judged, dropped = parse_judgements(doubled, [pair()])
+    judged, unrelated, dropped = parse_judgements(doubled, [pair()])
     assert len(judged) == 1
     assert dropped["unknownItem"] == 1
 
@@ -110,7 +121,7 @@ def test_an_answer_with_no_array_is_an_error() -> None:
 
 
 def test_a_fenced_answer_is_still_read() -> None:
-    judged, _ = parse_judgements(f"```json\n{answer('qualifies')}\n```", [pair()])
+    judged, _, _ = parse_judgements(f"```json\n{answer('qualifies')}\n```", [pair()])
     assert judged[0].link_type == "qualifies"
 
 

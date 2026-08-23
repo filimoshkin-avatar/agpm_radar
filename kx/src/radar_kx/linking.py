@@ -122,8 +122,14 @@ def build_payload(pairs: Sequence[Pair]) -> str:
 
 def parse_judgements(
     answer: str, pairs: Sequence[Pair]
-) -> tuple[tuple[Judgement, ...], dict[str, int]]:
-    """Read the verdicts back, keeping only the five values that exist."""
+) -> tuple[tuple[Judgement, ...], tuple[Pair, ...], dict[str, int]]:
+    """Read the verdicts back, keeping only the five values that exist.
+
+    Returns the links, **and the pairs judged to have none**. `none` is an answer:
+    a pair whose negative is not written down is offered again on the next run,
+    and the judge is not deterministic, so re-judging every unlinked pair drifts
+    the base toward "everything is related" one run at a time.
+    """
     text = _FENCE.sub("", answer).strip()
     start, end = text.find("["), text.rfind("]")
     if start < 0 or end <= start:
@@ -137,6 +143,7 @@ def parse_judgements(
 
     dropped = {"unknownItem": 0, "unknownLink": 0}
     judged: list[Judgement] = []
+    unrelated: list[Pair] = []
     seen: set[int] = set()
     for row in parsed:
         if not isinstance(row, dict):
@@ -152,13 +159,14 @@ def parse_judgements(
         seen.add(ordinal)
         link = " ".join(str(row.get("link") or "").split()).lower()
         if link == "none":
+            unrelated.append(pairs[ordinal - 1])
             continue
         if link not in LINK_TYPES:
             dropped["unknownLink"] += 1
             continue
         pair = pairs[ordinal - 1]
         judged.append(Judgement(from_id=pair.from_id, to_id=pair.to_id, link_type=link))
-    return tuple(judged), dropped
+    return tuple(judged), tuple(unrelated), dropped
 
 
 def summarize(

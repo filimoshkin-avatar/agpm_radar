@@ -52,6 +52,8 @@ MIGRATION_021 = "021_binding_method_votes.sql"
 MIGRATION_022 = "022_knowledge_units.sql"
 MIGRATION_023 = "023_document_dates.sql"
 MIGRATION_024 = "024_agent_surface.sql"
+#: Written and verified, awaiting the owner's word to apply it.
+MIGRATION_025 = "025_link_judgements.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
     MIGRATION_004,
@@ -187,6 +189,13 @@ def dated_dsn(migrated_dsn: str) -> str:
 @pytest.fixture
 def agent_dsn(migrated_dsn: str) -> str:
     """Alias kept for the tests written against 024 specifically."""
+    return migrated_dsn
+
+
+@pytest.fixture
+def judged_dsn(migrated_dsn: str) -> str:
+    """A database at schema 25 - the negative verdicts, proposed."""
+    _apply(migrated_dsn, (MIGRATION_025,))
     return migrated_dsn
 
 

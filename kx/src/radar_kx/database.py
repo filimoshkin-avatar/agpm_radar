@@ -5260,6 +5260,11 @@ class Database:
                                 AND existing.to_kind = 'claim'
                                 AND existing.to_id = other.claim_id
                           )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM kx.link_judgements AS looked
+                              WHERE looked.from_id = source.claim_id
+                                AND looked.to_id = other.claim_id
+                          )
                     )
                     SELECT DISTINCT ON (from_id, to_id)
                            from_id, from_text, to_id, to_text, distance, shared_topic
@@ -5288,9 +5293,24 @@ class Database:
             for row in rows
         ]
 
-    def record_links(self, judgements: Sequence[Judgement], *, created_by: str) -> dict[str, int]:
-        """Write one batch of links. No signature: decision 4 leaves this to the machine."""
+    def record_links(
+        self,
+        judgements: Sequence[Judgement],
+        *,
+        created_by: str,
+        unrelated: Sequence[Pair] = (),
+    ) -> dict[str, int]:
+        """Write one batch: the links, and the pairs the judge left alone.
+
+        The negative is written too. Without it the same pair is offered on every
+        run, and the judge is not deterministic - so a base that re-judges every
+        unlinked pair drifts toward "everything is related", one run at a time,
+        and the drift looks exactly like the base learning more.
+
+        No signature on either: decision 4 leaves linking to the machine.
+        """
         written = 0
+        left_alone = 0
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.transaction(), connection.cursor() as cursor:
@@ -5305,7 +5325,17 @@ class Database:
                         (judgement.from_id, judgement.to_id, judgement.link_type, created_by),
                     )
                     written += cursor.rowcount
-        return {"written": written}
+                for pair in unrelated:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.link_judgements (from_id, to_id, judged_by)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (pair.from_id, pair.to_id, created_by),
+                    )
+                    left_alone += cursor.rowcount
+        return {"written": written, "leftAlone": left_alone}
 
     def decide_wiki_suggestion(self, *, item_id: str, verdict: str, actor: str) -> dict[str, Any]:
         """Her verdict on "this statement belongs on that page".
@@ -5355,6 +5385,8 @@ class Database:
                 " WHERE from_kind = 'claim' GROUP BY 1 ORDER BY 2 DESC"
             )
             by_type = [dict(row) for row in cursor.fetchall()]
+            cursor.execute("SELECT count(*) AS looked_at_and_left_alone FROM kx.link_judgements")
+            left_alone = dict(one_row(cursor))
             cursor.execute(
                 """
                 SELECT count(DISTINCT claim_id) AS linked_statements
@@ -5366,7 +5398,7 @@ class Database:
                 """
             )
             reach = dict(one_row(cursor))
-        return {"byLinkType": by_type, **reach}
+        return {"byLinkType": by_type, **reach, **left_alone}
 
     # ---------------------------------------------------------------------
     # Stage 3: what the agent mode reads. Only `agent.*` - see migration 024.
