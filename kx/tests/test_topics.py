@@ -281,6 +281,12 @@ OFF_TOPIC = (
     "The regulator published a draft rule on agent registration and named an owner "
     "for each supervisory action."
 )
+#: On the statement's subject and says the same thing in other words, so the two
+#: methods have something to disagree about inside one subject: the lexical side
+#: cannot reach it at all and the semantic side is aimed at it.
+ON_TOPIC_PARAPHRASE = (
+    "Каждый запуск агента закрепляется за одним человеком, и он же подписывает результат работы."
+)
 
 
 def _wiki_bundle(path: Path) -> Path:
@@ -385,14 +391,20 @@ def placed(migrated_dsn: str, tmp_path: Path) -> dict[str, Any]:
     on_topic = _document(
         database, migrated_dsn, url="https://example.com/accountability", text=ON_TOPIC
     )
+    paraphrase = _document(
+        database, migrated_dsn, url="https://example.com/paraphrase", text=ON_TOPIC_PARAPHRASE
+    )
     off_topic = _document(
         database, migrated_dsn, url="https://example.com/regulator", text=OFF_TOPIC
     )
 
-    # The off-topic quotation is the *closer* vector. Unrestricted, the semantic
-    # method must pick it; inside the subject it cannot see it at all.
+    # The off-topic quotation is the *closest* vector. Unrestricted, the semantic
+    # method must pick it; inside the subject it cannot see it at all and reaches
+    # the paraphrase, which shares no words with the statement and so is exactly
+    # what the lexical side cannot find.
     _vector(migrated_dsn, "concept_claim", statement_id, "[1,0,0]")
     _vector(migrated_dsn, "claim_evidence", off_topic, "[0.99,0.14,0]")
+    _vector(migrated_dsn, "claim_evidence", paraphrase, "[0.95,0.31,0]")
     _vector(migrated_dsn, "claim_evidence", on_topic, "[0.7,0.71,0]")
 
     with connect(migrated_dsn) as connection, connection.cursor() as cursor:
@@ -407,15 +419,16 @@ def placed(migrated_dsn: str, tmp_path: Path) -> dict[str, Any]:
                 " SELECT %s, topic_id, 'test', 'manual' FROM kx.topics WHERE topic_key = %s",
                 (key, topic),
             )
-        cursor.execute(
-            "INSERT INTO kx.document_topics (document_id, topic_id, assigned_by, method)"
-            " SELECT versions.document_id, topics.topic_id, 'test', 'manual'"
-            " FROM kx.claim_evidence AS evidence"
-            " JOIN kx.document_versions AS versions USING (version_id)"
-            " CROSS JOIN kx.topics AS topics"
-            " WHERE evidence.claim_id::text = %s AND topics.topic_key = %s",
-            (on_topic, "accountability"),
-        )
+        for claim in (on_topic, paraphrase):
+            cursor.execute(
+                "INSERT INTO kx.document_topics (document_id, topic_id, assigned_by, method)"
+                " SELECT versions.document_id, topics.topic_id, 'test', 'manual'"
+                " FROM kx.claim_evidence AS evidence"
+                " JOIN kx.document_versions AS versions USING (version_id)"
+                " CROSS JOIN kx.topics AS topics"
+                " WHERE evidence.claim_id::text = %s AND topics.topic_key = %s",
+                (claim, "accountability"),
+            )
         cursor.execute(
             "INSERT INTO kx.document_topics (document_id, topic_id, assigned_by, method)"
             " SELECT versions.document_id, topics.topic_id, 'test', 'manual'"
@@ -429,6 +442,7 @@ def placed(migrated_dsn: str, tmp_path: Path) -> dict[str, Any]:
         "database": database,
         "statementId": statement_id,
         "onTopic": on_topic,
+        "paraphrase": paraphrase,
         "offTopic": off_topic,
     }
 
@@ -449,7 +463,7 @@ def test_the_subject_restriction_changes_which_quotation_wins(placed: dict[str, 
             "SELECT detail FROM kx.binding_method_comparisons ORDER BY ran_at DESC LIMIT 1"
         )
         detail = cast(list[dict[str, Any]], one(cursor)["detail"])
-    assert detail[0]["semanticTop"]["claimId"] == placed["onTopic"]
+    assert detail[0]["semanticTop"]["claimId"] == placed["paraphrase"]
     assert detail[0]["semanticTopAnywhere"] == [placed["offTopic"]]
 
 
@@ -475,7 +489,7 @@ def test_what_still_has_no_subject_is_what_gets_offered(placed: dict[str, Any]) 
     assert database.unassigned_topic_items("document") == []
     report = database.topic_assignment_report()
     assert report["statements_placed"] == 1
-    assert report["documents"] == report["documents_placed"] == 2
+    assert report["documents"] == report["documents_placed"] == 3
 
 
 def test_the_owner_sees_their_own_composition_above_the_three_they_rejected(
@@ -594,3 +608,28 @@ def test_the_voter_is_never_told_which_method_produced_which_quote(
     for tell in ("СМЫСЛОВОЙ", "СЛОВЕСНЫЙ", "косинус", "полнотекстов"):
         assert tell not in rendered
     assert all(child["relevance"] is None for child in items[0].children)
+
+
+def test_a_pair_that_quotes_the_same_words_is_not_a_choice(placed: dict[str, Any]) -> None:
+    # 28 of 224 pairs had both methods reaching the same sentence. Whichever side a
+    # person picks there, the answer records which position they preferred, not
+    # which method - so the pair costs a vote and returns nothing.
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    _, shown = database.method_comparison_queue()
+    assert len(shown) == 1
+
+    # Take the paraphrase out of the subject and only one document is left inside
+    # it, so both methods reach the same quotation.
+    with connect(database.settings.dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "DELETE FROM kx.document_topics WHERE document_id IN ("
+            "  SELECT versions.document_id FROM kx.claim_evidence AS evidence"
+            "  JOIN kx.document_versions AS versions USING (version_id)"
+            "  WHERE evidence.claim_id::text = %s)",
+            (placed["paraphrase"],),
+        )
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    total, held = database.method_comparison_queue()
+    assert held == []
+    assert total == 0

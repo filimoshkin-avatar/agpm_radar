@@ -5309,7 +5309,15 @@ class Database:
         return {"comparisonId": comparison_id, **summary}
 
     def method_comparison_queue(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
-        """Statements where the two methods disagree, with both answers side by side."""
+        """Statements where the two methods disagree, with both answers side by side.
+
+        A pair whose two sides quote the **same words** is not a choice, and asking
+        somebody to make it costs a vote and returns nothing: whichever side they
+        pick, the answer says which position they preferred, not which method. 28
+        of 224 pairs are like that - the two methods reached the same sentence,
+        sometimes through different claim ids over the same span - and they are
+        held back rather than shown.
+        """
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.cursor() as cursor:
@@ -5323,12 +5331,27 @@ class Database:
                 cursor.execute("SELECT concept_claim_id::text AS id FROM kx.binding_method_votes")
                 voted = {str(item["id"]) for item in cursor.fetchall()}
 
-                waiting = [
+                candidates = [
                     item
                     for item in detail
                     if str(item["conceptClaimId"]) not in voted
                     and item.get("semanticTop")
                     and item.get("lexicalTop")
+                ]
+                cursor.execute(
+                    "SELECT claim_id::text AS id, quote_text FROM kx.claim_evidence"
+                    " WHERE claim_id::text = ANY(%s) AND match_status = 'exact'",
+                    (
+                        [str(item["lexicalTop"]["claimId"]) for item in candidates]
+                        + [str(item["semanticTop"]["claimId"]) for item in candidates],
+                    ),
+                )
+                text_of = {str(item["id"]): str(item["quote_text"]) for item in cursor.fetchall()}
+                waiting = [
+                    item
+                    for item in candidates
+                    if text_of.get(str(item["lexicalTop"]["claimId"]), "\x00")
+                    != text_of.get(str(item["semanticTop"]["claimId"]), "\x01")
                 ]
                 page = waiting[:limit]
                 lexical_ids = [str(item["lexicalTop"]["claimId"]) for item in page]
