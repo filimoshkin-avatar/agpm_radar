@@ -226,6 +226,11 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("publication-report")
 
+    # Provenance the fetch already recorded, restated in the vocabulary that
+    # publication reads. Not a guess: the attempt row is the acquisition record.
+    backfill_parser = subparsers.add_parser("backfill-provenance-from-fetches")
+    backfill_parser.add_argument("--limit", type=int, default=20000)
+
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
     subparsers.add_parser("model-run-types")
@@ -533,6 +538,9 @@ def main() -> None:
         return
     if args.command == "publication-report":
         _print_json(database.publication_report())
+        return
+    if args.command == "backfill-provenance-from-fetches":
+        _print_json(database.backfill_provenance_from_fetches(limit=args.limit))
         return
     if args.command == "translate-quotes":
         if not settings.hermes_key:

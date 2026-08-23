@@ -8,7 +8,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import psycopg
 from psycopg import Connection
@@ -3166,6 +3166,95 @@ class Database:
             "translations": translations,
             "openAliasProposals": aliases,
         }
+
+    #: Which acquisition method a recorded fetch attempt corresponds to. Not a
+    #: guess: `fetch_attempts.source_kind` is the record the worker wrote at the
+    #: moment it obtained the bytes, and this is the same fact under the
+    #: vocabulary `version_provenance` uses.
+    FETCH_KIND_TO_ACCESS_METHOD: ClassVar[dict[str, str]] = {
+        "network": "http_default",
+        "network_browser_headers": "browser_headers",
+        "network_robots_override": "robots_override",
+        "browser_render": "browser_render",
+        "web_archive": "web_archive",
+        "legacy_snapshot": "http_default",
+        "legacy_truncated": "http_default",
+    }
+
+    def backfill_provenance_from_fetches(self, *, limit: int = 20000) -> dict[str, Any]:
+        """Give network-acquired versions the provenance their fetch already records.
+
+        Migration 003 made provenance a precondition of publication, and the
+        backfill that came with it covered the 25 documents an operator had handed
+        over. Everything the worker fetched itself - 6 464 complete versions - had
+        none, so `version_publication_block` withheld all of it: the first
+        automatic publication run published 46 quotations and quarantined 298 for
+        `provenance_invalid`.
+
+        Nothing is invented here. `fetch_attempts` is the row the worker wrote at
+        the moment it obtained the bytes, matched to the version by the raw hash,
+        and it already says which rung produced them, when, and under which
+        release. This restates that fact in the vocabulary publication reads.
+        """
+        recorded: dict[str, int] = {}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT versions.version_id,
+                           attempts.source_kind,
+                           attempts.finished_at,
+                           attempts.worker_release,
+                           documents.canonical_url
+                    FROM kx.document_versions AS versions
+                    JOIN kx.documents AS documents USING (document_id)
+                    LEFT JOIN kx.version_provenance_current AS current
+                           ON current.version_id = versions.version_id
+                    JOIN LATERAL (
+                        SELECT source_kind, finished_at, worker_release
+                        FROM kx.fetch_attempts AS attempt
+                        WHERE attempt.document_id = versions.document_id
+                          AND attempt.raw_sha256 = versions.raw_sha256
+                          AND attempt.outcome = 'succeeded'
+                        ORDER BY attempt.finished_at
+                        LIMIT 1
+                    ) AS attempts ON true
+                    WHERE current.version_id IS NULL
+                    ORDER BY versions.version_id
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+            for row in rows:
+                method = self.FETCH_KIND_TO_ACCESS_METHOD.get(str(row["source_kind"]))
+                if method is None:
+                    recorded["unmapped:" + str(row["source_kind"])] = (
+                        recorded.get("unmapped:" + str(row["source_kind"]), 0) + 1
+                    )
+                    continue
+                with connection.transaction(), connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.version_provenance
+                            (version_id, source_access_method, browser_used, provided_by,
+                             provided_at, original_url, notes, recorded_by)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            row["version_id"],
+                            method,
+                            method == "browser_render",
+                            row["worker_release"],
+                            row["finished_at"],
+                            row["canonical_url"],
+                            "restated from the fetch attempt that produced these bytes",
+                            "radar-kx-backfill-provenance-from-fetches",
+                        ),
+                    )
+                recorded[method] = recorded.get(method, 0) + 1
+        return {"considered": len(rows), "recorded": recorded}
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

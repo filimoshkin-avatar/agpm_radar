@@ -12,6 +12,8 @@ from conftest import connect
 from radar_kx.config import Settings
 from radar_kx.database import Database, VersionProvenance
 from radar_kx.extraction import Fragment, ProposedClaim, align_all, prompt_sha256
+from radar_kx.fetcher import DocumentTask, FetchResult, RawResponse
+from radar_kx.identifiers import document_id
 from radar_kx.parser import parse_content
 from radar_kx.publication import (
     MAX_QUOTE_CHARS,
@@ -23,6 +25,7 @@ from radar_kx.publication import (
     parse_translation,
     within_one_paragraph,
 )
+from radar_kx.url_policy import canonical_identity_url
 
 PARAGRAPH_ONE = (
     "Adoption of agentic project management at Deloitte reached 41% in 2026, up "
@@ -377,3 +380,148 @@ def test_a_quotation_awaiting_translation_is_skipped_and_not_quarantined(
     assert outcome["published"] == 0
     assert outcome["quarantined"] == 0
     assert outcome["awaitingTranslation"] == 1
+
+
+def _fetched(database: Database, dsn: str, url: str) -> str:
+    """A version obtained the way the worker obtains one: no provenance row.
+
+    This is the state 6 464 production versions were in. It cannot be reached by
+    storing a version and then deleting its provenance, because version_provenance
+    is immutable - which is the trigger doing its job.
+    """
+    parsed = parse_content(
+        body=DOCUMENT.encode("utf-8"),
+        content_type="text/plain; charset=utf-8",
+        source_url=url,
+        min_text_chars=50,
+    )
+    result = FetchResult(
+        task=DocumentTask(
+            document_id=document_id(canonical_identity_url(url)),
+            canonical_url=url,
+            attempt_count=1,
+            etag=None,
+            last_modified=None,
+        ),
+        response=RawResponse(
+            requested_url=url,
+            final_url=url,
+            started_at=datetime(2026, 8, 23, tzinfo=UTC),
+            fetched_at=datetime(2026, 8, 23, tzinfo=UTC),
+            http_status=200,
+            content_type="text/plain; charset=utf-8",
+            headers={},
+            body=DOCUMENT.encode("utf-8"),
+        ),
+        parsed=parsed,
+        error_code=None,
+        error_detail=None,
+        retryable=False,
+        not_modified=False,
+    )
+    with connect(dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO kx.documents (document_id, canonical_url) VALUES (%s, %s)"
+            " ON CONFLICT DO NOTHING",
+            (result.task.document_id, url),
+        )
+        cursor.execute(
+            "INSERT INTO kx.fetch_queue (document_id, status) VALUES (%s, 'running')"
+            " ON CONFLICT DO NOTHING",
+            (result.task.document_id,),
+        )
+    database.record_fetch_result(result)
+    return str(result.task.document_id)
+
+
+def test_provenance_is_restated_from_the_fetch_that_produced_the_bytes(
+    migrated_dsn: str,
+) -> None:
+    # Migration 003 made provenance a precondition of publication and only 25
+    # documents ever had it, so publication withheld 6 464 versions the worker had
+    # fetched itself: the first automatic run published 46 and quarantined 298 for
+    # provenance_invalid. The attempt row already says how they were obtained.
+    database = Database(_settings(migrated_dsn))
+    _fetched(database, migrated_dsn, "https://fetched.example/report")
+
+    outcome: dict[str, Any] = database.backfill_provenance_from_fetches()
+    assert outcome["recorded"] == {"http_default": 1}
+
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT source_access_method, manual_review_required, archive_used, notes"
+            " FROM kx.version_provenance"
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["source_access_method"] == "http_default"
+        assert row["manual_review_required"] is False
+        assert row["archive_used"] is False
+        # It says where it came from, so nobody later reads it as a hand-entered fact.
+        assert "restated from the fetch attempt" in str(row["notes"])
+
+
+def test_the_backfill_never_invents_provenance_for_a_version_with_no_fetch(
+    migrated_dsn: str,
+) -> None:
+    # A locally imported version has no fetch attempt and there is nothing to
+    # restate. Publication keeps withholding it, which is correct.
+    database = Database(_settings(migrated_dsn))
+    _claim(database, migrated_dsn)
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) AS total FROM kx.version_provenance")
+        before = cursor.fetchone()
+        assert before is not None
+    outcome: dict[str, Any] = database.backfill_provenance_from_fetches()
+    assert outcome["considered"] == 0
+    assert outcome["recorded"] == {}
+
+
+def test_a_backfilled_version_then_publishes(migrated_dsn: str) -> None:
+    database = Database(_settings(migrated_dsn))
+    document = _fetched(database, migrated_dsn, "https://fetched.example/report")
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT version_id FROM kx.document_versions WHERE document_id = %s",
+            (document,),
+        )
+        version = cursor.fetchone()
+        assert version is not None
+        cursor.execute(
+            "SELECT chunk_id, char_start, char_end, text FROM kx.chunks"
+            " WHERE version_id = %s ORDER BY ordinal LIMIT 1",
+            (version["version_id"],),
+        )
+        chunk = cursor.fetchone()
+        assert chunk is not None
+    fragment = Fragment(
+        version_id=str(version["version_id"]),
+        chunk_id=str(chunk["chunk_id"]),
+        char_start=int(cast(int, chunk["char_start"])),
+        char_end=int(cast(int, chunk["char_end"])),
+        text=str(chunk["text"]),
+    )
+    database.record_extraction(
+        fragment,
+        align_all(
+            fragment,
+            database.canonical_text(str(version["version_id"])),
+            (ProposedClaim("reached", "adoption", PARAGRAPH_ONE),),
+        ),
+        model="glm-5.2",
+        prompt_sha256=prompt_sha256(fragment),
+    )
+    assert database.publish_quotes(scope="corpus", target_language="en")["published"] == 0
+    database.backfill_provenance_from_fetches()
+    assert database.publish_quotes(scope="corpus", target_language="en")["published"] == 1
+
+
+def test_the_backfill_reads_the_outcome_the_fetcher_actually_writes() -> None:
+    # The first version filtered on outcome = 'stored', which the fetcher never
+    # writes, so the backfill silently found nothing. The vocabulary is the
+    # fetcher's: succeeded, robots_denied, weak_or_missing_text, http_403, ...
+    source = (Path(__file__).parents[1] / "src" / "radar_kx" / "database.py").read_text(
+        encoding="utf-8"
+    )
+    assert "attempt.outcome = 'succeeded'" in source
+    assert "attempt.outcome = 'stored'" not in source
