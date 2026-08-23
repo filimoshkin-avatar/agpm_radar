@@ -50,6 +50,11 @@ BATCH = 10
 #: a statement about everything is a statement placed nowhere.
 MAX_TOPICS = 3
 
+#: What the gap map records when a statement was placed nowhere and the reader
+#: did not say what was missing. A silence and a named gap are different answers,
+#: and the queue has to be able to tell them apart.
+NO_SUBJECT_NAMED = "предмет не назван: тема не выбрана и причина не указана"
+
 #: Longest quotation sent with a statement. A widened quotation is a sentence or
 #: two; beyond that the model is reading the article, which is what the egress
 #: rule forbids.
@@ -108,8 +113,11 @@ def build_instructions(topics: Sequence[Mapping[str, Any]]) -> str:
         "",
         "2. ПЕРВОИСТОЧНИК (source) и ПЕРЕСКАЗ (retelling).",
         "   Если утверждение пересказывает чужое исследование, прогноз или заявление —",
-        "   retelling = true, а source = имя того, кто сказал это первым",
-        '   (например "Gartner", "McKinsey", "OpenAI").',
+        "   retelling = true, а source = ИМЯ того, кто сказал это первым:",
+        '   организация, издание, автор или стандарт ("Gartner", "McKinsey",',
+        '   "OpenAI", "ISO/IEC 42001", "Abada and Lambin"). Не пиши общих слов',
+        '   вроде "аналитики", "исследование", "эксперты" — если имени в тексте нет,',
+        "   ставь retelling = false и пустой source.",
         "   Если издание говорит от себя — retelling = false, source = пустая строка.",
         "",
         "3. ДОПУСК (admission), ровно одно значение:",

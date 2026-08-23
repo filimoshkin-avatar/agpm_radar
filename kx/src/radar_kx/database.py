@@ -61,7 +61,7 @@ from radar_kx.language import language_of
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
-from radar_kx.reading import ReadableClaim, Reading
+from radar_kx.reading import NO_SUBJECT_NAMED, ReadableClaim, Reading
 from radar_kx.reading import valid_until as expiry_of
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.release import ReleaseComposition, ReleaseError, compose, reconcile
@@ -4935,14 +4935,14 @@ class Database:
                             (reading.claim_id, reading.confidence, read_by, topic_key),
                         )
                         written["topics"] += cursor.rowcount
-                    if reading.missing and not reading.topic_keys:
+                    if not reading.topic_keys:
                         cursor.execute(
                             """
                             INSERT INTO kx.claim_gaps (claim_id, missing, noted_by, method)
                             VALUES (%s, %s, %s, 'model')
                             ON CONFLICT (claim_id) DO NOTHING
                             """,
-                            (reading.claim_id, reading.missing, read_by),
+                            (reading.claim_id, reading.missing or NO_SUBJECT_NAMED, read_by),
                         )
                         written["gaps"] += cursor.rowcount
         return written
