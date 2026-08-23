@@ -114,15 +114,55 @@ en_ranked AS (
     SELECT chunk_id, row_number() OVER (ORDER BY en_score DESC, chunk_id) AS position
     FROM matched WHERE en_hit
 ),
+-- The third arm reads the corpus rather than the words in it, so it is not
+-- restricted to `matched`: a fragment that shares no word with the question is
+-- exactly what a semantic search is for. It disappears when there is no vector.
+meaning_ranked AS (
+    SELECT chunk_id, row_number() OVER (ORDER BY distance) AS position
+    FROM (
+        SELECT chunks.chunk_id, vectors.embedding <=> %(question_vector)s::vector AS distance
+        FROM kx.chunks AS chunks
+        JOIN kx.document_versions AS versions USING (version_id)
+        JOIN scope_documents USING (document_id)
+        JOIN kx.text_embeddings AS vectors
+          ON vectors.owner_kind = 'chunk'
+         AND vectors.owner_key = chunks.chunk_id
+         AND vectors.model_id = %(embedding_model)s
+        WHERE %(question_vector)s::text IS NOT NULL AND versions.is_complete
+        ORDER BY distance
+        LIMIT %(semantic_depth)s
+    ) AS nearest
+),
+reached AS (
+    SELECT chunk_id FROM matched
+    UNION
+    SELECT chunk_id FROM meaning_ranked
+),
+found AS (
+    SELECT chunks.chunk_id,
+           chunks.version_id,
+           chunks.char_start,
+           chunks.text,
+           versions.document_id,
+           coalesce(matched.ru_hit, false) AS ru_hit,
+           coalesce(matched.en_hit, true) AS en_hit
+    FROM reached
+    JOIN kx.chunks AS chunks USING (chunk_id)
+    JOIN kx.document_versions AS versions USING (version_id)
+    LEFT JOIN matched USING (chunk_id)
+),
 fused AS (
-    SELECT matched.*,
+    SELECT found.*,
            ru_ranked.position AS ru_position,
            en_ranked.position AS en_position,
+           meaning_ranked.position AS meaning_position,
            coalesce(1.0 / (%(rrf_k)s + ru_ranked.position), 0)
-         + coalesce(1.0 / (%(rrf_k)s + en_ranked.position), 0) AS rrf_score
-    FROM matched
+         + coalesce(1.0 / (%(rrf_k)s + en_ranked.position), 0)
+         + coalesce(1.0 / (%(rrf_k)s + meaning_ranked.position), 0) AS rrf_score
+    FROM found
     LEFT JOIN ru_ranked USING (chunk_id)
     LEFT JOIN en_ranked USING (chunk_id)
+    LEFT JOIN meaning_ranked USING (chunk_id)
 )
 SELECT fused.chunk_id,
        fused.version_id,
@@ -131,6 +171,7 @@ SELECT fused.chunk_id,
        fused.text,
        fused.ru_position,
        fused.en_position,
+       fused.meaning_position,
        fused.rrf_score,
        documents.canonical_url,
        versions.title,
@@ -172,6 +213,10 @@ class SearchHit:
     rrf_score: float
     ru_position: int | None
     en_position: int | None
+    #: Where the meaning arm ranked it, or None when it did not reach it at all.
+    #: A hit only this arm found is a fragment that shares no word with the
+    #: question, which is the thing a lexical index cannot do.
+    meaning_position: int | None
     snippet: str
     #: Character range of the snippet inside the version's canonical text.
     char_start: int
@@ -191,6 +236,7 @@ class SearchHit:
             "rrfScore": round(self.rrf_score, 6),
             "ruPosition": self.ru_position,
             "enPosition": self.en_position,
+            "meaningPosition": self.meaning_position,
             "snippet": self.snippet,
             "charStart": self.char_start,
             "charEnd": self.char_end,
@@ -231,6 +277,9 @@ def build_hit(row: dict[str, Any]) -> SearchHit:
         rrf_score=float(row["rrf_score"]),
         ru_position=None if row["ru_position"] is None else int(row["ru_position"]),
         en_position=None if row["en_position"] is None else int(row["en_position"]),
+        meaning_position=(
+            None if row.get("meaning_position") is None else int(row["meaning_position"])
+        ),
         snippet=snippet,
         char_start=char_start,
         char_end=char_start + len(snippet),

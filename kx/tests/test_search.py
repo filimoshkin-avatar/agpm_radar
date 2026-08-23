@@ -380,3 +380,42 @@ def test_a_numbered_element_shows_its_labels_to_the_reader() -> None:
     assert shown["materialKind"] == "fact"
     assert shown["status"] == "canon"
     assert shown["matchedBy"] == ["смысл"]
+
+
+def test_the_corpus_search_gains_a_meaning_arm_that_is_not_word_bound() -> None:
+    """The point of embedding 19 851 chunks: a fragment sharing no word with the question.
+
+    The lexical arms select from `matched`, which is by definition what the words
+    found. The meaning arm reads the corpus instead, so restricting it to `matched`
+    would have made the whole embedding run decorative.
+    """
+    sql = search_sql("corpus")
+    assert "meaning_ranked" in sql
+    assert "%(question_vector)s::text IS NOT NULL" in sql
+    meaning = sql[sql.index("meaning_ranked AS (") : sql.index("reached AS (")]
+    assert "FROM matched" not in meaning
+    assert "kx.chunks" in meaning
+
+
+def test_a_hit_says_whether_meaning_found_it() -> None:
+    hit = build_hit(
+        {
+            "chunk_id": "c" * 64,
+            "version_id": "v" * 64,
+            "document_id": "d" * 64,
+            "canonical_url": "https://example.org/a",
+            "title": "Заголовок",
+            "language": "ru",
+            "rrf_score": 0.03,
+            "ru_position": None,
+            "en_position": None,
+            "meaning_position": 4,
+            "char_start": 10,
+            "text": "Порог автономии определяет границу между классами решений.",
+            "headline": "Порог автономии",
+        }
+    )
+    assert hit.meaning_position == 4
+    assert hit.as_json()["meaningPosition"] == 4
+    # A hit no lexical arm reached is exactly what the meaning arm exists for.
+    assert hit.ru_position is None and hit.en_position is None

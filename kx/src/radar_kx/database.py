@@ -1525,7 +1525,15 @@ class Database:
             )
             yield from cursor.fetchall()
 
-    def search(self, query: str, *, scope: str, limit: int, match: str = "all") -> list[SearchHit]:
+    def search(
+        self,
+        query: str,
+        *,
+        scope: str,
+        limit: int,
+        match: str = "all",
+        question_vector: str | None = None,
+    ) -> list[SearchHit]:
         """Lexical search over one membership class, fused across ru and en.
 
         The snippet offsets each hit reports are checked against the stored
@@ -1538,7 +1546,14 @@ class Database:
             with connection.cursor() as cursor:
                 cursor.execute(
                     statement,
-                    {"query": query, "limit": limit, "rrf_k": RRF_K},
+                    {
+                        "query": query,
+                        "limit": limit,
+                        "rrf_k": RRF_K,
+                        "question_vector": question_vector,
+                        "embedding_model": DEFAULT_MODEL,
+                        "semantic_depth": SEMANTIC_DEPTH,
+                    },
                 )
                 rows = cursor.fetchall()
                 hits = [build_hit(row) for row in rows]

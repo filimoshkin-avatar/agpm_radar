@@ -167,6 +167,9 @@ def _parser() -> argparse.ArgumentParser:
     search_parser.add_argument("--scope", choices=sorted(SCOPES), default="current")
     search_parser.add_argument("--limit", type=int, default=10)
     search_parser.add_argument("--match", choices=list(MATCH_MODES), default="all")
+    # The third arm reads the corpus rather than the words in it. Needs torch, so
+    # it lives under kxembed and is off by default in the worker's runtime.
+    search_parser.add_argument("--semantic", action="store_true")
 
     subparsers.add_parser("coverage-report")
 
@@ -1172,7 +1175,11 @@ def main() -> None:
                 "hits": [
                     hit.as_json()
                     for hit in database.search(
-                        args.query, scope=args.scope, limit=args.limit, match=args.match
+                        args.query,
+                        scope=args.scope,
+                        limit=args.limit,
+                        match=args.match,
+                        question_vector=_question_vector(args.query) if args.semantic else None,
                     )
                 ],
             }
