@@ -308,6 +308,64 @@ def _decide_skeleton(database: Database, item_id: str, action: str, actor: str) 
     return database.decide_skeleton(source=item_id, verdict=action, actor=actor)
 
 
+# ---------------------------------------------------------------------------
+# Which linking method was right
+# ---------------------------------------------------------------------------
+
+
+def _load_comparison(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    total, rows = database.method_comparison_queue(limit=limit)
+    items: list[QueueItem] = []
+    for row in rows:
+        semantic = row["semanticTop"]
+        items.append(
+            QueueItem(
+                item_id=(
+                    f"{row['conceptClaimId']}|{row['lexicalTop']['claimId']}|{semantic['claimId']}"
+                ),
+                primary=str(row["statement"]),
+                secondary="Два метода выбрали разное. Что из этого ближе к утверждению?",
+                actions=(
+                    ("semantic", "Смысловой (вектор)", "yes"),
+                    ("lexical", "Словесный (поиск)", "yes"),
+                    ("neither", "Оба мимо", "no"),
+                ),
+                children=(
+                    {
+                        "id": "semantic",
+                        "quote": "СМЫСЛОВОЙ · " + str(semantic["quote"]),
+                        "sourceUrl": str(row.get("semanticUrl") or ""),
+                        "span": "",
+                        "relevance": round(float(semantic["score"]), 3),
+                        "membershipClass": "косинус",
+                        "actions": [],
+                    },
+                    {
+                        "id": "lexical",
+                        "quote": "СЛОВЕСНЫЙ · " + str(row.get("lexicalQuote") or "(нет цитаты)"),
+                        "sourceUrl": str(row.get("lexicalUrl") or ""),
+                        "span": "",
+                        "relevance": None,
+                        "membershipClass": "полнотекстовый поиск",
+                        "actions": [],
+                    },
+                ),
+            )
+        )
+    return total, items
+
+
+def _decide_comparison(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
+    statement_id, lexical_id, semantic_id = item_id.split("|")
+    return database.record_method_vote(
+        concept_claim_id=statement_id,
+        winner=action,
+        lexical_claim_id=lexical_id,
+        semantic_claim_id=semantic_id,
+        voted_by=actor,
+    )
+
+
 QUEUES: tuple[Queue, ...] = (
     Queue(
         key="skeleton",
@@ -326,6 +384,26 @@ QUEUES: tuple[Queue, ...] = (
         decide=_decide_skeleton,
         object_kind="topic_skeleton",
         empty="Скелет принят.",
+    ),
+    Queue(
+        key="comparison",
+        title="Сравнение методов связывания",
+        why=(
+            "Два способа найти доказательство для утверждения. Словесный — "
+            "полнотекстовый поиск PostgreSQL по общим словам, то, чем связаны все "
+            "нынешние 2 047 предложений. Смысловой — косинусная близость локальных "
+            "эмбеддингов multilingual-e5-small, посчитанных на этом же хосте.\n\n"
+            "На 233 утверждениях они выбрали одно и то же лучшее доказательство "
+            "**4 раза**. В 206 случаях из 233 их пятёрки не пересекаются вообще. "
+            "Оценкам обоих верить нельзя: e5 даёт 0,89 хорошему совпадению и 0,86 "
+            "бессмыслице, а RRF упирается в потолок 2/61.\n\n"
+            "Инструмент остался один — посмотреть глазами. Двух-трёх десятков "
+            "голосов хватит, чтобы решить, каким методом строить базу."
+        ),
+        load=_load_comparison,
+        decide=_decide_comparison,
+        object_kind="binding_method_vote",
+        empty="Все пары размечены.",
     ),
     Queue(
         key="evidence",
@@ -407,6 +485,12 @@ QUEUES: tuple[Queue, ...] = (
 
 QUEUES_BY_KEY = {queue.key: queue for queue in QUEUES}
 
+#: Derived from the buttons each queue actually renders, so the two cannot
+#: disagree.
+ALLOWED_ACTIONS: dict[str, set[str]] = {
+    "comparison": {"lexical", "semantic", "neither"},
+}
+
 
 def queue_summary(database: Database) -> list[dict[str, Any]]:
     """Counts for the index, without loading any items."""
@@ -438,8 +522,11 @@ def decide(
     queue = QUEUES_BY_KEY.get(key)
     if queue is None or queue.decide is None:
         raise KeyError(f"unknown queue {key!r}")
-    if action not in {"confirmed", "rejected"}:
-        raise ValueError("action must be confirmed or rejected")
+    # Each queue owns its vocabulary: a confirmation is not a vote, and a queue
+    # that had to phrase "the semantic one was better" as "confirmed" would be
+    # storing something other than what the person said.
+    if action not in ALLOWED_ACTIONS.get(key, {"confirmed", "rejected"}):
+        raise ValueError(f"action {action!r} is not one this queue accepts")
     return queue.decide(database, item_id, action, actor)
 
 

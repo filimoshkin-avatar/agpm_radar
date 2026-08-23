@@ -86,7 +86,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4753,6 +4753,89 @@ class Database:
                 )
                 comparison_id = str(one_row(cursor)["comparison_id"])
         return {"comparisonId": comparison_id, **summary, "examples": detail[:5]}
+
+    def method_comparison_queue(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        """Statements where the two methods disagree, with both answers side by side."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT detail FROM kx.binding_method_comparisons ORDER BY ran_at DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    return 0, []
+                detail = cast(list[dict[str, Any]], row["detail"])
+                cursor.execute("SELECT concept_claim_id::text AS id FROM kx.binding_method_votes")
+                voted = {str(item["id"]) for item in cursor.fetchall()}
+
+                waiting = [
+                    item
+                    for item in detail
+                    if str(item["conceptClaimId"]) not in voted
+                    and item.get("semanticTop")
+                    and item.get("lexicalTop")
+                ]
+                page = waiting[:limit]
+                lexical_ids = [str(item["lexicalTop"]["claimId"]) for item in page]
+                quotes: dict[str, tuple[str, str]] = {}
+                if lexical_ids:
+                    cursor.execute(
+                        "SELECT evidence.claim_id::text AS id, evidence.quote_text,"
+                        " documents.canonical_url"
+                        " FROM kx.claim_evidence AS evidence"
+                        " JOIN kx.document_versions AS versions USING (version_id)"
+                        " JOIN kx.documents AS documents USING (document_id)"
+                        " WHERE evidence.claim_id::text = ANY(%s)",
+                        (lexical_ids,),
+                    )
+                    quotes = {
+                        str(item["id"]): (str(item["quote_text"]), str(item["canonical_url"]))
+                        for item in cursor.fetchall()
+                    }
+                cursor.execute(
+                    "SELECT evidence.claim_id::text AS id, documents.canonical_url"
+                    " FROM kx.claim_evidence AS evidence"
+                    " JOIN kx.document_versions AS versions USING (version_id)"
+                    " JOIN kx.documents AS documents USING (document_id)"
+                    " WHERE evidence.claim_id::text = ANY(%s)",
+                    ([str(item["semanticTop"]["claimId"]) for item in page],),
+                )
+                semantic_urls = {
+                    str(item["id"]): str(item["canonical_url"]) for item in cursor.fetchall()
+                }
+        for item in page:
+            lexical_id = str(item["lexicalTop"]["claimId"])
+            item["lexicalQuote"], item["lexicalUrl"] = quotes.get(lexical_id, ("", ""))
+            item["semanticUrl"] = semantic_urls.get(str(item["semanticTop"]["claimId"]), "")
+        return len(waiting), page
+
+    def record_method_vote(
+        self,
+        *,
+        concept_claim_id: str,
+        winner: str,
+        lexical_claim_id: str | None,
+        semantic_claim_id: str | None,
+        voted_by: str,
+    ) -> dict[str, Any]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO kx.binding_method_votes"
+                    " (concept_claim_id, winner, lexical_claim_id, semantic_claim_id, voted_by)"
+                    " VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                    (concept_claim_id, winner, lexical_claim_id, semantic_claim_id, voted_by),
+                )
+        return {"conceptClaimId": concept_claim_id, "winner": winner}
+
+    def method_vote_tally(self) -> dict[str, Any]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT winner, count(*) AS total FROM kx.binding_method_votes GROUP BY 1"
+            )
+            return {str(row["winner"]): int(cast(int, row["total"])) for row in cursor.fetchall()}
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.
