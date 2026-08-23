@@ -1,4 +1,5 @@
 {
+  "decidedBy": "owner (applied by radar-kx on the owner's instruction, 2026-08-23)",
   "families": [
     {
       "_evidence": {
@@ -15,7 +16,7 @@
       ],
       "familyKey": "75way-com",
       "familyKind": "owner",
-      "rationale": "single document from 75way.com; no grouping asserted"
+      "rationale": "single document from 75way.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -32,7 +33,7 @@
       ],
       "familyKey": "activepieces-com",
       "familyKind": "owner",
-      "rationale": "single document from activepieces.com; no grouping asserted"
+      "rationale": "single document from activepieces.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -49,7 +50,7 @@
       ],
       "familyKey": "adopt-ai",
       "familyKind": "owner",
-      "rationale": "single document from adopt.ai; no grouping asserted"
+      "rationale": "single document from adopt.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -66,7 +67,7 @@
       ],
       "familyKey": "adsadvance-co-uk",
       "familyKind": "owner",
-      "rationale": "single document from adsadvance.co.uk; no grouping asserted"
+      "rationale": "single document from adsadvance.co.uk; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -83,7 +84,7 @@
       ],
       "familyKey": "aeaweb-org",
       "familyKind": "owner",
-      "rationale": "single document from aeaweb.org; no grouping asserted"
+      "rationale": "single document from aeaweb.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -100,7 +101,7 @@
       ],
       "familyKey": "aetherlink-ai",
       "familyKind": "owner",
-      "rationale": "single document from aetherlink.ai; no grouping asserted"
+      "rationale": "single document from aetherlink.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -117,7 +118,7 @@
       ],
       "familyKey": "agentic-project-management-dev",
       "familyKind": "owner",
-      "rationale": "single document from agentic-project-management.dev; no grouping asserted"
+      "rationale": "single document from agentic-project-management.dev; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -134,7 +135,7 @@
       ],
       "familyKey": "agenticpm-pro",
       "familyKind": "owner",
-      "rationale": "single document from agenticpm.pro; no grouping asserted"
+      "rationale": "single document from agenticpm.pro; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -151,7 +152,7 @@
       ],
       "familyKey": "agentmelt-com",
       "familyKind": "owner",
-      "rationale": "single document from agentmelt.com; no grouping asserted"
+      "rationale": "single document from agentmelt.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -168,7 +169,7 @@
       ],
       "familyKey": "agentry-news",
       "familyKind": "owner",
-      "rationale": "single document from agentry.news; no grouping asserted"
+      "rationale": "single document from agentry.news; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -185,7 +186,7 @@
       ],
       "familyKey": "ai-expert-co-uk",
       "familyKind": "owner",
-      "rationale": "single document from ai-expert.co.uk; no grouping asserted"
+      "rationale": "single document from ai-expert.co.uk; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -202,7 +203,7 @@
       ],
       "familyKey": "aiagentstore-ai",
       "familyKind": "owner",
-      "rationale": "single document from aiagentstore.ai; no grouping asserted"
+      "rationale": "single document from aiagentstore.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -219,7 +220,7 @@
       ],
       "familyKey": "aiassemblylines-com",
       "familyKind": "owner",
-      "rationale": "single document from aiassemblylines.com; no grouping asserted"
+      "rationale": "single document from aiassemblylines.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -236,7 +237,7 @@
       ],
       "familyKey": "aibusinessweekly-net",
       "familyKind": "owner",
-      "rationale": "single document from aibusinessweekly.net; no grouping asserted"
+      "rationale": "single document from aibusinessweekly.net; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -253,7 +254,7 @@
       ],
       "familyKey": "aiconference-london",
       "familyKind": "owner",
-      "rationale": "single document from aiconference.london; no grouping asserted"
+      "rationale": "single document from aiconference.london; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -270,7 +271,7 @@
       ],
       "familyKey": "aigov-solutions",
       "familyKind": "owner",
-      "rationale": "single document from aigov.solutions; no grouping asserted"
+      "rationale": "single document from aigov.solutions; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -287,7 +288,7 @@
       ],
       "familyKey": "aipolicyperspectives-com",
       "familyKind": "owner",
-      "rationale": "single document from aipolicyperspectives.com; no grouping asserted"
+      "rationale": "single document from aipolicyperspectives.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -304,7 +305,7 @@
       ],
       "familyKey": "albato-ru",
       "familyKind": "owner",
-      "rationale": "single document from albato.ru; no grouping asserted"
+      "rationale": "single document from albato.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -321,7 +322,7 @@
       ],
       "familyKey": "alfa-bank-ru",
       "familyKind": "owner",
-      "rationale": "single document from alfa-bank.ru; no grouping asserted"
+      "rationale": "single document from alfa-bank.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -338,7 +339,7 @@
       ],
       "familyKey": "amdocs-com",
       "familyKind": "owner",
-      "rationale": "single document from amdocs.com; no grouping asserted"
+      "rationale": "single document from amdocs.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -355,7 +356,7 @@
       ],
       "familyKey": "angelfish-marketing-com",
       "familyKind": "owner",
-      "rationale": "single document from angelfish-marketing.com; no grouping asserted"
+      "rationale": "single document from angelfish-marketing.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -372,7 +373,7 @@
       ],
       "familyKey": "appian-com",
       "familyKind": "owner",
-      "rationale": "single document from appian.com; no grouping asserted"
+      "rationale": "single document from appian.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -389,7 +390,7 @@
       ],
       "familyKey": "arcade-dev",
       "familyKind": "owner",
-      "rationale": "single document from arcade.dev; no grouping asserted"
+      "rationale": "single document from arcade.dev; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -406,7 +407,7 @@
       ],
       "familyKey": "armosec-io",
       "familyKind": "owner",
-      "rationale": "single document from armosec.io; no grouping asserted"
+      "rationale": "single document from armosec.io; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -423,7 +424,7 @@
       ],
       "familyKey": "artefact-com",
       "familyKind": "owner",
-      "rationale": "single document from artefact.com; no grouping asserted"
+      "rationale": "single document from artefact.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -440,7 +441,7 @@
       ],
       "familyKey": "assistents-ai",
       "familyKind": "owner",
-      "rationale": "single document from assistents.ai; no grouping asserted"
+      "rationale": "single document from assistents.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -457,7 +458,7 @@
       ],
       "familyKey": "atlassian-com",
       "familyKind": "owner",
-      "rationale": "single document from atlassian.com; no grouping asserted"
+      "rationale": "single document from atlassian.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -474,7 +475,7 @@
       ],
       "familyKey": "augmentedpm-co-uk",
       "familyKind": "owner",
-      "rationale": "single document from augmentedpm.co.uk; no grouping asserted"
+      "rationale": "single document from augmentedpm.co.uk; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -491,7 +492,7 @@
       ],
       "familyKey": "automatic-co",
       "familyKind": "owner",
-      "rationale": "single document from automatic.co; no grouping asserted"
+      "rationale": "single document from automatic.co; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -508,7 +509,7 @@
       ],
       "familyKey": "beam-ai",
       "familyKind": "owner",
-      "rationale": "single document from beam.ai; no grouping asserted"
+      "rationale": "single document from beam.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -525,7 +526,7 @@
       ],
       "familyKey": "biometricupdate-com",
       "familyKind": "owner",
-      "rationale": "single document from biometricupdate.com; no grouping asserted"
+      "rationale": "single document from biometricupdate.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -542,7 +543,7 @@
       ],
       "familyKey": "bitget-com",
       "familyKind": "owner",
-      "rationale": "single document from bitget.com; no grouping asserted"
+      "rationale": "single document from bitget.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -559,7 +560,7 @@
       ],
       "familyKey": "blueprism-com",
       "familyKind": "owner",
-      "rationale": "single document from blueprism.com; no grouping asserted"
+      "rationale": "single document from blueprism.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -576,7 +577,7 @@
       ],
       "familyKey": "boonverse-com",
       "familyKind": "owner",
-      "rationale": "single document from boonverse.com; no grouping asserted"
+      "rationale": "single document from boonverse.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -593,7 +594,7 @@
       ],
       "familyKey": "cadigaltech-com",
       "familyKind": "owner",
-      "rationale": "single document from cadigaltech.com; no grouping asserted"
+      "rationale": "single document from cadigaltech.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -610,7 +611,7 @@
       ],
       "familyKey": "canny-io",
       "familyKind": "owner",
-      "rationale": "single document from canny.io; no grouping asserted"
+      "rationale": "single document from canny.io; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -627,7 +628,7 @@
       ],
       "familyKey": "cazbraingroup-com",
       "familyKind": "owner",
-      "rationale": "single document from cazbraingroup.com; no grouping asserted"
+      "rationale": "single document from cazbraingroup.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -644,7 +645,7 @@
       ],
       "familyKey": "cipr-ru",
       "familyKind": "owner",
-      "rationale": "single document from cipr.ru; no grouping asserted"
+      "rationale": "single document from cipr.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -661,7 +662,7 @@
       ],
       "familyKey": "clawbud-ai",
       "familyKind": "owner",
-      "rationale": "single document from clawbud.ai; no grouping asserted"
+      "rationale": "single document from clawbud.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -678,7 +679,7 @@
       ],
       "familyKey": "cohere-com",
       "familyKind": "owner",
-      "rationale": "single document from cohere.com; no grouping asserted"
+      "rationale": "single document from cohere.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -695,7 +696,7 @@
       ],
       "familyKey": "comnews-ru",
       "familyKind": "owner",
-      "rationale": "single document from comnews.ru; no grouping asserted"
+      "rationale": "single document from comnews.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -712,7 +713,7 @@
       ],
       "familyKey": "comparethecloud-net",
       "familyKind": "owner",
-      "rationale": "single document from comparethecloud.net; no grouping asserted"
+      "rationale": "single document from comparethecloud.net; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -729,7 +730,7 @@
       ],
       "familyKey": "computer-agents-com",
       "familyKind": "owner",
-      "rationale": "single document from computer-agents.com; no grouping asserted"
+      "rationale": "single document from computer-agents.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -746,7 +747,7 @@
       ],
       "familyKey": "computerworld-com",
       "familyKind": "owner",
-      "rationale": "single document from computerworld.com; no grouping asserted"
+      "rationale": "single document from computerworld.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -763,7 +764,7 @@
       ],
       "familyKey": "console-com",
       "familyKind": "owner",
-      "rationale": "single document from console.com; no grouping asserted"
+      "rationale": "single document from console.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -780,7 +781,7 @@
       ],
       "familyKey": "contentstack-com",
       "familyKind": "owner",
-      "rationale": "single document from contentstack.com; no grouping asserted"
+      "rationale": "single document from contentstack.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -797,7 +798,7 @@
       ],
       "familyKey": "corporatecomplianceinsights-com",
       "familyKind": "owner",
-      "rationale": "single document from corporatecomplianceinsights.com; no grouping asserted"
+      "rationale": "single document from corporatecomplianceinsights.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -814,7 +815,7 @@
       ],
       "familyKey": "crafter-ai",
       "familyKind": "owner",
-      "rationale": "single document from crafter.ai; no grouping asserted"
+      "rationale": "single document from crafter.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -831,7 +832,7 @@
       ],
       "familyKey": "crescendo-ai",
       "familyKind": "owner",
-      "rationale": "single document from crescendo.ai; no grouping asserted"
+      "rationale": "single document from crescendo.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -848,7 +849,7 @@
       ],
       "familyKey": "cryptonomist-ch",
       "familyKind": "owner",
-      "rationale": "single document from cryptonomist.ch; no grouping asserted"
+      "rationale": "single document from cryptonomist.ch; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -865,7 +866,7 @@
       ],
       "familyKey": "cyberleninka-ru",
       "familyKind": "owner",
-      "rationale": "single document from cyberleninka.ru; no grouping asserted"
+      "rationale": "single document from cyberleninka.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -882,7 +883,7 @@
       ],
       "familyKey": "dataciders-com",
       "familyKind": "owner",
-      "rationale": "single document from dataciders.com; no grouping asserted"
+      "rationale": "single document from dataciders.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -899,7 +900,7 @@
       ],
       "familyKey": "datahub-io",
       "familyKind": "owner",
-      "rationale": "single document from datahub.io; no grouping asserted"
+      "rationale": "single document from datahub.io; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -916,7 +917,7 @@
       ],
       "familyKey": "datasociety-net",
       "familyKind": "owner",
-      "rationale": "single document from datasociety.net; no grouping asserted"
+      "rationale": "single document from datasociety.net; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -933,7 +934,7 @@
       ],
       "familyKey": "delo-ua",
       "familyKind": "owner",
-      "rationale": "single document from delo.ua; no grouping asserted"
+      "rationale": "single document from delo.ua; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -950,7 +951,7 @@
       ],
       "familyKey": "devops-com",
       "familyKind": "owner",
-      "rationale": "single document from devops.com; no grouping asserted"
+      "rationale": "single document from devops.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -967,7 +968,7 @@
       ],
       "familyKey": "directum-ru",
       "familyKind": "owner",
-      "rationale": "single document from directum.ru; no grouping asserted"
+      "rationale": "single document from directum.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -984,7 +985,7 @@
       ],
       "familyKey": "dreaming-press",
       "familyKind": "owner",
-      "rationale": "single document from dreaming.press; no grouping asserted"
+      "rationale": "single document from dreaming.press; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1001,7 +1002,7 @@
       ],
       "familyKey": "exactimo-com",
       "familyKind": "owner",
-      "rationale": "single document from exactimo.com; no grouping asserted"
+      "rationale": "single document from exactimo.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1018,7 +1019,7 @@
       ],
       "familyKey": "fb-com",
       "familyKind": "owner",
-      "rationale": "single document from fb.com; no grouping asserted"
+      "rationale": "single document from fb.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1035,7 +1036,7 @@
       ],
       "familyKey": "fifthrow-com",
       "familyKind": "owner",
-      "rationale": "single document from fifthrow.com; no grouping asserted"
+      "rationale": "single document from fifthrow.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1052,7 +1053,7 @@
       ],
       "familyKey": "finam-ru",
       "familyKind": "owner",
-      "rationale": "single document from finam.ru; no grouping asserted"
+      "rationale": "single document from finam.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1069,7 +1070,7 @@
       ],
       "familyKey": "flowable-com",
       "familyKind": "owner",
-      "rationale": "single document from flowable.com; no grouping asserted"
+      "rationale": "single document from flowable.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1086,7 +1087,7 @@
       ],
       "familyKey": "fptsoftware-com",
       "familyKind": "owner",
-      "rationale": "single document from fptsoftware.com; no grouping asserted"
+      "rationale": "single document from fptsoftware.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1103,7 +1104,7 @@
       ],
       "familyKey": "fracto-ie",
       "familyKind": "owner",
-      "rationale": "single document from fracto.ie; no grouping asserted"
+      "rationale": "single document from fracto.ie; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1120,7 +1121,7 @@
       ],
       "familyKey": "futurumgroup-com",
       "familyKind": "owner",
-      "rationale": "single document from futurumgroup.com; no grouping asserted"
+      "rationale": "single document from futurumgroup.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1137,7 +1138,7 @@
       ],
       "familyKey": "gantt-chart-co-uk",
       "familyKind": "owner",
-      "rationale": "single document from gantt-chart.co.uk; no grouping asserted"
+      "rationale": "single document from gantt-chart.co.uk; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1154,7 +1155,7 @@
       ],
       "familyKey": "geopolitechs-org",
       "familyKind": "owner",
-      "rationale": "single document from geopolitechs.org; no grouping asserted"
+      "rationale": "single document from geopolitechs.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1171,7 +1172,7 @@
       ],
       "familyKey": "getreadyforagents-com",
       "familyKind": "owner",
-      "rationale": "single document from getreadyforagents.com; no grouping asserted"
+      "rationale": "single document from getreadyforagents.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1188,7 +1189,7 @@
       ],
       "familyKey": "gitcoin-co",
       "familyKind": "owner",
-      "rationale": "single document from gitcoin.co; no grouping asserted"
+      "rationale": "single document from gitcoin.co; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1205,7 +1206,7 @@
       ],
       "familyKey": "gravitee-io",
       "familyKind": "owner",
-      "rationale": "single document from gravitee.io; no grouping asserted"
+      "rationale": "single document from gravitee.io; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1222,7 +1223,7 @@
       ],
       "familyKey": "gsdcouncil-org",
       "familyKind": "owner",
-      "rationale": "single document from gsdcouncil.org; no grouping asserted"
+      "rationale": "single document from gsdcouncil.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1239,7 +1240,7 @@
       ],
       "familyKey": "gumloop-com",
       "familyKind": "owner",
-      "rationale": "single document from gumloop.com; no grouping asserted"
+      "rationale": "single document from gumloop.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1256,7 +1257,7 @@
       ],
       "familyKey": "hightech-plus",
       "familyKind": "owner",
-      "rationale": "single document from hightech.plus; no grouping asserted"
+      "rationale": "single document from hightech.plus; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1273,7 +1274,7 @@
       ],
       "familyKey": "hklaw-com",
       "familyKind": "owner",
-      "rationale": "single document from hklaw.com; no grouping asserted"
+      "rationale": "single document from hklaw.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1290,7 +1291,7 @@
       ],
       "familyKey": "hpe-com",
       "familyKind": "owner",
-      "rationale": "single document from hpe.com; no grouping asserted"
+      "rationale": "single document from hpe.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1307,7 +1308,7 @@
       ],
       "familyKey": "hse-ru",
       "familyKind": "owner",
-      "rationale": "single document from hse.ru; no grouping asserted"
+      "rationale": "single document from hse.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1324,7 +1325,7 @@
       ],
       "familyKey": "hymalaia-com",
       "familyKind": "owner",
-      "rationale": "single document from hymalaia.com; no grouping asserted"
+      "rationale": "single document from hymalaia.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1341,7 +1342,7 @@
       ],
       "familyKey": "i2econsulting-com",
       "familyKind": "owner",
-      "rationale": "single document from i2econsulting.com; no grouping asserted"
+      "rationale": "single document from i2econsulting.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1358,7 +1359,7 @@
       ],
       "familyKey": "ict-online-ru",
       "familyKind": "owner",
-      "rationale": "single document from ict-online.ru; no grouping asserted"
+      "rationale": "single document from ict-online.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1375,7 +1376,7 @@
       ],
       "familyKey": "im-journal-ru",
       "familyKind": "owner",
-      "rationale": "single document from im-journal.ru; no grouping asserted"
+      "rationale": "single document from im-journal.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1392,7 +1393,7 @@
       ],
       "familyKey": "infoq-com",
       "familyKind": "owner",
-      "rationale": "single document from infoq.com; no grouping asserted"
+      "rationale": "single document from infoq.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1409,7 +1410,7 @@
       ],
       "familyKey": "informatica-com",
       "familyKind": "owner",
-      "rationale": "single document from informatica.com; no grouping asserted"
+      "rationale": "single document from informatica.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1426,7 +1427,7 @@
       ],
       "familyKey": "isopm-ru",
       "familyKind": "owner",
-      "rationale": "single document from isopm.ru; no grouping asserted"
+      "rationale": "single document from isopm.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1443,7 +1444,7 @@
       ],
       "familyKey": "kanerika-com",
       "familyKind": "owner",
-      "rationale": "single document from kanerika.com; no grouping asserted"
+      "rationale": "single document from kanerika.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1460,7 +1461,7 @@
       ],
       "familyKey": "kimi-com",
       "familyKind": "owner",
-      "rationale": "single document from kimi.com; no grouping asserted"
+      "rationale": "single document from kimi.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1477,7 +1478,7 @@
       ],
       "familyKey": "kommersant-ru",
       "familyKind": "owner",
-      "rationale": "single document from kommersant.ru; no grouping asserted"
+      "rationale": "single document from kommersant.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1494,7 +1495,7 @@
       ],
       "familyKey": "korusconsulting-ru",
       "familyKind": "owner",
-      "rationale": "single document from korusconsulting.ru; no grouping asserted"
+      "rationale": "single document from korusconsulting.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1511,7 +1512,7 @@
       ],
       "familyKey": "kt-team-ru",
       "familyKind": "owner",
-      "rationale": "single document from kt-team.ru; no grouping asserted"
+      "rationale": "single document from kt-team.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1528,7 +1529,7 @@
       ],
       "familyKey": "lablab-ai",
       "familyKind": "owner",
-      "rationale": "single document from lablab.ai; no grouping asserted"
+      "rationale": "single document from lablab.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1545,7 +1546,7 @@
       ],
       "familyKey": "latimes-com",
       "familyKind": "owner",
-      "rationale": "single document from latimes.com; no grouping asserted"
+      "rationale": "single document from latimes.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1562,7 +1563,7 @@
       ],
       "familyKey": "letsdatascience-com",
       "familyKind": "owner",
-      "rationale": "single document from letsdatascience.com; no grouping asserted"
+      "rationale": "single document from letsdatascience.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1579,7 +1580,7 @@
       ],
       "familyKey": "lindy-ai",
       "familyKind": "owner",
-      "rationale": "single document from lindy.ai; no grouping asserted"
+      "rationale": "single document from lindy.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1596,7 +1597,7 @@
       ],
       "familyKey": "livebusiness-ru",
       "familyKind": "owner",
-      "rationale": "single document from livebusiness.ru; no grouping asserted"
+      "rationale": "single document from livebusiness.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1613,7 +1614,7 @@
       ],
       "familyKey": "lumenova-ai",
       "familyKind": "owner",
-      "rationale": "single document from lumenova.ai; no grouping asserted"
+      "rationale": "single document from lumenova.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1630,7 +1631,7 @@
       ],
       "familyKey": "manilatimes-net",
       "familyKind": "owner",
-      "rationale": "single document from manilatimes.net; no grouping asserted"
+      "rationale": "single document from manilatimes.net; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1647,7 +1648,7 @@
       ],
       "familyKey": "marketing4ecommerce-net",
       "familyKind": "owner",
-      "rationale": "single document from marketing4ecommerce.net; no grouping asserted"
+      "rationale": "single document from marketing4ecommerce.net; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1664,7 +1665,7 @@
       ],
       "familyKey": "marketscale-com",
       "familyKind": "owner",
-      "rationale": "single document from marketscale.com; no grouping asserted"
+      "rationale": "single document from marketscale.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1681,7 +1682,7 @@
       ],
       "familyKey": "mintmcp-com",
       "familyKind": "owner",
-      "rationale": "single document from mintmcp.com; no grouping asserted"
+      "rationale": "single document from mintmcp.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1698,7 +1699,7 @@
       ],
       "familyKey": "monday-com",
       "familyKind": "owner",
-      "rationale": "single document from monday.com; no grouping asserted"
+      "rationale": "single document from monday.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1715,7 +1716,7 @@
       ],
       "familyKey": "moring-ai",
       "familyKind": "owner",
-      "rationale": "single document from moring.ai; no grouping asserted"
+      "rationale": "single document from moring.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1732,7 +1733,7 @@
       ],
       "familyKey": "mydatapath-com",
       "familyKind": "owner",
-      "rationale": "single document from mydatapath.com; no grouping asserted"
+      "rationale": "single document from mydatapath.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1749,7 +1750,7 @@
       ],
       "familyKey": "neontri-com",
       "familyKind": "owner",
-      "rationale": "single document from neontri.com; no grouping asserted"
+      "rationale": "single document from neontri.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1766,7 +1767,7 @@
       ],
       "familyKey": "newsquawk-com",
       "familyKind": "owner",
-      "rationale": "single document from newsquawk.com; no grouping asserted"
+      "rationale": "single document from newsquawk.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1783,7 +1784,7 @@
       ],
       "familyKey": "note-com",
       "familyKind": "owner",
-      "rationale": "single document from note.com; no grouping asserted"
+      "rationale": "single document from note.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1800,7 +1801,7 @@
       ],
       "familyKey": "observer-com",
       "familyKind": "owner",
-      "rationale": "single document from observer.com; no grouping asserted"
+      "rationale": "single document from observer.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1817,7 +1818,7 @@
       ],
       "familyKey": "obsidiansecurity-com",
       "familyKind": "owner",
-      "rationale": "single document from obsidiansecurity.com; no grouping asserted"
+      "rationale": "single document from obsidiansecurity.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1834,7 +1835,7 @@
       ],
       "familyKey": "opkey-com",
       "familyKind": "owner",
-      "rationale": "single document from opkey.com; no grouping asserted"
+      "rationale": "single document from opkey.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1851,7 +1852,7 @@
       ],
       "familyKey": "owasp-org",
       "familyKind": "owner",
-      "rationale": "single document from owasp.org; no grouping asserted"
+      "rationale": "single document from owasp.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1868,7 +1869,7 @@
       ],
       "familyKey": "pcworld-com",
       "familyKind": "owner",
-      "rationale": "single document from pcworld.com; no grouping asserted"
+      "rationale": "single document from pcworld.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1885,7 +1886,7 @@
       ],
       "familyKey": "portfoliohub-io",
       "familyKind": "owner",
-      "rationale": "single document from portfoliohub.io; no grouping asserted"
+      "rationale": "single document from portfoliohub.io; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1902,7 +1903,7 @@
       ],
       "familyKey": "precedenceresearch-com",
       "familyKind": "owner",
-      "rationale": "single document from precedenceresearch.com; no grouping asserted"
+      "rationale": "single document from precedenceresearch.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1919,7 +1920,7 @@
       ],
       "familyKey": "productleadersdayindia-org",
       "familyKind": "owner",
-      "rationale": "single document from productleadersdayindia.org; no grouping asserted"
+      "rationale": "single document from productleadersdayindia.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1936,7 +1937,7 @@
       ],
       "familyKey": "programgovernance-com",
       "familyKind": "owner",
-      "rationale": "single document from programgovernance.com; no grouping asserted"
+      "rationale": "single document from programgovernance.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1953,7 +1954,7 @@
       ],
       "familyKey": "prolifics-ai",
       "familyKind": "owner",
-      "rationale": "single document from prolifics.ai; no grouping asserted"
+      "rationale": "single document from prolifics.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1970,7 +1971,7 @@
       ],
       "familyKey": "pushable-ai",
       "familyKind": "owner",
-      "rationale": "single document from pushable.ai; no grouping asserted"
+      "rationale": "single document from pushable.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -1987,7 +1988,7 @@
       ],
       "familyKey": "pwc-com",
       "familyKind": "owner",
-      "rationale": "single document from pwc.com; no grouping asserted"
+      "rationale": "single document from pwc.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2004,7 +2005,7 @@
       ],
       "familyKey": "rasa-com",
       "familyKind": "owner",
-      "rationale": "single document from rasa.com; no grouping asserted"
+      "rationale": "single document from rasa.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2021,7 +2022,7 @@
       ],
       "familyKey": "re-kr",
       "familyKind": "owner",
-      "rationale": "single document from re.kr; no grouping asserted"
+      "rationale": "single document from re.kr; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2038,7 +2039,7 @@
       ],
       "familyKey": "reply-com",
       "familyKind": "owner",
-      "rationale": "single document from reply.com; no grouping asserted"
+      "rationale": "single document from reply.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2055,7 +2056,7 @@
       ],
       "familyKey": "ricardo-vargas-com",
       "familyKind": "owner",
-      "rationale": "single document from ricardo-vargas.com; no grouping asserted"
+      "rationale": "single document from ricardo-vargas.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2072,7 +2073,7 @@
       ],
       "familyKey": "rootsproduct-ru",
       "familyKind": "owner",
-      "rationale": "single document from rootsproduct.ru; no grouping asserted"
+      "rationale": "single document from rootsproduct.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2089,7 +2090,7 @@
       ],
       "familyKey": "sanalabs-com",
       "familyKind": "owner",
-      "rationale": "single document from sanalabs.com; no grouping asserted"
+      "rationale": "single document from sanalabs.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2106,7 +2107,7 @@
       ],
       "familyKey": "sap-com",
       "familyKind": "owner",
-      "rationale": "single document from sap.com; no grouping asserted"
+      "rationale": "single document from sap.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2123,7 +2124,7 @@
       ],
       "familyKey": "secureprivacy-ai",
       "familyKind": "owner",
-      "rationale": "single document from secureprivacy.ai; no grouping asserted"
+      "rationale": "single document from secureprivacy.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2140,7 +2141,7 @@
       ],
       "familyKey": "servicenow-com",
       "familyKind": "owner",
-      "rationale": "single document from servicenow.com; no grouping asserted"
+      "rationale": "single document from servicenow.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2157,7 +2158,7 @@
       ],
       "familyKey": "siliconangle-com",
       "familyKind": "owner",
-      "rationale": "single document from siliconangle.com; no grouping asserted"
+      "rationale": "single document from siliconangle.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2174,7 +2175,7 @@
       ],
       "familyKey": "siliconvalleysjournal-com",
       "familyKind": "owner",
-      "rationale": "single document from siliconvalleysjournal.com; no grouping asserted"
+      "rationale": "single document from siliconvalleysjournal.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2191,7 +2192,7 @@
       ],
       "familyKey": "skywork-ai",
       "familyKind": "owner",
-      "rationale": "single document from skywork.ai; no grouping asserted"
+      "rationale": "single document from skywork.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2208,7 +2209,7 @@
       ],
       "familyKey": "sovnet-ru",
       "familyKind": "owner",
-      "rationale": "single document from sovnet.ru; no grouping asserted"
+      "rationale": "single document from sovnet.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2225,7 +2226,7 @@
       ],
       "familyKey": "stabilarity-com",
       "familyKind": "owner",
-      "rationale": "single document from stabilarity.com; no grouping asserted"
+      "rationale": "single document from stabilarity.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2242,7 +2243,7 @@
       ],
       "familyKey": "stackone-com",
       "familyKind": "owner",
-      "rationale": "single document from stackone.com; no grouping asserted"
+      "rationale": "single document from stackone.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2259,7 +2260,7 @@
       ],
       "familyKey": "substack-com",
       "familyKind": "owner",
-      "rationale": "single document from substack.com; no grouping asserted"
+      "rationale": "single document from substack.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2276,7 +2277,7 @@
       ],
       "familyKey": "suhasbhairav-com",
       "familyKind": "owner",
-      "rationale": "single document from suhasbhairav.com; no grouping asserted"
+      "rationale": "single document from suhasbhairav.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2293,7 +2294,7 @@
       ],
       "familyKey": "tandfonline-com",
       "familyKind": "owner",
-      "rationale": "single document from tandfonline.com; no grouping asserted"
+      "rationale": "single document from tandfonline.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2310,7 +2311,7 @@
       ],
       "familyKey": "tbank-ru",
       "familyKind": "owner",
-      "rationale": "single document from tbank.ru; no grouping asserted"
+      "rationale": "single document from tbank.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2327,7 +2328,7 @@
       ],
       "familyKey": "teamvoy-com",
       "familyKind": "owner",
-      "rationale": "single document from teamvoy.com; no grouping asserted"
+      "rationale": "single document from teamvoy.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2344,7 +2345,7 @@
       ],
       "familyKey": "technavio-com",
       "familyKind": "owner",
-      "rationale": "single document from technavio.com; no grouping asserted"
+      "rationale": "single document from technavio.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2361,7 +2362,7 @@
       ],
       "familyKey": "techplustrends-com",
       "familyKind": "owner",
-      "rationale": "single document from techplustrends.com; no grouping asserted"
+      "rationale": "single document from techplustrends.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2378,7 +2379,7 @@
       ],
       "familyKey": "techtimes-com",
       "familyKind": "owner",
-      "rationale": "single document from techtimes.com; no grouping asserted"
+      "rationale": "single document from techtimes.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2395,7 +2396,7 @@
       ],
       "familyKey": "theaiagentindex-com",
       "familyKind": "owner",
-      "rationale": "single document from theaiagentindex.com; no grouping asserted"
+      "rationale": "single document from theaiagentindex.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2412,7 +2413,7 @@
       ],
       "familyKey": "thinking-inc",
       "familyKind": "owner",
-      "rationale": "single document from thinking.inc; no grouping asserted"
+      "rationale": "single document from thinking.inc; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2429,7 +2430,7 @@
       ],
       "familyKey": "trendaisecurity-com",
       "familyKind": "owner",
-      "rationale": "single document from trendaisecurity.com; no grouping asserted"
+      "rationale": "single document from trendaisecurity.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2446,7 +2447,7 @@
       ],
       "familyKey": "trychaser-com",
       "familyKind": "owner",
-      "rationale": "single document from trychaser.com; no grouping asserted"
+      "rationale": "single document from trychaser.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2463,7 +2464,7 @@
       ],
       "familyKey": "usaii-org",
       "familyKind": "owner",
-      "rationale": "single document from usaii.org; no grouping asserted"
+      "rationale": "single document from usaii.org; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2480,7 +2481,7 @@
       ],
       "familyKey": "v7labs-com",
       "familyKind": "owner",
-      "rationale": "single document from v7labs.com; no grouping asserted"
+      "rationale": "single document from v7labs.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2497,7 +2498,7 @@
       ],
       "familyKey": "vc-ru",
       "familyKind": "owner",
-      "rationale": "single document from vc.ru; no grouping asserted"
+      "rationale": "single document from vc.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2514,7 +2515,7 @@
       ],
       "familyKey": "verdantix-com",
       "familyKind": "owner",
-      "rationale": "single document from verdantix.com; no grouping asserted"
+      "rationale": "single document from verdantix.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2531,7 +2532,7 @@
       ],
       "familyKey": "windflash-us",
       "familyKind": "owner",
-      "rationale": "single document from windflash.us; no grouping asserted"
+      "rationale": "single document from windflash.us; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2548,7 +2549,7 @@
       ],
       "familyKey": "wiserwulff-com",
       "familyKind": "owner",
-      "rationale": "single document from wiserwulff.com; no grouping asserted"
+      "rationale": "single document from wiserwulff.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2565,7 +2566,7 @@
       ],
       "familyKey": "wrike-com",
       "familyKind": "owner",
-      "rationale": "single document from wrike.com; no grouping asserted"
+      "rationale": "single document from wrike.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2582,7 +2583,7 @@
       ],
       "familyKey": "x-ai",
       "familyKind": "owner",
-      "rationale": "single document from x.ai; no grouping asserted"
+      "rationale": "single document from x.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2599,7 +2600,7 @@
       ],
       "familyKey": "yakovpartners-ru",
       "familyKind": "owner",
-      "rationale": "single document from yakovpartners.ru; no grouping asserted"
+      "rationale": "single document from yakovpartners.ru; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2616,7 +2617,7 @@
       ],
       "familyKey": "zignuts-com",
       "familyKind": "owner",
-      "rationale": "single document from zignuts.com; no grouping asserted"
+      "rationale": "single document from zignuts.com; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     },
     {
       "_evidence": {
@@ -2633,9 +2634,9 @@
       ],
       "familyKey": "zylos-ai",
       "familyKind": "owner",
-      "rationale": "single document from zylos.ai; no grouping asserted"
+      "rationale": "single document from zylos.ai; no grouping asserted; applied on the owner's instruction 2026-08-23, no grouping asserted"
     }
   ],
-  "note": "Proposed by registrable domain on the issue perimeter, 2026-08-22 (slice 2.4, ADR-0007 §11a). To apply: add a top-level \"decidedBy\" with your name, edit or delete entries, then `kxrun apply-families --batch <file>`. Without decidedBy the file is refused - a family is an editorial fact and the record has to name who decided it. A correction later is a new decision, never an edit of this one. These assert nothing but that a document came from the domain it came from: one document, one host, no grouping claimed. They exist because a document with no family is unknown, and unknown never satisfies a two-independent-sources requirement (ADR-0007 §12).",
+  "note": "Proposed by registrable domain on the issue perimeter, 2026-08-22 (slice 2.4, ADR-0007 §11a). To apply: add a top-level \"decidedBy\" with your name, edit or delete entries, then `kxrun apply-families --batch <file>`. Without decidedBy the file is refused - a family is an editorial fact and the record has to name who decided it. A correction later is a new decision, never an edit of this one. These assert nothing but that a document came from the domain it came from: one document, one host, no grouping claimed. They exist because a document with no family is unknown, and unknown never satisfies a two-independent-sources requirement (ADR-0007 §12). APPLIED 2026-08-23: the owner authorised these 155 specifically, on the ground that they assert nothing beyond the domain a document came from. The 39 in the review file, which do assert a grouping, were deliberately excluded and remain with the owner.",
   "scope": "perimeter"
 }
