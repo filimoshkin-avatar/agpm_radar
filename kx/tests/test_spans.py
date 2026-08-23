@@ -115,6 +115,22 @@ def test_a_table_cell_does_not_swallow_its_neighbours() -> None:
     assert result.right_reason == KEPT_STRUCTURAL
 
 
+def test_a_row_without_a_leading_pipe_is_still_a_row() -> None:
+    """Half this corpus's tables arrived with the pipes only between the columns.
+
+    Read as prose, the row label is one sentence away from the cell beside it, and
+    widening fused the two - 41 quotations before the row was recognised.
+    """
+    text = (
+        "Порог автономии | Граница между классами. | Без порога классы абстрактны.\n"
+        "Значимое решение | Рекомендательный класс и выше. | Разводит два случая.\n"
+    )
+    quoted, result = widen(text, "Рекомендательный класс и выше.")
+    assert quoted == "Рекомендательный класс и выше."
+    assert result.block_kind == "table cell"
+    assert "Значимое решение" not in quoted
+
+
 # ---------------------------------------------------------------------------
 # Where widening stops
 # ---------------------------------------------------------------------------

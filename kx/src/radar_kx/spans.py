@@ -95,7 +95,12 @@ ABBREVIATIONS = frozenset(
 _LIST_MARKER = re.compile(r"^[ \t]*(?:[-*•+‣]|\d+[.)]|[a-zа-я][.)])[ \t]+")
 _HEADING = re.compile(r"^[ \t]*#{1,6}[ \t]+")
 _BLOCKQUOTE = re.compile(r"^[ \t]*>[ \t]?")
-_TABLE_ROW = re.compile(r"^[ \t]*\|")
+#: Two pipes on a line is a table row whether or not it opens with one. Half the
+#: tables in this corpus are markdown and start with `|`; the other half arrived
+#: as `Значимое решение | Рекомендательный класс и выше. | ...`, where the pipes
+#: separate the columns and nothing marks the start. Widening across one of those
+#: fuses the row label into the cell beside it.
+_MIN_PIPES_IN_A_ROW = 2
 _WORD_BEFORE_DOT = re.compile(r"([0-9]+|[^\W\d_]+)$", re.UNICODE)
 
 #: Reasons a side can carry. Stated as constants because the dry run counts them
@@ -156,8 +161,12 @@ def _opens_a_block(line: str) -> bool:
         or _LIST_MARKER.match(line)
         or _HEADING.match(line)
         or _BLOCKQUOTE.match(line)
-        or _TABLE_ROW.match(line)
+        or is_table_row(line)
     )
+
+
+def is_table_row(line: str) -> bool:
+    return line.lstrip().startswith("|") or line.count("|") >= _MIN_PIPES_IN_A_ROW
 
 
 def block_of(text: str, start: int, end: int) -> Block:
@@ -175,7 +184,7 @@ def block_of(text: str, start: int, end: int) -> Block:
     if heading:
         return Block(first_start + heading.end(), first_end, "heading")
 
-    if _TABLE_ROW.match(first_line):
+    if is_table_row(first_line):
         opening = text.rfind("|", first_start, start)
         closing = text.find("|", end, last_end)
         return Block(
