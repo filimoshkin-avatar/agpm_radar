@@ -12,7 +12,6 @@ from urllib.parse import urlsplit
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
-import trafilatura
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -511,6 +510,12 @@ def parse_content(
                 specialized_text = True
                 completion_threshold = min(min_text_chars, 20)
         if not specialized_text and len(text) < min_text_chars:
+            # Imported at the point of use, not at module import. Reading the
+            # store should not require an HTML extraction library: the embedder
+            # runtime has torch and no lxml, and importing Database pulled in
+            # trafilatura through the fetcher for no reason anybody wanted.
+            import trafilatura
+
             extracted = trafilatura.extract(
                 html,
                 include_comments=False,
