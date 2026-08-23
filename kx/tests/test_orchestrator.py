@@ -166,3 +166,31 @@ def test_the_audit_table_refuses_to_be_edited(
         pytest.raises(Exception, match="immutable|reject"),
     ):
         cursor.execute("UPDATE kx.egress_audit SET outcome = 'edited'")
+
+
+# ---------------------------------------------------------------------------
+# A busy profile is not a failed batch
+# ---------------------------------------------------------------------------
+
+
+def test_a_busy_profile_is_waited_out_rather_than_dropped() -> None:
+    """The profile refuses past ten concurrent runs; two passes cross that line.
+
+    Seventeen of twenty link batches were lost to it before this existed, and a
+    lost batch looks exactly like a batch of work nobody had to do.
+    """
+    from radar_kx.orchestrator import _is_busy
+
+    assert _is_busy('hermes returned 429: {"code": "rate_limit_exceeded"}')
+    assert _is_busy("OrchestratorError: Too many concurrent runs (max 10)")
+    assert _is_busy("ReadTimeout: timed out")
+    # A real refusal is not a busy signal and must not be retried into silence.
+    assert not _is_busy("hermes returned 400: model not routed")
+    assert not _is_busy("'gpt-9' is not one of ['MiniMax-M3', 'glm-5.2']")
+
+
+def test_the_retry_budget_is_small_enough_to_surface_a_real_outage() -> None:
+    from radar_kx.orchestrator import BUSY_BACKOFF_SECONDS, BUSY_RETRIES
+
+    assert 1 <= BUSY_RETRIES <= 5
+    assert BUSY_RETRIES * BUSY_BACKOFF_SECONDS * (BUSY_RETRIES + 1) / 2 < 60

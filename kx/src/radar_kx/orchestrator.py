@@ -37,6 +37,7 @@ the only one of the three that lives in a repository with gates.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -59,6 +60,22 @@ from radar_kx.identifiers import sha256_bytes
 ALLOWED_MODELS = {"glm-5.2": "zai", "MiniMax-M3": "minimax"}
 
 DEFAULT_MODEL = "glm-5.2"
+
+#: How many times a call waits out a busy profile before giving up. The extraction
+#: profile refuses past ten concurrent runs, and a batch pass with eight workers
+#: beside another one crosses that line in seconds. Three tries at a widening
+#: interval covers a passing overlap; a profile that is busy for a minute is a
+#: different problem and should surface as one.
+BUSY_RETRIES = 3
+BUSY_BACKOFF_SECONDS = 4.0
+
+#: What "come back later" looks like coming out of the profile.
+_BUSY_SIGNS = ("429", "rate_limit", "too many concurrent", "overloaded", "timed out", "timeout")
+
+
+def _is_busy(detail: str) -> bool:
+    lowered = detail.casefold()
+    return any(sign in lowered for sign in _BUSY_SIGNS)
 
 
 class OrchestratorError(RuntimeError):
@@ -351,12 +368,24 @@ class ModelGateway:
                 f"{detail} (egress {record('refused_oversize_payload', detail=detail)})"
             )
 
-        try:
-            body = self._post(chosen, payload, system)
-            content = self._content(body)
-        except (httpx.HTTPError, OrchestratorError, json.JSONDecodeError) as exc:
-            detail = f"{type(exc).__name__}: {exc}"[:2000]
-            raise OrchestratorError(f"{detail} (egress {record('failed', detail=detail)})") from exc
+        for attempt in range(BUSY_RETRIES + 1):
+            try:
+                body = self._post(chosen, payload, system)
+                content = self._content(body)
+                break
+            except (httpx.HTTPError, OrchestratorError, json.JSONDecodeError) as exc:
+                detail = f"{type(exc).__name__}: {exc}"[:2000]
+                if attempt < BUSY_RETRIES and _is_busy(detail):
+                    # The profile is at its concurrency ceiling, not broken. Waiting
+                    # is the whole fix; failing here would silently drop a batch of
+                    # work whose only problem was arriving at the same moment as
+                    # another one. Every attempt is still audited.
+                    record("failed", detail=detail)
+                    time.sleep(BUSY_BACKOFF_SECONDS * (attempt + 1))
+                    continue
+                raise OrchestratorError(
+                    f"{detail} (egress {record('failed', detail=detail)})"
+                ) from exc
 
         request_tokens, response_tokens = self._tokens(body)
         egress_id = record(
