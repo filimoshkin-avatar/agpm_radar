@@ -4916,61 +4916,107 @@ class Database:
         return {"forward": forward, "back": backward, "examples": examples}
 
     def wiki_suggestions(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
-        """Statements that belong on a page the wiki already has (UC-09).
+        """The best few store statements for each statement on her pages (UC-09).
 
-        Matched by subject, not by words: a page and a statement meet on the
-        backbone, which is the one place both have been placed by something that
-        read them. Machine-proposed and unsigned - the wiki is authored text and
-        stays hers (P4), so this is a queue rather than an edit.
+        Shortlisted by both methods, exactly as links are. The subject is the
+        lexical side - a model read the words and placed both on the backbone -
+        and the neighbourhood is the semantic side.
+
+        Sharing a subject alone is a cross product: it offered 95 554 pairs, which
+        is the 163-hour queue her delegation boundary exists to prevent. The
+        nearest three within a sentence's distance is a queue that can be worked.
+
+        Machine-proposed and unsigned - the wiki is authored text and stays hers
+        (P4), so this is a queue rather than an edit.
         """
         query = """
-                SELECT DISTINCT ON (page_claims.concept_claim_id, claims.claim_id)
-                       concepts.relative_path,
-                       versions.title AS page_title,
-                       page_claims.concept_claim_id,
-                       page_claims.statement AS page_statement,
-                       topics.title AS subject,
+            WITH page_vectors AS (
+                SELECT page_claims.concept_claim_id, page_claims.statement,
+                       page_claims.concept_version_id, vectors.embedding
+                FROM kx.concept_claims AS page_claims
+                JOIN kx.text_embeddings AS vectors
+                  ON vectors.owner_kind = 'concept_claim'
+                 AND vectors.owner_key = page_claims.concept_claim_id::text
+                 AND vectors.model_id = %(model)s
+                WHERE page_claims.claim_nature <> 'open_question'
+            ),
+            nearest AS (
+                SELECT page.concept_claim_id,
+                       page.statement AS page_statement,
+                       page.concept_version_id,
                        claims.claim_id,
                        claims.normalized_text,
-                       evidence.quote_text,
-                       documents.canonical_url,
-                       reading.material_kind,
-                       status.status
-                FROM kx.claim_topics AS placed
-                JOIN kx.topics AS topics USING (topic_id)
+                       topics.title AS subject,
+                       vectors.embedding <=> page.embedding AS distance,
+                       row_number() OVER (
+                           PARTITION BY page.concept_claim_id
+                           ORDER BY vectors.embedding <=> page.embedding
+                       ) AS rank
+                FROM page_vectors AS page
+                JOIN kx.concept_claim_topics AS page_topics
+                  ON page_topics.concept_claim_id = page.concept_claim_id
+                JOIN kx.claim_topics AS placed ON placed.topic_id = page_topics.topic_id
+                JOIN kx.topics AS topics ON topics.topic_id = placed.topic_id
                 JOIN kx.claims AS claims ON claims.claim_id = placed.claim_id
                 JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
-                JOIN kx.claim_evidence AS evidence
-                  ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
-                JOIN kx.document_versions AS document_version
-                  ON document_version.version_id = claims.version_id
-                JOIN kx.documents AS documents
-                  ON documents.document_id = document_version.document_id
-                JOIN kx.knowledge_status_current AS status
-                  ON status.unit_kind = 'claim' AND status.unit_id = claims.claim_id
-                JOIN kx.concept_claim_topics AS page_topics
-                  ON page_topics.topic_id = placed.topic_id
-                JOIN kx.concept_claims AS page_claims
-                  ON page_claims.concept_claim_id = page_topics.concept_claim_id
-                JOIN kx.concept_versions AS versions
-                  ON versions.concept_version_id = page_claims.concept_version_id
-                JOIN kx.concepts AS concepts ON concepts.concept_id = versions.concept_id
+                JOIN kx.text_embeddings AS vectors
+                  ON vectors.owner_kind = 'claim_evidence'
+                 AND vectors.owner_key = claims.claim_id::text
+                 AND vectors.model_id = %(model)s
                 WHERE reading.admission = 'knowledge'
+                  AND topics.state = 'accepted'
+                  AND vectors.embedding <=> page.embedding <= %(max_distance)s
                   AND NOT EXISTS (
                       SELECT 1 FROM kx.concept_evidence AS bound
                       WHERE bound.claim_id = claims.claim_id
-                        AND bound.concept_claim_id = page_claims.concept_claim_id
+                        AND bound.concept_claim_id = page.concept_claim_id
                   )
-                ORDER BY page_claims.concept_claim_id, claims.claim_id
+            )
+            SELECT DISTINCT ON (nearest.concept_claim_id, nearest.claim_id)
+                   concepts.relative_path,
+                   versions.title AS page_title,
+                   nearest.concept_claim_id,
+                   nearest.page_statement,
+                   nearest.subject,
+                   nearest.claim_id,
+                   nearest.normalized_text,
+                   nearest.distance,
+                   evidence.quote_text,
+                   documents.canonical_url,
+                   reading.material_kind,
+                   status.status
+            FROM nearest
+            JOIN kx.claim_evidence AS evidence
+              ON evidence.claim_id = nearest.claim_id AND evidence.match_status = 'exact'
+            JOIN kx.claim_reading AS reading ON reading.claim_id = nearest.claim_id
+            JOIN kx.claims AS source ON source.claim_id = nearest.claim_id
+            JOIN kx.document_versions AS document_version
+              ON document_version.version_id = source.version_id
+            JOIN kx.documents AS documents
+              ON documents.document_id = document_version.document_id
+            JOIN kx.knowledge_status_current AS status
+              ON status.unit_kind = 'claim' AND status.unit_id = nearest.claim_id
+            JOIN kx.concept_versions AS versions
+              ON versions.concept_version_id = nearest.concept_version_id
+            JOIN kx.concepts AS concepts ON concepts.concept_id = versions.concept_id
+            WHERE nearest.rank <= %(neighbours)s
+            ORDER BY nearest.concept_claim_id, nearest.claim_id, nearest.distance
         """
+        parameters: dict[str, Any] = {
+            "model": DEFAULT_MODEL,
+            "max_distance": LINK_MAX_DISTANCE,
+            "neighbours": LINK_NEIGHBOURS,
+        }
         with self.connect() as connection, connection.cursor() as cursor:
             # The wall asks every queue for its count with limit 0, so the total
             # cannot come from the page: a tab that reports what fits on screen
-            # reads as empty the moment the screen is empty. DISTINCT ON needs its
-            # ORDER BY inside the query, which a subquery is allowed to carry.
-            cursor.execute(f"SELECT count(*) AS total FROM ({query}) AS all_of_them")  # noqa: S608
+            # reads as empty the moment the screen is empty.
+            cursor.execute(
+                f"SELECT count(*) AS total FROM ({query}) AS all_of_them",  # noqa: S608
+                parameters,
+            )
             total = int(one_row(cursor)["total"])
-            cursor.execute(f"{query} LIMIT %s", (limit,))
+            cursor.execute(f"{query} LIMIT %(limit)s", {**parameters, "limit": limit})
             return total, [dict(row) for row in cursor.fetchall()]
 
     # ---------------------------------------------------------------------
