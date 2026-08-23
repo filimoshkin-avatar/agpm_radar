@@ -4923,9 +4923,7 @@ class Database:
         read them. Machine-proposed and unsigned - the wiki is authored text and
         stays hers (P4), so this is a queue rather than an edit.
         """
-        with self.connect() as connection, connection.cursor() as cursor:
-            cursor.execute(
-                """
+        query = """
                 SELECT DISTINCT ON (page_claims.concept_claim_id, claims.claim_id)
                        concepts.relative_path,
                        versions.title AS page_title,
@@ -4964,11 +4962,16 @@ class Database:
                         AND bound.concept_claim_id = page_claims.concept_claim_id
                   )
                 ORDER BY page_claims.concept_claim_id, claims.claim_id
-                LIMIT %s
-                """,
-                (limit,),
-            )
-            return len(rows := [dict(row) for row in cursor.fetchall()]), rows
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            # The wall asks every queue for its count with limit 0, so the total
+            # cannot come from the page: a tab that reports what fits on screen
+            # reads as empty the moment the screen is empty. DISTINCT ON needs its
+            # ORDER BY inside the query, which a subquery is allowed to carry.
+            cursor.execute(f"SELECT count(*) AS total FROM ({query}) AS all_of_them")  # noqa: S608
+            total = int(one_row(cursor)["total"])
+            cursor.execute(f"{query} LIMIT %s", (limit,))
+            return total, [dict(row) for row in cursor.fetchall()]
 
     # ---------------------------------------------------------------------
     # Two queues the owner's own decisions create (6: promotion, 11: expiry)
