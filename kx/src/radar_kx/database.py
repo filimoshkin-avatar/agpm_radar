@@ -18,6 +18,14 @@ from psycopg.types.json import Jsonb
 from radar_kx.acquisition import ESCALATION_HINT, HostProfile, next_step, profile_for
 from radar_kx.config import Settings
 from radar_kx.duplicates import DocumentText, DuplicateProposal
+from radar_kx.embeddings import (
+    DEFAULT_DIMENSIONS,
+    DEFAULT_MODEL,
+    encode,
+    load_model,
+    text_fingerprint,
+    to_pgvector,
+)
 from radar_kx.extraction import (
     EXTRACTOR_VERSION,
     MAX_CLAIMS_PER_FRAGMENT,
@@ -78,7 +86,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4559,6 +4567,192 @@ class Database:
             object_kind="topic_skeleton", object_key=source, verdict=verdict, actor=actor
         )
         return {"source": source, "verdict": verdict}
+
+    # ---------------------------------------------------------------------
+    # Embeddings and the comparison they exist for (owner request, 2026-08-23)
+    # ---------------------------------------------------------------------
+
+    #: What each owner kind reads, and whether it is the asking side. e5 wants
+    #: `query:` on the side asking and `passage:` on the side searched.
+    _EMBED_SOURCES: ClassVar[dict[str, tuple[str, bool]]] = {
+        "concept_claim": (
+            "SELECT concept_claim_id AS key, statement AS text FROM kx.concept_claims",
+            True,
+        ),
+        "claim_evidence": (
+            "SELECT claim_id AS key, quote_text AS text FROM kx.claim_evidence"
+            " WHERE match_status = 'exact'",
+            False,
+        ),
+    }
+
+    def embed(
+        self, owner_kind: str, *, model_id: str = DEFAULT_MODEL, limit: int = 100000
+    ) -> dict[str, Any]:
+        """Encode everything of one kind that has no vector yet."""
+        if owner_kind not in self._EMBED_SOURCES:
+            raise ValueError(f"owner_kind must be one of {sorted(self._EMBED_SOURCES)}")
+        query, is_query = self._EMBED_SOURCES[owner_kind]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO kx.embedding_models (model_id, dimensions, provider, parameters)"
+                    " VALUES (%s, %s, 'local', %s) ON CONFLICT (model_id) DO NOTHING",
+                    (
+                        model_id,
+                        DEFAULT_DIMENSIONS,
+                        Jsonb({"runtime": "radar-embed-runtime", "device": "cpu"}),
+                    ),
+                )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT source.key::text AS key, source.text
+                    FROM ({query}) AS source
+                    LEFT JOIN kx.text_embeddings AS stored
+                           ON stored.owner_kind = %s
+                          AND stored.owner_key = source.key::text
+                          AND stored.model_id = %s
+                    WHERE stored.owner_key IS NULL
+                    LIMIT %s
+                    """,  # noqa: S608 - a constant from _EMBED_SOURCES
+                    (owner_kind, model_id, limit),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+        if not rows:
+            return {"ownerKind": owner_kind, "encoded": 0, "modelId": model_id}
+
+        model = load_model(model_id)
+        written = 0
+        with self.connect() as connection:
+            for start in range(0, len(rows), 500):
+                block = rows[start : start + 500]
+                vectors = encode(model, [str(row["text"]) for row in block], is_query=is_query)
+                with connection.transaction(), connection.cursor() as cursor:
+                    for row, vector in zip(block, vectors, strict=True):
+                        cursor.execute(
+                            "INSERT INTO kx.text_embeddings"
+                            " (owner_kind, owner_key, model_id, text_sha256, embedding)"
+                            " VALUES (%s, %s, %s, %s, %s::vector)"
+                            " ON CONFLICT DO NOTHING",
+                            (
+                                owner_kind,
+                                str(row["key"]),
+                                model_id,
+                                text_fingerprint(str(row["text"])),
+                                to_pgvector(vector),
+                            ),
+                        )
+                        written += cursor.rowcount
+        return {"ownerKind": owner_kind, "encoded": written, "modelId": model_id}
+
+    def compare_binding_methods(
+        self, *, model_id: str = DEFAULT_MODEL, top: int = 5, ran_by: str = "radar-kx"
+    ) -> dict[str, Any]:
+        """Run both linking methods over the same statements and record both.
+
+        Lexical is the reciprocal-rank fusion of slice 2.5; semantic is cosine
+        distance over locally computed embeddings. Nothing here decides which is
+        better - it puts the two answers for every statement side by side, which
+        is what the owner asked for and what an argument about quality needs.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT claims.concept_claim_id, claims.statement"
+                    " FROM kx.concept_claims AS claims"
+                    " WHERE claims.claim_nature <> 'open_question'"
+                    "   AND EXISTS (SELECT 1 FROM kx.text_embeddings AS vectors"
+                    "               WHERE vectors.owner_kind = 'concept_claim'"
+                    "                 AND vectors.owner_key = claims.concept_claim_id::text"
+                    "                 AND vectors.model_id = %s)"
+                    " ORDER BY claims.concept_claim_id",
+                    (model_id,),
+                )
+                statements = [dict(row) for row in cursor.fetchall()]
+
+            detail: list[dict[str, Any]] = []
+            agree_top = 0
+            overlap_total = 0
+            semantic_only = 0
+            for row in statements:
+                statement_id = str(row["concept_claim_id"])
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        SELECT stored.owner_key AS claim_id,
+                               1 - (asked.embedding <=> stored.embedding) AS score,
+                               evidence.quote_text
+                        FROM kx.text_embeddings AS asked
+                        JOIN kx.text_embeddings AS stored
+                          ON stored.owner_kind = 'claim_evidence'
+                         AND stored.model_id = asked.model_id
+                        JOIN kx.claim_evidence AS evidence
+                          ON evidence.claim_id::text = stored.owner_key
+                        WHERE asked.owner_kind = 'concept_claim'
+                          AND asked.owner_key = %s
+                          AND asked.model_id = %s
+                        ORDER BY asked.embedding <=> stored.embedding
+                        LIMIT %s
+                        """,
+                        (statement_id, model_id, top),
+                    )
+                    semantic = [dict(item) for item in cursor.fetchall()]
+                    cursor.execute(
+                        "SELECT claim_id::text AS claim_id, relevance"
+                        " FROM kx.concept_evidence WHERE concept_claim_id = %s"
+                        " ORDER BY relevance DESC LIMIT %s",
+                        (statement_id, top),
+                    )
+                    lexical = [dict(item) for item in cursor.fetchall()]
+
+                semantic_ids = [str(item["claim_id"]) for item in semantic]
+                lexical_ids = [str(item["claim_id"]) for item in lexical]
+                shared = set(semantic_ids) & set(lexical_ids)
+                overlap_total += len(shared)
+                if semantic_ids and lexical_ids and semantic_ids[0] == lexical_ids[0]:
+                    agree_top += 1
+                if semantic_ids and not shared:
+                    semantic_only += 1
+                detail.append(
+                    {
+                        "conceptClaimId": statement_id,
+                        "statement": str(row["statement"])[:300],
+                        "semanticTop": (
+                            {
+                                "claimId": semantic_ids[0],
+                                "score": round(float(semantic[0]["score"]), 4),
+                                "quote": str(semantic[0]["quote_text"])[:300],
+                            }
+                            if semantic
+                            else None
+                        ),
+                        "lexicalTop": ({"claimId": lexical_ids[0]} if lexical_ids else None),
+                        "overlapAtTop": len(shared),
+                    }
+                )
+
+            summary = {
+                "model": model_id,
+                "top": top,
+                "statements": len(statements),
+                "sameFirstChoice": agree_top,
+                "averageOverlapAtTop": (
+                    round(overlap_total / len(statements), 3) if statements else 0
+                ),
+                "statementsWhereMethodsShareNothing": semantic_only,
+            }
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO kx.binding_method_comparisons"
+                    " (ran_by, statements, summary, detail) VALUES (%s, %s, %s, %s)"
+                    " RETURNING comparison_id",
+                    (ran_by, len(statements), Jsonb(summary), Jsonb(detail[:400])),
+                )
+                comparison_id = str(one_row(cursor)["comparison_id"])
+        return {"comparisonId": comparison_id, **summary, "examples": detail[:5]}
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

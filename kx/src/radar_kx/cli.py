@@ -276,6 +276,16 @@ def _parser() -> argparse.ArgumentParser:
     subparsers.add_parser("editor-token")
     subparsers.add_parser("editorial-history")
 
+    # Local embeddings and the comparison the owner asked for.
+    embed_parser = subparsers.add_parser("embed")
+    embed_parser.add_argument(
+        "--owner-kind", choices=("concept_claim", "claim_evidence"), required=True
+    )
+    embed_parser.add_argument("--limit", type=int, default=100000)
+
+    compare_parser = subparsers.add_parser("compare-bindings")
+    compare_parser.add_argument("--top", type=int, default=5)
+
     queue_parser = subparsers.add_parser("evidence-queue")
     queue_parser.add_argument("--limit", type=int, default=5)
 
@@ -715,6 +725,12 @@ def main() -> None:
         return
     if args.command == "evidence-queue":
         _print_json(database.evidence_queue(limit=args.limit))
+        return
+    if args.command == "embed":
+        _print_json(database.embed(args.owner_kind, limit=args.limit))
+        return
+    if args.command == "compare-bindings":
+        _print_json(database.compare_binding_methods(top=args.top))
         return
     if args.command == "editorial-history":
         _print_json(database.editorial_history())
