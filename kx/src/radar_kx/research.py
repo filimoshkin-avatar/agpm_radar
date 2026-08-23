@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -90,6 +90,44 @@ _LINK = re.compile(r"https?://[^\s<>\")]+")
 
 
 @dataclass(frozen=True, slots=True)
+class Labels:
+    """What the reading pass determined about a statement, as the reader sees it.
+
+    Decision 7: the reader has to see **what** a conclusion is supported by - a
+    fact and a forecast are not the same evidence. Decision 1: a retelling says
+    whose claim it originally was. §2.2: a status is never invisible. None of it
+    is optional dressing; a quotation shown without these is a quotation whose
+    authority the reader has to guess at.
+    """
+
+    material_kind: str | None = None
+    admission: str | None = None
+    status: str | None = None
+    primary_source: str = ""
+    is_retelling: bool = False
+    #: The day shown beside the quotation, and which day it is: the source's own
+    #: publication date, or the day the radar found it.
+    shown_on: str | None = None
+    shown_kind: str | None = None
+    topics: tuple[str, ...] = ()
+    #: Which arms of the search found this - UC-01's "why was this found".
+    matched_by: tuple[str, ...] = ()
+
+    def as_json(self) -> dict[str, Any]:
+        return {
+            "materialKind": self.material_kind,
+            "admission": self.admission,
+            "status": self.status,
+            "primarySource": self.primary_source,
+            "isRetelling": self.is_retelling,
+            "shownOn": self.shown_on,
+            "shownKind": self.shown_kind,
+            "topics": list(self.topics),
+            "matchedBy": list(self.matched_by),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class EvidenceElement:
     """One numbered piece of evidence the model may cite."""
 
@@ -104,6 +142,7 @@ class EvidenceElement:
     #: no way to decline to quote something the asker may not see, and the check
     #: has to be added under pressure later.
     audience: str = "public"
+    labels: Labels = field(default_factory=Labels)
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -115,6 +154,7 @@ class EvidenceElement:
             "charEnd": self.char_end,
             "relevance": round(self.relevance, 6),
             "audience": self.audience,
+            **self.labels.as_json(),
         }
 
 
@@ -193,8 +233,35 @@ def build_package(
             char_start=int(hit["char_start"]),
             char_end=int(hit["char_end"]),
             relevance=float(hit.get("relevance") or 0),
+            labels=labels_of(hit),
         )
         for index, hit in enumerate(chosen, start=1)
+    )
+
+
+def labels_of(hit: Mapping[str, Any]) -> Labels:
+    """Read the labels off a retrieval row, tolerating a row that has none.
+
+    A claim the reading pass has not reached yet comes back with empty labels
+    rather than with none at all: "not read yet" and "read and found to be an
+    opinion" have to look different to the reader, and an absent field looks like
+    neither.
+    """
+
+    def text(key: str) -> str | None:
+        value = hit.get(key)
+        return None if value is None else str(value)
+
+    return Labels(
+        material_kind=text("material_kind"),
+        admission=text("admission"),
+        status=text("status"),
+        primary_source=str(hit.get("primary_source") or ""),
+        is_retelling=bool(hit.get("is_retelling")),
+        shown_on=text("shown_on"),
+        shown_kind=text("shown_kind"),
+        topics=tuple(str(item) for item in (hit.get("topics") or ())),
+        matched_by=tuple(str(item) for item in (hit.get("matched_by") or ())),
     )
 
 

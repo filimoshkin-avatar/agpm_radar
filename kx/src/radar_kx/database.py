@@ -72,7 +72,17 @@ from radar_kx.research import (
     build_package,
     normalize_question,
 )
-from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
+from radar_kx.search import (
+    FILTERS,
+    RRF_K,
+    SCOPES,
+    SEMANTIC_DEPTH,
+    SMOKE_QUERIES,
+    SearchHit,
+    build_hit,
+    evidence_sql,
+    search_sql,
+)
 from radar_kx.skeleton import AuthoredSkeleton, SkeletonCandidate, SkeletonError
 from radar_kx.skeleton import candidates as skeleton_candidates
 from radar_kx.source_families import DocumentHost, FamilyDecision, propose_families
@@ -4015,65 +4025,38 @@ class Database:
     # ---------------------------------------------------------------------
 
     def evidence_for_question(
-        self, question: str, *, scope: str = "historical", limit: int = 8
+        self,
+        question: str,
+        *,
+        scope: str = "historical",
+        limit: int = 8,
+        question_vector: str | None = None,
+        filters: Mapping[str, str | None] | None = None,
     ) -> tuple[EvidenceElement, ...]:
-        """Retrieve numbered evidence for a question. No model is involved."""
-        source = SCOPES[scope]
-        query = f"""
-            WITH scope AS ({source}),
-            asked AS (
-                SELECT replace(
-                           plainto_tsquery('pg_catalog.russian', %(question)s)::text, ' & ', ' | '
-                       )::tsquery AS ru,
-                       replace(
-                           plainto_tsquery('pg_catalog.english', %(question)s)::text, ' & ', ' | '
-                       )::tsquery AS en
-            ),
-            scoped AS (
-                SELECT evidence.claim_id, evidence.quote_text, evidence.char_start,
-                       evidence.char_end, documents.canonical_url
-                FROM kx.claim_evidence AS evidence
-                JOIN kx.document_versions AS versions USING (version_id)
-                JOIN kx.documents AS documents USING (document_id)
-                JOIN scope ON scope.document_id = versions.document_id
-                WHERE evidence.match_status = 'exact'
-            ),
-            ranked_ru AS (
-                SELECT scoped.claim_id,
-                       row_number() OVER (
-                           ORDER BY ts_rank(
-                               to_tsvector('pg_catalog.russian', scoped.quote_text), asked.ru
-                           ) DESC, scoped.claim_id
-                       ) AS position
-                FROM scoped, asked
-                WHERE to_tsvector('pg_catalog.russian', scoped.quote_text) @@ asked.ru
-            ),
-            ranked_en AS (
-                SELECT scoped.claim_id,
-                       row_number() OVER (
-                           ORDER BY ts_rank(
-                               to_tsvector('pg_catalog.english', scoped.quote_text), asked.en
-                           ) DESC, scoped.claim_id
-                       ) AS position
-                FROM scoped, asked
-                WHERE to_tsvector('pg_catalog.english', scoped.quote_text) @@ asked.en
-            ),
-            fused AS (
-                SELECT coalesce(ranked_ru.claim_id, ranked_en.claim_id) AS claim_id,
-                       coalesce(1.0 / (%(k)s + ranked_ru.position), 0)
-                     + coalesce(1.0 / (%(k)s + ranked_en.position), 0) AS relevance
-                FROM ranked_ru FULL OUTER JOIN ranked_en USING (claim_id)
-            )
-            SELECT scoped.claim_id, scoped.quote_text, scoped.char_start, scoped.char_end,
-                   scoped.canonical_url AS source_url, fused.relevance
-            FROM fused JOIN scoped USING (claim_id)
-            ORDER BY fused.relevance DESC
-            LIMIT %(limit)s
-            """  # noqa: S608 - a constant from SCOPES
+        """Retrieve numbered evidence for a question. No model decides anything here.
+
+        Three arms - Russian words, English words, and meaning - fused by
+        reciprocal rank, then filtered by what the reading pass determined. The
+        semantic arm needs the question as a vector, which needs torch, which
+        lives only in the embedder runtime: without it the search is exactly the
+        lexical one it was before, and every hit says which arms found it.
+        """
+        unknown = set(filters or ()) - set(FILTERS)
+        if unknown:
+            raise ValueError(f"unknown filters {sorted(unknown)}; expected {list(FILTERS)}")
+        parameters: dict[str, Any] = {
+            "question": question,
+            "rrf_k": RRF_K,
+            "limit": limit * 3,
+            "question_vector": question_vector,
+            "embedding_model": DEFAULT_MODEL,
+            "semantic_depth": SEMANTIC_DEPTH,
+            **{name: (filters or {}).get(name) for name in FILTERS},
+        }
         with self.connect() as connection:
             self.require_schema(connection)
             with connection.cursor() as cursor:
-                cursor.execute(query, {"question": question, "k": RRF_K, "limit": limit * 3})
+                cursor.execute(evidence_sql(scope), parameters)
                 return build_package([dict(row) for row in cursor.fetchall()], size=limit)
 
     def record_answer(

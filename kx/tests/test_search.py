@@ -273,3 +273,95 @@ def test_documents_sharing_a_text_counts_documents_not_group_size_squared(
     assert scope["documents"] == 4
     assert scope["distinct_texts"] == 2
     assert scope["documents_sharing_a_text"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Stage 1: the hybrid retrieval that answers with labels
+# ---------------------------------------------------------------------------
+
+
+def test_the_hybrid_query_carries_all_three_arms_and_every_filter() -> None:
+    from radar_kx.search import ARMS, FILTERS, evidence_sql
+
+    sql = evidence_sql("corpus")
+    assert "ranked_ru" in sql
+    assert "ranked_en" in sql
+    assert "ranked_meaning" in sql
+    for arm in ARMS:
+        assert arm in sql
+    for name in FILTERS:
+        assert f"%({name})s" in sql
+    # Every filter is written so that NULL means "do not narrow", which is what
+    # lets one query serve the filtered and the unfiltered question.
+    assert sql.count("IS NULL OR") >= len(FILTERS) - 1
+
+
+def test_the_semantic_arm_disappears_without_a_question_vector() -> None:
+    from radar_kx.search import evidence_sql
+
+    sql = evidence_sql("corpus")
+    assert "%(question_vector)s IS NOT NULL" in sql
+
+
+def test_an_unknown_scope_is_refused_rather_than_defaulted() -> None:
+    from radar_kx.search import evidence_sql
+
+    with pytest.raises(ValueError, match="unknown search scope"):
+        evidence_sql("everything")
+
+
+def test_labels_survive_a_row_the_reading_pass_has_not_reached() -> None:
+    from radar_kx.research import labels_of
+
+    labels = labels_of({"claim_id": "c"})
+    assert labels.material_kind is None
+    assert labels.is_retelling is False
+    assert labels.topics == ()
+    assert labels.matched_by == ()
+
+
+def test_labels_are_read_off_a_full_row() -> None:
+    from radar_kx.research import labels_of
+
+    labels = labels_of(
+        {
+            "material_kind": "forecast",
+            "admission": "knowledge",
+            "status": "observed_signal",
+            "primary_source": "Gartner",
+            "is_retelling": True,
+            "shown_on": "2026-06-01",
+            "shown_kind": "published",
+            "topics": ["Пороги автономии"],
+            "matched_by": ["слова", "смысл"],
+        }
+    )
+    assert labels.material_kind == "forecast"
+    assert labels.is_retelling is True
+    assert labels.primary_source == "Gartner"
+    assert labels.matched_by == ("слова", "смысл")
+
+
+def test_a_numbered_element_shows_its_labels_to_the_reader() -> None:
+    from radar_kx.research import build_package
+
+    package = build_package(
+        [
+            {
+                "claim_id": "c",
+                "quote_text": "цитата",
+                "source_url": "https://example.org/a",
+                "char_start": 0,
+                "char_end": 6,
+                "relevance": 0.5,
+                "material_kind": "fact",
+                "admission": "knowledge",
+                "status": "canon",
+                "matched_by": ["смысл"],
+            }
+        ]
+    )
+    shown = package[0].as_json()
+    assert shown["materialKind"] == "fact"
+    assert shown["status"] == "canon"
+    assert shown["matchedBy"] == ["смысл"]

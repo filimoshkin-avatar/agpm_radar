@@ -58,8 +58,15 @@ from radar_kx.publication import (
     check_invariants,
     parse_translation,
 )
+from radar_kx.reading import (
+    ADMISSIONS,
+    MATERIAL_KINDS,
+    ReadableClaim,
+    Reading,
+    ReadingError,
+    parse_readings,
+)
 from radar_kx.reading import BATCH as READING_BATCH
-from radar_kx.reading import ReadableClaim, Reading, ReadingError, parse_readings
 from radar_kx.reading import build_instructions as build_reading_instructions
 from radar_kx.reading import build_payload as build_reading_payload
 from radar_kx.reading import summarize as summarize_readings
@@ -94,6 +101,18 @@ from radar_kx.worker import run_until_idle
 #: one more than the production run needed and far fewer than a loop that could
 #: hide an oscillating rule.
 MAX_SPAN_REPAIR_PASSES = 3
+
+
+def _question_vector(question: str) -> str:
+    """The question as a vector, for the semantic arm of the hybrid search.
+
+    Imported here rather than at the top: torch lives only in the embedder
+    runtime, and every other command has to keep working in the worker's, which
+    deliberately does not have it.
+    """
+    from radar_kx.embeddings import encode, load_model, to_pgvector
+
+    return to_pgvector(encode(load_model(), [question], is_query=True)[0])
 
 
 def _print_json(value: Any) -> None:
@@ -356,6 +375,15 @@ def _parser() -> argparse.ArgumentParser:
         "--asker-scope", choices=("public", "research", "editor"), default="research"
     )
     ask_parser.add_argument("--no-cache", action="store_true")
+    # Stage 1: the filters the reading pass made possible. A reader asking about
+    # knowledge should not be answered out of the market chronicle.
+    ask_parser.add_argument("--admission", choices=ADMISSIONS, default=None)
+    ask_parser.add_argument("--material-kind", choices=MATERIAL_KINDS, default=None)
+    ask_parser.add_argument("--status", default=None)
+    ask_parser.add_argument("--topic", default=None)
+    # The semantic arm needs the question as a vector, and torch lives only in the
+    # embedder runtime. Off by default so `kxrun ask` keeps working unchanged.
+    ask_parser.add_argument("--semantic", action="store_true")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -698,7 +726,17 @@ def main() -> None:
             if cached is not None:
                 _print_json({**cached, "fromCache": True})
                 return
-        package = database.evidence_for_question(args.question, scope=args.scope)
+        package = database.evidence_for_question(
+            args.question,
+            scope=args.scope,
+            question_vector=_question_vector(args.question) if args.semantic else None,
+            filters={
+                "admission": args.admission,
+                "material_kind": args.material_kind,
+                "status": args.status,
+                "topic_key": args.topic,
+            },
+        )
         if not package:
             # ADR-0004 §9 and §10: a structural refusal with a precise code, not a
             # hedged sentence. There is nothing nearby either, because nothing came

@@ -250,3 +250,161 @@ def search_sql(scope: str, *, match: str = "all") -> str:
         ru_query=template.format(config="'russian'"),
         en_query=template.format(config="'english'"),
     )
+
+
+#: What a hybrid search may be narrowed by. Every one of these is a column the
+#: reading pass (stage 0b) filled, and the point of the filter is the same as the
+#: point of the label beside a quotation: a reader asking about knowledge should
+#: not be answered out of the market chronicle, and one asking what the canon says
+#: should not be answered out of a vendor's blog.
+FILTERS = ("admission", "material_kind", "status", "topic_key")
+
+#: The three ways a quotation can be found. Kept as names rather than as booleans
+#: because they are shown to the reader - "why was this found" is UC-01's own
+#: question, and "matched your words" and "means something close" are different
+#: answers.
+ARMS = ("слова", "смысл")
+
+#: How deep the semantic arm reaches before fusion. Cosine ranks everything, so
+#: without a cut the arm contributes a full ranking of the corpus and RRF quietly
+#: turns into "whatever the embedder thinks", drowning two precise lexical lists.
+SEMANTIC_DEPTH = 50
+
+EVIDENCE_SQL_TEMPLATE = """
+WITH scope_documents AS (
+    {scope}
+),
+asked AS (
+    SELECT replace(
+               plainto_tsquery('pg_catalog.russian', %(question)s)::text, ' & ', ' | '
+           )::tsquery AS ru,
+           replace(
+               plainto_tsquery('pg_catalog.english', %(question)s)::text, ' & ', ' | '
+           )::tsquery AS en
+),
+scoped AS (
+    SELECT evidence.claim_id,
+           evidence.quote_text,
+           evidence.char_start,
+           evidence.char_end,
+           documents.canonical_url,
+           reading.material_kind,
+           reading.admission,
+           reading.primary_source,
+           reading.is_retelling,
+           dates.published_on,
+           dates.shown_on,
+           dates.shown_kind,
+           status.status
+    FROM kx.claim_evidence AS evidence
+    JOIN kx.document_versions AS versions USING (version_id)
+    JOIN kx.documents AS documents USING (document_id)
+    JOIN scope_documents USING (document_id)
+    LEFT JOIN kx.claim_reading AS reading ON reading.claim_id = evidence.claim_id
+    LEFT JOIN kx.document_dates AS dates ON dates.document_id = documents.document_id
+    LEFT JOIN kx.knowledge_status_current AS status
+           ON status.unit_kind = 'claim' AND status.unit_id = evidence.claim_id
+    WHERE evidence.match_status = 'exact'
+      AND (%(admission)s IS NULL OR reading.admission = %(admission)s)
+      AND (%(material_kind)s IS NULL OR reading.material_kind = %(material_kind)s)
+      AND (%(status)s IS NULL OR status.status = %(status)s)
+      AND (
+          %(topic_key)s IS NULL
+          OR EXISTS (
+              SELECT 1 FROM kx.claim_topics AS placed
+              JOIN kx.topics AS topics USING (topic_id)
+              WHERE placed.claim_id = evidence.claim_id
+                AND topics.topic_key = %(topic_key)s
+          )
+      )
+),
+ranked_ru AS (
+    SELECT scoped.claim_id,
+           row_number() OVER (
+               ORDER BY ts_rank(
+                   to_tsvector('pg_catalog.russian', scoped.quote_text), asked.ru
+               ) DESC, scoped.claim_id
+           ) AS position,
+           'слова' AS arm
+    FROM scoped, asked
+    WHERE to_tsvector('pg_catalog.russian', scoped.quote_text) @@ asked.ru
+),
+ranked_en AS (
+    SELECT scoped.claim_id,
+           row_number() OVER (
+               ORDER BY ts_rank(
+                   to_tsvector('pg_catalog.english', scoped.quote_text), asked.en
+               ) DESC, scoped.claim_id
+           ) AS position,
+           'слова' AS arm
+    FROM scoped, asked
+    WHERE to_tsvector('pg_catalog.english', scoped.quote_text) @@ asked.en
+),
+ranked_meaning AS (
+    SELECT claim_id, row_number() OVER (ORDER BY distance) AS position, 'смысл' AS arm
+    FROM (
+        SELECT scoped.claim_id,
+               vectors.embedding <=> %(question_vector)s::vector AS distance
+        FROM scoped
+        JOIN kx.text_embeddings AS vectors
+          ON vectors.owner_kind = 'claim_evidence'
+         AND vectors.owner_key = scoped.claim_id::text
+         AND vectors.model_id = %(embedding_model)s
+        WHERE %(question_vector)s IS NOT NULL
+        ORDER BY distance
+        LIMIT %(semantic_depth)s
+    ) AS nearest
+),
+ranked AS (
+    SELECT * FROM ranked_ru
+    UNION ALL SELECT * FROM ranked_en
+    UNION ALL SELECT * FROM ranked_meaning
+),
+fused AS (
+    SELECT claim_id,
+           sum(1.0 / (%(rrf_k)s + position)) AS relevance,
+           array_agg(DISTINCT arm ORDER BY arm) AS matched_by
+    FROM ranked GROUP BY claim_id
+)
+SELECT scoped.claim_id,
+       scoped.quote_text,
+       scoped.char_start,
+       scoped.char_end,
+       scoped.canonical_url AS source_url,
+       scoped.material_kind,
+       scoped.admission,
+       scoped.primary_source,
+       scoped.is_retelling,
+       scoped.published_on,
+       scoped.shown_on,
+       scoped.shown_kind,
+       scoped.status,
+       fused.relevance,
+       fused.matched_by,
+       (
+           SELECT array_agg(topics.title ORDER BY topics.title)
+           FROM kx.claim_topics AS placed
+           JOIN kx.topics AS topics USING (topic_id)
+           WHERE placed.claim_id = scoped.claim_id
+       ) AS topics
+FROM fused JOIN scoped USING (claim_id)
+ORDER BY fused.relevance DESC, scoped.claim_id
+LIMIT %(limit)s
+"""
+
+
+def evidence_sql(scope: str) -> str:
+    """The hybrid retrieval: two lexical rankings, one by meaning, fused by rank.
+
+    Reciprocal rank rather than a weighted score, for the reason RRF exists: the
+    three arms produce numbers that are not comparable - `ts_rank` is a term
+    density, cosine distance is an angle - and any weighting of them would be a
+    constant somebody chose. Rank is the only thing all three agree on.
+
+    The semantic arm disappears cleanly when there is no question vector: without
+    torch in the runtime there is no way to embed a question, and `%(question_vector)s
+    IS NOT NULL` leaves the search exactly as lexical as it was before.
+    """
+    if scope not in SCOPES:
+        raise ValueError(f"unknown search scope {scope!r}; expected one of {sorted(SCOPES)}")
+    return EVIDENCE_SQL_TEMPLATE.format(scope=SCOPES[scope].strip())
