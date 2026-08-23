@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap">
+  <style>
+    body { margin: 0; background: #fafaf8; color: #1f242a;
+           font: 400 14px/1.5 "Golos Text", system-ui, sans-serif; }
+    a { color: #2b4a75; text-decoration: none; }
+    a:hover { color: #1b3355; text-decoration: underline; }
+    .mono { font-family: "PT Mono", ui-monospace, monospace; }
+  </style>
+</helmet>
+
+<div style="display: flex; flex-direction: column; gap: 18px; padding: 26px 28px 40px; background: #fafaf8; min-height: 900px;">
+
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span class="mono" style="font-size: 11px; color: #8a9199;">Управление автономией / Пороги и границы</span>
+    <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.015em;">Порог автономии</h1>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <span class="mono" style="font-size: 12px; color: #8a9199;">37 утверждений</span>
+      <span style="width: 1px; height: 12px; background: #e6e8e7;"></span>
+      <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #1e6e62;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>9 канон
+      </span>
+      <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #2b4a75;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>6 внешняя ссылка
+      </span>
+      <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #6b6880;">
+        <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>22 наблюдаемый сигнал
+      </span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start;">
+
+    <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 14px;">
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Что говорит канон</span>
+          <span style="flex-grow: 1; height: 1px; background: #e6e8e7;"></span>
+        </div>
+
+        <div style="border: 1px solid #e4e7e6; border-left: 2px solid #1e6e62; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <p style="margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500;">
+            Агент действует сам в жёстких границах конфигурации, с возможностью остановки человеком в любой момент.
+          </p>
+          <p style="margin: 0; font-size: 13px; line-height: 1.55; color: #4a525a;">
+            «Автономное исполнение в пределах лимитов — уровень 4 для согласованных безопасных классов.»
+          </p>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #eef0ef;">
+            <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">факт</span>
+            <a href="#" style="font-size: 12.5px;">Методика внедрения AI PMO 4.3</a>
+            <span style="flex-grow: 1;"></span>
+            <span class="mono" style="font-size: 11px; color: #8a9199;">2026-06-14</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #e4e7e6; border-left: 2px solid #1e6e62; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <p style="margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500;">
+            Без количественного порога классы решений остаются абстракцией.
+          </p>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #eef0ef;">
+            <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">мнение</span>
+            <a href="#" style="font-size: 12.5px;">Живая методика AgPM 4.2</a>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Что видел радар</span>
+          <span style="flex-grow: 1; height: 1px; background: #e6e8e7;"></span>
+        </div>
+
+        <div style="border: 1px solid #e4e7e6; border-left: 2px solid #6b6880; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <p style="margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500;">
+            При высокой вовлечённости ИИ в работу лишь 0–20 % задач делегируется агенту полностью.
+          </p>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #eef0ef;">
+            <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">факт</span>
+            <span style="padding: 2px 7px; border-radius: 4px; background: rgba(169,107,18,.12); color: #a96b12; font-size: 11px; font-weight: 600;">пересказ → Deloitte</span>
+            <span style="flex-grow: 1;"></span>
+            <span class="mono" style="font-size: 11px; color: #8a9199;">2026-07-30</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;">
+        <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Связи</span>
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 11px; color: #1e6e62; font-weight: 600;">подтверждает</span>
+            <a href="#" style="font-size: 12.5px; line-height: 1.4;">Значимое решение требует подписи</a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 11px; color: #b4342e; font-weight: 600;">противоречит</span>
+            <a href="#" style="font-size: 12.5px; line-height: 1.4;">Полная автономия достижима на текущих моделях</a>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 11px; color: #a96b12; font-weight: 600;">уточняет</span>
+            <a href="#" style="font-size: 12.5px; line-height: 1.4;">Окно отмены действия агента</a>
+          </div>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 9px;">
+        <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Соседние темы</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Классы решений</a>
+          <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Окно отмены</a>
+          <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Эскалация</a>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: rgba(31,36,41,.03); padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+        <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Подпись</span>
+        <p style="margin: 0; font-size: 12px; line-height: 1.45; color: #5b636b;">
+          Карточка собрана машиной из утверждений базы. Авторская методика — за именем владельца;
+          сборка — «AgPM Radar, машинная сборка».
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

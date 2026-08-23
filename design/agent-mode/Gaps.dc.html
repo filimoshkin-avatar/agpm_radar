@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap">
+  <style>
+    body { margin: 0; background: #fafaf8; color: #1f242a;
+           font: 400 14px/1.5 "Golos Text", system-ui, sans-serif; }
+    a { color: #2b4a75; text-decoration: none; }
+    a:hover { color: #1b3355; text-decoration: underline; }
+    .mono { font-family: "PT Mono", ui-monospace, monospace; }
+  </style>
+</helmet>
+
+<div style="display: flex; flex-direction: column; gap: 16px; padding: 26px 28px 40px; background: #fafaf8; min-height: 720px;">
+
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    <h1 style="margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.01em;">Карта пробелов</h1>
+    <p style="margin: 0; max-width: 64ch; font-size: 13.5px; color: #5b636b;">
+      Утверждения, которым не нашлось места в скелете тем. Ничего не отсеивается и ничего не
+      предлагается автоматически — строка отличает «посмотрели, места нет» от «ещё не смотрели».
+    </p>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <span class="mono" style="font-size: 12px; color: #8a9199;">1 284 утверждения без темы</span>
+    <span style="width: 1px; height: 22px; background: #e6e8e7;"></span>
+    <span class="mono" style="font-size: 12px; color: #8a9199;">862 с названной причиной</span>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+
+    <div style="border: 1px solid #e4e7e6; border-left: 2px solid #a96b12; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 12px; font-weight: 600; color: #a96b12;">не хватает темы: страхование и ответственность за действия агента</span>
+      <p style="margin: 0; font-size: 13.5px; line-height: 1.45;">
+        Полис покрывает ущерб от автономного действия только при наличии журнала решений.
+      </p>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #eef0ef;">
+        <span class="mono" style="font-size: 11px; color: #8a9199;">7 утверждений с той же нехваткой</span>
+        <span style="flex-grow: 1;"></span>
+        <a href="#" style="font-size: 12.5px;">смотреть все →</a>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #e4e7e6; border-left: 2px solid #a96b12; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 12px; font-weight: 600; color: #a96b12;">не хватает темы: пороги в денежном выражении по отраслям</span>
+      <p style="margin: 0; font-size: 13.5px; line-height: 1.45;">
+        В производстве порог автономии ставят по стоимости простоя линии, а не по сумме закупки.
+      </p>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid #eef0ef;">
+        <span class="mono" style="font-size: 11px; color: #8a9199;">4 утверждения с той же нехваткой</span>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: rgba(31,36,41,.03); padding: 13px 14px;">
+      <p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: #5b636b;">
+        Скелет тем расширяет только владелец. Карта пробелов — очередь к ней, а не автоматическое
+        предложение: 229 тем сложились как предметная онтология, и одна пропущенная строка не повод
+        менять её на ходу.
+      </p>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

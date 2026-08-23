@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=PT+Mono&display=swap">
+  <style>
+    body { margin: 0; background: #fafaf8; color: #1f242a;
+           font: 400 14px/1.5 "Golos Text", system-ui, sans-serif; }
+    a { color: #2b4a75; text-decoration: none; }
+    a:hover { color: #1b3355; text-decoration: underline; }
+    .mono { font-family: "PT Mono", ui-monospace, monospace; }
+  </style>
+</helmet>
+
+<div style="display: flex; flex-direction: column; min-height: 1100px; background: #fafaf8;">
+
+  <!-- topbar, exactly the radar's -->
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 10px 28px; min-height: 58px; background: rgba(250,250,248,.95); border-bottom: 1px solid #e6e8e7;">
+    <div style="display: flex; align-items: center; gap: 10px; min-width: 214px;">
+      <svg width="27" height="27" viewBox="0 0 28 28" style="display: block; overflow: visible;">
+        <circle cx="14" cy="14" r="11.5" fill="none" stroke="#c9cdcf" stroke-width="1"></circle>
+        <circle cx="14" cy="14" r="6" fill="none" stroke="#c9cdcf" stroke-width="1"></circle>
+        <path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(169,107,18,.16)"></path>
+        <line x1="14" y1="14" x2="14" y2="2.5" stroke="#a96b12" stroke-width="1"></line>
+        <circle cx="17.8" cy="17.2" r="1.5" fill="#2b4a75"></circle>
+        <circle cx="6" cy="16.9" r="1.5" fill="#1e6e62"></circle>
+      </svg>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-size: 14px; font-weight: 600; letter-spacing: -.01em;">Радар AgPM</span>
+        <span style="font-size: 11px; color: #8a9199;">Агентное управление проектами</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="mono" style="font-size: 12px; color: #8a9199;">база знаний · 13 876 утверждений</span>
+      <div style="display: inline-flex; border: 1px solid #e6e8e7; border-radius: 6px; overflow: hidden;">
+        <button style="height: 32px; padding: 0 12px; border: 0; background: #1f242a; color: #fafaf8; cursor: pointer; font: inherit;">Спросить</button>
+        <button style="height: 32px; padding: 0 12px; border: 0; border-left: 1px solid #e6e8e7; background: #fff; cursor: pointer; font: inherit;">Обсерватория</button>
+        <button style="height: 32px; padding: 0 12px; border: 0; border-left: 1px solid #e6e8e7; background: #fff; cursor: pointer; font: inherit;">Понятия</button>
+        <button style="height: 32px; padding: 0 12px; border: 0; border-left: 1px solid #e6e8e7; background: #fff; cursor: pointer; font: inherit;">Wiki</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 20px; max-width: 1400px; width: 100%; margin: 0 auto; padding: 22px 28px 48px;">
+
+    <!-- the question -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 10px; border: 1px solid #e6e8e7; border-radius: 7px; background: #fff; padding: 0 14px; height: 46px;">
+        <span style="color: #8a9199;" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+        </span>
+        <span style="flex-grow: 1; font-size: 15px; color: #1f242a;">с какой суммы агенту нельзя действовать самому?</span>
+        <button style="height: 32px; padding: 0 16px; border: 0; border-radius: 6px; background: #1f242a; color: #fafaf8; font: inherit; font-weight: 600; cursor: pointer;">Спросить</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; flex-wrap: wrap;">
+        <span style="font-size: 12px; color: #8a9199;">искать в:</span>
+        <button style="min-height: 28px; padding: 0 9px; border: 1px solid #1f242a; border-radius: 6px; background: #1f242a; color: #fafaf8; font: inherit; font-size: 13px; cursor: pointer;">знании</button>
+        <button style="min-height: 28px; padding: 0 9px; border: 1px solid #e6e8e7; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer;">хронике рынка</button>
+        <span style="width: 1px; height: 22px; margin: 0 4px; background: #e6e8e7;"></span>
+        <button style="min-height: 28px; padding: 0 9px; border: 1px solid #e6e8e7; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer;">вид материала</button>
+        <button style="min-height: 28px; padding: 0 9px; border: 1px solid #e6e8e7; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer;">статус</button>
+        <button style="min-height: 28px; padding: 0 9px; border: 1px solid #e6e8e7; border-radius: 6px; background: #fff; font: inherit; font-size: 13px; cursor: pointer;">тема</button>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: start;">
+
+      <!-- LEVEL 1 + 2: the answer and what stands under it -->
+      <div style="grid-column: span 2; display: flex; flex-direction: column; gap: 14px;">
+
+        <div style="border: 1px solid #e6e8e7; border-left: 2px solid #a96b12; border-radius: 7px; background: #fff; padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #a96b12;">Машинный ответ, не редакция базы</span>
+            <span style="width: 1px; height: 12px; background: #e6e8e7;"></span>
+            <span class="mono" style="font-size: 11px; color: #8a9199;">4 утверждения · 3 источника</span>
+          </div>
+          <p style="margin: 0; font-size: 15.5px; line-height: 1.58; color: #1f242a; text-wrap: pretty;">
+            Единой суммы нет: порог автономии — это решение организации, а не свойство агента.
+            Базовое правило канона — агент действует сам внутри классов, которые заранее объявлены
+            безопасными, а всё, что выходит за них, требует подписи под решением. Практика,
+            попавшая в выпуски, ставит порог там, где ошибка перестаёт быть обратимой.
+          </p>
+          <div style="display: flex; align-items: center; gap: 8px; padding-top: 4px; border-top: 1px dashed #eef0ef;">
+            <span style="font-size: 12px; color: #5b636b;">Держится на:</span>
+            <span class="mono" style="font-size: 12px; color: #2b4a75;">[1] [2] [3] [4]</span>
+            <span style="flex-grow: 1;"></span>
+            <span style="font-size: 12px; color: #8a9199;">каждая фраза проверена по цитате</span>
+          </div>
+        </div>
+
+        <!-- LEVEL 2: a statement with its labels -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <span class="mono" style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Утверждения под ответом</span>
+            <span style="flex-grow: 1; height: 1px; background: #e6e8e7;"></span>
+          </div>
+
+          <div style="border: 1px solid #e4e7e6; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="mono" style="font-size: 12px; color: #2b4a75;">[1]</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; background: rgba(30,110,98,.10); color: #1e6e62; font-size: 11px; font-weight: 600;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>канон
+              </span>
+              <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">факт</span>
+              <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">знание</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="mono" style="font-size: 11px; color: #8a9199;">2026-07-13 · дата публикации</span>
+            </div>
+
+            <p style="margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500;">
+              Значимое решение относится к рекомендательному классу и выше и требует подписи под решением.
+            </p>
+
+            <!-- LEVEL 3: the quotation and where it sits -->
+            <div style="border-left: 2px solid #e6e8e7; padding: 8px 0 8px 12px; display: flex; flex-direction: column; gap: 7px;">
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.55; color: #4a525a;">
+                «Рекомендательный класс и выше. Требует «подписи под решением».»
+              </p>
+              <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span class="mono" style="font-size: 11px; color: #8a9199;">знаки 14 812–14 872</span>
+                <span style="font-size: 11px; color: #8a9199;">цитата дословна и проверена при каждой записи</span>
+              </div>
+            </div>
+
+            <!-- LEVEL 4: the source and the trail -->
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 9px; border-top: 1px solid #eef0ef;">
+              <span style="font-size: 12px; color: #8a9199;">Источник:</span>
+              <a href="#" style="font-size: 12.5px;">Методика внедрения AI PMO, версия 4.3</a>
+              <span style="width: 1px; height: 12px; background: #e6e8e7;"></span>
+              <span style="font-size: 12px; color: #5b636b;">канон AgPM</span>
+              <span style="flex-grow: 1;"></span>
+              <button style="border: 0; background: transparent; color: #2b4a75; font: inherit; font-size: 12.5px; cursor: pointer; padding: 0;">весь путь до выпуска →</button>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #e4e7e6; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="mono" style="font-size: 12px; color: #2b4a75;">[2]</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; background: rgba(107,104,128,.12); color: #6b6880; font-size: 11px; font-weight: 600;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: currentColor;"></span>наблюдаемый сигнал
+              </span>
+              <span style="padding: 2px 7px; border-radius: 4px; background: rgba(31,36,41,.06); color: #5b636b; font-size: 11px;">прогноз</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; background: rgba(169,107,18,.12); color: #a96b12; font-size: 11px; font-weight: 600;">пересказ → Gartner</span>
+              <span style="flex-grow: 1;"></span>
+              <span class="mono" style="font-size: 11px; color: #8a9199;">2026-06-19 · дата публикации</span>
+            </div>
+            <p style="margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500;">
+              К 2027 году будет закрыто более 40 % проектов агентной оркестрации.
+            </p>
+            <div style="border-left: 2px solid #e6e8e7; padding: 8px 0 8px 12px; display: flex; flex-direction: column; gap: 7px;">
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.55; color: #4a525a;">
+                «Over 40% of agentic orchestration projects are predicted by analysts to be canceled by 2027 due to governance and cost failures.»
+              </p>
+              <span class="mono" style="font-size: 11px; color: #8a9199;">знаки 4 120–4 261</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 9px; border-top: 1px solid #eef0ef;">
+              <span style="font-size: 12px; color: #8a9199;">Источник:</span>
+              <a href="#" style="font-size: 12.5px;">techtimes.com — обзор рынка агентных платформ</a>
+              <span style="width: 1px; height: 12px; background: #e6e8e7;"></span>
+              <span style="font-size: 12px; color: #5b636b;">выпуск от 19 июня</span>
+              <span style="flex-grow: 1;"></span>
+              <span style="font-size: 12px; color: #a96b12;">прогноз действителен до 06.2027</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- the right rail: why it was found, and where else to look -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 10px;">
+          <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Почему это найдено</span>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="mono" style="font-size: 12px; color: #2b4a75; min-width: 22px;">[1]</span>
+              <span style="padding: 1px 6px; border-radius: 3px; background: rgba(43,74,117,.10); color: #2b4a75; font-size: 11px;">по словам</span>
+              <span style="padding: 1px 6px; border-radius: 3px; background: rgba(30,110,98,.10); color: #1e6e62; font-size: 11px;">по смыслу</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="mono" style="font-size: 12px; color: #2b4a75; min-width: 22px;">[2]</span>
+              <span style="padding: 1px 6px; border-radius: 3px; background: rgba(30,110,98,.10); color: #1e6e62; font-size: 11px;">по смыслу</span>
+            </div>
+          </div>
+          <p style="margin: 0; font-size: 12px; line-height: 1.45; color: #8a9199;">
+            Два поиска идут одновременно: по словам вопроса и по близости смысла. Ранг сводится,
+            и рядом с каждым утверждением видно, какой из них его нашёл.
+          </p>
+        </div>
+
+        <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: #fff; padding: 13px 14px; display: flex; flex-direction: column; gap: 9px;">
+          <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a9199;">Темы этого ответа</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Пороги автономии</a>
+            <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Значимое решение</a>
+            <a href="#" style="padding: 3px 8px; border: 1px solid #e6e8e7; border-radius: 5px; font-size: 12.5px;">Окно отмены</a>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #e6e8e7; border-radius: 7px; background: rgba(169,107,18,.05); padding: 13px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <span class="mono" style="font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #a96b12;">Чего база не знает</span>
+          <p style="margin: 0; font-size: 12.5px; line-height: 1.45; color: #5b636b;">
+            Порогов в денежном выражении по отраслям в базе нет — ни одного утверждения.
+            Записано в карту пробелов.
+          </p>
+          <a href="#" style="font-size: 12.5px;">карта пробелов →</a>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid #e6e8e7;">
+      <span class="mono" style="font-size: 11px; color: #8a9199;">AgPM Radar, машинная сборка</span>
+      <span style="width: 1px; height: 12px; background: #e6e8e7;"></span>
+      <span style="font-size: 11px; color: #8a9199;">Переработка и структура — свободно со ссылкой. Цитаты остаются за правообладателями.</span>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

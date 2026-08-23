@@ -21,7 +21,7 @@
   <meta name="twitter:image" content="https://radar.agpm.space/og-image-20260803.png">
   <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
   <link rel="icon" href="/favicon.svg?v=20260729-1734">
-  <link rel="stylesheet" href="/assets/styles.css?v=20260820-legacy-parity">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260823-agent-mode">
 </head>
 <body>
   <header class="topbar">
@@ -160,6 +160,46 @@
     <div class="footer__bottom">© 2026 · radar.agpm.space · обновление ежедневно в 08:00 МСК</div>
   </footer>
 
+
+  <section id="agentView" class="agent-view" aria-label="Агент базы знаний" hidden>
+    <div class="agent-view__inner">
+      <div class="agent-tabs" role="tablist" aria-label="Разделы базы знаний">
+        <button class="agent-tab is-active" type="button" data-agent-tab="ask" role="tab" aria-selected="true">Спросить</button>
+        <button class="agent-tab" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">Обсерватория</button>
+        <button class="agent-tab" type="button" data-agent-tab="topics" role="tab" aria-selected="false">Понятия</button>
+        <button class="agent-tab" type="button" data-agent-tab="gaps" role="tab" aria-selected="false">Пробелы</button>
+      </div>
+
+      <div id="agentAsk" class="agent-panel">
+        <form id="agentForm" class="agent-ask">
+          <span class="agent-ask__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+          </span>
+          <input id="agentQuestion" class="agent-ask__input" type="search" autocomplete="off"
+                 placeholder="Спросите базу знаний об агентном управлении" aria-label="Вопрос к базе знаний">
+          <button class="agent-ask__submit" type="submit">Спросить</button>
+        </form>
+        <div class="agent-ask__filters chipline" id="agentFilters">
+          <span class="agent-ask__label">искать в:</span>
+          <button class="chip is-active" type="button" data-agent-admission="knowledge">знании</button>
+          <button class="chip" type="button" data-agent-admission="observatory">хронике рынка</button>
+        </div>
+        <div id="agentAnswer" class="agent-answer" aria-live="polite"></div>
+      </div>
+
+      <div id="agentObservatory" class="agent-panel" hidden></div>
+      <div id="agentTopics" class="agent-panel" hidden></div>
+      <div id="agentGaps" class="agent-panel" hidden></div>
+
+      <p class="agent-licence">
+        <span class="mono">AgPM Radar, машинная сборка</span>
+        <span class="agent-licence__sep" aria-hidden="true"></span>
+        Переработка и структура — свободно со ссылкой на AgPM Radar. Цитаты остаются за
+        правообладателями и приводятся со ссылкой на источник.
+      </p>
+    </div>
+  </section>
+
   <section id="gazetteView" class="gazette-view" aria-label="Газета AgPM" hidden>
     <iframe
       class="gazette-frame"
@@ -176,8 +216,9 @@
   <nav class="view-switcher" aria-label="Переключение режима просмотра">
     <button class="view-switcher__button is-active" type="button" data-view-mode="radar" aria-pressed="true">Радар</button>
     <button class="view-switcher__button" type="button" data-view-mode="gazette" aria-pressed="false">Газета</button>
+    <button class="view-switcher__button" type="button" data-view-mode="agent" aria-pressed="false">Агент</button>
   </nav>
 
-  <script src="/assets/app.mjs?v=20260822-period-switch-race"></script>
+  <script src="/assets/app.mjs?v=20260823-agent-mode"></script>
 </body>
 </html>

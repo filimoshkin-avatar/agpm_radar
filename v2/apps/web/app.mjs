@@ -283,10 +283,14 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
+const VIEW_MODES = ["radar", "gazette", "agent"];
+
 function setViewMode(mode) {
-  state.viewMode = mode === "gazette" ? "gazette" : "radar";
+  state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
+  document.body.classList.toggle("is-agent", state.viewMode === "agent");
   document.getElementById("gazetteView")?.toggleAttribute("hidden", state.viewMode !== "gazette");
+  document.getElementById("agentView")?.toggleAttribute("hidden", state.viewMode !== "agent");
   document.querySelectorAll("[data-view-mode]").forEach(button => {
     const active = button.dataset.viewMode === state.viewMode;
     button.classList.toggle("is-active", active);
@@ -1314,6 +1318,21 @@ document.addEventListener("click", event => {
     printGazette();
     return;
   }
+  if (button.dataset.agentTab) {
+    setAgentTab(button.dataset.agentTab);
+    return;
+  }
+  if (button.dataset.agentTopic) {
+    agentOpenTopic(button.dataset.agentTopic);
+    return;
+  }
+  if (button.dataset.agentAdmission) {
+    agentState.admission = button.dataset.agentAdmission;
+    document.querySelectorAll("[data-agent-admission]").forEach(chip => {
+      chip.classList.toggle("is-active", chip.dataset.agentAdmission === agentState.admission);
+    });
+    return;
+  }
   if (button.dataset.viewMode) {
     setViewMode(button.dataset.viewMode);
   }
@@ -1366,4 +1385,278 @@ initViewMode();
 
 init().catch(error => {
   document.body.insertAdjacentHTML("afterbegin", `<div class="api-error">API недоступен: ${escapeHtml(error.message)}</div>`);
+});
+
+/* ---------------------------------------------------------------------------
+ * Agent mode (stage 3). The third position of the switcher.
+ *
+ * Everything here reads /kb/*, a read-only service over the knowledge base. It
+ * shares the radar's markup vocabulary - cards, chips, mono numbers - because it
+ * is the same site, not a second product bolted on.
+ *
+ * The four levels of disclosure arrive in one response, so the answer and the
+ * quotation under it cannot get out of step: what renders below is a view of one
+ * object, never four fetches that could half-fail.
+ * ------------------------------------------------------------------------- */
+
+const KB = "/kb";
+
+const AGENT_KIND_LABEL = {
+  fact: "факт",
+  opinion: "мнение",
+  case: "кейс",
+  forecast: "прогноз",
+  product_release: "релиз",
+  incident: "инцидент"
+};
+
+const AGENT_STATUS_LABEL = {
+  canon: "канон",
+  canon_adjacent: "рядом с каноном",
+  operationalization: "операционализация",
+  external_reference: "внешняя ссылка",
+  observed_signal: "наблюдаемый сигнал",
+  hypothesis: "гипотеза"
+};
+
+const AGENT_STATUS_CLASS = {
+  canon: "agent-label--canon",
+  canon_adjacent: "agent-label--canon",
+  operationalization: "agent-label--near",
+  external_reference: "agent-label--near",
+  observed_signal: "agent-label--far",
+  hypothesis: "agent-label--far"
+};
+
+const agentState = { tab: "ask", admission: "knowledge", busy: false };
+
+async function kbFetch(path, options) {
+  const response = await fetch(`${KB}${path}`, options);
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`служба базы знаний ответила ${response.status}`);
+  }
+  return response.json();
+}
+
+function agentDate(row) {
+  if (!row.shown_on) return "";
+  const kind = row.shown_kind === "published" ? "дата публикации" : "дата обнаружения радаром";
+  return `${row.shown_on} · ${kind}`;
+}
+
+/** The labels the owner requires beside every unit: kind, status, whose claim. */
+function agentLabels(row) {
+  const parts = [];
+  if (row.status) {
+    const cls = AGENT_STATUS_CLASS[row.status] || "agent-label--far";
+    parts.push(`<span class="agent-label ${cls}"><span class="dot"></span>${escapeHtml(AGENT_STATUS_LABEL[row.status] || row.status)}</span>`);
+  }
+  if (row.material_kind) {
+    parts.push(`<span class="agent-label">${escapeHtml(AGENT_KIND_LABEL[row.material_kind] || row.material_kind)}</span>`);
+  }
+  if (row.is_retelling && row.primary_source) {
+    parts.push(`<span class="agent-label agent-label--retelling">пересказ → ${escapeHtml(row.primary_source)}</span>`);
+  }
+  return parts.join("");
+}
+
+function agentMatchedBy(matched) {
+  if (!Array.isArray(matched) || !matched.length) return "";
+  return matched
+    .map(arm => `<span class="agent-arm agent-arm--${arm === "смысл" ? "meaning" : "words"}">по ${escapeHtml(arm === "смысл" ? "смыслу" : "словам")}</span>`)
+    .join("");
+}
+
+/** One statement at levels 2, 3 and 4 - labels, quotation with its range, source. */
+function agentStatementCard(row, ordinal) {
+  const number = ordinal ? `<span class="mono agent-ordinal">[${ordinal}]</span>` : "";
+  const range = Number.isInteger(row.char_start) && Number.isInteger(row.char_end)
+    ? `<span class="mono agent-range">знаки ${row.char_start}–${row.char_end}</span>`
+    : "";
+  return `
+    <article class="card agent-statement" data-claim="${escapeHtml(row.claim_id)}">
+      <div class="agent-statement__labels">
+        ${number}${agentLabels(row)}
+        <span class="agent-spacer"></span>
+        <span class="mono agent-when">${escapeHtml(agentDate(row))}</span>
+      </div>
+      ${row.statement ? `<p class="agent-statement__text">${escapeHtml(row.statement)}</p>` : ""}
+      <blockquote class="agent-quote">
+        <p>${escapeHtml(row.quote_text || row.quote || "")}</p>
+        <div class="agent-quote__meta">${range}${agentMatchedBy(row.matched_by || row.matchedBy)}</div>
+      </blockquote>
+      <div class="agent-statement__source">
+        <span class="agent-statement__sourcelabel">Источник:</span>
+        <a href="${escapeHtml(row.source_url || row.sourceUrl || "#")}" target="_blank" rel="noopener noreferrer">
+          ${escapeHtml(row.source_title || row.source_url || row.sourceUrl || "источник")}
+        </a>
+      </div>
+    </article>`;
+}
+
+async function agentAsk(question) {
+  const box = document.getElementById("agentAnswer");
+  if (!box || agentState.busy) return;
+  agentState.busy = true;
+  box.innerHTML = `<p class="agent-waiting">База читает свои утверждения…</p>`;
+  try {
+    const answered = await kbFetch("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question })
+    });
+    if (answered.error) {
+      box.innerHTML = `<p class="agent-waiting">${escapeHtml(answered.error)}</p>`;
+      return;
+    }
+    const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
+    const body = answered.answer
+      ? `<p class="agent-answer__text">${escapeHtml(answered.answer)}</p>`
+      : `<p class="agent-answer__text agent-answer__text--refused">В базе нет подтверждений, на которых можно построить ответ. Ниже — что нашлось рядом.</p>`;
+    box.innerHTML = `
+      <div class="agent-answer__card">
+        <div class="agent-answer__notice">
+          <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
+          <span class="agent-spacer"></span>
+          <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
+        </div>
+        ${body}
+      </div>
+      ${evidence.length ? `<h3 class="agent-section">Утверждения под ответом</h3>` : ""}
+      ${evidence.map((row, index) => agentStatementCard(row, index + 1)).join("")}`;
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  } finally {
+    agentState.busy = false;
+  }
+}
+
+function plural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+async function agentLoadObservatory() {
+  const box = document.getElementById("agentObservatory");
+  if (!box || box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Загрузка хроники…</p>`;
+  try {
+    const data = await kbFetch("/observatory");
+    const rows = data.observatory || [];
+    const byKind = new Map();
+    rows.forEach(row => {
+      const key = row.material_kind || "прочее";
+      if (!byKind.has(key)) byKind.set(key, []);
+      byKind.get(key).push(row);
+    });
+    box.innerHTML = `
+      <p class="agent-intro">Срез по классам событий, а не лента: что случилось на рынке — отдельно
+      от знания, которое база держит о классе явлений.</p>
+      <div class="agent-columns">
+        ${[...byKind.entries()].map(([kind, items]) => `
+          <section class="agent-column">
+            <h3 class="agent-column__head">
+              ${escapeHtml(AGENT_KIND_LABEL[kind] || kind)}
+              <span class="mono">${items.length}</span>
+            </h3>
+            ${items.slice(0, 12).map(row => agentStatementCard(row)).join("")}
+          </section>`).join("")}
+      </div>`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function agentLoadTopics() {
+  const box = document.getElementById("agentTopics");
+  if (!box || box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Загрузка скелета тем…</p>`;
+  try {
+    const data = await kbFetch("/topics");
+    const topics = (data.topics || []).filter(topic => topic.statements > 0);
+    box.innerHTML = `
+      <p class="agent-intro">Понятие — это элемент скелета тем, а не страница, где оно описано.
+      Карточка собирается из утверждений базы.</p>
+      <div class="agent-topics">
+        ${topics.map(topic => `
+          <button class="agent-topic" type="button" data-agent-topic="${escapeHtml(topic.topic_key)}">
+            <span class="agent-topic__title">${escapeHtml(topic.title)}</span>
+            <span class="mono agent-topic__count">${topic.statements}</span>
+            <span class="agent-topic__path">${escapeHtml(topic.path || "")}</span>
+          </button>`).join("")}
+      </div>
+      <div id="agentTopicCard"></div>`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function agentOpenTopic(key) {
+  const card = document.getElementById("agentTopicCard");
+  if (!card) return;
+  card.innerHTML = `<p class="agent-waiting">Загрузка карточки…</p>`;
+  try {
+    const data = await kbFetch(`/topics/${encodeURIComponent(key)}`);
+    if (data.error) {
+      card.innerHTML = `<p class="agent-waiting">${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    const statements = data.statements || [];
+    card.innerHTML = `
+      <h3 class="agent-section">${escapeHtml(data.title || key)}</h3>
+      <p class="agent-intro mono">${escapeHtml(data.path || "")} · ${statements.length} ${plural(statements.length, "утверждение", "утверждения", "утверждений")}</p>
+      ${statements.map(row => agentStatementCard(row)).join("")}`;
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    card.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function agentLoadGaps() {
+  const box = document.getElementById("agentGaps");
+  if (!box || box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Загрузка карты пробелов…</p>`;
+  try {
+    const data = await kbFetch("/gaps?limit=60");
+    const gaps = data.gaps || [];
+    box.innerHTML = `
+      <p class="agent-intro">Утверждения, которым не нашлось места в скелете тем. Ничего не
+      отсеивается и ничего не предлагается автоматически — строка отличает «посмотрели, места нет»
+      от «ещё не смотрели».</p>
+      ${gaps.map(gap => `
+        <article class="card agent-gap">
+          <p class="agent-gap__missing">${escapeHtml(gap.missing)}</p>
+          <p class="agent-gap__statement">${escapeHtml(gap.statement)}</p>
+        </article>`).join("")}`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function setAgentTab(tab) {
+  agentState.tab = tab;
+  const panels = { ask: "agentAsk", observatory: "agentObservatory", topics: "agentTopics", gaps: "agentGaps" };
+  Object.entries(panels).forEach(([name, id]) => {
+    document.getElementById(id)?.toggleAttribute("hidden", name !== tab);
+  });
+  document.querySelectorAll("[data-agent-tab]").forEach(button => {
+    const active = button.dataset.agentTab === tab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  if (tab === "observatory") agentLoadObservatory();
+  if (tab === "topics") agentLoadTopics();
+  if (tab === "gaps") agentLoadGaps();
+}
+
+document.getElementById("agentForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+  const question = document.getElementById("agentQuestion")?.value.trim();
+  if (question) agentAsk(question);
 });
