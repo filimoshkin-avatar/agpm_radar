@@ -32,15 +32,22 @@ from radar_kx.ideas import (
     parse_idea,
     summarize,
 )
+from radar_kx.identifiers import sha256_bytes
 from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
     IDEA_STATEMENT,
+    QUOTE_TRANSLATION,
     RUN_TYPES,
     HermesExtractor,
     ModelGateway,
     OrchestratorError,
+)
+from radar_kx.publication import (
+    build_translation_prompt,
+    check_invariants,
+    parse_translation,
 )
 from radar_kx.reconciliation import load_inventory
 from radar_kx.search import MATCH_MODES, SCOPES
@@ -204,6 +211,19 @@ def _parser() -> argparse.ArgumentParser:
     ideas_parser.add_argument("--dry-run", action="store_true")
 
     subparsers.add_parser("idea-report")
+
+    # Slice 2.8: the structural layer publishes itself when five conditions hold
+    # (P19); everything else goes to quarantine with what would clear it.
+    publish_parser = subparsers.add_parser("publish-quotes")
+    publish_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
+    publish_parser.add_argument("--limit", type=int, default=200)
+
+    translate_parser = subparsers.add_parser("translate-quotes")
+    translate_parser.add_argument("--scope", choices=sorted(SCOPES), default="historical")
+    translate_parser.add_argument("--target-language", default="ru")
+    translate_parser.add_argument("--limit", type=int, default=20)
+
+    subparsers.add_parser("publication-report")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -502,6 +522,57 @@ def main() -> None:
         return
     if args.command == "idea-report":
         _print_json(database.idea_report())
+        return
+    if args.command == "publish-quotes":
+        _print_json(database.publish_quotes(scope=args.scope, limit=args.limit))
+        return
+    if args.command == "publication-report":
+        _print_json(database.publication_report())
+        return
+    if args.command == "translate-quotes":
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch translate-quotes ...`.")
+        gateway = ModelGateway(database, settings)
+        done: list[dict[str, Any]] = []
+        for row in database.publishable_quotes(scope=args.scope, limit=args.limit):
+            if row["translation_id"] is not None:
+                continue
+            if str(row["language"]) == args.target_language:
+                continue
+            quote = str(row["quote_text"])
+            prompt = build_translation_prompt(quote, target_language=args.target_language)
+            result = gateway.run(
+                QUOTE_TRANSLATION,
+                prompt,
+                version_id=str(row["version_id"]),
+            )
+            translated = parse_translation(result.content)
+            done.append(
+                database.record_translation(
+                    claim_id=str(row["claim_id"]),
+                    version_id=str(row["version_id"]),
+                    char_start=int(row["char_start"]),
+                    char_end=int(row["char_end"]),
+                    original_text=quote,
+                    source_language=str(row["language"]),
+                    target_language=args.target_language,
+                    translated_text=translated,
+                    translator=QUOTE_TRANSLATION.model,
+                    is_machine=True,
+                    prompt_sha256=sha256_bytes(prompt.encode("utf-8")),
+                    report=check_invariants(quote, translated),
+                    created_by="radar-kx-translate-quotes",
+                )
+            )
+        _print_json(
+            {
+                "targetLanguage": args.target_language,
+                "translated": len(done),
+                "verified": sum(1 for item in done if item["state"] == "verified"),
+                "rejected": sum(1 for item in done if item["state"] == "rejected"),
+                "aliasProposals": sum(int(item["aliasProposals"]) for item in done),
+            }
+        )
         return
     if args.command == "model-run-types":
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])

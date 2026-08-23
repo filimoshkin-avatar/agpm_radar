@@ -133,12 +133,29 @@ IDEA_STATEMENT = RunType(
     max_payload_chars=8000,
 )
 
+
+QUOTE_TRANSLATION = RunType(
+    name="quote_translation",
+    purpose="translating one published quotation",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "one quotation and a fixed instruction block - never the document it came "
+        "from, and never several quotations at once. P32 caps a published quotation "
+        "at one paragraph, so the cap here is that plus the instructions. A "
+        "translator that could see the article would be tempted to smooth the "
+        "quotation towards it, and the invariant check exists because that is "
+        "exactly what must not happen."
+    ),
+    max_payload_chars=3000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
     REACHABILITY_PROBE.name: REACHABILITY_PROBE,
     CLAIM_EXTRACTION.name: CLAIM_EXTRACTION,
     IDEA_STATEMENT.name: IDEA_STATEMENT,
+    QUOTE_TRANSLATION.name: QUOTE_TRANSLATION,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."
@@ -330,6 +347,7 @@ __all__ = [
     "CLAIM_EXTRACTION",
     "DEFAULT_MODEL",
     "IDEA_STATEMENT",
+    "QUOTE_TRANSLATION",
     "REACHABILITY_PROBE",
     "RUN_TYPES",
     "ExtractionError",

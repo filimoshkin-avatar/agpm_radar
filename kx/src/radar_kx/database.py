@@ -47,6 +47,7 @@ from radar_kx.issue_perimeter import PerimeterExport
 from radar_kx.language import language_of
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
+from radar_kx.publication import InvariantReport, decide
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
 from radar_kx.source_families import DocumentHost, FamilyDecision
@@ -64,7 +65,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -2896,6 +2897,255 @@ class Database:
             "ideas": sum(int(row["total"]) for row in rows),
             "admitted": sum(int(row["total"]) for row in rows if row["admitted"]),
             "byState": rows,
+        }
+
+    # ---------------------------------------------------------------------
+    # Publication of the structural layer (slice 2.8, P19)
+    # ---------------------------------------------------------------------
+
+    def publishable_quotes(self, *, scope: str, limit: int = 200) -> list[dict[str, Any]]:
+        """Exact quotations in scope, with everything the five conditions need.
+
+        One query, because asking five questions per claim across eight thousand
+        claims is the difference between a report and an afternoon.
+        """
+        source = _SCOPE_SOURCES[scope]
+        query = f"""
+            SELECT evidence.claim_id,
+                   evidence.version_id,
+                   evidence.char_start,
+                   evidence.char_end,
+                   evidence.quote_text,
+                   versions.canonical_text,
+                   versions.language,
+                   documents.canonical_url,
+                   documents.document_id,
+                   blocked.block_reason,
+                   caveat.caveat_detail,
+                   translations.translation_id,
+                   translations.translated_text,
+                   translations.target_language,
+                   translations.invariant_report
+            FROM kx.claim_evidence AS evidence
+            JOIN kx.document_versions AS versions USING (version_id)
+            JOIN kx.documents AS documents
+              ON documents.document_id = versions.document_id
+            JOIN ({source}) AS scoped ON scoped.document_id = versions.document_id
+            LEFT JOIN kx.version_publication_block AS blocked
+                   ON blocked.version_id = versions.version_id
+            LEFT JOIN kx.version_publication_caveat AS caveat
+                   ON caveat.version_id = versions.version_id
+            LEFT JOIN kx.quote_translations AS translations
+                   ON translations.claim_id = evidence.claim_id
+                  AND translations.state <> 'rejected'
+            WHERE evidence.match_status = 'exact'
+              AND NOT EXISTS (
+                  SELECT 1 FROM kx.published_quotes AS published
+                  WHERE published.claim_id = evidence.claim_id
+              )
+            ORDER BY evidence.claim_id
+            LIMIT %s
+            """  # noqa: S608 - a constant from _SCOPE_SOURCES
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(query, (limit,))
+                return [dict(row) for row in cursor.fetchall()]
+
+    def publish_quotes(
+        self, *, scope: str, limit: int = 200, attribution_suffix: str = ""
+    ) -> dict[str, Any]:
+        """Publish what clears the five conditions; quarantine the rest with a remedy.
+
+        No approval gate, manual or batch: that is what P19 decided. What replaces
+        it is that every condition is checked here and every failure is written
+        down with what would clear it.
+        """
+        candidates = self.publishable_quotes(scope=scope, limit=limit)
+        published = 0
+        quarantined: dict[str, int] = {}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            for row in candidates:
+                report = None
+                if row["invariant_report"]:
+                    payload = cast(dict[str, Any], row["invariant_report"])
+                    report = InvariantReport(
+                        numbers_match=bool(payload.get("numbersMatch")),
+                        original_numbers=tuple(payload.get("originalNumbers") or ()),
+                        translated_numbers=tuple(payload.get("translatedNumbers") or ()),
+                        symbols_match=bool(payload.get("symbolsMatch")),
+                        original_symbols=payload.get("originalSymbols") or {},
+                        translated_symbols=payload.get("translatedSymbols") or {},
+                    )
+                verdict = self.independence_report([str(row["document_id"])])
+                decision = decide(
+                    canonical_text=str(row["canonical_text"]),
+                    char_start=int(cast(int, row["char_start"])),
+                    char_end=int(cast(int, row["char_end"])),
+                    quote_text=str(row["quote_text"]),
+                    block_reason=(str(row["block_reason"]) if row["block_reason"] else None),
+                    caveat=str(row["caveat_detail"]) if row["caveat_detail"] else None,
+                    invariants=report,
+                    independent_sources=int(verdict["independentSources"]),
+                    # A quotation is evidence of what one source said. Independence
+                    # is a property of a claim resting on several, and applying it
+                    # to a single quotation would withhold every source that is the
+                    # only one to have said something - which is most of them.
+                    independence_required=False,
+                )
+                with connection.transaction(), connection.cursor() as cursor:
+                    if decision.publishable:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.published_quotes
+                                (claim_id, version_id, char_start, char_end, original_text,
+                                 translation_id, quote_chars, attribution, source_url,
+                                 caveat, published_automatically, independence_sources)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s)
+                            ON CONFLICT DO NOTHING
+                            """,
+                            (
+                                row["claim_id"],
+                                row["version_id"],
+                                row["char_start"],
+                                row["char_end"],
+                                row["quote_text"],
+                                row["translation_id"],
+                                int(cast(int, row["char_end"])) - int(cast(int, row["char_start"])),
+                                f"{row['canonical_url']}{attribution_suffix}",
+                                row["canonical_url"],
+                                decision.caveat,
+                                int(verdict["independentSources"]),
+                            ),
+                        )
+                        published += cursor.rowcount
+                        continue
+                    for item in decision.quarantine:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.publication_quarantine
+                                (claim_id, translation_id, failed_condition, detail,
+                                 what_would_clear_it)
+                            VALUES (%s, %s, %s, %s, %s)
+                            """,
+                            (
+                                row["claim_id"],
+                                row["translation_id"],
+                                item.failed_condition,
+                                item.detail,
+                                item.what_would_clear_it,
+                            ),
+                        )
+                        quarantined[item.failed_condition] = (
+                            quarantined.get(item.failed_condition, 0) + 1
+                        )
+        return {
+            "scope": scope,
+            "considered": len(candidates),
+            "published": published,
+            "quarantined": sum(quarantined.values()),
+            "byFailedCondition": quarantined,
+        }
+
+    def record_translation(
+        self,
+        *,
+        claim_id: str,
+        version_id: str,
+        char_start: int,
+        char_end: int,
+        original_text: str,
+        source_language: str,
+        target_language: str,
+        translated_text: str,
+        translator: str,
+        is_machine: bool,
+        prompt_sha256: str | None,
+        report: InvariantReport,
+        created_by: str,
+    ) -> dict[str, Any]:
+        """Store one translation with the invariant check that judged it."""
+        state = "rejected" if report.blocking else "verified"
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.quote_translations
+                        (claim_id, version_id, char_start, char_end, original_text,
+                         source_language, target_language, translated_text, translator,
+                         is_machine, prompt_sha256, state, invariant_report, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                    RETURNING translation_id
+                    """,
+                    (
+                        claim_id,
+                        version_id,
+                        char_start,
+                        char_end,
+                        original_text,
+                        source_language,
+                        target_language,
+                        translated_text,
+                        translator,
+                        is_machine,
+                        prompt_sha256,
+                        state,
+                        Jsonb(report.as_json()),
+                        created_by,
+                    ),
+                )
+                row = cursor.fetchone()
+                translation_id = str(row["translation_id"]) if row else None
+                # P36: an unregistered spelling never blocks. The name is shown in
+                # its original form and the proposal waits with no deadline.
+                for name in report.unresolved_names:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.entity_alias_proposals
+                            (original_form, proposed_form, language, seen_in_translation)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (original_form, proposed_form, language)
+                            DO UPDATE SET occurrences = kx.entity_alias_proposals.occurrences + 1
+                        """,
+                        (name, name, target_language, translation_id),
+                    )
+        return {
+            "translationId": translation_id,
+            "state": state,
+            "aliasProposals": len(report.unresolved_names),
+            **report.as_json(),
+        }
+
+    def publication_report(self) -> dict[str, Any]:
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT count(*) AS total,"
+                " count(*) FILTER (WHERE published_automatically) AS automatic,"
+                " count(*) FILTER (WHERE caveat IS NOT NULL) AS with_caveat"
+                " FROM kx.published_quotes"
+            )
+            published = dict(one_row(cursor))
+            cursor.execute(
+                "SELECT failed_condition, count(*) AS total FROM kx.publication_quarantine"
+                " WHERE resolved_at IS NULL GROUP BY 1 ORDER BY total DESC"
+            )
+            quarantine = {
+                str(row["failed_condition"]): int(row["total"]) for row in cursor.fetchall()
+            }
+            cursor.execute("SELECT state, count(*) AS total FROM kx.quote_translations GROUP BY 1")
+            translations = {str(row["state"]): int(row["total"]) for row in cursor.fetchall()}
+            cursor.execute(
+                "SELECT count(*) AS total FROM kx.entity_alias_proposals WHERE decided_at IS NULL"
+            )
+            aliases = int(cast(int, one_row(cursor)["total"]))
+        return {
+            "published": {key: int(value) for key, value in published.items()},
+            "quarantineByCondition": quarantine,
+            "translations": translations,
+            "openAliasProposals": aliases,
         }
 
     def coverage_report(self) -> dict[str, Any]:
