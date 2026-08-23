@@ -27,6 +27,8 @@ from radar_kx.extraction import (
     normalized_claim_text,
 )
 from radar_kx.fetcher import DocumentTask, FetchResult
+from radar_kx.graph import Graph, dangling, unsupported
+from radar_kx.graph import build as build_graph
 from radar_kx.ideas import (
     CandidateGroup,
     ClaimRecord,
@@ -65,7 +67,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -3300,6 +3302,154 @@ class Database:
                     )
                 recorded[method] = recorded.get(method, 0) + 1
         return {"considered": len(rows), "recorded": recorded}
+
+    # ---------------------------------------------------------------------
+    # The graph (slice 2.11)
+    # ---------------------------------------------------------------------
+
+    def build_graph(self, *, wiki_snapshot_id: str | None = None) -> Graph:
+        """Read the store into a graph. Writes nothing."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT versions.concept_id, versions.title, versions.language,"
+                    " concepts.relative_path, concepts.layer"
+                    " FROM kx.concept_versions AS versions"
+                    " JOIN kx.concepts AS concepts USING (concept_id)"
+                    " WHERE %(snapshot)s::text IS NULL"
+                    "    OR versions.snapshot_id = %(snapshot)s",
+                    {"snapshot": wiki_snapshot_id},
+                )
+                concepts = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT claims.concept_claim_id, claims.statement, claims.claim_nature,"
+                    " claims.segmentation, versions.concept_id"
+                    " FROM kx.concept_claims AS claims"
+                    " JOIN kx.concept_versions AS versions USING (concept_version_id)"
+                    " WHERE %(snapshot)s::text IS NULL"
+                    "    OR versions.snapshot_id = %(snapshot)s",
+                    {"snapshot": wiki_snapshot_id},
+                )
+                concept_claims = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT concept_claim_id, claim_id, membership_class, confirmed_at"
+                    " FROM kx.concept_evidence"
+                )
+                concept_evidence = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT idea_id, title, state, admitted, independent_sources FROM kx.ideas"
+                )
+                ideas = [dict(row) for row in cursor.fetchall()]
+                cursor.execute("SELECT idea_id, claim_id, stance FROM kx.idea_evidence")
+                idea_evidence = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT claims.claim_id, claims.state, evidence.version_id,"
+                    " evidence.char_start, evidence.char_end, evidence.quote_text,"
+                    " versions.document_id, versions.language, documents.canonical_url"
+                    " FROM kx.claims AS claims"
+                    " JOIN kx.claim_evidence AS evidence USING (claim_id)"
+                    " JOIN kx.document_versions AS versions"
+                    "   ON versions.version_id = evidence.version_id"
+                    " JOIN kx.documents AS documents USING (document_id)"
+                    " WHERE evidence.match_status = 'exact'"
+                )
+                claims = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT current.document_id, current.family_id, current.family_key,"
+                    " current.family_kind FROM kx.document_source_family_current AS current"
+                    " WHERE current.decision_action <> 'retired'"
+                )
+                families = [dict(row) for row in cursor.fetchall()]
+        return build_graph(
+            concepts=concepts,
+            concept_claims=concept_claims,
+            concept_evidence=concept_evidence,
+            ideas=ideas,
+            idea_evidence=idea_evidence,
+            claims=claims,
+            families=families,
+        )
+
+    def record_graph_snapshot(
+        self, graph: Graph, *, built_by: str, wiki_snapshot_id: str | None = None
+    ) -> dict[str, Any]:
+        """Store one graph, or recognise one already stored.
+
+        Content-addressed like the wiki snapshot: the same store projects to the
+        same identifier, so rebuilding an unchanged graph records nothing twice
+        and a release can point at a snapshot that means one thing forever.
+        """
+        loose = dangling(graph)
+        if loose:
+            raise RuntimeError(f"{len(loose)} edges point outside the graph")
+        snapshot_id = graph.snapshot_id()
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT built_at FROM kx.graph_snapshots WHERE graph_snapshot_id = %s",
+                    (snapshot_id,),
+                )
+                if cursor.fetchone() is not None:
+                    return {**graph.as_json(), "alreadyStored": True}
+                cursor.execute(
+                    "SELECT coalesce(max(decision_id), 0) AS high_water"
+                    " FROM kx.source_family_decisions"
+                )
+                high_water = int(cast(int, one_row(cursor)["high_water"]))
+                cursor.execute(
+                    """
+                    INSERT INTO kx.graph_snapshots
+                        (graph_snapshot_id, wiki_snapshot_id, family_decision_high_water,
+                         node_count, edge_count, manifest_sha256, built_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        snapshot_id,
+                        wiki_snapshot_id,
+                        high_water,
+                        len(graph.nodes),
+                        len(graph.edges),
+                        graph.manifest_sha256,
+                        built_by,
+                    ),
+                )
+                for node in graph.nodes:
+                    cursor.execute(
+                        "INSERT INTO kx.graph_nodes"
+                        " (graph_snapshot_id, node_id, node_kind, label, natural_key, attributes)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            snapshot_id,
+                            node.node_id,
+                            node.node_kind,
+                            node.label,
+                            node.natural_key,
+                            Jsonb(node.attributes),
+                        ),
+                    )
+                for edge in graph.edges:
+                    cursor.execute(
+                        "INSERT INTO kx.graph_edges"
+                        " (graph_snapshot_id, from_node_id, to_node_id, relation, attributes)"
+                        " VALUES (%s, %s, %s, %s, %s)",
+                        (
+                            snapshot_id,
+                            edge.from_node_id,
+                            edge.to_node_id,
+                            edge.relation,
+                            Jsonb(edge.attributes),
+                        ),
+                    )
+        return {
+            **graph.as_json(),
+            "alreadyStored": False,
+            # Not an error: a wiki statement nobody has bound yet is exactly what
+            # the "statements without evidence" report counts. Said out loud so
+            # the graph does not look complete.
+            "unsupported": unsupported(graph),
+        }
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

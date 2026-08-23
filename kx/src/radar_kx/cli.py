@@ -25,6 +25,7 @@ from radar_kx.duplicates import (
 )
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.extraction import ExtractionError, ProposedClaim, align_all, prompt_sha256
+from radar_kx.graph import unsupported
 from radar_kx.ideas import (
     DEFAULT_OVERLAP,
     build_idea_prompt,
@@ -230,6 +231,11 @@ def _parser() -> argparse.ArgumentParser:
     # publication reads. Not a guess: the attempt row is the acquisition record.
     backfill_parser = subparsers.add_parser("backfill-provenance-from-fetches")
     backfill_parser.add_argument("--limit", type=int, default=20000)
+
+    # Slice 2.11: the graph as an immutable projection taken at one moment.
+    graph_parser = subparsers.add_parser("build-graph")
+    graph_parser.add_argument("--wiki-snapshot-id", default=None)
+    graph_parser.add_argument("--dry-run", action="store_true")
 
     # What each kind of model call is allowed to send (ADR-0005 §3). Printing it
     # is how the rule stays inspectable instead of living only in a document.
@@ -541,6 +547,19 @@ def main() -> None:
         return
     if args.command == "backfill-provenance-from-fetches":
         _print_json(database.backfill_provenance_from_fetches(limit=args.limit))
+        return
+    if args.command == "build-graph":
+        graph = database.build_graph(wiki_snapshot_id=args.wiki_snapshot_id)
+        if args.dry_run:
+            _print_json({**graph.as_json(), "unsupported": unsupported(graph)})
+            return
+        _print_json(
+            database.record_graph_snapshot(
+                graph,
+                built_by="radar-kx-build-graph",
+                wiki_snapshot_id=args.wiki_snapshot_id,
+            )
+        )
         return
     if args.command == "translate-quotes":
         if not settings.hermes_key:
