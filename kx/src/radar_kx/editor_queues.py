@@ -265,6 +265,12 @@ def _decide_alias(database: Database, item_id: str, action: str, actor: str) -> 
 
 
 def _load_skeleton(database: Database, limit: int) -> tuple[int, list[QueueItem]]:
+    authored = _authored_backbone(database)
+    if authored:
+        # Once a backbone is in force, the three candidates that were not chosen
+        # are history, not work. They stay in `editorial_decisions` where a reader
+        # can find them; the tab shows what the base is organised around today.
+        return 0, authored
     accepted = {row["source"] for row in database.accepted_skeleton()}
     items: list[QueueItem] = []
     for candidate in database.skeleton_candidates():
@@ -302,6 +308,49 @@ def _load_skeleton(database: Database, limit: int) -> tuple[int, list[QueueItem]
             )
         )
     return len([item for item in items if item.actions]), items
+
+
+def _authored_backbone(database: Database) -> list[QueueItem]:
+    """The composition the owner wrote, if it has been loaded."""
+    topics = database.topics()
+    if not topics:
+        return []
+    below: dict[str, int] = {}
+    for topic in topics:
+        section = str(topic["path"]).split(" / ")[0]
+        below[section] = below.get(section, 0) + 1
+    sections = [topic for topic in topics if int(topic["level"]) == 1]
+    return [
+        QueueItem(
+            item_id="authored",
+            primary="Авторский состав — принят за основу",
+            secondary=(
+                "Предметная онтология из вашего документа: разделы каталога как "
+                "уровень 1, их подгруппы как уровень 2, перечисленные в них элементы "
+                "как уровень 3. Три остальных измерения документа — статус знания, "
+                "жанр и область применимости — это не темы и лежат отдельно: они "
+                "говорят не «о чём знание», а насколько оно авторитетно, для чего "
+                "написано и куда применимо."
+            ),
+            meta=(
+                ("разделов", str(len(sections))),
+                ("тем всего", str(len(topics))),
+            ),
+            actions=(),
+            children=tuple(
+                {
+                    "id": str(topic["topic_key"]),
+                    "quote": f"{topic['title']} — {below.get(str(topic['title']), 1) - 1} тем ниже",
+                    "sourceUrl": "",
+                    "span": "",
+                    "relevance": None,
+                    "membershipClass": "",
+                    "actions": [],
+                }
+                for topic in sections
+            ),
+        )
+    ]
 
 
 def _decide_skeleton(database: Database, item_id: str, action: str, actor: str) -> dict[str, Any]:
@@ -371,14 +420,13 @@ QUEUES: tuple[Queue, ...] = (
         key="skeleton",
         title="Скелет тем",
         why=(
-            "На чём строится база знаний. Сегодня — ни на чём: утверждения "
+            "На чём строится база знаний. До вашего состава — ни на чём: утверждения "
             "сопоставлялись с цитатами по общим словам, и ничто не требовало, чтобы "
             "совпадение было про один предмет. Именно отсюда посредственная "
-            "связанность.\n\nСкелет при этом существует — дважды, прозой, на двух "
-            "страницах wiki, которые не вполне согласны между собой, и ни один из них "
-            "не лежит в хранилище. Выберите тот, что берём за хребет: его элементы "
-            "станут таблицей тем, по которой пойдёт разметка материалов и ограничение "
-            "привязок."
+            "связанность.\n\nЗдесь лежит состав, который сейчас в силе. По нему "
+            "размечены материалы и утверждения, и им ограничены оба метода "
+            "связывания на соседней вкладке. Решения тут не ждут: если состав нужно "
+            "поправить, это правка файла и повторная загрузка."
         ),
         load=_load_skeleton,
         decide=_decide_skeleton,
@@ -398,25 +446,16 @@ QUEUES: tuple[Queue, ...] = (
             "Оценкам обоих верить нельзя: e5 даёт 0,89 хорошему совпадению и 0,86 "
             "бессмыслице, а RRF упирается в потолок 2/61.\n\n"
             "Инструмент остался один — посмотреть глазами. Двух-трёх десятков "
-            "голосов хватит, чтобы решить, каким методом строить базу."
+            "голосов хватит, чтобы решить, каким методом строить базу.\n\nПосле "
+            "принятия скелета пары здесь — уже внутри предмета утверждения: оба "
+            "метода искали только среди материалов того же раздела. Это снимает с "
+            "выбора вопрос «а про то ли это вообще» и оставляет вопрос «какая из "
+            "двух цитат лучше»."
         ),
         load=_load_comparison,
         decide=_decide_comparison,
         object_kind="binding_method_vote",
         empty="Все пары размечены.",
-    ),
-    Queue(
-        key="evidence",
-        title="Привязки утверждений к доказательствам",
-        why=(
-            "Машина нашла в хранилище цитаты, похожие на то, что говорит страница wiki. "
-            "Похоже — не значит «на этом стоит»: решение о том, чем подкреплено "
-            "утверждение, редакторское. Подтверждённая привязка попадает в граф и в "
-            "публикуемый срез; неподтверждённая не попадает никуда."
-        ),
-        load=_load_evidence,
-        decide=_decide_evidence,
-        object_kind="concept_evidence",
     ),
     Queue(
         key="families",
@@ -469,17 +508,60 @@ QUEUES: tuple[Queue, ...] = (
         decide=_decide_host,
         object_kind="host_profile",
     ),
-    Queue(
-        key="aliases",
-        title="Написания имён",
-        why=(
-            "Перевод не донёс имя собственное в зарегистрированной форме. Цитату это "
-            "не блокирует: имя показывается в оригинале, а предложение ждёт здесь без "
-            "срока."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class RetiredQueue:
+    """A queue that is built, works, and is not on the wall today.
+
+    The owner asked for only what is current. Deleting the loader would mean
+    writing it again when the decision it serves comes back, so what changes is
+    the list of tabs and not the code behind them - and each one says what would
+    put it back.
+    """
+
+    queue: Queue
+    reason: str
+    returns_when: str
+
+
+RETIRED: tuple[RetiredQueue, ...] = (
+    RetiredQueue(
+        queue=Queue(
+            key="evidence",
+            title="Привязки утверждений к доказательствам",
+            why=(
+                "Машина нашла в хранилище цитаты, похожие на то, что говорит страница "
+                "wiki. Похоже — не значит «на этом стоит»: решение о том, чем "
+                "подкреплено утверждение, редакторское."
+            ),
+            load=_load_evidence,
+            decide=_decide_evidence,
+            object_kind="concept_evidence",
         ),
-        load=_load_aliases,
-        decide=_decide_alias,
-        object_kind="entity_alias",
+        reason=(
+            "2 047 предложений построены словесным методом по всему корпусу, до того "
+            "как появился скелет. Подтверждать их сейчас — значит вписать в граф "
+            "результат метода, который ещё не выбран, и половина из них про чужой "
+            "предмет."
+        ),
+        returns_when="выбран метод связывания и предложения пересобраны внутри тем",
+    ),
+    RetiredQueue(
+        queue=Queue(
+            key="aliases",
+            title="Написания имён",
+            why=(
+                "Перевод не донёс имя собственное в зарегистрированной форме. Цитату "
+                "это не блокирует: имя показывается в оригинале."
+            ),
+            load=_load_aliases,
+            decide=_decide_alias,
+            object_kind="entity_alias",
+        ),
+        reason="ничего не блокирует: цитата публикуется, имя показывается в оригинале",
+        returns_when="накопится достаточно предложений, чтобы разбирать их пачкой",
     ),
 )
 

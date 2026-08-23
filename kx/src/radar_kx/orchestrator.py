@@ -164,6 +164,21 @@ RESEARCH_ANSWER = RunType(
     max_payload_chars=14000,
 )
 
+TOPIC_ASSIGNMENT = RunType(
+    name="topic_assignment",
+    purpose="placing statements and documents on the authored backbone",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "the rubricator as the instruction block - Radar's own writing, and the "
+        "owner's - and a numbered list of at most twenty-five items: one wiki "
+        "statement each, or one document's title and the first 300 characters of "
+        "its text. Never a whole document. Placing a document on a backbone needs "
+        "what it is about, and a lede says that; the rest is other people's text "
+        "that no claim will rest on."
+    ),
+    max_payload_chars=14000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
@@ -172,6 +187,7 @@ RUN_TYPES: dict[str, RunType] = {
     IDEA_STATEMENT.name: IDEA_STATEMENT,
     QUOTE_TRANSLATION.name: QUOTE_TRANSLATION,
     RESEARCH_ANSWER.name: RESEARCH_ANSWER,
+    TOPIC_ASSIGNMENT.name: TOPIC_ASSIGNMENT,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."

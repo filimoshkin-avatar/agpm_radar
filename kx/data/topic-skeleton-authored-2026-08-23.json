@@ -1,0 +1,1010 @@
+{
+  "skeletonKey": "agentic-management-backbone",
+  "title": "Хребет базы знаний по агентному управлению",
+  "receivedOn": "2026-08-23",
+  "decidedBy": "helen",
+  "note": "Предметная онтология из авторского документа «Хребет базы знаний по агентному управлению»: разделы каталога 01-12 как уровень 1, их подгруппы как уровень 2 и перечисленные в них конкретные элементы как уровень 3. Три остальных измерения документа — статус знания, жанр и область применимости — это не темы: они говорят не «о чём знание», а насколько оно авторитетно, для чего написано и куда применимо. Схема 21 их не хранит, и выдавать их за темы значило бы смешать оси.",
+  "notLoaded": [
+    {
+      "section": "00-governance",
+      "title": "Управление базой знаний",
+      "reason": "Документ сам говорит: «раздел содержит правила ведения базы, а не предметное знание». Ни один документ корпуса не «о» редакционной политике этой базы."
+    },
+    {
+      "section": "90-evidence",
+      "title": "Доказательный слой",
+      "reason": "Служебный слой хранения, а не предмет. В схеме это claim_evidence и concept_evidence, а не тема."
+    },
+    {
+      "section": "91-sources",
+      "title": "Источники",
+      "reason": "Служебный слой. В схеме это documents и source_families."
+    },
+    {
+      "section": "92-history",
+      "title": "История",
+      "reason": "Служебный слой. В схеме это версии и editorial_decisions."
+    }
+  ],
+  "topics": [
+    {
+      "key": "foundations",
+      "title": "Основания агентного управления",
+      "description": "Что изменилось в управлении с появлением агента. Общий фундамент для AgPM и смежных ветвей.",
+      "children": [
+        {
+          "key": "foundations-agent-as-participant",
+          "title": "Агент как нечеловеческий участник управления"
+        },
+        {
+          "key": "foundations-agent-vs-automation",
+          "title": "Отличие агента от автоматизации, помощника и аналитического инструмента"
+        },
+        {
+          "key": "foundations-delegated-autonomy",
+          "title": "Делегированная автономия"
+        },
+        {
+          "key": "foundations-agency-and-controllability",
+          "title": "Агентность и управляемость"
+        },
+        {
+          "key": "foundations-human-agent-system",
+          "title": "Человеко-агентная система"
+        },
+        {
+          "key": "foundations-agentic-and-classical",
+          "title": "Связь агентного и классического управления"
+        },
+        {
+          "key": "foundations-core-properties",
+          "title": "Объяснимость, подотчётность, отменяемость, безопасная деградация и пропорциональность"
+        },
+        {
+          "key": "foundations-limits-of-applicability",
+          "title": "Границы применимости агентного управления"
+        }
+      ]
+    },
+    {
+      "key": "ontology",
+      "title": "Онтология агентного управления",
+      "description": "Понятийный центр базы: кто действует, чем управляют и какими отношениями это связано.",
+      "children": [
+        {
+          "key": "ontology-subjects",
+          "title": "Субъекты",
+          "children": [
+            {
+              "key": "subject-human",
+              "title": "Человек"
+            },
+            {
+              "key": "subject-project-manager",
+              "title": "Руководитель проекта"
+            },
+            {
+              "key": "subject-sponsor",
+              "title": "Спонсор и куратор"
+            },
+            {
+              "key": "subject-pmo",
+              "title": "PMO / AgPMO"
+            },
+            {
+              "key": "subject-team",
+              "title": "Команда"
+            },
+            {
+              "key": "subject-it-and-data",
+              "title": "ИТ- и data-функции"
+            },
+            {
+              "key": "subject-ai-agent",
+              "title": "ИИ-агент"
+            },
+            {
+              "key": "subject-orchestrator",
+              "title": "Оркестратор"
+            },
+            {
+              "key": "subject-controlling-agent",
+              "title": "Контролирующий агент"
+            },
+            {
+              "key": "subject-external-organization",
+              "title": "Внешняя организация"
+            },
+            {
+              "key": "subject-regulator",
+              "title": "Регулятор"
+            }
+          ]
+        },
+        {
+          "key": "ontology-objects",
+          "title": "Объекты управления",
+          "children": [
+            {
+              "key": "object-goal",
+              "title": "Цель и целевая функция"
+            },
+            {
+              "key": "object-project-program-portfolio",
+              "title": "Проект, программа и портфель"
+            },
+            {
+              "key": "object-product-and-process",
+              "title": "Продукт и процесс"
+            },
+            {
+              "key": "object-management-practice",
+              "title": "Управленческая практика"
+            },
+            {
+              "key": "object-task-and-operation",
+              "title": "Задача и операция"
+            },
+            {
+              "key": "object-decision",
+              "title": "Решение"
+            },
+            {
+              "key": "object-risk",
+              "title": "Риск"
+            },
+            {
+              "key": "object-change",
+              "title": "Изменение"
+            },
+            {
+              "key": "object-resource",
+              "title": "Ресурс"
+            },
+            {
+              "key": "object-commitment",
+              "title": "Обязательство"
+            },
+            {
+              "key": "object-information",
+              "title": "Информация"
+            },
+            {
+              "key": "object-baseline",
+              "title": "Базовый план"
+            },
+            {
+              "key": "object-effect-and-value",
+              "title": "Эффект и ценность"
+            }
+          ]
+        },
+        {
+          "key": "ontology-relations",
+          "title": "Ключевые отношения",
+          "children": [
+            {
+              "key": "relation-manages",
+              "title": "Управляет"
+            },
+            {
+              "key": "relation-accountable-for",
+              "title": "Отвечает за"
+            },
+            {
+              "key": "relation-delegates",
+              "title": "Делегирует"
+            },
+            {
+              "key": "relation-executes",
+              "title": "Исполняет"
+            },
+            {
+              "key": "relation-confirms",
+              "title": "Подтверждает"
+            },
+            {
+              "key": "relation-cancels",
+              "title": "Отменяет"
+            },
+            {
+              "key": "relation-constrains",
+              "title": "Ограничивает"
+            },
+            {
+              "key": "relation-observes",
+              "title": "Наблюдает"
+            },
+            {
+              "key": "relation-recommends",
+              "title": "Рекомендует"
+            },
+            {
+              "key": "relation-escalates",
+              "title": "Эскалирует"
+            },
+            {
+              "key": "relation-uses-data",
+              "title": "Использует данные"
+            },
+            {
+              "key": "relation-produces-decision",
+              "title": "Порождает решение"
+            },
+            {
+              "key": "relation-changes-baseline",
+              "title": "Изменяет базовый план"
+            },
+            {
+              "key": "relation-operationalizes",
+              "title": "Операционализирует"
+            },
+            {
+              "key": "relation-confirmed-by-source",
+              "title": "Подтверждается источником"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "project-management",
+      "title": "Агентное управление проектами — AgPM",
+      "description": "Главное содержательное ядро базы: канон AgPM, его архитектура и масштабы применения.",
+      "children": [
+        {
+          "key": "pm-canonical-model",
+          "title": "Каноническая модель",
+          "children": [
+            {
+              "key": "canon-concept",
+              "title": "Концепция AgPM"
+            },
+            {
+              "key": "canon-white-paper",
+              "title": "White Paper"
+            },
+            {
+              "key": "canon-manifesto",
+              "title": "Манифест"
+            },
+            {
+              "key": "canon-ontology-rationale",
+              "title": "Обоснование онтологии"
+            },
+            {
+              "key": "canon-correspondence-map",
+              "title": "Карта соответствия между каноническими документами"
+            },
+            {
+              "key": "canon-revision-history",
+              "title": "История редакций"
+            }
+          ]
+        },
+        {
+          "key": "pm-architecture",
+          "title": "Архитектура AgPM",
+          "children": [
+            {
+              "key": "architecture-five-principles",
+              "title": "Пять принципов"
+            },
+            {
+              "key": "architecture-project-data-infrastructure",
+              "title": "Инфраструктура данных проекта"
+            },
+            {
+              "key": "architecture-four-practice-areas",
+              "title": "Четыре области практик"
+            },
+            {
+              "key": "architecture-mechanisms",
+              "title": "Управленческие механизмы AgPM"
+            },
+            {
+              "key": "architecture-evaluation-frameworks",
+              "title": "Оценочные рамки"
+            },
+            {
+              "key": "architecture-organizational-context",
+              "title": "Организационный контекст"
+            }
+          ]
+        },
+        {
+          "key": "pm-managed-system",
+          "title": "Управляемая проектная система",
+          "children": [
+            {
+              "key": "managed-project-as-human-agent-system",
+              "title": "Проект как человеко-агентная система"
+            },
+            {
+              "key": "managed-agent-and-ppm-system",
+              "title": "Связь агента с ИСУП"
+            },
+            {
+              "key": "managed-authoritative-sources",
+              "title": "Авторитетные источники"
+            },
+            {
+              "key": "managed-baseline",
+              "title": "Базовый план"
+            },
+            {
+              "key": "managed-decision-log",
+              "title": "Журнал решений"
+            },
+            {
+              "key": "managed-observability",
+              "title": "Наблюдаемость"
+            },
+            {
+              "key": "managed-automatic-limiters",
+              "title": "Автоматические ограничители"
+            },
+            {
+              "key": "managed-nonagentic-integration",
+              "title": "Интеграция с неагентной средой"
+            }
+          ]
+        },
+        {
+          "key": "pm-scales",
+          "title": "Масштабы применения",
+          "description": "Программу, портфель и PMO следует развивать как расширения AgPM, не объявляя их частью канона.",
+          "children": [
+            {
+              "key": "scale-single-project",
+              "title": "Отдельный проект"
+            },
+            {
+              "key": "scale-program",
+              "title": "Программа"
+            },
+            {
+              "key": "scale-portfolio",
+              "title": "Портфель"
+            },
+            {
+              "key": "scale-pmo",
+              "title": "PMO"
+            },
+            {
+              "key": "scale-enterprise-ppm",
+              "title": "Корпоративная система управления проектами"
+            },
+            {
+              "key": "scale-cross-organizational",
+              "title": "Межорганизационный проект"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "management-mechanisms",
+      "title": "Управленческие механизмы",
+      "description": "Что превращает принципы AgPM в работающую управленческую модель.",
+      "children": [
+        {
+          "key": "mechanism-decision-classes",
+          "title": "Классы решений"
+        },
+        {
+          "key": "mechanism-significant-decision",
+          "title": "Значимое решение"
+        },
+        {
+          "key": "mechanism-autonomy-thresholds",
+          "title": "Пороги автономии"
+        },
+        {
+          "key": "mechanism-decision-rights",
+          "title": "Права принятия решений"
+        },
+        {
+          "key": "mechanism-confirmation-and-signature",
+          "title": "Подтверждение и подпись"
+        },
+        {
+          "key": "mechanism-cancellation-window",
+          "title": "Окно отмены"
+        },
+        {
+          "key": "mechanism-advisor-mode",
+          "title": "Режим советника"
+        },
+        {
+          "key": "mechanism-escalation",
+          "title": "Эскалация"
+        },
+        {
+          "key": "mechanism-crisis-protocol",
+          "title": "Кризисный протокол"
+        },
+        {
+          "key": "mechanism-information-lifecycle",
+          "title": "Жизненный цикл информации"
+        },
+        {
+          "key": "mechanism-signal-to-baseline-chain",
+          "title": "Цепочка «сигнал → проверка → факт → формальный объект → решение → изменение базового плана»"
+        },
+        {
+          "key": "mechanism-decision-log-and-memory",
+          "title": "Журнал и память решений"
+        },
+        {
+          "key": "mechanism-multi-agent-orchestration",
+          "title": "Мультиагентная оркестрация"
+        },
+        {
+          "key": "mechanism-inter-agent-conflict",
+          "title": "Разрешение конфликтов между агентами"
+        },
+        {
+          "key": "mechanism-cascade-protection",
+          "title": "Защита от межагентного каскада"
+        }
+      ]
+    },
+    {
+      "key": "practices",
+      "title": "Практики",
+      "description": "Четыре канонические области практик и мосты к классическим предметам управления.",
+      "children": [
+        {
+          "key": "practice-goal-setting",
+          "title": "Целеполагание"
+        },
+        {
+          "key": "practice-delivery",
+          "title": "Реализация"
+        },
+        {
+          "key": "practice-learning",
+          "title": "Обучение"
+        },
+        {
+          "key": "practice-integration",
+          "title": "Интеграция"
+        },
+        {
+          "key": "practice-cross-cutting",
+          "title": "Поперечные карты классических предметов управления",
+          "description": "Мосты между классическим и агентным управлением, а не воспроизведение PMBoK внутри AgPM.",
+          "children": [
+            {
+              "key": "cross-schedule",
+              "title": "Сроки"
+            },
+            {
+              "key": "cross-budget",
+              "title": "Бюджет"
+            },
+            {
+              "key": "cross-resources",
+              "title": "Ресурсы"
+            },
+            {
+              "key": "cross-risks",
+              "title": "Риски"
+            },
+            {
+              "key": "cross-changes",
+              "title": "Изменения"
+            },
+            {
+              "key": "cross-quality",
+              "title": "Качество"
+            },
+            {
+              "key": "cross-stakeholders",
+              "title": "Стейкхолдеры"
+            },
+            {
+              "key": "cross-procurement",
+              "title": "Закупки"
+            },
+            {
+              "key": "cross-benefits",
+              "title": "Выгоды"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "governance-risk-trust",
+      "title": "Ответственность, риски и доверие",
+      "description": "Кто отвечает, чем это может кончиться и на чём держится доверие к агенту.",
+      "children": [
+        {
+          "key": "accountability",
+          "title": "Ответственность",
+          "children": [
+            {
+              "key": "accountability-two-layer-model",
+              "title": "Двухслойная модель"
+            },
+            {
+              "key": "accountability-human-owner",
+              "title": "Человеческий владелец"
+            },
+            {
+              "key": "accountability-agent-role",
+              "title": "Агентная роль"
+            },
+            {
+              "key": "accountability-raci-and-rights",
+              "title": "RACI и права принятия решений"
+            },
+            {
+              "key": "accountability-for-data",
+              "title": "Ответственность за данные"
+            },
+            {
+              "key": "accountability-for-autonomy-settings",
+              "title": "Ответственность за настройку автономии"
+            },
+            {
+              "key": "accountability-for-consequences",
+              "title": "Ответственность за последствия"
+            }
+          ]
+        },
+        {
+          "key": "risks",
+          "title": "Риски",
+          "children": [
+            {
+              "key": "risk-single-decision",
+              "title": "Риск отдельного решения"
+            },
+            {
+              "key": "risk-systemic-and-cascade",
+              "title": "Системный и каскадный риск"
+            },
+            {
+              "key": "risk-human-agent",
+              "title": "Человеко-агентный риск"
+            },
+            {
+              "key": "risk-organizational",
+              "title": "Организационный риск"
+            },
+            {
+              "key": "risk-legal-and-contractual",
+              "title": "Юридические и контрактные риски"
+            },
+            {
+              "key": "risk-security-and-privacy",
+              "title": "Безопасность и приватность"
+            },
+            {
+              "key": "risk-manipulation",
+              "title": "Манипуляция агентом и данными"
+            },
+            {
+              "key": "risk-cognitive-debt",
+              "title": "Когнитивный долг"
+            },
+            {
+              "key": "risk-competence-degradation",
+              "title": "Деградация компетенций"
+            }
+          ]
+        },
+        {
+          "key": "trust-and-control",
+          "title": "Доверие и контроль",
+          "children": [
+            {
+              "key": "control-explainability",
+              "title": "Объяснимость"
+            },
+            {
+              "key": "control-traceability",
+              "title": "Трассируемость"
+            },
+            {
+              "key": "control-verifiability",
+              "title": "Проверяемость"
+            },
+            {
+              "key": "control-reversibility",
+              "title": "Обратимость"
+            },
+            {
+              "key": "control-observability",
+              "title": "Наблюдаемость"
+            },
+            {
+              "key": "control-limiters",
+              "title": "Ограничители"
+            },
+            {
+              "key": "control-human-in-the-loop",
+              "title": "Human-in-the-loop"
+            },
+            {
+              "key": "control-audit",
+              "title": "Аудит"
+            },
+            {
+              "key": "control-incidents-and-lessons",
+              "title": "Инциденты и извлечённые уроки"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "performance-and-economics",
+      "title": "Эффективность и экономика",
+      "description": "Единица анализа — не токен и не запуск агента, а управленческий результат с учётом проверки, переделки и последствий.",
+      "children": [
+        {
+          "key": "economics-value",
+          "title": "Ценность агентного управления"
+        },
+        {
+          "key": "economics-cost-per-task",
+          "title": "Стоимость успешно выполненной управленческой задачи"
+        },
+        {
+          "key": "economics-verification-load",
+          "title": "Нагрузка на проверку"
+        },
+        {
+          "key": "economics-rework-cost",
+          "title": "Стоимость переделки"
+        },
+        {
+          "key": "economics-cost-of-error",
+          "title": "Цена ошибки"
+        },
+        {
+          "key": "economics-cost-of-oversight",
+          "title": "Стоимость человеческого надзора"
+        },
+        {
+          "key": "economics-oversight-throughput",
+          "title": "Пропускная способность надзора"
+        },
+        {
+          "key": "economics-trajectory-variance",
+          "title": "Вариативность агентных траекторий"
+        },
+        {
+          "key": "economics-business-metrics",
+          "title": "Связь с бизнес-показателями"
+        },
+        {
+          "key": "economics-agpm-effects",
+          "title": "Эффекты AgPM"
+        },
+        {
+          "key": "economics-agentic-finops",
+          "title": "Agentic FinOps"
+        },
+        {
+          "key": "economics-comparison-with-classical",
+          "title": "Сравнение с классическим способом выполнения работы"
+        }
+      ]
+    },
+    {
+      "key": "maturity-and-implementation",
+      "title": "Зрелость и внедрение",
+      "description": "От готовности данных и людей до аттестации, эксплуатации и деактивации агента.",
+      "children": [
+        {
+          "key": "maturity-model",
+          "title": "Модель зрелости AgPM",
+          "description": "Четыре зрелости, которые база различает явно и не смешивает.",
+          "children": [
+            {
+              "key": "maturity-in-project",
+              "title": "Зрелость агентного управления в проекте"
+            },
+            {
+              "key": "maturity-organization",
+              "title": "Зрелость организации"
+            },
+            {
+              "key": "maturity-ai-pmo",
+              "title": "Зрелость AI PMO"
+            },
+            {
+              "key": "maturity-platform",
+              "title": "Техническая зрелость платформы"
+            }
+          ]
+        },
+        {
+          "key": "readiness-data",
+          "title": "Готовность данных"
+        },
+        {
+          "key": "readiness-people",
+          "title": "Готовность людей"
+        },
+        {
+          "key": "readiness-processes",
+          "title": "Готовность процессов"
+        },
+        {
+          "key": "readiness-platform",
+          "title": "Готовность платформы"
+        },
+        {
+          "key": "pilot-selection",
+          "title": "Выбор пилота"
+        },
+        {
+          "key": "practice-rollout",
+          "title": "Внедрение управленческой практики"
+        },
+        {
+          "key": "agent-design",
+          "title": "Проектирование агента"
+        },
+        {
+          "key": "attestation",
+          "title": "Аттестация"
+        },
+        {
+          "key": "operation",
+          "title": "Эксплуатация"
+        },
+        {
+          "key": "scaling",
+          "title": "Масштабирование"
+        },
+        {
+          "key": "decommissioning",
+          "title": "Деактивация"
+        },
+        {
+          "key": "organizational-change",
+          "title": "Организационные изменения"
+        },
+        {
+          "key": "adkar",
+          "title": "ADKAR"
+        },
+        {
+          "key": "ai-pmo-method",
+          "title": "Методика AI PMO / AgPMO"
+        },
+        {
+          "key": "living-method",
+          "title": "Живая методика"
+        },
+        {
+          "key": "antipatterns",
+          "title": "Анти-паттерны и стоп-сигналы"
+        }
+      ]
+    },
+    {
+      "key": "organizational-operating-model",
+      "title": "Организационная модель агентного управления",
+      "description": "Запас для расширения за пределы одного проекта: как организация держит агентов.",
+      "children": [
+        {
+          "key": "org-agentic-pmo",
+          "title": "Agentic PMO / AgPMO"
+        },
+        {
+          "key": "org-operating-model",
+          "title": "Агентная операционная модель организации"
+        },
+        {
+          "key": "org-agent-registry",
+          "title": "Реестр агентов"
+        },
+        {
+          "key": "org-competence-center",
+          "title": "Центр компетенций"
+        },
+        {
+          "key": "org-agentops",
+          "title": "AgentOps"
+        },
+        {
+          "key": "org-policies-and-standards",
+          "title": "Политики и стандарты"
+        },
+        {
+          "key": "org-platform-requirements",
+          "title": "Платформенные требования"
+        },
+        {
+          "key": "org-ppm-as-integration-layer",
+          "title": "ИСУП как интеграционный слой"
+        },
+        {
+          "key": "org-change-management",
+          "title": "Управление изменениями"
+        },
+        {
+          "key": "org-competences",
+          "title": "Компетенции"
+        },
+        {
+          "key": "org-organizational-memory",
+          "title": "Организационная память"
+        },
+        {
+          "key": "org-agent-portfolio-economics",
+          "title": "Экономика портфеля агентов"
+        },
+        {
+          "key": "org-vendors-and-external-agents",
+          "title": "Управление поставщиками и внешними агентами"
+        }
+      ]
+    },
+    {
+      "key": "adjacent-domains",
+      "title": "Смежные домены",
+      "description": "Методическое окружение AgPM: границы, пересечение и запрет на перенос без адаптации.",
+      "children": [
+        {
+          "key": "domain-agentic-bpm",
+          "title": "Agentic BPM"
+        },
+        {
+          "key": "domain-product-management",
+          "title": "Агентное управление продуктами"
+        },
+        {
+          "key": "domain-software-development",
+          "title": "Agentic software development"
+        },
+        {
+          "key": "domain-operations-management",
+          "title": "Агентное операционное управление"
+        },
+        {
+          "key": "domain-knowledge-management",
+          "title": "Управление знаниями"
+        },
+        {
+          "key": "domain-enterprise-architecture",
+          "title": "Корпоративная архитектура"
+        },
+        {
+          "key": "domain-ai-governance",
+          "title": "AI governance"
+        },
+        {
+          "key": "domain-ai-risk-management",
+          "title": "Управление рисками ИИ"
+        },
+        {
+          "key": "domain-agent-security",
+          "title": "Безопасность агентных систем"
+        },
+        {
+          "key": "domain-regulation",
+          "title": "Регулирование"
+        },
+        {
+          "key": "domain-agent-economics",
+          "title": "Экономика агентов"
+        },
+        {
+          "key": "domain-human-agent-interaction",
+          "title": "Человеко-агентное взаимодействие"
+        }
+      ]
+    },
+    {
+      "key": "observatory",
+      "title": "Обсерватория",
+      "description": "AgPM Radar как источник наблюдаемого материала, а не источник канона.",
+      "children": [
+        {
+          "key": "observatory-signals",
+          "title": "Сигналы"
+        },
+        {
+          "key": "observatory-materials",
+          "title": "Материалы"
+        },
+        {
+          "key": "observatory-trends",
+          "title": "Тренды"
+        },
+        {
+          "key": "observatory-cases",
+          "title": "Кейсы"
+        },
+        {
+          "key": "observatory-incidents",
+          "title": "Инциденты"
+        },
+        {
+          "key": "observatory-products-and-platforms",
+          "title": "Продукты и платформы"
+        },
+        {
+          "key": "observatory-standards-and-regulation",
+          "title": "Стандарты и регулирование"
+        },
+        {
+          "key": "observatory-research-agenda",
+          "title": "Исследовательская повестка"
+        },
+        {
+          "key": "observatory-watchlists",
+          "title": "Списки наблюдения"
+        },
+        {
+          "key": "observatory-periodic-syntheses",
+          "title": "7-, 30- и 90-дневные синтезы"
+        },
+        {
+          "key": "observatory-wiki-candidates",
+          "title": "Кандидаты на включение в compiled wiki"
+        }
+      ]
+    },
+    {
+      "key": "learning",
+      "title": "Обучение",
+      "description": "Маршруты освоения AgPM по ролям и то, чем они поддержаны.",
+      "children": [
+        {
+          "key": "learning-route-project-manager",
+          "title": "Маршрут для руководителя проекта"
+        },
+        {
+          "key": "learning-route-pmo",
+          "title": "Маршрут для PMO"
+        },
+        {
+          "key": "learning-route-sponsor",
+          "title": "Маршрут для спонсора"
+        },
+        {
+          "key": "learning-route-methodologist",
+          "title": "Маршрут для методолога"
+        },
+        {
+          "key": "learning-route-ppm-owner",
+          "title": "Маршрут для владельца ИСУП"
+        },
+        {
+          "key": "learning-glossary",
+          "title": "Глоссарий"
+        },
+        {
+          "key": "learning-faq",
+          "title": "Ответы на частые вопросы"
+        },
+        {
+          "key": "learning-training-cases",
+          "title": "Учебные кейсы"
+        },
+        {
+          "key": "learning-diagnostic-tasks",
+          "title": "Диагностические задания"
+        },
+        {
+          "key": "learning-competence-maps",
+          "title": "Карты компетенций"
+        },
+        {
+          "key": "learning-certification",
+          "title": "Программа аттестации или сертификации"
+        }
+      ]
+    }
+  ]
+}

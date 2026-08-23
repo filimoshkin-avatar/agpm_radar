@@ -318,15 +318,14 @@ def test_the_actor_comes_from_the_token_and_never_from_the_request(
     # A service that accepts a name in a body records whatever the caller felt
     # like being.
     database = Database(_settings(migrated_dsn))
-    statement_id, claim_id = _proposal(database, migrated_dsn)
     server, base = _serve(database)
     try:
         status, _ = _request(
             f"{base}/api/decide",
             payload={
-                "queue": "evidence",
-                "id": f"{statement_id}/{claim_id}",
-                "action": "confirmed",
+                "queue": "hosts",
+                "id": "example.com",
+                "action": "rejected",
                 "actor": "somebody else",
             },
         )

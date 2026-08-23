@@ -46,6 +46,9 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 "src/radar_kx/editor_queues.py" = ["RUF001", "RUF003"]
 # Same reason: the skeleton candidates are described to the reader in Russian.
 "src/radar_kx/skeleton.py" = ["RUF001", "RUF003"]
+# The rubricator is the instruction the model is given, and it is written in the
+# language the corpus and the backbone are written in.
+"src/radar_kx/topics.py" = ["RUF001", "RUF003"]
 
 [tool.mypy]
 files = ["src", "tests"]

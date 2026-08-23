@@ -44,6 +44,7 @@ from radar_kx.orchestrator import (
     QUOTE_TRANSLATION,
     RESEARCH_ANSWER,
     RUN_TYPES,
+    TOPIC_ASSIGNMENT,
     HermesExtractor,
     ModelGateway,
     OrchestratorError,
@@ -63,10 +64,16 @@ from radar_kx.research import (
 )
 from radar_kx.research import parse_answer as parse_research_answer
 from radar_kx.search import MATCH_MODES, SCOPES
+from radar_kx.skeleton import load_authored_skeleton
 from radar_kx.source_families import (
     batch_payload,
     load_family_batch,
     propose_families,
+)
+from radar_kx.topics import (
+    build_payload,
+    build_rubricator,
+    parse_assignment,
 )
 from radar_kx.vertical_slice import load_candidates
 from radar_kx.vertical_slice import select as select_slice
@@ -285,6 +292,20 @@ def _parser() -> argparse.ArgumentParser:
 
     compare_parser = subparsers.add_parser("compare-bindings")
     compare_parser.add_argument("--top", type=int, default=5)
+
+    # Slice 2.5в: the owner's own backbone, and the comparison it makes possible.
+    load_skeleton_parser = subparsers.add_parser("load-skeleton")
+    load_skeleton_parser.add_argument("--file", type=Path, required=True)
+
+    assign_parser = subparsers.add_parser("assign-topics")
+    assign_parser.add_argument("--target", choices=("statement", "document"), required=True)
+    assign_parser.add_argument("--limit", type=int, default=500)
+    assign_parser.add_argument("--batch", type=int, default=25)
+
+    subparsers.add_parser("topic-report")
+
+    compare_topics_parser = subparsers.add_parser("compare-bindings-in-topic")
+    compare_topics_parser.add_argument("--top", type=int, default=5)
 
     queue_parser = subparsers.add_parser("evidence-queue")
     queue_parser.add_argument("--limit", type=int, default=5)
@@ -731,6 +752,49 @@ def main() -> None:
         return
     if args.command == "compare-bindings":
         _print_json(database.compare_binding_methods(top=args.top))
+        return
+    if args.command == "load-skeleton":
+        _print_json(database.adopt_authored_skeleton(load_authored_skeleton(args.file)))
+        return
+    if args.command == "topic-report":
+        _print_json(database.topic_assignment_report())
+        return
+    if args.command == "compare-bindings-in-topic":
+        _print_json(database.compare_binding_methods_within_topics(top=args.top))
+        return
+    if args.command == "assign-topics":
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch assign-topics ...`.")
+        # Level 2 is the grain the model is asked for: twelve categories are too
+        # coarse to place anything and a hundred leaves are too many to hold in
+        # one prompt. The level-1 section each one belongs to travels with it, and
+        # that is what the comparison scopes by.
+        rubricator = build_rubricator(database.topics(level=2))
+        allowed = frozenset(topic["topic_key"] for topic in database.topics(level=2))
+        gateway = ModelGateway(database, settings)
+        items = database.unassigned_topic_items(args.target, limit=args.limit)
+        placed = 0
+        dropped = {"unknownTopic": 0, "unknownItem": 0, "overCap": 0}
+        without_topic = 0
+        for start in range(0, len(items), args.batch):
+            block = items[start : start + args.batch]
+            result = gateway.run(TOPIC_ASSIGNMENT, build_payload(block), system=rubricator)
+            assignments, thrown = parse_assignment(result.content, block, allowed)
+            for key, value in thrown.items():
+                dropped[key] += value
+            without_topic += sum(1 for item in assignments if not item.topic_keys)
+            placed += database.record_topic_assignments(
+                args.target, assignments, assigned_by=f"{TOPIC_ASSIGNMENT.model}"
+            )
+        _print_json(
+            {
+                "target": args.target,
+                "items": len(items),
+                "assignments": placed,
+                "itemsTheRubricatorDoesNotCover": without_topic,
+                "dropped": dropped,
+            }
+        )
         return
     if args.command == "editorial-history":
         _print_json(database.editorial_history())

@@ -69,9 +69,10 @@ from radar_kx.research import (
     normalize_question,
 )
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
-from radar_kx.skeleton import SkeletonCandidate
+from radar_kx.skeleton import AuthoredSkeleton, SkeletonCandidate, SkeletonError
 from radar_kx.skeleton import candidates as skeleton_candidates
 from radar_kx.source_families import DocumentHost, FamilyDecision, propose_families
+from radar_kx.topics import LEDE_CHARS, AssignableItem, Assignment, document_item
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 from radar_kx.wiki_import import (
     DEFAULT_RELEVANCE_FLOOR,
@@ -4560,6 +4561,96 @@ class Database:
                 )
         return {"source": source, "topics": len(chosen.elements)}
 
+    def adopt_authored_skeleton(self, skeleton: AuthoredSkeleton) -> dict[str, Any]:
+        """Write the owner's own composition into the topic table.
+
+        Parents come before their children in the flattened list, so one pass can
+        resolve `parent_key` against what it has already inserted. A key that is
+        already there is left alone: reloading a corrected file must not create a
+        second topic meaning the same thing.
+        """
+        inserted = 0
+        parents: dict[str, str] = {}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for topic in skeleton.topics:
+                    parent_id = parents.get(topic.parent_key) if topic.parent_key else None
+                    if topic.parent_key and parent_id is None:
+                        raise SkeletonError(
+                            f"{topic.key}: parent {topic.parent_key} was not inserted first"
+                        )
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.topics
+                            (topic_key, title, source, level, parent_id, description,
+                             state, created_by)
+                        VALUES (%s, %s, 'authored', %s, %s, %s, 'accepted', %s)
+                        ON CONFLICT (topic_key) DO NOTHING
+                        RETURNING topic_id
+                        """,
+                        (
+                            topic.key,
+                            topic.title,
+                            topic.level,
+                            parent_id,
+                            topic.description or None,
+                            skeleton.decided_by,
+                        ),
+                    )
+                    row = cursor.fetchone()
+                    if row is not None:
+                        inserted += 1
+                        parents[topic.key] = str(row["topic_id"])
+                        continue
+                    cursor.execute(
+                        "SELECT topic_id FROM kx.topics WHERE topic_key = %s", (topic.key,)
+                    )
+                    parents[topic.key] = str(one_row(cursor)["topic_id"])
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope, rationale)"
+                    " VALUES ('topic_skeleton', %s, 'confirmed', %s, 'editor', %s)",
+                    (
+                        skeleton.skeleton_key,
+                        skeleton.decided_by,
+                        f"authored backbone adopted: {skeleton.title}",
+                    ),
+                )
+        return {
+            "skeletonKey": skeleton.skeleton_key,
+            "decidedBy": skeleton.decided_by,
+            "topics": len(skeleton.topics),
+            "inserted": inserted,
+            "byLevel": skeleton.by_level(),
+        }
+
+    def topics(self, *, level: int | None = None) -> list[dict[str, Any]]:
+        """The accepted backbone, each topic carrying the path down to it."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH RECURSIVE walk AS (
+                    SELECT topic_id, topic_key, title, level, parent_id, description,
+                           title::text AS path
+                    FROM kx.topics WHERE parent_id IS NULL AND state = 'accepted'
+                    UNION ALL
+                    SELECT child.topic_id, child.topic_key, child.title, child.level,
+                           child.parent_id, child.description,
+                           walk.path || ' / ' || child.title
+                    FROM kx.topics AS child
+                    JOIN walk ON walk.topic_id = child.parent_id
+                    WHERE child.state = 'accepted'
+                )
+                SELECT topic_id::text AS topic_id, topic_key, title, level, description, path
+                FROM walk
+                WHERE %s::smallint IS NULL OR level = %s::smallint
+                ORDER BY path
+                """,
+                (level, level),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
     def decide_skeleton(self, *, source: str, verdict: str, actor: str) -> dict[str, Any]:
         if verdict == "confirmed":
             return self.adopt_skeleton(source, actor=actor)
@@ -4567,6 +4658,151 @@ class Database:
             object_kind="topic_skeleton", object_key=source, verdict=verdict, actor=actor
         )
         return {"source": source, "verdict": verdict}
+
+    def unassigned_topic_items(self, kind: str, *, limit: int = 500) -> list[AssignableItem]:
+        """What still has no subject: wiki statements, or documents that hold evidence.
+
+        Only documents that actually carry an exact quotation are offered. The
+        other eight thousand cannot be reached by a binding either way, and
+        classifying them would be a model bill for nothing.
+        """
+        if kind not in ("statement", "document"):
+            raise ValueError("kind must be 'statement' or 'document'")
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                if kind == "statement":
+                    cursor.execute(
+                        """
+                        SELECT claims.concept_claim_id::text AS key, claims.statement AS text
+                        FROM kx.concept_claims AS claims
+                        WHERE claims.claim_nature <> 'open_question'
+                          AND NOT EXISTS (
+                              SELECT 1 FROM kx.concept_claim_topics AS assigned
+                              WHERE assigned.concept_claim_id = claims.concept_claim_id
+                          )
+                        ORDER BY claims.concept_claim_id
+                        LIMIT %s
+                        """,
+                        (limit,),
+                    )
+                    return [
+                        AssignableItem(key=str(row["key"]), text=" ".join(str(row["text"]).split()))
+                        for row in cursor.fetchall()
+                    ]
+                cursor.execute(
+                    """
+                    SELECT DISTINCT ON (versions.document_id)
+                           versions.document_id AS key,
+                           versions.title,
+                           left(versions.canonical_text, %s) AS lede
+                    FROM kx.document_versions AS versions
+                    WHERE versions.is_complete
+                      AND EXISTS (
+                          SELECT 1 FROM kx.claim_evidence AS evidence
+                          WHERE evidence.version_id = versions.version_id
+                            AND evidence.match_status = 'exact'
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.document_topics AS assigned
+                          WHERE assigned.document_id = versions.document_id
+                      )
+                    ORDER BY versions.document_id, versions.fetched_at DESC
+                    LIMIT %s
+                    """,
+                    (LEDE_CHARS * 3, limit),
+                )
+                return [
+                    document_item(
+                        document_id=str(row["key"]),
+                        title=str(row["title"] or ""),
+                        lede=str(row["lede"] or ""),
+                    )
+                    for row in cursor.fetchall()
+                ]
+
+    def record_topic_assignments(
+        self,
+        kind: str,
+        assignments: Sequence[Assignment],
+        *,
+        assigned_by: str,
+        method: str = "model",
+    ) -> int:
+        """Write one batch of subjects. A key the backbone does not have is refused."""
+        if kind not in ("statement", "document"):
+            raise ValueError("kind must be 'statement' or 'document'")
+        table = "concept_claim_topics" if kind == "statement" else "document_topics"
+        column = "concept_claim_id" if kind == "statement" else "document_id"
+        written = 0
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for assignment in assignments:
+                    for topic_key in assignment.topic_keys:
+                        cursor.execute(
+                            f"""
+                            INSERT INTO kx.{table} ({column}, topic_id, assigned_by, method)
+                            SELECT %s, topics.topic_id, %s, %s
+                            FROM kx.topics AS topics
+                            WHERE topics.topic_key = %s AND topics.state = 'accepted'
+                            ON CONFLICT DO NOTHING
+                            """,  # noqa: S608 - both names come from the branch above
+                            (assignment.key, assigned_by, method, topic_key),
+                        )
+                        written += cursor.rowcount
+        return written
+
+    def topic_assignment_report(self) -> dict[str, Any]:
+        """How much of each side now has a subject, and which subjects they are."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT count(*) FILTER (WHERE claims.claim_nature <> 'open_question')
+                           AS statements,
+                       count(DISTINCT assigned.concept_claim_id) AS statements_placed
+                FROM kx.concept_claims AS claims
+                LEFT JOIN kx.concept_claim_topics AS assigned USING (concept_claim_id)
+                """
+            )
+            statements = dict(one_row(cursor))
+            cursor.execute(
+                """
+                WITH holders AS (
+                    SELECT DISTINCT versions.document_id
+                    FROM kx.claim_evidence AS evidence
+                    JOIN kx.document_versions AS versions USING (version_id)
+                    WHERE evidence.match_status = 'exact'
+                )
+                SELECT count(*) AS documents,
+                       count(*) FILTER (
+                           WHERE EXISTS (
+                               SELECT 1 FROM kx.document_topics AS assigned
+                               WHERE assigned.document_id = holders.document_id
+                           )
+                       ) AS documents_placed
+                FROM holders
+                """
+            )
+            documents = dict(one_row(cursor))
+            cursor.execute(
+                """
+                SELECT roots.topic_key, roots.title,
+                       count(DISTINCT statements.concept_claim_id) AS statements,
+                       count(DISTINCT documents.document_id) AS documents
+                FROM kx.topics AS roots
+                LEFT JOIN kx.topics AS children ON children.parent_id = roots.topic_id
+                LEFT JOIN kx.concept_claim_topics AS statements
+                       ON statements.topic_id IN (roots.topic_id, children.topic_id)
+                LEFT JOIN kx.document_topics AS documents
+                       ON documents.topic_id IN (roots.topic_id, children.topic_id)
+                WHERE roots.parent_id IS NULL
+                GROUP BY roots.topic_key, roots.title
+                ORDER BY statements DESC, roots.topic_key
+                """
+            )
+            per_topic = [dict(row) for row in cursor.fetchall()]
+        return {**statements, **documents, "byTopic": per_topic}
 
     # ---------------------------------------------------------------------
     # Embeddings and the comparison they exist for (owner request, 2026-08-23)
@@ -4753,6 +4989,306 @@ class Database:
                 )
                 comparison_id = str(one_row(cursor)["comparison_id"])
         return {"comparisonId": comparison_id, **summary, "examples": detail[:5]}
+
+    #: Everything a binding could reach: every document, restricted by nothing. The
+    #: first comparison used the stored proposals for the lexical side, which came
+    #: from a different scope and floor than the semantic side ever saw. Running
+    #: both live against the same population is what makes the four numbers
+    #: comparable at all.
+    _ANY_DOCUMENT_SQL: ClassVar[str] = "SELECT document_id FROM kx.documents"
+
+    #: Only the documents that sit under the same level-1 section as the statement.
+    _TOPIC_DOCUMENT_SQL: ClassVar[str] = (
+        "SELECT DISTINCT document_id FROM kx.document_topics"
+        " WHERE topic_id = ANY(%(topics)s::uuid[])"
+    )
+
+    _SEMANTIC_SQL: ClassVar[str] = """
+        SELECT DISTINCT ON (stored.owner_key)
+               stored.owner_key AS claim_id,
+               1 - (asked.embedding <=> stored.embedding) AS score
+        FROM kx.text_embeddings AS asked
+        JOIN kx.text_embeddings AS stored
+          ON stored.owner_kind = 'claim_evidence'
+         AND stored.model_id = asked.model_id
+        JOIN kx.claim_evidence AS evidence
+          ON evidence.claim_id::text = stored.owner_key
+        JOIN kx.document_versions AS versions USING (version_id)
+        WHERE asked.owner_kind = 'concept_claim'
+          AND asked.owner_key = %(statement_id)s
+          AND asked.model_id = %(model_id)s
+          {restriction}
+        ORDER BY stored.owner_key, asked.embedding <=> stored.embedding
+    """
+
+    #: `DISTINCT ON` has to sort by its own key first, so the ranking is done once
+    #: more on the outside. Without the distinct, one claim quoted twice takes two
+    #: of the five places and the two methods are compared over different-sized
+    #: shortlists.
+    _SEMANTIC_RANKED_SQL: ClassVar[str] = (
+        "SELECT claim_id, score FROM ({inner}) AS best ORDER BY score DESC LIMIT %(limit)s"
+    )
+
+    _TOPIC_RESTRICTION: ClassVar[str] = (
+        "AND EXISTS (SELECT 1 FROM kx.document_topics AS placed"
+        "            WHERE placed.document_id = versions.document_id"
+        "              AND placed.topic_id = ANY(%(topics)s::uuid[]))"
+    )
+
+    def _topic_subtrees(self) -> dict[str, list[str]]:
+        """For every topic, the ids of everything under its level-1 section.
+
+        Two things are on the same subject when they sit under the same category,
+        not when they were tagged with the identical leaf. A statement about
+        escalation and a quotation about decision rights are both about management
+        mechanisms, and a comparison that called those different subjects would be
+        measuring the tagger's word choice.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT topic_id::text AS topic_id, parent_id::text AS parent_id"
+                " FROM kx.topics WHERE state = 'accepted'"
+            )
+            parents = {
+                str(row["topic_id"]): (str(row["parent_id"]) if row["parent_id"] else None)
+                for row in cursor.fetchall()
+            }
+        roots: dict[str, str] = {}
+        for topic_id in parents:
+            walk = topic_id
+            while parents.get(walk):
+                walk = cast(str, parents[walk])
+            roots[topic_id] = walk
+        members: dict[str, list[str]] = {}
+        for topic_id, root in roots.items():
+            members.setdefault(root, []).append(topic_id)
+        return {topic_id: members[root] for topic_id, root in roots.items()}
+
+    def _lexical_hits(
+        self,
+        connection: psycopg.Connection[dict[str, Any]],
+        *,
+        statement: str,
+        top: int,
+        topics: list[str] | None,
+    ) -> list[str]:
+        sql = EVIDENCE_SEARCH_SQL.format(
+            scope=self._TOPIC_DOCUMENT_SQL if topics is not None else self._ANY_DOCUMENT_SQL
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                sql,
+                {"statement": statement, "k": RRF_K, "limit": top, "topics": topics or []},
+            )
+            return [str(row["claim_id"]) for row in cursor.fetchall()]
+
+    def _semantic_hits(
+        self,
+        connection: psycopg.Connection[dict[str, Any]],
+        *,
+        statement_id: str,
+        model_id: str,
+        top: int,
+        topics: list[str] | None,
+    ) -> list[str]:
+        inner = self._SEMANTIC_SQL.format(
+            restriction=self._TOPIC_RESTRICTION if topics is not None else ""
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                self._SEMANTIC_RANKED_SQL.format(inner=inner),
+                {
+                    "statement_id": statement_id,
+                    "model_id": model_id,
+                    "limit": top,
+                    "topics": topics or [],
+                },
+            )
+            return [str(row["claim_id"]) for row in cursor.fetchall()]
+
+    def compare_binding_methods_within_topics(
+        self, *, model_id: str = DEFAULT_MODEL, top: int = 5, ran_by: str = "radar-kx"
+    ) -> dict[str, Any]:
+        """Both methods, twice each: over everything, and inside the statement's subject.
+
+        The first comparison could only measure agreement, because neither score
+        means what it looks like and there is no gold set. The backbone adds a
+        measurement that needs neither: **what share of what a method returns is
+        even about the right subject**. That is answerable without deciding which
+        of two plausible quotations is better, and it is the defect the owner named.
+        """
+        subtrees = self._topic_subtrees()
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT claims.concept_claim_id::text AS id, claims.statement,
+                           array_agg(placed.topic_id::text) AS topic_ids
+                    FROM kx.concept_claims AS claims
+                    JOIN kx.concept_claim_topics AS placed USING (concept_claim_id)
+                    WHERE claims.claim_nature <> 'open_question'
+                      AND EXISTS (
+                          SELECT 1 FROM kx.text_embeddings AS vectors
+                          WHERE vectors.owner_kind = 'concept_claim'
+                            AND vectors.owner_key = claims.concept_claim_id::text
+                            AND vectors.model_id = %s
+                      )
+                    GROUP BY claims.concept_claim_id, claims.statement
+                    ORDER BY claims.concept_claim_id
+                    """,
+                    (model_id,),
+                )
+                statements = [dict(row) for row in cursor.fetchall()]
+
+            #: Which claims sit in which subject, so "did the answer land on the
+            #: right subject" can be asked of the unrestricted runs too.
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT evidence.claim_id::text AS claim_id,
+                           array_agg(DISTINCT placed.topic_id::text) AS topic_ids
+                    FROM kx.claim_evidence AS evidence
+                    JOIN kx.document_versions AS versions USING (version_id)
+                    JOIN kx.document_topics AS placed USING (document_id)
+                    WHERE evidence.match_status = 'exact'
+                    GROUP BY evidence.claim_id
+                    """
+                )
+                claim_topics = {
+                    str(row["claim_id"]): {str(value) for value in row["topic_ids"]}
+                    for row in cursor.fetchall()
+                }
+
+            runs = ("lexical", "semantic", "lexicalInTopic", "semanticInTopic")
+            hit: dict[str, int] = dict.fromkeys(runs, 0)
+            on_topic_first: dict[str, int] = dict.fromkeys(runs, 0)
+            on_topic_all: dict[str, int] = dict.fromkeys(runs, 0)
+            returned: dict[str, int] = dict.fromkeys(runs, 0)
+            agree_open = 0
+            agree_scoped = 0
+            overlap_open = 0
+            overlap_scoped = 0
+            detail: list[dict[str, Any]] = []
+
+            for row in statements:
+                statement_id = str(row["id"])
+                statement = str(row["statement"])
+                scope_ids = sorted(
+                    {
+                        member
+                        for topic_id in row["topic_ids"]
+                        for member in subtrees.get(str(topic_id), [])
+                    }
+                )
+                answers = {
+                    "lexical": self._lexical_hits(
+                        connection, statement=statement, top=top, topics=None
+                    ),
+                    "semantic": self._semantic_hits(
+                        connection,
+                        statement_id=statement_id,
+                        model_id=model_id,
+                        top=top,
+                        topics=None,
+                    ),
+                    "lexicalInTopic": self._lexical_hits(
+                        connection, statement=statement, top=top, topics=scope_ids
+                    ),
+                    "semanticInTopic": self._semantic_hits(
+                        connection,
+                        statement_id=statement_id,
+                        model_id=model_id,
+                        top=top,
+                        topics=scope_ids,
+                    ),
+                }
+                scope = set(scope_ids)
+                for name, claims in answers.items():
+                    if claims:
+                        hit[name] += 1
+                        if claim_topics.get(claims[0], set()) & scope:
+                            on_topic_first[name] += 1
+                    returned[name] += len(claims)
+                    on_topic_all[name] += sum(
+                        1 for claim in claims if claim_topics.get(claim, set()) & scope
+                    )
+                open_shared = set(answers["lexical"]) & set(answers["semantic"])
+                scoped_shared = set(answers["lexicalInTopic"]) & set(answers["semanticInTopic"])
+                overlap_open += len(open_shared)
+                overlap_scoped += len(scoped_shared)
+                if answers["lexical"][:1] and answers["lexical"][:1] == answers["semantic"][:1]:
+                    agree_open += 1
+                if (
+                    answers["lexicalInTopic"][:1]
+                    and answers["lexicalInTopic"][:1] == answers["semanticInTopic"][:1]
+                ):
+                    agree_scoped += 1
+                detail.append(
+                    {
+                        "conceptClaimId": statement_id,
+                        "statement": statement[:300],
+                        "topicIds": sorted({str(value) for value in row["topic_ids"]}),
+                        # The queue the owner votes in reads these two keys, and
+                        # what they should now vote on is the in-topic pair.
+                        "lexicalTop": (
+                            {"claimId": answers["lexicalInTopic"][0]}
+                            if answers["lexicalInTopic"]
+                            else None
+                        ),
+                        "semanticTop": (
+                            {"claimId": answers["semanticInTopic"][0]}
+                            if answers["semanticInTopic"]
+                            else None
+                        ),
+                        "lexicalTopAnywhere": answers["lexical"][:1],
+                        "semanticTopAnywhere": answers["semantic"][:1],
+                        "overlapInTopic": len(scoped_shared),
+                        "overlapAnywhere": len(open_shared),
+                    }
+                )
+
+            total = len(statements)
+            summary = {
+                "model": model_id,
+                "top": top,
+                "statements": total,
+                "statementsWithTopic": total,
+                "runs": {
+                    name: {
+                        "statementsAnswered": hit[name],
+                        "candidatesReturned": returned[name],
+                        "firstChoiceOnTopic": on_topic_first[name],
+                        "firstChoiceOnTopicShare": (
+                            round(on_topic_first[name] / hit[name], 3) if hit[name] else 0
+                        ),
+                        "candidatesOnTopicShare": (
+                            round(on_topic_all[name] / returned[name], 3) if returned[name] else 0
+                        ),
+                    }
+                    for name in runs
+                },
+                "sameFirstChoiceAnywhere": agree_open,
+                "sameFirstChoiceInTopic": agree_scoped,
+                "averageOverlapAnywhere": round(overlap_open / total, 3) if total else 0,
+                "averageOverlapInTopic": round(overlap_scoped / total, 3) if total else 0,
+            }
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO kx.binding_method_comparisons"
+                    " (ran_by, statements, summary, detail, notes) VALUES (%s, %s, %s, %s, %s)"
+                    " RETURNING comparison_id",
+                    (
+                        ran_by,
+                        total,
+                        Jsonb(summary),
+                        Jsonb(detail),
+                        "both methods run live, over everything and inside the statement's"
+                        " level-1 subject (authored backbone)",
+                    ),
+                )
+                comparison_id = str(one_row(cursor)["comparison_id"])
+        return {"comparisonId": comparison_id, **summary}
 
     def method_comparison_queue(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
         """Statements where the two methods disagree, with both answers side by side."""
