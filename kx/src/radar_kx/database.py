@@ -2977,6 +2977,7 @@ class Database:
         candidates = self.publishable_quotes(scope=scope, limit=limit)
         published = 0
         awaiting_translation = 0
+        resolved = 0
         quarantined: dict[str, int] = {}
         with self.connect() as connection:
             self.require_schema(connection)
@@ -3037,6 +3038,18 @@ class Database:
                             ),
                         )
                         published += cursor.rowcount
+                        # The thing `what_would_clear_it` asked for happened. A
+                        # queue that keeps entries whose condition is gone is a
+                        # queue that reports work nobody has to do: the first
+                        # production run left 298 provenance failures standing
+                        # after the provenance was recorded.
+                        cursor.execute(
+                            "UPDATE kx.publication_quarantine"
+                            " SET resolved_at = clock_timestamp(), resolved_by = 'published'"
+                            " WHERE claim_id = %s AND resolved_at IS NULL",
+                            (row["claim_id"],),
+                        )
+                        resolved += cursor.rowcount
                         continue
                     for item in decision.quarantine:
                         cursor.execute(
@@ -3063,6 +3076,7 @@ class Database:
             "considered": len(candidates),
             "published": published,
             "awaitingTranslation": awaiting_translation,
+            "quarantineResolved": resolved,
             "quarantined": sum(quarantined.values()),
             "byFailedCondition": quarantined,
         }

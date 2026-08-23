@@ -525,3 +525,54 @@ def test_the_backfill_reads_the_outcome_the_fetcher_actually_writes() -> None:
     )
     assert "attempt.outcome = 'succeeded'" in source
     assert "attempt.outcome = 'stored'" not in source
+
+
+def test_publishing_closes_the_quarantine_entry_that_asked_for_it(
+    migrated_dsn: str,
+) -> None:
+    # A queue that keeps entries whose condition is gone reports work nobody has
+    # to do. The first production run left 298 provenance failures standing after
+    # the provenance had been recorded.
+    database = Database(_settings(migrated_dsn))
+    document = _fetched(database, migrated_dsn, "https://fetched.example/report")
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT version_id FROM kx.document_versions WHERE document_id = %s", (document,)
+        )
+        version = cursor.fetchone()
+        assert version is not None
+        cursor.execute(
+            "SELECT chunk_id, char_start, char_end, text FROM kx.chunks"
+            " WHERE version_id = %s ORDER BY ordinal LIMIT 1",
+            (version["version_id"],),
+        )
+        chunk = cursor.fetchone()
+        assert chunk is not None
+    fragment = Fragment(
+        version_id=str(version["version_id"]),
+        chunk_id=str(chunk["chunk_id"]),
+        char_start=int(cast(int, chunk["char_start"])),
+        char_end=int(cast(int, chunk["char_end"])),
+        text=str(chunk["text"]),
+    )
+    database.record_extraction(
+        fragment,
+        align_all(
+            fragment,
+            database.canonical_text(str(version["version_id"])),
+            (ProposedClaim("reached", "adoption", PARAGRAPH_ONE),),
+        ),
+        model="glm-5.2",
+        prompt_sha256=prompt_sha256(fragment),
+    )
+    first = database.publish_quotes(scope="corpus", target_language="en")
+    assert first["published"] == 0
+    assert first["byFailedCondition"] == {"provenance_invalid": 1}
+
+    database.backfill_provenance_from_fetches()
+    second = database.publish_quotes(scope="corpus", target_language="en")
+    assert second["published"] == 1
+    assert second["quarantineResolved"] == 1
+
+    report: dict[str, Any] = database.publication_report()
+    assert report["quarantineByCondition"] == {}
