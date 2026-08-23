@@ -668,3 +668,29 @@ def test_a_pair_that_quotes_the_same_words_is_not_a_choice(placed: dict[str, Any
     total, held = database.method_comparison_queue()
     assert held == []
     assert total == 0
+
+
+def test_picking_one_of_five_finishes_the_card(placed: dict[str, Any]) -> None:
+    # Each candidate carries its own button, and they are alternatives. Leaving the
+    # other four live invites a second vote that the store refuses in silence.
+    from radar_kx.editor_queues import QUEUES_BY_KEY
+
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
+    assert items[0].as_json()["exclusive"] is True
+
+
+def test_a_second_vote_on_the_same_statement_says_it_changed_nothing(
+    placed: dict[str, Any],
+) -> None:
+    database = cast(Database, placed["database"])
+    database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
+    first = database.record_candidate_vote(
+        concept_claim_id=placed["statementId"], claim_id=None, voted_by="owner"
+    )
+    again = database.record_candidate_vote(
+        concept_claim_id=placed["statementId"], claim_id=None, voted_by="owner"
+    )
+    assert first["recorded"] is True
+    assert again["recorded"] is False

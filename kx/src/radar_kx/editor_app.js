@@ -35,7 +35,7 @@ async function drawNav() {
   nav.appendChild(docs);
 }
 
-function childRow(queueKey, itemId, child) {
+function childRow(queueKey, itemId, child, scope) {
   const row = el("div", "child");
   const left = el("div");
   left.appendChild(el("blockquote", null, child.quote));
@@ -61,7 +61,7 @@ function childRow(queueKey, itemId, child) {
   for (const action of child.actions || []) {
     const button = el("button", "act " + action.kind, action.label);
     button.addEventListener("click", () =>
-      decide(button, row, queueKey, itemId + "/" + child.id, action.action));
+      decide(button, scope || row, queueKey, itemId + "/" + child.id, action.action));
     buttons.appendChild(button);
   }
   row.appendChild(buttons);
@@ -95,7 +95,10 @@ function card(queueKey, item) {
     head.appendChild(buttons);
   }
   section.appendChild(head);
-  for (const child of item.children || []) section.appendChild(childRow(queueKey, item.id, child));
+  // An exclusive card is decided once: picking one child finishes the whole
+  // card, so the scope handed to decide() is the card and not the row.
+  for (const child of item.children || [])
+    section.appendChild(childRow(queueKey, item.id, child, item.exclusive ? section : null));
   return section;
 }
 

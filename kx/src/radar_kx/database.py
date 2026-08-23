@@ -5501,7 +5501,10 @@ class Database:
                     " VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
                     (concept_claim_id, winner, lexical_claim_id, semantic_claim_id, voted_by),
                 )
-        return {"conceptClaimId": concept_claim_id, "winner": winner}
+                # A vote is immutable and one per person per statement, so a second
+                # one changes nothing. Saying so beats returning the same success.
+                recorded = cursor.rowcount == 1
+        return {"conceptClaimId": concept_claim_id, "winner": winner, "recorded": recorded}
 
     def method_vote_tally(self) -> dict[str, Any]:
         with self.connect() as connection, connection.cursor() as cursor:

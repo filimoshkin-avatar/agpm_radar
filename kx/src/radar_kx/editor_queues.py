@@ -40,6 +40,11 @@ class QueueItem:
     actions: tuple[tuple[str, str, str], ...] = ()
     link: str | None = None
     children: tuple[dict[str, Any], ...] = ()
+    #: One decision per card, not one per child. A card whose children are
+    #: alternatives - pick this quotation, not that one - is finished the moment
+    #: any of them is picked, and leaving the other buttons live invites a second
+    #: vote that the store would refuse without saying so.
+    exclusive: bool = False
 
     def as_json(self) -> dict[str, Any]:
         return {
@@ -52,6 +57,7 @@ class QueueItem:
                 for action, label, kind in self.actions
             ],
             "link": self.link,
+            "exclusive": self.exclusive,
             "children": list(self.children),
         }
 
@@ -384,6 +390,7 @@ def _load_comparison(database: Database, limit: int) -> tuple[int, list[QueueIte
                     "предмет замера."
                 ),
                 actions=(("neither", "Все мимо", "no"),),
+                exclusive=True,
                 children=tuple(
                     {
                         "id": str(candidate["claimId"]),
