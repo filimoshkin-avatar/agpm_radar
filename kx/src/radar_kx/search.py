@@ -305,16 +305,16 @@ scoped AS (
     LEFT JOIN kx.knowledge_status_current AS status
            ON status.unit_kind = 'claim' AND status.unit_id = evidence.claim_id
     WHERE evidence.match_status = 'exact'
-      AND (%(admission)s IS NULL OR reading.admission = %(admission)s)
-      AND (%(material_kind)s IS NULL OR reading.material_kind = %(material_kind)s)
-      AND (%(status)s IS NULL OR status.status = %(status)s)
+      AND (%(admission)s::text IS NULL OR reading.admission = %(admission)s::text)
+      AND (%(material_kind)s::text IS NULL OR reading.material_kind = %(material_kind)s::text)
+      AND (%(status)s::text IS NULL OR status.status = %(status)s::text)
       AND (
-          %(topic_key)s IS NULL
+          %(topic_key)s::text IS NULL
           OR EXISTS (
               SELECT 1 FROM kx.claim_topics AS placed
               JOIN kx.topics AS topics USING (topic_id)
               WHERE placed.claim_id = evidence.claim_id
-                AND topics.topic_key = %(topic_key)s
+                AND topics.topic_key = %(topic_key)s::text
           )
       )
 ),
@@ -350,7 +350,7 @@ ranked_meaning AS (
           ON vectors.owner_kind = 'claim_evidence'
          AND vectors.owner_key = scoped.claim_id::text
          AND vectors.model_id = %(embedding_model)s
-        WHERE %(question_vector)s IS NOT NULL
+        WHERE %(question_vector)s::text IS NOT NULL
         ORDER BY distance
         LIMIT %(semantic_depth)s
     ) AS nearest
@@ -402,8 +402,13 @@ def evidence_sql(scope: str) -> str:
     constant somebody chose. Rank is the only thing all three agree on.
 
     The semantic arm disappears cleanly when there is no question vector: without
-    torch in the runtime there is no way to embed a question, and `%(question_vector)s
-    IS NOT NULL` leaves the search exactly as lexical as it was before.
+    torch in the runtime there is no way to embed a question, and the NULL check
+    leaves the search exactly as lexical as it was before.
+
+    Every bare parameter carries a cast. PostgreSQL cannot infer the type of a
+    placeholder that only ever appears beside `IS NULL`, and refuses the whole
+    query with `could not determine data type` - which is a runtime error in the
+    one code path that has no test able to reach a database.
     """
     if scope not in SCOPES:
         raise ValueError(f"unknown search scope {scope!r}; expected one of {sorted(SCOPES)}")
@@ -426,15 +431,15 @@ WITH asked AS (
 scoped AS (
     SELECT statement.*
     FROM agent.statement AS statement
-    WHERE (%(admission)s IS NULL OR statement.admission = %(admission)s)
-      AND (%(material_kind)s IS NULL OR statement.material_kind = %(material_kind)s)
-      AND (%(status)s IS NULL OR statement.status = %(status)s)
+    WHERE (%(admission)s::text IS NULL OR statement.admission = %(admission)s::text)
+      AND (%(material_kind)s::text IS NULL OR statement.material_kind = %(material_kind)s::text)
+      AND (%(status)s::text IS NULL OR statement.status = %(status)s::text)
       AND (
-          %(topic_key)s IS NULL
+          %(topic_key)s::text IS NULL
           OR EXISTS (
               SELECT 1 FROM agent.statement_topic AS placed
               WHERE placed.claim_id = statement.claim_id
-                AND placed.topic_key = %(topic_key)s
+                AND placed.topic_key = %(topic_key)s::text
           )
       )
 ),
@@ -470,7 +475,7 @@ ranked_meaning AS (
           ON vectors.owner_kind = 'claim_evidence'
          AND vectors.owner_key = scoped.claim_id::text
          AND vectors.model_id = %(embedding_model)s
-        WHERE %(question_vector)s IS NOT NULL
+        WHERE %(question_vector)s::text IS NOT NULL
         ORDER BY distance
         LIMIT %(semantic_depth)s
     ) AS nearest

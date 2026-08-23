@@ -300,7 +300,22 @@ def test_the_semantic_arm_disappears_without_a_question_vector() -> None:
     from radar_kx.search import evidence_sql
 
     sql = evidence_sql("corpus")
-    assert "%(question_vector)s IS NOT NULL" in sql
+    assert "%(question_vector)s::text IS NOT NULL" in sql
+
+
+def test_every_bare_parameter_carries_a_cast() -> None:
+    """PostgreSQL cannot type a placeholder that only appears beside IS NULL.
+
+    Without the cast the whole query is refused with `could not determine data
+    type`, and this is the one code path no test in the suite can reach through a
+    database - it went out to production and came back as a 500.
+    """
+    from radar_kx.search import AGENT_SEARCH_SQL, FILTERS, evidence_sql
+
+    for sql in (evidence_sql("corpus"), AGENT_SEARCH_SQL):
+        for name in (*FILTERS, "question_vector"):
+            assert f"%({name})s IS NULL" not in sql
+            assert f"%({name})s IS NOT NULL" not in sql
 
 
 def test_an_unknown_scope_is_refused_rather_than_defaulted() -> None:
