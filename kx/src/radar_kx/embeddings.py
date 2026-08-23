@@ -87,6 +87,10 @@ def load_model(name: str = DEFAULT_MODEL) -> Any:
     os.environ.setdefault("HF_HOME", MODEL_CACHE)
     os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    # Every command in this runtime prints JSON, and a progress bar on stdout
+    # makes that JSON unparsable for whoever piped it. Loading a cached 120 MB
+    # model has nothing to report anyway.
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     try:
         # Not in the worker's requirements on purpose; it lives in the
         # embedder runtime and mypy has nothing to check it against.
