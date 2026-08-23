@@ -82,6 +82,11 @@ from radar_kx.vertical_slice import select as select_slice
 from radar_kx.wiki_snapshot import read_bundle
 from radar_kx.worker import run_until_idle
 
+#: How many times `repair-spans --apply` may re-plan before it gives up. Three is
+#: one more than the production run needed and far fewer than a loop that could
+#: hide an oscillating rule.
+MAX_SPAN_REPAIR_PASSES = 3
+
 
 def _print_json(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
@@ -766,7 +771,19 @@ def main() -> None:
             step = max(1, len(moved) // args.examples)
             report["examples"] = [repair.as_example() for repair in moved[::step][: args.examples]]
         if args.apply:
-            report.update(database.apply_span_repair(repairs))
+            # Widening a span moves the window the block is measured in, so a
+            # few spans reach their boundary one pass later - one of 13 876 on
+            # the production run. Running to a fixed point is the difference
+            # between "every span is on a boundary" and "almost every span is".
+            updated = passes = 0
+            while passes < MAX_SPAN_REPAIR_PASSES:
+                moved_now = int(database.apply_span_repair(repairs)["updated"])
+                updated += moved_now
+                passes += 1
+                if not moved_now:
+                    break
+                repairs = database.plan_span_repair()
+            report.update(updated=updated, passes=passes)
         else:
             report["applied"] = False
         _print_json(report)
