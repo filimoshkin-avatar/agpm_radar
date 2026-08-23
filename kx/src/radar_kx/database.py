@@ -15,7 +15,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
-from radar_kx.acquisition import HostProfile, next_step, profile_for
+from radar_kx.acquisition import ESCALATION_HINT, HostProfile, next_step, profile_for
 from radar_kx.config import Settings
 from radar_kx.duplicates import DocumentText, DuplicateProposal
 from radar_kx.extraction import (
@@ -60,7 +60,7 @@ from radar_kx.research import (
     normalize_question,
 )
 from radar_kx.search import RRF_K, SCOPES, SMOKE_QUERIES, SearchHit, build_hit, search_sql
-from radar_kx.source_families import DocumentHost, FamilyDecision
+from radar_kx.source_families import DocumentHost, FamilyDecision, propose_families
 from radar_kx.url_policy import canonical_identity_url, normalize_url
 from radar_kx.wiki_import import (
     DEFAULT_RELEVANCE_FLOOR,
@@ -75,7 +75,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: migration is applied to production**, not when it is written: `require_schema`
 #: is a hard gate (defect D2), so a repository that runs ahead of the database
 #: cannot be released at all.
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4125,6 +4125,347 @@ class Database:
             )
             row = cursor.fetchone()
         return dict(row) if row else None
+
+    # ---------------------------------------------------------------------
+    # The other queues the editor shows (slice 2.12, extended)
+    # ---------------------------------------------------------------------
+
+    def pending_family_proposals(self, *, limit: int = 25) -> dict[str, Any]:
+        """Domains with documents and no confirmed family yet.
+
+        Read from the store rather than from the batch file, so the queue is about
+        what is actually unassigned and not about what a file happened to say.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT documents.canonical_url
+                    FROM kx.documents
+                    LEFT JOIN kx.document_source_family_current AS current
+                           ON current.document_id = documents.document_id
+                    JOIN kx.issue_perimeter_members AS members
+                      ON members.document_id = documents.document_id
+                    WHERE current.document_id IS NULL
+                    GROUP BY documents.canonical_url
+                    """
+                )
+                urls = [str(row["canonical_url"]) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT object_key FROM kx.editorial_decisions"
+                    " WHERE object_kind = 'source_family' AND verdict = 'rejected'"
+                )
+                refused = {str(row["object_key"]) for row in cursor.fetchall()}
+        proposals = propose_families(
+            [DocumentHost(document_id="", canonical_url=url) for url in urls]
+        )
+        waiting = [
+            proposal
+            for proposal in proposals
+            # Every unassigned domain, not only the grouped ones: a family of one
+            # is still the difference between "this source" and "unknown", and
+            # unknown never satisfies a two-independent-sources requirement.
+            if proposal.family_key not in refused
+        ]
+        return {
+            "waiting": len(waiting),
+            "items": [
+                {
+                    "familyKey": proposal.family_key,
+                    "displayName": proposal.display_name,
+                    "domain": proposal.domain,
+                    "hosts": list(proposal.hosts),
+                    "documentCount": len(proposal.document_ids),
+                }
+                for proposal in waiting[:limit]
+            ],
+        }
+
+    def decide_family_proposal(
+        self, *, family_key: str, verdict: str, actor: str
+    ) -> dict[str, Any]:
+        """Confirm a proposed family, or record that it is not one.
+
+        Confirming assigns every currently unassigned document of that domain. A
+        document assigned later gets no family from this decision, which is
+        correct: the decision was about the documents it was shown.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT documents.document_id, documents.canonical_url
+                    FROM kx.documents
+                    LEFT JOIN kx.document_source_family_current AS current
+                           ON current.document_id = documents.document_id
+                    JOIN kx.issue_perimeter_members AS members
+                      ON members.document_id = documents.document_id
+                    WHERE current.document_id IS NULL
+                    GROUP BY documents.document_id, documents.canonical_url
+                    """
+                )
+                candidates = [
+                    DocumentHost(
+                        document_id=str(row["document_id"]),
+                        canonical_url=str(row["canonical_url"]),
+                    )
+                    for row in cursor.fetchall()
+                ]
+        matching = [
+            proposal
+            for proposal in propose_families(candidates)
+            if proposal.family_key == family_key
+        ]
+        if verdict == "confirmed" and matching:
+            proposal = matching[0]
+            self.apply_family_batch(
+                decided_by=actor,
+                decisions=[
+                    FamilyDecision(
+                        family_key=proposal.family_key,
+                        display_name=proposal.display_name,
+                        family_kind="owner",
+                        action="confirmed",
+                        rationale=(
+                            f"confirmed in the editor by {actor}: "
+                            f"{len(proposal.document_ids)} documents on "
+                            f"{', '.join(proposal.hosts)}"
+                        ),
+                        document_ids=proposal.document_ids,
+                    )
+                ],
+            )
+        self._record_editorial_decision(
+            object_kind="source_family", object_key=family_key, verdict=verdict, actor=actor
+        )
+        return {"familyKey": family_key, "verdict": verdict}
+
+    def pending_duplicate_clusters(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(*) AS total FROM kx.content_duplicate_clusters"
+                    " WHERE confirmed_at IS NULL"
+                )
+                total = int(cast(int, one_row(cursor)["total"]))
+                cursor.execute(
+                    """
+                    SELECT clusters.cluster_id, clusters.formation_method,
+                           clusters.shingle_measure, clusters.shingle_threshold,
+                           count(members.document_id) AS member_count,
+                           array_agg(documents.canonical_url ORDER BY documents.canonical_url)
+                               AS urls,
+                           max(evidence.similarity) AS similarity
+                    FROM kx.content_duplicate_clusters AS clusters
+                    JOIN kx.content_duplicate_cluster_members AS members USING (cluster_id)
+                    JOIN kx.documents AS documents USING (document_id)
+                    LEFT JOIN kx.duplicate_evidence AS evidence USING (cluster_id)
+                    WHERE clusters.confirmed_at IS NULL
+                    GROUP BY clusters.cluster_id
+                    ORDER BY member_count DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return total, [dict(row) for row in cursor.fetchall()]
+
+    def decide_duplicate_cluster(
+        self, *, cluster_id: str, verdict: str, actor: str
+    ) -> dict[str, Any]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                if verdict == "confirmed":
+                    cursor.execute(
+                        "UPDATE kx.content_duplicate_clusters"
+                        " SET confirmed_at = clock_timestamp(), confirmed_by = %s"
+                        " WHERE cluster_id = %s AND confirmed_at IS NULL",
+                        (actor, cluster_id),
+                    )
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope)"
+                    " VALUES ('content_duplicate_cluster', %s, %s, %s, 'editor')",
+                    (cluster_id, verdict, actor),
+                )
+        return {"clusterId": cluster_id, "verdict": verdict}
+
+    def pending_ideas(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(*) AS total FROM kx.ideas"
+                    " WHERE admitted IS TRUE AND state = 'proposed'"
+                )
+                total = int(cast(int, one_row(cursor)["total"]))
+                cursor.execute(
+                    "SELECT idea_id, title, statement, independent_sources FROM kx.ideas"
+                    " WHERE admitted IS TRUE AND state = 'proposed'"
+                    " ORDER BY independent_sources DESC, title LIMIT %s",
+                    (limit,),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+                for row in rows:
+                    cursor.execute(
+                        "SELECT evidence.quote_text, documents.canonical_url"
+                        " FROM kx.idea_evidence AS link"
+                        " JOIN kx.claim_evidence AS evidence USING (claim_id)"
+                        " JOIN kx.document_versions AS versions USING (version_id)"
+                        " JOIN kx.documents AS documents USING (document_id)"
+                        " WHERE link.idea_id = %s LIMIT 6",
+                        (row["idea_id"],),
+                    )
+                    row["evidence"] = [
+                        (str(item["quote_text"]), str(item["canonical_url"]))
+                        for item in cursor.fetchall()
+                    ]
+        return total, rows
+
+    def decide_idea(self, *, idea_id: str, verdict: str, actor: str) -> dict[str, Any]:
+        state = "accepted" if verdict == "confirmed" else "rejected"
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE kx.ideas SET state = %s WHERE idea_id = %s AND state = 'proposed'",
+                    (state, idea_id),
+                )
+                if not cursor.rowcount:
+                    raise ValueError("that idea is not waiting for a decision")
+                cursor.execute(
+                    "INSERT INTO kx.idea_decisions (idea_id, verdict, decided_by, rationale)"
+                    " VALUES (%s, %s, %s, %s)",
+                    (idea_id, state, actor, f"decided in the editor by {actor}"),
+                )
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope)"
+                    " VALUES ('idea', %s, %s, %s, 'editor')",
+                    (idea_id, verdict, actor),
+                )
+        return {"ideaId": idea_id, "verdict": verdict, "state": state}
+
+    def hosts_awaiting_policy(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        """Hosts where a rung is known to help and no profile allows it."""
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT lower(split_part(split_part(gaps.canonical_url, '://', 2), '/', 1))
+                               AS host,
+                           gaps.last_error_code AS reason,
+                           count(*) AS documents
+                    FROM kx.acquisition_gap_queue AS gaps
+                    LEFT JOIN kx.host_profiles AS profiles
+                           ON profiles.host =
+                              lower(split_part(split_part(gaps.canonical_url, '://', 2), '/', 1))
+                    WHERE gaps.terminal_reason = 'blocked_by_host'
+                      AND profiles.host IS NULL
+                    GROUP BY 1, 2
+                    ORDER BY documents DESC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    """
+                    SELECT count(DISTINCT
+                        lower(split_part(split_part(canonical_url, '://', 2), '/', 1)))
+                        AS total
+                    FROM kx.acquisition_gap_queue AS gaps
+                    LEFT JOIN kx.host_profiles AS profiles
+                           ON profiles.host =
+                              lower(split_part(split_part(gaps.canonical_url, '://', 2), '/', 1))
+                    WHERE gaps.terminal_reason = 'blocked_by_host' AND profiles.host IS NULL
+                    """
+                )
+                total = int(cast(int, one_row(cursor)["total"]))
+        for row in rows:
+            row["would_help"] = ESCALATION_HINT.get(str(row["reason"]), "network")
+        return total, rows
+
+    def decide_host_policy(self, *, host: str, verdict: str, actor: str) -> dict[str, Any]:
+        """Write a host profile, or record that the host is left as it is."""
+        if verdict == "confirmed":
+            total, rows = self.hosts_awaiting_policy(limit=500)
+            match = next((row for row in rows if str(row["host"]) == host), None)
+            rung = str(match["would_help"]) if match else "network_browser_headers"
+            reason = str(match["reason"]) if match else "unknown"
+            self.write_host_profile(
+                HostProfile(
+                    host=host,
+                    rungs=("network", rung),
+                    robots_policy=(
+                        "override_recorded" if rung == "network_robots_override" else "respect"
+                    ),
+                    rationale=(
+                        f"decided in the editor by {actor}: {match['documents'] if match else 0}"
+                        f" documents blocked with {reason}; {rung} is the rung that would help"
+                    ),
+                    decided_by=actor,
+                )
+            )
+        self._record_editorial_decision(
+            object_kind="host_profile", object_key=host, verdict=verdict, actor=actor
+        )
+        return {"host": host, "verdict": verdict}
+
+    def pending_alias_proposals(self, *, limit: int = 25) -> tuple[int, list[dict[str, Any]]]:
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(*) AS total FROM kx.entity_alias_proposals"
+                    " WHERE decided_at IS NULL"
+                )
+                total = int(cast(int, one_row(cursor)["total"]))
+                cursor.execute(
+                    "SELECT proposal_id, original_form, proposed_form, language, occurrences"
+                    " FROM kx.entity_alias_proposals WHERE decided_at IS NULL"
+                    " ORDER BY occurrences DESC LIMIT %s",
+                    (limit,),
+                )
+                return total, [dict(row) for row in cursor.fetchall()]
+
+    def decide_alias_proposal(
+        self, *, proposal_id: int, verdict: str, actor: str
+    ) -> dict[str, Any]:
+        decision = "accepted" if verdict == "confirmed" else "rejected"
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE kx.entity_alias_proposals SET decided_at = clock_timestamp(),"
+                    " decided_by = %s, decision = %s WHERE proposal_id = %s"
+                    "   AND decided_at IS NULL",
+                    (actor, decision, proposal_id),
+                )
+                if not cursor.rowcount:
+                    raise ValueError("that proposal is not waiting for a decision")
+                cursor.execute(
+                    "INSERT INTO kx.editorial_decisions"
+                    " (object_kind, object_key, verdict, actor, scope)"
+                    " VALUES ('entity_alias', %s, %s, %s, 'editor')",
+                    (str(proposal_id), verdict, actor),
+                )
+        return {"proposalId": proposal_id, "verdict": verdict}
+
+    def _record_editorial_decision(
+        self, *, object_kind: str, object_key: str, verdict: str, actor: str
+    ) -> None:
+        with self.connect() as connection, connection.transaction(), connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO kx.editorial_decisions"
+                " (object_kind, object_key, verdict, actor, scope)"
+                " VALUES (%s, %s, %s, %s, 'editor')",
+                (object_kind, object_key, verdict, actor),
+            )
 
     def coverage_report(self) -> dict[str, Any]:
         """Counts per membership class, plus the full-text smoke gate.

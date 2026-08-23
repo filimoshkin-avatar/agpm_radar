@@ -148,10 +148,10 @@ def test_the_perimeter_poll_is_a_poll_and_not_a_hook() -> None:
     assert "IPAddressDeny=any" in unit
 
 
-def test_the_editor_is_loopback_only() -> None:
-    # ADR-0005 §16: KX has no public access. The unit is what makes that true
-    # rather than the intention — reaching the editor is an SSH tunnel, and
-    # putting it behind a domain is a separate decision with a separate unit.
+def test_the_editor_process_still_binds_only_to_loopback() -> None:
+    # What is published at radar.agpm.space/po is an authenticated application in
+    # front of it. The process itself must never be the public surface: the
+    # database has no public port, no route of its own and no DNS record.
     unit = _unit("radar-kx-editor.service")
     assert "IPAddressDeny=any" in unit
     assert "IPAddressAllow=localhost" in unit

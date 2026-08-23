@@ -41,6 +41,9 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 # The hedges and connectives this module refuses are Russian as well as English;
 # that is the corpus, not a typo.
 "src/radar_kx/research.py" = ["RUF001", "RUF003"]
+# The editor speaks Russian to its reader; the queue descriptions are the
+# interface, not identifiers.
+"src/radar_kx/editor_queues.py" = ["RUF001", "RUF003"]
 
 [tool.mypy]
 files = ["src", "tests"]

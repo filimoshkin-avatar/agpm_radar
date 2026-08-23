@@ -1,109 +1,16 @@
 <!doctype html>
+<html lang="ru">
 <meta charset="utf-8">
-<title>Radar KX — очередь редактора</title>
-<style>
- body { font: 15px/1.5 system-ui, sans-serif; margin: 0; background: #faf9f7; color: #1a1a1a; }
- header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #e3e0da;
-          padding: 12px 20px; display: flex; gap: 16px; align-items: baseline; }
- h1 { font-size: 16px; margin: 0; font-weight: 600; }
- .counts { color: #6b6660; font-size: 13px; }
- main { padding: 20px; max-width: 900px; }
- .card { background: #fff; border: 1px solid #e3e0da; border-radius: 6px;
-         margin-bottom: 18px; overflow: hidden; }
- .statement { padding: 14px 16px; border-bottom: 1px solid #f0ede8; }
- .statement .nature { color: #8a8378; font-size: 12px; text-transform: uppercase;
-                      letter-spacing: .04em; }
- .statement .page { color: #6b6660; font-size: 12px; margin-top: 4px; }
- .proposal { padding: 12px 16px; border-top: 1px solid #f5f2ee; display: grid;
-             grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
- blockquote { margin: 0 0 6px; padding-left: 12px; border-left: 3px solid #d8d3ca; color: #33302b; }
- .meta { font-size: 12px; color: #6b6660; }
- .meta a { color: #4a6fa5; }
- button { font: inherit; padding: 5px 12px; border-radius: 4px; cursor: pointer;
-          border: 1px solid #cfc9c0; background: #fff; }
- button.yes { border-color: #3f7d4a; color: #2f6338; }
- button.no  { border-color: #b0524b; color: #8f3f39; }
- button:disabled { opacity: .4; cursor: default; }
- .gone { opacity: .35; }
- .empty { color: #6b6660; padding: 40px 0; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar — что ждёт вашего решения</title>
+<link rel="stylesheet" href="style.css">
 <header>
-  <h1>Очередь редактора</h1>
-  <span class="counts" id="counts"></span>
+  <h1>Radar · очередь решений</h1>
+  <nav id="nav"></nav>
 </header>
-<main id="queue"><p class="empty">Загрузка…</p></main>
-<script>
-const token = new URLSearchParams(location.search).get("token") || "";
-const headers = { "Authorization": "Bearer " + token, "Content-Type": "application/json" };
-
-function escape(text) {
-  const node = document.createElement("span");
-  node.textContent = text == null ? "" : String(text);
-  return node.innerHTML;
-}
-
-async function decide(button, statementId, claimId, verdict) {
-  const card = button.closest(".proposal");
-  card.querySelectorAll("button").forEach(b => b.disabled = true);
-  const response = await fetch("/api/decide", {
-    method: "POST", headers,
-    body: JSON.stringify({ conceptClaimId: statementId, claimId, verdict })
-  });
-  if (!response.ok) {
-    card.querySelectorAll("button").forEach(b => b.disabled = false);
-    alert("Не удалось: " + (await response.text()));
-    return;
-  }
-  card.classList.add("gone");
-  refreshCounts();
-}
-
-async function refreshCounts() {
-  const response = await fetch("/api/queue?limit=0", { headers });
-  if (!response.ok) return;
-  const data = await response.json();
-  document.getElementById("counts").textContent =
-    data.statementsWaiting + " утверждений, " + data.proposalsWaiting + " предложений ждут решения";
-}
-
-async function load() {
-  const response = await fetch("/api/queue", { headers });
-  if (!response.ok) {
-    document.getElementById("queue").innerHTML =
-      "<p class=empty>Нет доступа. Откройте страницу со своим токеном: <code>?token=…</code></p>";
-    return;
-  }
-  const data = await response.json();
-  document.getElementById("counts").textContent =
-    data.statementsWaiting + " утверждений, " + data.proposalsWaiting + " предложений ждут решения";
-  if (!data.items.length) {
-    document.getElementById("queue").innerHTML = "<p class=empty>Очередь пуста.</p>";
-    return;
-  }
-  document.getElementById("queue").innerHTML = data.items.map(item => `
-    <section class="card">
-      <div class="statement">
-        <div class="nature">${escape(item.claimNature)}</div>
-        <div><strong>${escape(item.statement)}</strong></div>
-        <div class="page">${escape(item.conceptTitle)} — ${escape(item.page)}</div>
-      </div>
-      ${item.proposals.map(p => `
-        <div class="proposal">
-          <div>
-            <blockquote>${escape(p.quote)}</blockquote>
-            <div class="meta">
-              <a href="${escape(p.sourceUrl)}" target="_blank" rel="noreferrer noopener">${escape(p.sourceUrl)}</a>
-              · символы ${p.charStart}–${p.charEnd}
-              · ${escape(p.membershipClass)}
-              · релевантность ${p.relevance.toFixed(4)}
-            </div>
-          </div>
-          <div>
-            <button class="yes" onclick="decide(this, '${item.conceptClaimId}', '${p.claimId}', 'confirmed')">Подтвердить</button>
-            <button class="no" onclick="decide(this, '${item.conceptClaimId}', '${p.claimId}', 'rejected')">Отклонить</button>
-          </div>
-        </div>`).join("")}
-    </section>`).join("");
-}
-load();
-</script>
+<main>
+  <p id="why" class="why"></p>
+  <div id="body"><p class="empty">Загрузка…</p></div>
+</main>
+<script src="app.js"></script>
+</html>

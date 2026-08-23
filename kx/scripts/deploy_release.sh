@@ -40,7 +40,10 @@ say "release $release"
 
 staging="$(mktemp -d)"
 trap 'rm -rf "$staging"' EXIT
-git archive HEAD kx | tar -x -C "$staging"
+# The slice documents travel with the release: the editor serves them for
+# reading, and the host has no other copy of them.
+git archive HEAD kx docs | tar -x -C "$staging"
+mv "$staging/docs" "$staging/kx/docs"
 tar -czf "$staging/$release.tar.gz" -C "$staging/kx" .
 scp -i "$KEY" -o BatchMode=yes "$staging/$release.tar.gz" "$HOST:/tmp/"
 

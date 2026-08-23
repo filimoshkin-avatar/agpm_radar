@@ -6,14 +6,19 @@ Requires=postgresql.service
 ConditionPathExists=/etc/radar-kx/editor.env
 
 [Service]
-# Slice 2.12. Loopback only, and the unit is what makes that true rather than the
-# argument: KX has no public access — no public port, no Caddy route, no DNS
-# record (ADR-0005 §16). Reaching this is an SSH tunnel:
+# Slice 2.12. The process binds to loopback and the unit refuses any other
+# socket. What reaches it from outside is Caddy, at radar.agpm.space/po, behind
+# HTTP basic auth — the owner asked for that on 2026-08-23 so they can read and
+# approve from a browser, and P21 anticipated an editor mode on the public domain
+# behind a login.
 #
+# The database still has no public port, no route and no DNS record: what is
+# published is an authenticated application, which is what ADR-0005 §16 calls the
+# editor/research API. The service checks the credentials again itself, because a
+# service that trusts a proxy is open the moment somebody reaches it another way.
+#
+# It is also still reachable straight through a tunnel:
 #   ssh -N -L 19702:127.0.0.1:19702 root@<host>
-#
-# Putting it behind radar.agpm.space/editor (P21) is a separate decision with a
-# separate unit, and it is on the list of things that need the owner's word.
 Type=exec
 User=radar_kx
 Group=radar_kx

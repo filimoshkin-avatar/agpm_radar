@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import threading
 import urllib.error
@@ -18,7 +19,10 @@ from radar_kx.config import Settings
 from radar_kx.database import Database, VersionProvenance
 from radar_kx.editor_service import (
     PAGE,
+    SCRIPT,
+    STYLE,
     EditorService,
+    Throttle,
     generate_token,
     make_handler,
 )
@@ -262,7 +266,9 @@ def test_a_decision_cannot_be_rewritten(migrated_dsn: str) -> None:
 
 
 def _serve(database: Database) -> tuple[ThreadingHTTPServer, str]:
-    service = EditorService(database, token=TOKEN, actor="owner")
+    service = EditorService(
+        database, token=TOKEN, actor="owner", username="helen", password="helen"
+    )
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(service))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_port}"
@@ -295,13 +301,13 @@ def test_every_endpoint_including_the_page_requires_the_token(migrated_dsn: str)
     database = Database(_settings(migrated_dsn))
     server, base = _serve(database)
     try:
-        for path in ("/", "/api/queue", "/api/history"):
+        for path in ("/", "/api/summary", "/api/queue"):
             assert _request(f"{base}{path}", token=None)[0] == 401
             assert _request(f"{base}{path}", token="wrong" * 8)[0] == 401
-        assert _request(f"{base}/api/queue")[0] == 200
+        assert _request(f"{base}/api/summary")[0] == 200
         status, body = _request(f"{base}/?token={TOKEN}", token=None)
         assert status == 200
-        assert "очередь редактора" in str(body).lower()
+        assert "очередь решений" in str(body).lower()
     finally:
         server.shutdown()
 
@@ -318,9 +324,9 @@ def test_the_actor_comes_from_the_token_and_never_from_the_request(
         status, _ = _request(
             f"{base}/api/decide",
             payload={
-                "conceptClaimId": statement_id,
-                "claimId": claim_id,
-                "verdict": "confirmed",
+                "queue": "evidence",
+                "id": f"{statement_id}/{claim_id}",
+                "action": "confirmed",
                 "actor": "somebody else",
             },
         )
@@ -334,7 +340,7 @@ def test_a_malformed_decision_is_refused_without_a_traceback(migrated_dsn: str) 
     database = Database(_settings(migrated_dsn))
     server, base = _serve(database)
     try:
-        for payload in ({"verdict": "confirmed"}, {"conceptClaimId": "x", "claimId": "y"}):
+        for payload in ({"action": "confirmed"}, {"queue": "evidence", "id": "x"}):
             status, body = _request(f"{base}/api/decide", payload=payload)
             assert status == 400
             assert "error" in body
@@ -342,8 +348,63 @@ def test_a_malformed_decision_is_refused_without_a_traceback(migrated_dsn: str) 
         server.shutdown()
 
 
-def test_the_page_is_served_from_its_own_file() -> None:
-    # So it can be edited without touching the service, and so a Python linter
-    # does not argue with Russian interface text.
+def test_the_page_carries_no_inline_script() -> None:
+    # radar.agpm.space serves script-src 'self'. An inline handler or an inline
+    # <script> is silently dead under it, and "the buttons do nothing" is a bad
+    # way to discover a Content-Security-Policy.
     assert "<!doctype html>" in PAGE
-    assert (Path(__file__).parents[1] / "src" / "radar_kx" / "editor_page.html").is_file()
+    assert "onclick" not in PAGE
+    assert "<script>" not in PAGE
+    assert 'src="app.js"' in PAGE
+    assert STYLE.strip() and SCRIPT.strip()
+
+
+def test_basic_auth_is_accepted_and_a_wrong_password_is_not(migrated_dsn: str) -> None:
+    service = EditorService(
+        Database(_settings(migrated_dsn)),
+        token=TOKEN,
+        actor="owner",
+        username="helen",
+        password="helen",
+    )
+    header = "Basic " + base64.b64encode(b"helen:helen").decode()
+    assert service.authorized(header)
+    assert not service.authorized("Basic " + base64.b64encode(b"helen:wrong").decode())
+    assert not service.authorized("Basic " + base64.b64encode(b"someone:helen").decode())
+    assert not service.authorized("Basic not-base64-at-all")
+    # The bearer path still works for the loopback and scripted callers.
+    assert service.authorized(f"Bearer {TOKEN}")
+
+
+def test_basic_auth_is_refused_when_no_password_is_configured(migrated_dsn: str) -> None:
+    service = EditorService(Database(_settings(migrated_dsn)), token=TOKEN, actor="owner")
+    assert not service.authorized("Basic " + base64.b64encode(b"helen:helen").decode())
+
+
+def test_failed_attempts_are_throttled() -> None:
+    # A public address with a short password and no throttle is found by scanners
+    # in days. The throttle is the part of that this code can fix.
+    throttle = Throttle(limit=3, window=60.0)
+    assert not throttle.blocked("1.2.3.4")
+    for _ in range(3):
+        throttle.record_failure("1.2.3.4", now=100.0)
+    assert throttle.blocked("1.2.3.4", now=100.0)
+    # Another client is unaffected, and the window expires.
+    assert not throttle.blocked("5.6.7.8", now=100.0)
+    assert not throttle.blocked("1.2.3.4", now=200.0)
+
+
+def test_a_document_outside_the_listing_is_not_served(migrated_dsn: str, tmp_path: Path) -> None:
+    # The name is matched against what the listing offered, never joined onto a
+    # path: a service that resolves a caller's path serves whatever it can name.
+    (tmp_path / "radar-kb-good-2026-08-23.md").write_text("# Good\n\ntext\n", encoding="utf-8")
+    (tmp_path / "secret.md").write_text("# Secret\n", encoding="utf-8")
+    service = EditorService(
+        Database(_settings(migrated_dsn)), token=TOKEN, actor="owner", docs_directory=tmp_path
+    )
+    listed = {item["name"] for item in service.documents()["documents"]}
+    assert listed == {"radar-kb-good-2026-08-23.md"}
+    assert "<h1>Good</h1>" in service.document("radar-kb-good-2026-08-23.md")["html"]
+    for name in ("secret.md", "../../etc/passwd", "/etc/passwd"):
+        with pytest.raises(KeyError):
+            service.document(name)

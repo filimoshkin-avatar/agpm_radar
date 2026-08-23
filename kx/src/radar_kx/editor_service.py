@@ -1,92 +1,189 @@
-"""The editor's review queue, as something a person can actually work (slice 2.12).
+"""The one place that shows everything waiting for the owner (slice 2.12).
 
-2 769 proposed bindings is not a review anybody can do in a JSON file. This is the
-smallest thing that makes it a review: one statement at a time, with the proposed
-quotation, its source and its exact offsets beside it, and two buttons.
+The owner asked for a single entry point for reading and approving everything
+that cannot be put as a multiple-choice question. That is six queues of decisions
+and a shelf of documents, behind one address.
 
-Three properties it has because of where it sits, not because of care:
+Authentication is two things at once, and both are checked here rather than only
+in front:
 
-* **loopback only.** KX has no public access - no public port, no Caddy route, no
-  DNS record (ADR-0005 §16). This binds to 127.0.0.1 and the unit refuses any
-  other socket. Reaching it means an SSH tunnel. Putting it behind
-  ``radar.agpm.space/editor`` is a separate decision with a separate unit.
-* **a bearer token, checked on every request including the page itself.** Not a
-  hidden URL. ADR-0006 §7: authorization is server-side on every privileged
-  endpoint, never a client check and never an inference from the route.
-* **every decision is an append-only event with an actor and a scope**
-  (ADR-0006 §3, §12). The service knows who is deciding because the token maps to
-  a name; it does not accept a name from the request.
+* **HTTP basic**, because that is what a person can use from a browser with no
+  token in a URL. Caddy checks it too; this checks it again, because a service
+  that trusts a proxy is a service that is open the moment somebody reaches it
+  another way.
+* **a bearer token**, for the loopback and scripted paths that existed before.
 
-Standard library only. A review tool for one person does not justify a web
-framework in the locked requirements, and the dependency would be carried by
-every deployment of the worker for the sake of a page.
+Failed attempts are rate-limited per client. The password is short by the owner's
+choice; a public address with a short password and no throttle is found by
+scanners in days, and the throttle is the part of that this code can fix.
+
+Everything the page needs is served from here - the HTML, the stylesheet, the
+script - so it works under the strict Content-Security-Policy of
+radar.agpm.space, which allows no inline script at all.
+
+The actor comes from the credentials, never from the request body: a service that
+accepts a name in a body records whatever the caller felt like being.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hmac
 import json
 import secrets
+import threading
+import time
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from radar_kx.config import Settings
 from radar_kx.database import Database
+from radar_kx.editor_queues import decide as decide_in_queue
+from radar_kx.editor_queues import load_queue, queue_summary
+from radar_kx.markdown_render import render as render_markdown
 
-#: Largest request body accepted. A decision is a few hundred bytes.
 MAX_BODY_BYTES = 64 * 1024
-
-#: How many statements one page of the queue carries.
 PAGE_SIZE = 25
 
-#: The interface itself. Kept beside the module rather than inside it: it is a
-#: Russian-language HTML page, and a Python linter arguing with Cyrillic UI text
-#: teaches nobody anything. It also means the page can be edited without touching
-#: the service.
-PAGE = (Path(__file__).resolve().parent / "editor_page.html").read_text(encoding="utf-8")
+#: Failed attempts allowed from one client before it waits.
+MAX_FAILURES = 8
+FAILURE_WINDOW_SECONDS = 300.0
+
+_HERE = Path(__file__).resolve().parent
+PAGE = (_HERE / "editor_page.html").read_text(encoding="utf-8")
+STYLE = (_HERE / "editor_style.css").read_text(encoding="utf-8")
+SCRIPT = (_HERE / "editor_app.js").read_text(encoding="utf-8")
+
+#: Where the slice documents live in a deployed release.
+DOCS_DIRECTORY = Path("/opt/radar-kx/current/docs")
+
+#: Only documents whose name starts with one of these is listed or served. A
+#: directory listing that follows whatever is on disk is a listing that one day
+#: follows something else.
+DOC_PREFIXES = ("radar-kb-", "radar-v2-kb-")
+
+
+class Throttle:
+    """Per-client failure counter. Not a security boundary, a speed limit."""
+
+    def __init__(
+        self, *, limit: int = MAX_FAILURES, window: float = FAILURE_WINDOW_SECONDS
+    ) -> None:
+        self._limit = limit
+        self._window = window
+        self._failures: dict[str, list[float]] = {}
+        self._lock = threading.Lock()
+
+    def blocked(self, client: str, *, now: float | None = None) -> bool:
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            recent = [at for at in self._failures.get(client, []) if moment - at < self._window]
+            self._failures[client] = recent
+            return len(recent) >= self._limit
+
+    def record_failure(self, client: str, *, now: float | None = None) -> None:
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            self._failures.setdefault(client, []).append(moment)
 
 
 class EditorService:
     """Request handling, kept out of the HTTP plumbing so it can be tested."""
 
-    def __init__(self, database: Database, *, token: str, actor: str) -> None:
+    def __init__(
+        self,
+        database: Database,
+        *,
+        token: str,
+        actor: str,
+        username: str | None = None,
+        password: str | None = None,
+        docs_directory: Path = DOCS_DIRECTORY,
+    ) -> None:
         if len(token) < 24:
-            # A short token on a service that reads other people's full text is
-            # not a token, it is a speed bump.
             raise ValueError("the editor token must be at least 24 characters")
         self.database = database
         self._token = token
+        self._username = username
+        self._password = password
         self.actor = actor
+        self.docs_directory = docs_directory
+        self.throttle = Throttle()
 
     def authorized(self, header: str | None) -> bool:
-        """Constant-time comparison, on every request including the page itself."""
-        if not header or not header.startswith("Bearer "):
+        """Bearer or basic, compared in constant time."""
+        if not header:
             return False
-        return hmac.compare_digest(header[7:], self._token)
+        if header.startswith("Bearer "):
+            return hmac.compare_digest(header[7:], self._token)
+        if header.startswith("Basic ") and self._username and self._password:
+            try:
+                decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
+            except (binascii.Error, UnicodeDecodeError):
+                return False
+            user, _, secret = decoded.partition(":")
+            # Both compared, and both in constant time: comparing the user with ==
+            # leaks which half was wrong.
+            return hmac.compare_digest(user, self._username) and hmac.compare_digest(
+                secret, self._password
+            )
+        return False
 
-    def queue(self, query: dict[str, list[str]]) -> dict[str, Any]:
-        limit = int((query.get("limit") or [str(PAGE_SIZE)])[0])
-        offset = int((query.get("offset") or ["0"])[0])
-        return self.database.evidence_queue(limit=max(0, min(limit, 200)), offset=max(0, offset))
+    def summary(self) -> dict[str, Any]:
+        return {"queues": queue_summary(self.database)}
+
+    def queue(self, key: str) -> dict[str, Any]:
+        return load_queue(self.database, key, limit=PAGE_SIZE)
 
     def decide(self, payload: dict[str, Any]) -> dict[str, Any]:
-        # The actor comes from the token, never from the request. A service that
-        # accepts a name in a body records whatever the caller felt like being.
-        return self.database.decide_binding(
-            concept_claim_id=str(payload["conceptClaimId"]),
-            claim_id=str(payload["claimId"]),
-            verdict=str(payload["verdict"]),
+        return decide_in_queue(
+            self.database,
+            key=str(payload["queue"]),
+            item_id=str(payload["id"]),
+            action=str(payload["action"]),
             actor=self.actor,
-            scope="editor",
-            rationale=payload.get("rationale"),
         )
 
-    def history(self) -> list[dict[str, Any]]:
-        return self.database.editorial_history()
+    def documents(self) -> dict[str, Any]:
+        if not self.docs_directory.is_dir():
+            return {"documents": []}
+        found = [
+            path
+            for path in sorted(self.docs_directory.glob("*.md"))
+            if path.name.startswith(DOC_PREFIXES)
+        ]
+        return {
+            "documents": [
+                {
+                    "name": path.name,
+                    "title": self._title(path),
+                    "size": round(path.stat().st_size / 1024),
+                }
+                for path in found
+            ]
+        }
+
+    @staticmethod
+    def _title(path: Path) -> str:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# "):
+                return line[2:].strip()
+        return path.stem
+
+    def document(self, name: str) -> dict[str, Any]:
+        # The name is matched against what the listing offered, never joined onto
+        # a path: a service that resolves a caller's path serves whatever the
+        # caller can name.
+        allowed = {item["name"] for item in self.documents()["documents"]}
+        if name not in allowed:
+            raise KeyError(name)
+        path = self.docs_directory / name
+        return {"name": name, "html": render_markdown(path.read_text(encoding="utf-8"))}
 
 
 def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
@@ -111,39 +208,67 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 "application/json; charset=utf-8",
             )
 
+        @property
+        def _client(self) -> str:
+            forwarded = self.headers.get("X-Forwarded-For", "")
+            return (forwarded.split(",")[0].strip() or self.client_address[0])[:64]
+
         def _authorize(self, token_from_query: str | None = None) -> bool:
+            if service.throttle.blocked(self._client):
+                self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "too many attempts"})
+                return False
             header = self.headers.get("Authorization")
             if header is None and token_from_query:
                 header = f"Bearer {token_from_query}"
             if service.authorized(header):
                 return True
-            self._json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            service.throttle.record_failure(self._client)
+            self.send_response(HTTPStatus.UNAUTHORIZED)
+            self.send_header("WWW-Authenticate", 'Basic realm="Radar", charset="UTF-8"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
             return False
 
         def do_GET(self) -> None:
             parts = urlsplit(self.path)
+            path = parts.path.rstrip("/") or "/"
             query = parse_qs(parts.query)
-            if parts.path == "/":
-                # The page itself is privileged: it is the editor interface, and a
-                # URL is not a credential.
-                if not self._authorize(next(iter(query.get("token", [])), None)):
-                    return
+            if not self._authorize(next(iter(query.get("token", [])), None)):
+                return
+            if path == "/":
                 self._send(HTTPStatus.OK, PAGE.encode("utf-8"), "text/html; charset=utf-8")
                 return
-            if not self._authorize():
+            if path == "/style.css":
+                self._send(HTTPStatus.OK, STYLE.encode("utf-8"), "text/css; charset=utf-8")
                 return
-            if parts.path == "/api/queue":
-                self._json(HTTPStatus.OK, service.queue(query))
+            if path == "/app.js":
+                self._send(HTTPStatus.OK, SCRIPT.encode("utf-8"), "text/javascript; charset=utf-8")
                 return
-            if parts.path == "/api/history":
-                self._json(HTTPStatus.OK, service.history())
+            try:
+                if path == "/api/summary":
+                    self._json(HTTPStatus.OK, service.summary())
+                    return
+                if path == "/api/queue":
+                    self._json(
+                        HTTPStatus.OK, service.queue(next(iter(query.get("key", [])), "evidence"))
+                    )
+                    return
+                if path == "/api/docs":
+                    self._json(HTTPStatus.OK, service.documents())
+                    return
+                if path == "/api/doc":
+                    name = unquote(next(iter(query.get("name", [])), ""))
+                    self._json(HTTPStatus.OK, service.document(name))
+                    return
+            except KeyError as exc:
+                self._json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
         def do_POST(self) -> None:
             if not self._authorize():
                 return
-            if urlsplit(self.path).path != "/api/decide":
+            if urlsplit(self.path).path.rstrip("/") != "/api/decide":
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
             length = int(self.headers.get("Content-Length") or 0)
@@ -159,9 +284,8 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
 
         def log_message(self, format: str, *args: Any) -> None:
-            # One line per request, to the journal, without the token.
             status = args[1] if len(args) > 1 else ""
-            print(f"[editor] {self.command} {urlsplit(self.path).path} {status}")
+            print(f"[editor] {self.command} {urlsplit(self.path).path} {status} {self._client}")
 
     return Handler
 
@@ -173,9 +297,13 @@ def serve(
     port: int,
     token: str,
     actor: str,
+    username: str | None = None,
+    password: str | None = None,
     server_factory: Callable[..., ThreadingHTTPServer] = ThreadingHTTPServer,
 ) -> ThreadingHTTPServer:
-    service = EditorService(Database(settings), token=token, actor=actor)
+    service = EditorService(
+        Database(settings), token=token, actor=actor, username=username, password=password
+    )
     return server_factory((host, port), make_handler(service))
 
 
