@@ -179,6 +179,21 @@ TOPIC_ASSIGNMENT = RunType(
     max_payload_chars=14000,
 )
 
+CLAIM_READING = RunType(
+    name="claim_reading",
+    purpose="reading a batch of statements: kind, source, admission and subject",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "the owner's rules and her rubricator as the instruction block, and at most "
+        "ten statements - each one the normalised claim, its quotation capped at 400 "
+        "characters, and the name of the corpus it came from. Never the document. "
+        "Deciding what kind of material a sentence is needs the sentence and what it "
+        "stands on; the article around it is other people's text that no claim will "
+        "rest on."
+    ),
+    max_payload_chars=16000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
@@ -188,6 +203,7 @@ RUN_TYPES: dict[str, RunType] = {
     QUOTE_TRANSLATION.name: QUOTE_TRANSLATION,
     RESEARCH_ANSWER.name: RESEARCH_ANSWER,
     TOPIC_ASSIGNMENT.name: TOPIC_ASSIGNMENT,
+    CLAIM_READING.name: CLAIM_READING,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."

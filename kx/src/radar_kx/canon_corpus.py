@@ -126,6 +126,37 @@ CANON_ORIGINALS: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+#: Which canon files are AgPM's own doctrine. Everything else in this corpus is
+#: somebody else's standard, whitepaper or paper, and a statement out of one is an
+#: external reference rather than canon - the owner's status ladder (§2.2) puts
+#: those on different rungs, and a claim is born on the rung its document sits on.
+AGPM_AUTHORED: frozenset[str] = frozenset(
+    {
+        "agpm-white-paper-v1.0-d075a34c-37b1-46cd-878b-0e7c166e6ce1",
+        "agpm-white-paper-v1.2-a565755c-bfa2-4255-97cf-de5b43d25625",
+        "agpm-манифест-15083e77-7ea2-4594-aa2a-2a905d9978ee",
+        "agpm-манифест-v2-3ffb0559-841b-4375-bcc2-b18d520e50f1",
+        "agpm-манифест-v3-926ec919-b6bb-4058-a8d7-80b4053df422",
+        "agpm-обоснование-онтологии-1136cafc-0bcf-4cb7-9826-98cc0ceebf89",
+        "agpm-компоненты-по-уровням-2026-04-19",
+        "ценности-для-манифеста-f406b379-635b-4065-ab07-d793bdcc3577",
+        "agpm-industries-analytical-note-2026-05-02",
+        "agpm-live-implementation-methodology-v4-2-2026-07-13",
+        "agpm-live-method-agent-scenarios-v1-0-2026-07-13",
+        "agpm-live-method-api-contract-v1-3-2026-07-13",
+        "agpm-live-method-deployment-runbook-v1-3-2026-07-13",
+        "agpm-live-method-tool-readme-v1-3-2026-07-13",
+        "ai-pmo-implementation-method-kernel-v6-3-2026-06-14",
+        "ai-pmo-implementation-method-kit-v6-3-2026-06-14",
+        "ai-pmo-implementation-method-reference-v4-3-2026-06-14",
+        "ai-pmo-implementation-method-v1-8-2-2026-05-28",
+        "ai-pmo-implementation-method-v3-3-2026-05-31",
+        "ai-pmo-market-research-2026-06-05",
+        "agpmbok-v0.7-working-draft-extract",
+        "why-agpm-v3-executive-rationale-extract",
+    }
+)
+
 QUOTABLE_FIDELITY = frozenset({"full_text", "own_text"})
 
 _BLOCK_REASON = {

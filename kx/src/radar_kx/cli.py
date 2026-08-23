@@ -4,6 +4,8 @@ import argparse
 import dataclasses
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,7 @@ from radar_kx.issue_perimeter import load_perimeter_export
 from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
+    CLAIM_READING,
     IDEA_STATEMENT,
     QUOTE_TRANSLATION,
     RESEARCH_ANSWER,
@@ -55,6 +58,11 @@ from radar_kx.publication import (
     check_invariants,
     parse_translation,
 )
+from radar_kx.reading import BATCH as READING_BATCH
+from radar_kx.reading import ReadableClaim, Reading, ReadingError, parse_readings
+from radar_kx.reading import build_instructions as build_reading_instructions
+from radar_kx.reading import build_payload as build_reading_payload
+from radar_kx.reading import summarize as summarize_readings
 from radar_kx.reconciliation import load_inventory
 from radar_kx.research import (
     answer_prompt_sha256,
@@ -289,6 +297,15 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("editor-token")
     subparsers.add_parser("editorial-history")
+
+    # Stage 0b: one model pass that reads a statement - kind, source, admission,
+    # subject - and the birth status its corpus grants it.
+    read_claims_parser = subparsers.add_parser("read-claims")
+    read_claims_parser.add_argument("--limit", type=int, default=100000)
+    read_claims_parser.add_argument("--batch", type=int, default=READING_BATCH)
+    read_claims_parser.add_argument("--workers", type=int, default=8)
+
+    subparsers.add_parser("reading-report")
 
     # Stage 0a: quotation boundaries. Reports by default, writes only when told.
     repair_spans_parser = subparsers.add_parser("repair-spans")
@@ -762,6 +779,70 @@ def main() -> None:
         return
     if args.command == "evidence-queue":
         _print_json(database.evidence_queue(limit=args.limit))
+        return
+    if args.command == "read-claims":
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch read-claims ...`.")
+        # Level 2 is the grain the reading is asked for, the same as the document
+        # pass: twelve sections are too coarse to place a sentence and a hundred
+        # leaves are too many to hold in one prompt.
+        rubricator = build_reading_instructions(database.topics(level=2))
+        allowed = frozenset(topic["topic_key"] for topic in database.topics(level=2))
+        freshness = database.freshness_rules()
+        gateway = ModelGateway(database, settings)
+        claims = database.unread_claims(limit=args.limit)
+        by_id = {claim.claim_id: claim for claim in claims}
+        batches = [
+            claims[start : start + args.batch] for start in range(0, len(claims), args.batch)
+        ]
+
+        totals = {"readings": 0, "topics": 0, "gaps": 0}
+        dropped: dict[str, int] = {}
+        refusals = 0
+        readings: list[Reading] = []
+        lock = threading.Lock()
+
+        def read_one(block: list[ReadableClaim]) -> None:
+            nonlocal refusals
+            try:
+                result = gateway.run(CLAIM_READING, build_reading_payload(block), system=rubricator)
+                found, thrown = parse_readings(result.content, block, allowed)
+            except (OrchestratorError, ReadingError):
+                # A batch whose answer cannot be used is left unread rather than
+                # half-written: the claims stay in the queue and the next pass
+                # picks them up. The count is what says it happened.
+                with lock:
+                    refusals += 1
+                return
+            written = database.record_readings(found, by_id, freshness, read_by=CLAIM_READING.model)
+            with lock:
+                for key, value in written.items():
+                    totals[key] += value
+                for key, value in thrown.items():
+                    dropped[key] = dropped.get(key, 0) + value
+                readings.extend(found)
+
+        # Threads rather than one loop: 1 388 calls at thirteen seconds each is
+        # five hours in sequence and forty minutes at eight. Every batch is a
+        # disjoint slice of a list read once, so nothing races over a claim, and
+        # each thread opens its own connection.
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for _ in pool.map(read_one, batches):
+                pass
+
+        _print_json(
+            {
+                **summarize_readings(readings, dropped),
+                "claimsOffered": len(claims),
+                "batches": len(batches),
+                "batchesRefused": refusals,
+                "written": totals,
+                **database.grant_birth_statuses(set_by="radar-kx-stage-0b"),
+            }
+        )
+        return
+    if args.command == "reading-report":
+        _print_json(database.reading_report())
         return
     if args.command == "repair-spans":
         repairs = database.plan_span_repair()

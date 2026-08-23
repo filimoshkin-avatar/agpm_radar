@@ -7,7 +7,7 @@ import uuid
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any, ClassVar, cast
 
 import psycopg
@@ -61,6 +61,8 @@ from radar_kx.language import language_of
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
+from radar_kx.reading import ReadableClaim, Reading
+from radar_kx.reading import valid_until as expiry_of
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.release import ReleaseComposition, ReleaseError, compose, reconcile
 from radar_kx.research import (
@@ -4814,6 +4816,220 @@ class Database:
             )
             per_topic = [dict(row) for row in cursor.fetchall()]
         return {**statements, **documents, "byTopic": per_topic}
+
+    # ---------------------------------------------------------------------
+    # Stage 0b: reading a statement (owner decisions 1, 3, 7, 8, 11)
+    # ---------------------------------------------------------------------
+
+    def unread_claims(self, *, limit: int = 100000) -> list[ReadableClaim]:
+        """Statements nobody has read yet, with what the reader needs to read them.
+
+        The quotation comes along because half the decisions cannot be made from
+        the normalised claim alone: whether a sentence is a forecast or a fact is
+        in its words, and the normalised form has dropped most of them.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT claims.claim_id,
+                           claims.normalized_text,
+                           evidence.quote_text,
+                           CASE WHEN documents.canonical_url LIKE 'agpm-canon:%%'
+                                THEN 'канон AgPM' ELSE 'материал выпуска' END AS corpus,
+                           dates.published_on
+                    FROM kx.claims AS claims
+                    JOIN kx.claim_evidence AS evidence
+                      ON evidence.claim_id = claims.claim_id
+                     AND evidence.match_status = 'exact'
+                    JOIN kx.document_versions AS versions
+                      ON versions.version_id = claims.version_id
+                    JOIN kx.documents AS documents
+                      ON documents.document_id = versions.document_id
+                    LEFT JOIN kx.document_dates AS dates
+                           ON dates.document_id = documents.document_id
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM kx.claim_reading AS reading
+                        WHERE reading.claim_id = claims.claim_id
+                    )
+                    ORDER BY claims.claim_id
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                rows = cursor.fetchall()
+        return [
+            ReadableClaim(
+                claim_id=str(row["claim_id"]),
+                statement=str(row["normalized_text"]),
+                quote=str(row["quote_text"]),
+                corpus=str(row["corpus"]),
+                dated_on=(
+                    datetime.combine(row["published_on"], time.min, tzinfo=UTC)
+                    if row["published_on"] is not None
+                    else None
+                ),
+            )
+            for row in rows
+        ]
+
+    def freshness_rules(self) -> dict[str, timedelta | None]:
+        """The owner's interval per kind of material, as migration 022 recorded it."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT material_kind, valid_for FROM kx.material_kind_freshness")
+            return {str(row["material_kind"]): row["valid_for"] for row in cursor.fetchall()}
+
+    def record_readings(
+        self,
+        readings: Sequence[Reading],
+        claims: Mapping[str, ReadableClaim],
+        freshness: Mapping[str, timedelta | None],
+        *,
+        read_by: str,
+    ) -> dict[str, int]:
+        """Write one batch: the reading, its subjects, and the gap it leaves if any.
+
+        One transaction per batch, so a call whose answer was only half usable
+        leaves either all of its rows or none. A subject key the backbone does not
+        have writes nothing: the `SELECT ... FROM topics` is the check.
+        """
+        written = {"readings": 0, "topics": 0, "gaps": 0}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for reading in readings:
+                    claim = claims[reading.claim_id]
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.claim_reading (
+                            claim_id, material_kind, primary_source, is_retelling,
+                            admission, admission_note, valid_until, confidence,
+                            read_by, method
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'model')
+                        ON CONFLICT (claim_id) DO NOTHING
+                        """,
+                        (
+                            reading.claim_id,
+                            reading.material_kind,
+                            reading.primary_source,
+                            reading.is_retelling,
+                            reading.admission,
+                            reading.admission_note,
+                            expiry_of(reading.material_kind, claim.dated_on, freshness),
+                            reading.confidence,
+                            read_by,
+                        ),
+                    )
+                    written["readings"] += cursor.rowcount
+                    for topic_key in reading.topic_keys:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.claim_topics
+                                (claim_id, topic_id, confidence, assigned_by, method)
+                            SELECT %s, topics.topic_id, %s, %s, 'model'
+                            FROM kx.topics AS topics
+                            WHERE topics.topic_key = %s AND topics.state = 'accepted'
+                            ON CONFLICT DO NOTHING
+                            """,
+                            (reading.claim_id, reading.confidence, read_by, topic_key),
+                        )
+                        written["topics"] += cursor.rowcount
+                    if reading.missing and not reading.topic_keys:
+                        cursor.execute(
+                            """
+                            INSERT INTO kx.claim_gaps (claim_id, missing, noted_by, method)
+                            VALUES (%s, %s, %s, 'model')
+                            ON CONFLICT (claim_id) DO NOTHING
+                            """,
+                            (reading.claim_id, reading.missing, read_by),
+                        )
+                        written["gaps"] += cursor.rowcount
+        return written
+
+    def grant_birth_statuses(self, *, set_by: str) -> dict[str, int]:
+        """Give every claim without one the status its corpus is born with.
+
+        A rule, not a judgement, which is why `method` says so: a statement out of
+        the AgPM canon is canon, one out of somebody else's standard is an external
+        reference, and one out of a radar issue is an observed signal until the
+        owner promotes it (§2.2, decision 6). Append-only, so re-running adds
+        nothing to a claim that already carries one.
+        """
+        # Imported here rather than at the top: canon_corpus imports this module,
+        # and the authorship list belongs beside the fidelity table it sits with.
+        from radar_kx.canon_corpus import AGPM_AUTHORED
+
+        authored = [f"agpm-canon:/{stem}%" for stem in sorted(AGPM_AUTHORED)]
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO kx.knowledge_status
+                        (unit_kind, unit_id, status, method, rationale, set_by)
+                    SELECT 'claim', claims.claim_id,
+                           CASE
+                               WHEN documents.canonical_url NOT LIKE 'agpm-canon:%%'
+                                   THEN 'observed_signal'
+                               WHEN documents.canonical_url LIKE ANY (%s)
+                                   THEN 'canon'
+                               ELSE 'external_reference'
+                           END,
+                           'rule',
+                           'статус при рождении, по корпусу документа',
+                           %s
+                    FROM kx.claims AS claims
+                    JOIN kx.document_versions AS versions
+                      ON versions.version_id = claims.version_id
+                    JOIN kx.documents AS documents
+                      ON documents.document_id = versions.document_id
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM kx.knowledge_status AS granted
+                        WHERE granted.unit_kind = 'claim'
+                          AND granted.unit_id = claims.claim_id
+                    )
+                    """,
+                    (authored, set_by),
+                )
+                return {"granted": cursor.rowcount}
+
+    def reading_report(self) -> dict[str, Any]:
+        """How much has been read, and what the reading found."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT (SELECT count(*) FROM kx.claims) AS claims,
+                       (SELECT count(*) FROM kx.claim_reading) AS have_been_read,
+                       (SELECT count(DISTINCT claim_id) FROM kx.claim_topics)
+                           AS with_a_subject,
+                       (SELECT count(*) FROM kx.claim_gaps) AS gaps,
+                       (SELECT count(*) FROM kx.knowledge_status WHERE unit_kind = 'claim')
+                           AS statuses
+                """
+            )
+            totals = dict(one_row(cursor))
+            cursor.execute(
+                "SELECT admission, material_kind, count(*) AS total FROM kx.claim_reading"
+                " GROUP BY 1, 2 ORDER BY 1, 3 DESC"
+            )
+            spread = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT primary_source, count(*) AS total FROM kx.claim_reading"
+                " WHERE is_retelling GROUP BY 1 ORDER BY 2 DESC LIMIT 15"
+            )
+            retold = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT status, count(*) AS total FROM kx.knowledge_status_current"
+                " WHERE unit_kind = 'claim' GROUP BY 1 ORDER BY 2 DESC"
+            )
+            statuses = [dict(row) for row in cursor.fetchall()]
+        return {
+            **totals,
+            "byAdmissionAndKind": spread,
+            "mostRetoldSources": retold,
+            "byStatus": statuses,
+        }
 
     # ---------------------------------------------------------------------
     # Stage 0a: putting quotation boundaries back on their sentences
