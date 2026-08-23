@@ -140,7 +140,16 @@ def compose(
             )
         )
     for row in concepts:
-        elements.append(SliceElement("concept", str(row["concept_id"]), str(row["body_sha256"])))
+        # Hashed here rather than taken from `body_sha256`, so the fingerprint is
+        # computed the same way on both sides of a reconciliation: the slice
+        # stores the body, not the hash the store happened to record.
+        elements.append(
+            SliceElement(
+                "concept",
+                str(row["concept_id"]),
+                sha256_bytes(str(row["body"]).encode("utf-8")),
+            )
+        )
     for row in statements:
         elements.append(
             SliceElement(

@@ -3837,6 +3837,27 @@ class Database:
                 published[f"statement:{row['statement_id']}"] = sha256_bytes(
                     f"{row['statement']}\n{row['confirmed_evidence']}".encode()
                 )
+            # Concepts and ideas too. Reading only two of the four kinds made the
+            # first reconciliation report 84 elements missing from a slice that had
+            # been published thirty seconds earlier - a comparison against half a
+            # side is not a comparison.
+            cursor.execute(
+                "SELECT concept_id, body FROM kb.concepts WHERE release_id = %s",
+                (release_id,),
+            )
+            for row in cursor.fetchall():
+                published[f"concept:{row['concept_id']}"] = sha256_bytes(
+                    str(row["body"]).encode("utf-8")
+                )
+            cursor.execute(
+                "SELECT idea_id, title, statement, independent_sources FROM kb.ideas"
+                " WHERE release_id = %s",
+                (release_id,),
+            )
+            for row in cursor.fetchall():
+                published[f"idea:{row['idea_id']}"] = sha256_bytes(
+                    f"{row['title']}\n{row['statement']}\n{row['independent_sources']}".encode()
+                )
         return reconcile(release_id, active=True, published=published, current=current).as_json()
 
     def coverage_report(self) -> dict[str, Any]:

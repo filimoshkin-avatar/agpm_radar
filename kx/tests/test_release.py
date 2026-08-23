@@ -50,7 +50,7 @@ def _composition(**overrides: Any) -> Any:
                 "caveat": None,
             }
         ],
-        "concepts": [{"concept_id": "c1", "body_sha256": "a" * 64}],
+        "concepts": [{"concept_id": "c1", "body": "# A page\n\nIts words."}],
         "statements": [{"statement_id": "s1", "statement": "One thing.", "confirmed_evidence": 0}],
         "ideas": [
             {
@@ -299,3 +299,17 @@ def test_reconciliation_sees_the_store_moving_under_a_published_release(
     assert after["identical"] is False
     assert after["missingFromSlice"] == 1
     assert after["absentFromSource"] == 0
+
+
+def test_reconciliation_compares_all_four_kinds(migrated_dsn: str) -> None:
+    # The first production reconciliation reported 84 elements missing from a
+    # slice published thirty seconds earlier, because it read quotes and
+    # statements out of kb and compared them against all four kinds. A comparison
+    # against half a side is not a comparison.
+    database = Database(_settings(migrated_dsn))
+    _publishable(database, migrated_dsn, "https://example.com/a")
+    built: dict[str, Any] = database.build_release(built_by="test")
+    database.publish_release(str(built["releaseId"]), actor="owner", rationale="first")
+    result: dict[str, Any] = database.reconcile_release()
+    assert result["identical"] is True
+    assert result["missingFromSlice"] == 0
