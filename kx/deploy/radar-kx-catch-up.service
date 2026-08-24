@@ -1,0 +1,83 @@
+[Unit]
+Description=Radar KX catch-up: turn what the timers fetched into what the owner can decide
+Documentation=file:///opt/radar-kx/current/README.md
+After=radar-kx-hermes-extraction.service postgresql.service radar-kx-ingest.service
+Wants=radar-kx-hermes-extraction.service
+ConditionPathIsDirectory=/opt/radar-kx/current
+
+[Service]
+# The perimeter poll and the ingest bring documents in; nothing turned them into
+# statements without somebody typing a command. Measured on 2026-08-24: today's
+# issue reached the store as nine documents and stopped there, and the four
+# decision queues got nothing.
+#
+# Four passes in the only order the data allows - extract, read, link, name -
+# under one ceiling for the lot. The ceiling is in model calls and is enforced
+# against `egress_audit` between passes, so it holds even when a pass's own
+# estimate of its cost is wrong.
+#
+# --budget is the number that decides what an unattended day costs. 400 calls is
+# about a day and a half of a normal issue at current volumes, so a quiet day
+# leaves headroom and a burst does not run away.
+Type=oneshot
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/worker.env
+EnvironmentFile=-/etc/radar-kx/orchestrator.env
+EnvironmentFile=-/etc/radar-kx/catch-up.env
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+Environment=RADAR_KX_CATCH_UP_BUDGET=400
+
+ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx catch-up \
+    --budget ${RADAR_KX_CATCH_UP_BUDGET}
+
+# The run is as long as the queue, and the ceiling is what bounds it - not a
+# clock. A stuck call is bounded by the client's own timeout, the same way the
+# orchestrator unit reasons about it.
+TimeoutStartSec=infinity
+UMask=0077
+Nice=10
+
+# ADR-0005 §6: no internet. Loopback reaches Hermes through the egress proxy;
+# PostgreSQL is a unix socket and needs no address at all.
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateIPC=true
+PrivateMounts=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+KeyringMode=private
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+MemoryDenyWriteExecute=true
+ReadOnlyPaths=/opt/radar-kx /etc/radar-kx
+ReadWritePaths=/var/run/postgresql
+InaccessiblePaths=/var/lib/radar-hermes /var/lib/nrd /etc/nrd /srv
+
+[Install]
+WantedBy=multi-user.target

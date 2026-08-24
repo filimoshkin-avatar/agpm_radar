@@ -356,6 +356,11 @@ def _parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("entity-report")
 
+    # One scheduled run: everything a fetched issue still needs, under a ceiling.
+    catch_up_parser = subparsers.add_parser("catch-up")
+    catch_up_parser.add_argument("--budget", type=int, default=400)
+    catch_up_parser.add_argument("--dry-run", action="store_true")
+
     # Stage 2: shortlist by both methods, then judge. No signature - decision 4
     # leaves linking to the machine.
     link_parser = subparsers.add_parser("link-claims")
@@ -474,8 +479,27 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    args = _parser().parse_args()
+#: What one model call covers in each pass, so a ceiling in calls can be turned
+#: into a limit in items. Deliberately pessimistic: the limit must not be able to
+#: spend more than the budget allows, and a pass that stops early is cheaper to
+#: fix than one that overruns.
+CALLS_PER_ITEM = {
+    # Extraction is per fragment, and a document holds 2.9 of them on average
+    # with a 95th percentile of 8. Eight is what the ceiling assumes.
+    "extract-claims": 8.0,
+    "read-claims": 1.0 / READING_BATCH,
+    "link-claims": 1.0 / LINKING_BATCH,
+    "find-entities": 1.0 / ENTITY_BATCH,
+}
+
+#: The order the passes have to run in: a statement cannot be read before it is
+#: extracted, linked before it is read, or have its entities named before it is
+#: admitted.
+CATCH_UP_ORDER = ("extract-claims", "read-claims", "link-claims", "find-entities")
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parser().parse_args(argv)
     settings = Settings.from_environment()
     database = Database(settings)
 
@@ -899,7 +923,7 @@ def main() -> None:
                 with lock:
                     refusals += 1
                 return
-            written = database.record_readings(found, by_id, freshness, read_by=CLAIM_READING.model)
+            written = database.record_readings(found, by_id, freshness, read_by=result.model)
             with lock:
                 for key, value in written.items():
                     totals[key] += value
@@ -972,9 +996,7 @@ def main() -> None:
                 with lock:
                     refusals += 1
                 return
-            stored = database.record_links(
-                found, created_by=KNOWLEDGE_LINK.model, unrelated=unrelated
-            )
+            stored = database.record_links(found, created_by=result.model, unrelated=unrelated)
             with lock:
                 judgements.extend(found)
                 judged_pairs += len(block)
@@ -1006,6 +1028,52 @@ def main() -> None:
     if args.command == "linking-report":
         _print_json(database.linking_report())
         return
+    if args.command == "catch-up":
+        # What a radar issue needs after the timers have fetched it: four passes
+        # in the only order they can run in, under one ceiling for the lot.
+        #
+        # The ceiling is enforced by measurement rather than by prediction. Every
+        # model call leaves a row in `egress_audit`, so what a stage actually
+        # spent is countable, and the next stage is sized by what is left. A pass
+        # whose ratio is wrong can overrun its own share; it cannot overrun the
+        # budget, because the check happens between stages.
+        spent_before = database.egress_call_count()
+        stages: list[dict[str, Any]] = []
+        for stage in CATCH_UP_ORDER:
+            spent = database.egress_call_count() - spent_before
+            left = args.budget - spent
+            if left <= 0:
+                stages.append({"stage": stage, "skipped": "бюджет вызовов исчерпан"})
+                continue
+            limit = max(1, int(left / CALLS_PER_ITEM[stage]))
+            if args.dry_run:
+                stages.append({"stage": stage, "wouldRun": limit, "callsLeft": left})
+                continue
+            started = database.egress_call_count()
+            try:
+                main([stage, "--limit", str(limit)])
+            except SystemExit as stop:
+                # A stage that cannot start - no key, nothing to do - must not
+                # take the rest of the run with it.
+                stages.append({"stage": stage, "stopped": str(stop)})
+                continue
+            stages.append(
+                {
+                    "stage": stage,
+                    "limit": limit,
+                    "calls": database.egress_call_count() - started,
+                }
+            )
+        _print_json(
+            {
+                "budget": args.budget,
+                "spent": database.egress_call_count() - spent_before,
+                "stages": stages,
+                "pending": database.catch_up_pending(),
+            }
+        )
+        return
+
     if args.command == "find-entities":
         if not settings.hermes_key:
             raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch find-entities ...`.")
@@ -1039,7 +1107,7 @@ def main() -> None:
                     entity_refusals += 1
                 return
             written = database.record_mentions(
-                found, [str(row["claim_id"]) for row in block], found_by=ENTITY_EXTRACTION.model
+                found, [str(row["claim_id"]) for row in block], found_by=result.model
             )
             with lock:
                 for key, value in written.items():

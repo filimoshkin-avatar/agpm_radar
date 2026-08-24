@@ -14,6 +14,8 @@ from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
+    FALLBACK_ORDER,
+    REACHABILITY_PROBE,
     RUN_TYPES,
     ModelGateway,
     OrchestratorError,
@@ -150,7 +152,11 @@ def test_a_failed_call_is_recorded_too(migrated_dsn: str, monkeypatch: pytest.Mo
         ModelGateway(Database(settings), settings).probe()
 
     rows = _audit(migrated_dsn)
-    assert [row["outcome"] for row in rows] == ["failed"]
+    # Every attempt, not one. A refused connection is not a busy profile, so each
+    # model is tried once per round and the chain is walked CHAIN_ROUNDS times:
+    # two models, two rounds, plus the row written when the call is given up.
+    assert [row["outcome"] for row in rows] == ["failed"] * 5
+    assert {str(row["model"]) for row in rows} == set(FALLBACK_ORDER)
     assert "connection refused" in (rows[0]["error_detail"] or "")
 
 
@@ -194,3 +200,69 @@ def test_the_retry_budget_is_small_enough_to_surface_a_real_outage() -> None:
 
     assert 1 <= BUSY_RETRIES <= 5
     assert BUSY_RETRIES * BUSY_BACKOFF_SECONDS * (BUSY_RETRIES + 1) / 2 < 60
+
+
+# ---------------------------------------------------------------------------
+# When the first model cannot answer
+# ---------------------------------------------------------------------------
+
+
+def test_the_second_model_answers_when_the_first_refuses(migrated_dsn: str) -> None:
+    """Both go through one endpoint with one key, so the fallback is free.
+
+    It matters most where nobody is watching: a batch an operator starts fails
+    visibly and is started again, a scheduled one fails into a journal.
+    """
+    gateway = ModelGateway(Database(_settings(migrated_dsn)), _settings(migrated_dsn))
+    asked: list[str] = []
+
+    def refuse_the_first(model: str, payload: str, system: str | None) -> dict[str, object]:
+        asked.append(model)
+        if model == FALLBACK_ORDER[0]:
+            raise OrchestratorError("hermes returned 503: upstream unavailable")
+        return {"choices": [{"message": {"content": "ready"}}]}
+
+    gateway._post = refuse_the_first  # type: ignore[method-assign]
+    result = gateway.run(REACHABILITY_PROBE, "проверка")
+
+    assert result.outcome == "succeeded"
+    assert asked == list(FALLBACK_ORDER), "the chain did not walk in order"
+    assert result.model == FALLBACK_ORDER[1]
+    assert result.model != REACHABILITY_PROBE.model, "the run type still names the first"
+
+
+def test_a_model_named_outright_is_not_swapped(migrated_dsn: str) -> None:
+    """A measurement of one model must not quietly become a measurement of another."""
+    gateway = ModelGateway(Database(_settings(migrated_dsn)), _settings(migrated_dsn))
+    asked: list[str] = []
+
+    def always_refuse(model: str, payload: str, system: str | None) -> dict[str, object]:
+        asked.append(model)
+        raise OrchestratorError("hermes returned 503: upstream unavailable")
+
+    gateway._post = always_refuse  # type: ignore[method-assign]
+    with pytest.raises(OrchestratorError):
+        gateway.run(REACHABILITY_PROBE, "проверка", model=FALLBACK_ORDER[0])
+
+    assert set(asked) == {FALLBACK_ORDER[0]}, "an explicit choice was overridden"
+
+
+def test_every_attempt_is_audited_even_the_ones_that_failed(migrated_dsn: str) -> None:
+    """A call that was refused and one that was never made are different facts."""
+    settings = _settings(migrated_dsn)
+    database = Database(settings)
+    gateway = ModelGateway(database, settings)
+
+    def refuse_the_first(model: str, payload: str, system: str | None) -> dict[str, object]:
+        if model == FALLBACK_ORDER[0]:
+            raise OrchestratorError("hermes returned 503: upstream unavailable")
+        return {"choices": [{"message": {"content": "ready"}}]}
+
+    gateway._post = refuse_the_first  # type: ignore[method-assign]
+    gateway.run(REACHABILITY_PROBE, "проверка")
+
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT model, outcome FROM kx.egress_audit ORDER BY egress_id")
+        rows = [(str(row["model"]), str(row["outcome"])) for row in cursor.fetchall()]
+    assert (FALLBACK_ORDER[0], "failed") in rows, "the refusal left no record"
+    assert (FALLBACK_ORDER[1], "succeeded") in rows, "the answer is not attributed"

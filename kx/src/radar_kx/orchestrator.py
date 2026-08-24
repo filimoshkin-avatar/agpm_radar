@@ -69,6 +69,27 @@ DEFAULT_MODEL = "glm-5.2"
 BUSY_RETRIES = 3
 BUSY_BACKOFF_SECONDS = 4.0
 
+#: Who answers, and who answers when the first one cannot.
+#:
+#: Both go through the same Hermes endpoint with the same key - what tells them
+#: apart is one field in the request body - so the second is available whenever
+#: the first is not, without a second credential or a second allowlisted host.
+#:
+#: This matters most where nobody is watching. A batch pass an operator starts
+#: fails visibly and is started again; a scheduled one fails into a journal, and
+#: without a fallback a single bad hour on one provider is a day of the queues
+#: not filling.
+FALLBACK_ORDER = ("glm-5.2", "MiniMax-M3")
+
+#: How many times the whole chain is walked before the call is given up. Two
+#: rounds means: every model tried, a pause, every model tried again. A provider
+#: that is down for both rounds is down, and saying so is the right answer.
+CHAIN_ROUNDS = 2
+
+#: How long to wait before walking the chain again. Longer than the busy backoff:
+#: this is not "you arrived at a busy moment", it is "nobody answered at all".
+CHAIN_BACKOFF_SECONDS = 15.0
+
 #: What "come back later" looks like coming out of the profile.
 _BUSY_SIGNS = ("429", "rate_limit", "too many concurrent", "overloaded", "timed out", "timeout")
 
@@ -259,6 +280,10 @@ PROBE_PROMPT = "Reply with the single word: ready."
 class ModelResult:
     outcome: str
     content: str
+    #: Which model actually answered. Not the one that was asked for: a call the
+    #: fallback served must be attributed to the model that served it, or the
+    #: provenance of every statement it produced is wrong.
+    model: str
     request_tokens: int | None
     response_tokens: int | None
     egress_id: int
@@ -341,8 +366,20 @@ class ModelGateway:
         version_id: str | None = None,
         chunk_id: str | None = None,
     ) -> ModelResult:
-        """Send one payload to one model, or refuse - and record either way."""
+        """Send one payload to a model, or refuse - and record every attempt.
+
+        `model` names one and pins it: a measurement of a particular model must
+        not quietly become a measurement of another. Left unset, the call walks
+        `FALLBACK_ORDER` and the result says which one answered.
+        """
         chosen = model or run_type.model
+        # An explicit choice is a choice. A default is a preference, and the rest
+        # of the chain follows it.
+        chain = (
+            (chosen,)
+            if model is not None
+            else (chosen, *(name for name in FALLBACK_ORDER if name != chosen))
+        )
         payload_sha = sha256_bytes(payload.encode("utf-8"))
         prompt_sha = sha256_bytes((system or "").encode("utf-8")) if system is not None else None
 
@@ -382,24 +419,44 @@ class ModelGateway:
                 f"{detail} (egress {record('refused_oversize_payload', detail=detail)})"
             )
 
-        for attempt in range(BUSY_RETRIES + 1):
-            try:
-                body = self._post(chosen, payload, system)
-                content = self._content(body)
+        body: dict[str, Any] | None = None
+        content = ""
+        last = ""
+        for round_number in range(CHAIN_ROUNDS):
+            for candidate in chain:
+                chosen = candidate
+                for attempt in range(BUSY_RETRIES + 1):
+                    try:
+                        body = self._post(chosen, payload, system)
+                        content = self._content(body)
+                        break
+                    except (httpx.HTTPError, OrchestratorError, json.JSONDecodeError) as exc:
+                        last = f"{type(exc).__name__}: {exc}"[:2000]
+                        record("failed", detail=last)
+                        if attempt < BUSY_RETRIES and _is_busy(last):
+                            # The profile is at its concurrency ceiling, not broken.
+                            # Waiting is the whole fix; failing here would drop a
+                            # batch whose only problem was arriving at the same
+                            # moment as another one. Every attempt is audited.
+                            time.sleep(BUSY_BACKOFF_SECONDS * (attempt + 1))
+                            continue
+                        # Anything else is this model saying no. The next one in
+                        # the chain gets the same payload.
+                        break
+                if body is not None:
+                    break
+            if body is not None:
                 break
-            except (httpx.HTTPError, OrchestratorError, json.JSONDecodeError) as exc:
-                detail = f"{type(exc).__name__}: {exc}"[:2000]
-                if attempt < BUSY_RETRIES and _is_busy(detail):
-                    # The profile is at its concurrency ceiling, not broken. Waiting
-                    # is the whole fix; failing here would silently drop a batch of
-                    # work whose only problem was arriving at the same moment as
-                    # another one. Every attempt is still audited.
-                    record("failed", detail=detail)
-                    time.sleep(BUSY_BACKOFF_SECONDS * (attempt + 1))
-                    continue
-                raise OrchestratorError(
-                    f"{detail} (egress {record('failed', detail=detail)})"
-                ) from exc
+            if round_number + 1 < CHAIN_ROUNDS:
+                # Nobody answered. That is a different thing from a busy moment,
+                # and it is worth a longer wait before asking again.
+                time.sleep(CHAIN_BACKOFF_SECONDS)
+
+        if body is None:
+            raise OrchestratorError(
+                f"{last} (every model in {list(chain)} refused"
+                f" {CHAIN_ROUNDS} times; egress {record('failed', detail=last)})"
+            )
 
         request_tokens, response_tokens = self._tokens(body)
         egress_id = record(
@@ -407,6 +464,7 @@ class ModelGateway:
         )
         return ModelResult(
             outcome="succeeded",
+            model=chosen,
             content=content,
             request_tokens=request_tokens,
             response_tokens=response_tokens,

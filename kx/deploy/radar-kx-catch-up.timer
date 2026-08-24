@@ -1,0 +1,19 @@
+[Unit]
+Description=Turn a fetched radar issue into decisions waiting for the owner
+
+[Timer]
+# Once a day, an hour after the issue is usually in. The perimeter poll runs
+# every thirty minutes and the ingest behind it, so by 09:00 MSK what the issue
+# brought is fetched and has full text.
+#
+# Daily rather than hourly on purpose: this is the one scheduled thing that
+# spends money, and a pass that runs while the previous one is still working
+# would cross the profile's ten-concurrent ceiling. `Persistent=true` means a
+# host that was off at 09:00 catches up when it comes back, once.
+OnCalendar=*-*-* 06:00:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+Unit=radar-kx-catch-up.service
+
+[Install]
+WantedBy=timers.target

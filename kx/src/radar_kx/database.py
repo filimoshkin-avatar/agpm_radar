@@ -5725,6 +5725,48 @@ class Database:
                     written["read"] += cursor.rowcount
         return written
 
+    def egress_call_count(self) -> int:
+        """How many model calls have been made, ever.
+
+        The ceiling on a scheduled run is enforced against this rather than
+        against a prediction: every call leaves a row here whatever its outcome,
+        so what a pass actually spent is countable between passes.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT count(*) AS total FROM kx.egress_audit")
+            return int(cast(int, one_row(cursor)["total"]))
+
+    def catch_up_pending(self) -> dict[str, int]:
+        """What each pass still has in front of it, for the journal line."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                  (SELECT count(*) FROM kx.document_versions AS versions
+                    WHERE versions.is_complete
+                      AND EXISTS (
+                          SELECT 1 FROM kx.issue_perimeter_documents AS perimeter
+                          WHERE perimeter.document_id = versions.document_id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.claims WHERE claims.version_id = versions.version_id
+                      )) AS to_extract,
+                  (SELECT count(*) FROM kx.claims
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM kx.claim_reading AS reading
+                        WHERE reading.claim_id = claims.claim_id
+                    )) AS to_read,
+                  (SELECT count(*) FROM kx.claims
+                    JOIN kx.claim_reading AS reading USING (claim_id)
+                    WHERE reading.admission <> 'rejected'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.entity_reads AS looked
+                          WHERE looked.claim_id = claims.claim_id
+                      )) AS to_name
+                """
+            )
+            return {key: int(cast(int, value)) for key, value in one_row(cursor).items()}
+
     def entity_report(self) -> dict[str, Any]:
         """What the base now knows about who and what it talks about."""
         with self.connect() as connection, connection.cursor() as cursor:

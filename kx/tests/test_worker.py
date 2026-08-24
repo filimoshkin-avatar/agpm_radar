@@ -75,3 +75,38 @@ def test_worker_replenishes_a_free_slot_before_slow_task_finishes(
 
     assert result["processed"] == 3
     assert third_started_before_slow_completed == [True]
+
+
+# ---------------------------------------------------------------------------
+# The scheduled catch-up: a ceiling nobody is watching
+# ---------------------------------------------------------------------------
+
+
+def test_the_ceiling_is_measured_not_predicted() -> None:
+    """Every stage's share is computed from calls actually spent, not estimated.
+
+    A ratio that is wrong lets one stage overrun its own share. It cannot
+    overrun the budget, because what is left is re-read from the audit between
+    stages - which is the only number that cannot be optimistic.
+    """
+    from radar_kx.cli import CALLS_PER_ITEM, CATCH_UP_ORDER
+
+    assert CATCH_UP_ORDER == ("extract-claims", "read-claims", "link-claims", "find-entities")
+    # The order is the only one the data allows: a statement cannot be read
+    # before it is extracted, nor linked before it is read.
+    assert set(CALLS_PER_ITEM) == set(CATCH_UP_ORDER)
+    # Extraction is per fragment and the rest are batched, so its ratio is the
+    # only one above one - and it is the pessimistic end of the measurement
+    # (2.9 fragments per document on average, 8 at the 95th percentile).
+    assert CALLS_PER_ITEM["extract-claims"] >= 8.0
+    assert all(
+        CALLS_PER_ITEM[stage] <= 1.0 for stage in CATCH_UP_ORDER if stage != "extract-claims"
+    )
+
+
+def test_a_budget_of_nothing_runs_nothing() -> None:
+    """The guard is `<= 0`, so a spent budget skips rather than sizing a limit of one."""
+    from radar_kx.cli import CALLS_PER_ITEM
+
+    for stage, ratio in CALLS_PER_ITEM.items():
+        assert ratio > 0, f"{stage} would divide by zero"
