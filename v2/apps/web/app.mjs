@@ -1807,8 +1807,8 @@ function chatToolCardHtml(card) {
         </summary>
         <div class="agent-tool__body">${pairs.slice(0, 5).map(pair => `
           <div class="agent-versus">
-            <div class="agent-versus__side"><p class="agent-versus__claim">${escapeHtml(pair.left_statement || pair.left || "")}</p></div>
-            <div class="agent-versus__side agent-versus__side--contra"><p class="agent-versus__claim">${escapeHtml(pair.right_statement || pair.right || "")}</p></div>
+            <div class="agent-versus__side"><p class="agent-versus__claim">${escapeHtml(pair.first_statement || "")}</p></div>
+            <div class="agent-versus__side agent-versus__side--contra"><p class="agent-versus__claim">${escapeHtml(pair.second_statement || "")}</p></div>
           </div>`).join("") || `<p class="agent-waiting">Пар не нашлось.</p>`}
         </div>
       </details>`;
@@ -1843,11 +1843,14 @@ function chatWorkHtml() {
 
 function chatWorkAdvance(work, stage) {
   const step = work.querySelector(`[data-step="${stage.step}"]`);
-  if (step && stage.done) {
-    step.classList.add("is-done");
-    const previous = step.previousElementSibling;
-    if (previous && previous.classList.contains("is-now")) previous.classList.remove("is-now");
-  }
+  if (!step || !stage.done) return;
+  step.classList.remove("is-now");
+  step.classList.add("is-done");
+  // An arrow sits between two steps, so the neighbour to light up is the next
+  // node carrying `data-step`, not the next sibling - which is the arrow.
+  const steps = Array.from(work.querySelectorAll("[data-step]"));
+  const next = steps[steps.indexOf(step) + 1];
+  if (next) next.classList.add("is-now");
 }
 
 /** Read the SSE frames the service sends: `event: name` + `data: json`, one
@@ -1943,6 +1946,18 @@ async function agentAsk(question) {
 /** Levels are free: the disclosure button only unhides evidence that arrived
  *  with the answer, so the thread is delegated here once, not per turn. */
 document.getElementById("agentThread")?.addEventListener("click", event => {
+  // A footnote whose target sits in a hidden block goes nowhere: open the
+  // evidence first, and let the anchor do its own scrolling afterwards.
+  const cite = event.target.closest(".agent-cite");
+  if (cite) {
+    const card = cite.closest(".agent-answer__card");
+    const block = card?.querySelector(".agent-evidence");
+    if (block && block.hidden) {
+      block.hidden = false;
+      card.querySelector(".agent-level[data-toggle]")?.classList.add("is-open");
+    }
+    return;
+  }
   const button = event.target.closest(".agent-level[data-toggle]");
   if (!button) return;
   const block = document.getElementById(button.dataset.toggle);

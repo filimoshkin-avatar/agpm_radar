@@ -38,14 +38,10 @@ class FakeElement {
   remove() {}
   /* The conversation builds its conveyor with document.createElement and then
      asks the node for its steps; a string of HTML cannot be parsed here, so a
-     step selector hands back a stub with no previous sibling, which is exactly
-     what the first step legitimately has. */
+     step selector hands back a stub, and the list of steps comes back empty -
+     the conveyor advances over nothing, which is what a one-step turn does. */
   querySelector(selector) {
-    if (selector.startsWith("[data-step")) {
-      const stub = new FakeElement();
-      stub.previousElementSibling = null;
-      return stub;
-    }
+    if (selector.startsWith("[data-step")) return new FakeElement();
     return null;
   }
   querySelectorAll() { return []; }
@@ -418,6 +414,32 @@ await settle();
 for (const marker of ["знаки 100–158", "канон", "пересказ → Gartner", "дата публикации"]) {
   if (!observatory.innerHTML.includes(marker)) fail(`a snake_case row lost "${marker}"`);
 }
+
+// A tool card is the base's own data, so it must reach the reader in the shape
+// the base sends it: the pair fields are `first_`/`second_`, and a card that
+// reads any other name renders two empty columns and says nothing.
+globalThis.fetch = async raw => {
+  requests.push(String(raw));
+  return {
+    ok: true,
+    status: 200,
+    async json() {
+      return {
+        ...ANSWER,
+        tool: "contra",
+        toolCards: [{ type: "contradictions", data: CONTRADICTIONS }],
+      };
+    },
+  };
+};
+elements.get("agentQuestion").value = "где база видит разногласия?";
+await elements.get("agentForm").handler({ preventDefault() {} });
+await settle();
+const carded = elements.get("agentThread").innerHTML;
+if (!carded.includes("порог автономии определяет границу"))
+  fail("a contradiction card lost the first side");
+if (!carded.includes("порога не существует"))
+  fail("a contradiction card lost the second side");
 
 // A refusal is still an answer with a notice, and never a blank panel.
 globalThis.fetch = async raw => {
