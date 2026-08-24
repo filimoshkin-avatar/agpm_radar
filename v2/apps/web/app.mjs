@@ -1671,6 +1671,9 @@ let chatReady = false;
 let chatAbort = null;
 let chatUnread = 0;
 let chatListener = null;
+//: Мини-графы ответов живут, пока жива нить. Нить вычищается - их надо снести
+//: руками: контейнер исчезает, а слушатели экземпляра остаются.
+const chatMinis = new Map();
 
 /** The session lives on the reader's device: the owner's decision is that
  *  questions and answers are analysis material without addresses, so the
@@ -1704,11 +1707,14 @@ function chatNearBottom() {
   }
 }
 
-function chatFollowBottom(node) {
+function chatFollowBottom(node, { counts = true } = {}) {
   if (chatNearBottom()) {
     node?.scrollIntoView({ behavior: "smooth", block: "end" });
     return;
   }
+  // The reader's own question is not news to them: only a finished answer is
+  // worth a number in the pill.
+  if (!counts) return;
   chatUnread += 1;
   chatDownSync();
 }
@@ -1766,6 +1772,17 @@ document.getElementById("chatNav")?.addEventListener("click", event => {
 function agentChatInit() {
   if (chatReady) return;
   chatReady = true;
+  // Reaching the bottom unaided is the same answer as clicking the pill: the
+  // count stood for «there is something below you», and now there is not.
+  // Attached on first open rather than at module evaluation - a reader who
+  // never opens the chat gets no global listener, and a host without
+  // `window.addEventListener` must not take the whole file down with it.
+  window.addEventListener?.("scroll", () => {
+    if (chatUnread && chatNearBottom()) {
+      chatUnread = 0;
+      chatDownSync();
+    }
+  }, { passive: true });
   if (!chatSession) {
     try { chatSession = crypto.randomUUID(); } catch (error) { chatSession = "s-" + Date.now(); }
   }
@@ -2105,7 +2122,7 @@ async function agentAsk(question) {
   const workNode = work.firstElementChild;
   wrapper.appendChild(workNode);
   workNode.querySelector('[data-step="search"]')?.classList.add("is-now");
-  chatFollowBottom(wrapper);
+  chatFollowBottom(wrapper, { counts: false });
   const input = chatInput();
   if (input) input.value = "";
   chatComposerSync();
@@ -2279,6 +2296,17 @@ function chatOpenLinks(query) {
   agentLoadGraph(query);
 }
 
+function chatMinisDestroy() {
+  chatMinis.forEach(instance => {
+    try {
+      instance.destroy();
+    } catch (error) {
+      /* a thread being cleared owes nothing to its sketches */
+    }
+  });
+  chatMinis.clear();
+}
+
 function chatMiniGraph(index, host) {
   const turn = chatTurns[index];
   const evidence = Array.isArray(turn?.answered?.evidence) ? turn.answered.evidence : [];
@@ -2301,9 +2329,8 @@ function chatMiniGraph(index, host) {
       claim: row.claim_id || row.claimId || ""
     }
   }));
-  const topicLabels = new Set();
-  evidence.forEach(row => (row.topics || []).forEach(topic => topicLabels.add(topic)));
-  const topics = [...topicLabels].map((label, order) => ({
+  const ranked = chatTopicsRanked(evidence).slice(0, CHAT_TOPICS_SHOWN);
+  const topics = ranked.map((label, order) => ({
     data: { id: `t${order}`, label: chatShort(label, 24), topic: label }
   }));
   const edges = [];
@@ -2337,6 +2364,7 @@ function chatMiniGraph(index, host) {
     const claim = event.target.data("claim");
     if (claim) chatOpenLinks(`claim=${encodeURIComponent(claim)}`);
   });
+  chatMinis.set(index, mini);
 }
 
 function chatTopClaim(evidence) {
@@ -2368,14 +2396,29 @@ function chatSubTeaser(label) {
     </button>`;
 }
 
+//: Measured on production: one answer carried fifteen subjects. A row without a
+//: ceiling is a wall, and the rest of this file shows five of anything.
+const CHAT_TOPICS_SHOWN = 8;
+
+/** The subjects an answer's evidence lands on, most-connected first, so a cut
+ *  row keeps the ones that actually hold the answer together. */
+function chatTopicsRanked(evidence) {
+  const weight = new Map();
+  (evidence || []).forEach(row =>
+    (row.topics || []).forEach(topic => weight.set(topic, (weight.get(topic) || 0) + 1)));
+  return [...weight.entries()].sort((a, b) => b[1] - a[1]).map(entry => entry[0]);
+}
+
 function chatTopicsRow(evidence) {
-  const titles = new Set();
-  (evidence || []).forEach(row => (row.topics || []).forEach(topic => titles.add(topic)));
-  if (!titles.size) return "";
+  const titles = chatTopicsRanked(evidence);
+  if (!titles.length) return "";
+  const shown = titles.slice(0, CHAT_TOPICS_SHOWN);
+  const hidden = titles.length - shown.length;
   return `
     <div class="agent-answer__topics">
       <span class="agent-ask__label">темы ответа:</span>
-      ${[...titles].map(chatSubTeaser).join("")}
+      ${shown.map(chatSubTeaser).join("")}
+      ${hidden ? `<span class="agent-sub__more mono" title="${escapeHtml(titles.slice(CHAT_TOPICS_SHOWN).join(", "))}">и ещё ${hidden}</span>` : ""}
       <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
     </div>`;
 }
@@ -2393,6 +2436,7 @@ chatInput()?.addEventListener("keydown", event => {
 document.getElementById("morePrompts")?.addEventListener("click", agentLoadPrompts);
 
 document.getElementById("newDialog")?.addEventListener("click", () => {
+  chatMinisDestroy();
   chatTurns = [];
   chatUnread = 0;
   chatDownSync();

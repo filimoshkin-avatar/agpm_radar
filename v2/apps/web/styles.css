@@ -2175,6 +2175,13 @@ body.is-agent .agent-view { display: block; }
 .agent-sub svg { opacity: 0.75; }
 .agent-sub:hover { border-color: var(--accent); color: var(--accent); }
 
+.agent-sub__more {
+  font-size: 11.5px;
+  color: var(--secondary);
+  align-self: center;
+  cursor: default;
+}
+
 .agent-sub__note {
   font-size: 11.5px;
   color: var(--muted);
