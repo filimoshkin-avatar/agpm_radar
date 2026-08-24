@@ -1442,10 +1442,44 @@ async function kbFetch(path, options) {
   return response.json();
 }
 
+/** One shape, whichever end it came from.
+ *
+ * The panels return database rows in snake_case; `/kb/ask` returns numbered
+ * evidence serialised by the answer layer in camelCase. The renderer used to read
+ * snake_case only, so every answer in the Ask tab quietly lost its labels, its
+ * date and its character range - the three levels of disclosure below the answer
+ * itself. Normalising once here is the fix; a fallback at each use site is how it
+ * broke, because three of the fields got one and the rest did not.
+ */
+function agentRow(row) {
+  const pick = (...names) => {
+    for (const name of names) {
+      if (row[name] !== undefined && row[name] !== null) return row[name];
+    }
+    return undefined;
+  };
+  return {
+    claimId: pick("claim_id", "claimId"),
+    statement: pick("statement"),
+    quote: pick("quote_text", "quote"),
+    charStart: pick("char_start", "charStart"),
+    charEnd: pick("char_end", "charEnd"),
+    sourceUrl: pick("source_url", "sourceUrl"),
+    sourceTitle: pick("source_title", "sourceTitle"),
+    materialKind: pick("material_kind", "materialKind"),
+    status: pick("status"),
+    primarySource: pick("primary_source", "primarySource") || "",
+    isRetelling: Boolean(pick("is_retelling", "isRetelling")),
+    shownOn: pick("shown_on", "shownOn"),
+    shownKind: pick("shown_kind", "shownKind"),
+    matchedBy: pick("matched_by", "matchedBy") || []
+  };
+}
+
 function agentDate(row) {
-  if (!row.shown_on) return "";
-  const kind = row.shown_kind === "published" ? "дата публикации" : "дата обнаружения радаром";
-  return `${row.shown_on} · ${kind}`;
+  if (!row.shownOn) return "";
+  const kind = row.shownKind === "published" ? "дата публикации" : "дата обнаружения радаром";
+  return `${row.shownOn} · ${kind}`;
 }
 
 /** The labels the owner requires beside every unit: kind, status, whose claim. */
@@ -1455,11 +1489,11 @@ function agentLabels(row) {
     const cls = AGENT_STATUS_CLASS[row.status] || "agent-label--far";
     parts.push(`<span class="agent-label ${cls}"><span class="dot"></span>${escapeHtml(AGENT_STATUS_LABEL[row.status] || row.status)}</span>`);
   }
-  if (row.material_kind) {
-    parts.push(`<span class="agent-label">${escapeHtml(AGENT_KIND_LABEL[row.material_kind] || row.material_kind)}</span>`);
+  if (row.materialKind) {
+    parts.push(`<span class="agent-label">${escapeHtml(AGENT_KIND_LABEL[row.materialKind] || row.materialKind)}</span>`);
   }
-  if (row.is_retelling && row.primary_source) {
-    parts.push(`<span class="agent-label agent-label--retelling">пересказ → ${escapeHtml(row.primary_source)}</span>`);
+  if (row.isRetelling && row.primarySource) {
+    parts.push(`<span class="agent-label agent-label--retelling">пересказ → ${escapeHtml(row.primarySource)}</span>`);
   }
   return parts.join("");
 }
@@ -1472,13 +1506,14 @@ function agentMatchedBy(matched) {
 }
 
 /** One statement at levels 2, 3 and 4 - labels, quotation with its range, source. */
-function agentStatementCard(row, ordinal) {
+function agentStatementCard(raw, ordinal) {
+  const row = agentRow(raw);
   const number = ordinal ? `<span class="mono agent-ordinal">[${ordinal}]</span>` : "";
-  const range = Number.isInteger(row.char_start) && Number.isInteger(row.char_end)
-    ? `<span class="mono agent-range">знаки ${row.char_start}–${row.char_end}</span>`
+  const range = Number.isInteger(row.charStart) && Number.isInteger(row.charEnd)
+    ? `<span class="mono agent-range">знаки ${row.charStart}–${row.charEnd}</span>`
     : "";
   return `
-    <article class="card agent-statement" data-claim="${escapeHtml(row.claim_id)}">
+    <article class="card agent-statement" data-claim="${escapeHtml(row.claimId || "")}">
       <div class="agent-statement__labels">
         ${number}${agentLabels(row)}
         <span class="agent-spacer"></span>
@@ -1486,13 +1521,13 @@ function agentStatementCard(row, ordinal) {
       </div>
       ${row.statement ? `<p class="agent-statement__text">${escapeHtml(row.statement)}</p>` : ""}
       <blockquote class="agent-quote">
-        <p>${escapeHtml(row.quote_text || row.quote || "")}</p>
-        <div class="agent-quote__meta">${range}${agentMatchedBy(row.matched_by || row.matchedBy)}</div>
+        <p>${escapeHtml(row.quote || "")}</p>
+        <div class="agent-quote__meta">${range}${agentMatchedBy(row.matchedBy)}</div>
       </blockquote>
       <div class="agent-statement__source">
         <span class="agent-statement__sourcelabel">Источник:</span>
-        <a href="${escapeHtml(safeExternalUrl(row.source_url || row.sourceUrl))}" target="_blank" rel="noopener noreferrer">
-          ${escapeHtml(row.source_title || row.source_url || row.sourceUrl || "источник")}
+        <a href="${escapeHtml(safeExternalUrl(row.sourceUrl))}" target="_blank" rel="noopener noreferrer">
+          ${escapeHtml(row.sourceTitle || row.sourceUrl || "источник")}
         </a>
       </div>
     </article>`;
@@ -1507,7 +1542,7 @@ async function agentAsk(question) {
     const answered = await kbFetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question })
+      body: JSON.stringify({ question, admission: agentState.admission })
     });
     if (answered.error) {
       box.innerHTML = `<p class="agent-waiting">${escapeHtml(answered.error)}</p>`;
@@ -1516,7 +1551,15 @@ async function agentAsk(question) {
     const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
     const body = answered.answer
       ? `<p class="agent-answer__text">${escapeHtml(answered.answer)}</p>`
-      : `<p class="agent-answer__text agent-answer__text--refused">В базе нет подтверждений, на которых можно построить ответ. Ниже — что нашлось рядом.</p>`;
+      : `<p class="agent-answer__text agent-answer__text--refused">${escapeHtml(
+          answered.refusalReason === "rate_limited_client"
+            ? "Слишком много вопросов подряд. Попробуйте через несколько минут."
+            : answered.refusalReason === "rate_limited_today"
+              ? "На сегодня лимит ответов исчерпан. Поиск и разделы работают."
+              : evidence.length
+                ? "В базе нет подтверждений, на которых можно построить ответ. Ниже — то, что нашлось рядом."
+                : "В базе нет подтверждений, на которых можно построить ответ."
+        )}</p>`;
     box.innerHTML = `
       <div class="agent-answer__card">
         <div class="agent-answer__notice">

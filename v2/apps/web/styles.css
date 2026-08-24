@@ -1199,13 +1199,18 @@ body.is-agent .agent-view { display: block; }
 .agent-tabs {
   display: inline-flex;
   align-self: flex-start;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
-  overflow: hidden;
+  /* Scrolls rather than clips: five single-word tabs are wider than a 360px
+     phone, and `overflow: hidden` put "Пробелы" outside the box unreachable. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .agent-tab {
   height: 32px;
+  flex: 0 0 auto;
   padding: 0 14px;
   border: 0;
   border-left: 1px solid var(--line);
@@ -1217,6 +1222,12 @@ body.is-agent .agent-view { display: block; }
 .agent-tab.is-active { background: var(--text); color: var(--bg); }
 
 .agent-panel { display: flex; flex-direction: column; gap: 14px; }
+
+/* An author `display` beats a UA `[hidden]` rule that is not
+   !important, and not every engine's is. Without this the tabs
+   accumulate on screen instead of switching. */
+.agent-panel[hidden] { display: none; }
+.agent-view[hidden] { display: none; }
 
 .agent-ask {
   display: flex;
@@ -1331,7 +1342,13 @@ body.is-agent .agent-view { display: block; }
 .agent-label--far { background: rgba(107, 104, 128, .12); color: var(--far); font-weight: 600; }
 .agent-label--retelling { background: rgba(169, 107, 18, .12); color: var(--accent); font-weight: 600; }
 
-.agent-statement__text { margin: 0; font-size: 14.5px; line-height: 1.5; font-weight: 500; }
+.card .agent-statement__text {
+  margin: 0;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.5;
+  font-weight: 500;
+}
 
 .agent-quote {
   margin: 0;
@@ -1419,8 +1436,18 @@ body.is-agent .agent-view { display: block; }
 }
 
 .agent-gap { display: flex; flex-direction: column; gap: 7px; border-left: 2px solid var(--accent); }
-.agent-gap__missing { margin: 0; font-size: 12px; font-weight: 600; color: var(--accent); }
-.agent-gap__statement { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.card .agent-gap__missing {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.card .agent-gap__statement {
+  margin: 0;
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
 
 .agent-licence {
   margin: 8px 0 0;

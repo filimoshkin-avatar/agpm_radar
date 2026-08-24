@@ -31,7 +31,9 @@ ALLOWED = {
     # The answer cache reads its own rows; decision 9 keeps the chat for analysis.
     ("kx", "research_answers", "SELECT"),
     ("kx", "research_answers", "INSERT"),
-    # A model call must leave an audit row. Nothing reads it back.
+    # A model call must leave an audit row. The SELECT that `RETURNING egress_id`
+    # needs is granted on that one column, so it is a column privilege and does
+    # not appear here - `test_the_audit_row_can_actually_be_written` covers it.
     ("kx", "egress_audit", "INSERT"),
 }
 
@@ -87,6 +89,40 @@ def test_the_corpus_vectors_are_out_of_reach(least_privilege_dsn: str) -> None:
         # The narrowing is in the view, not in whoever queries it: a caller that
         # forgets the filter gets nothing rather than the corpus.
         assert "'claim_evidence'" in str(row["body"])
+
+
+def test_the_audit_row_can_actually_be_written(least_privilege_dsn: str) -> None:
+    """Grants that look right and break the code path are the dangerous kind.
+
+    Revoking the table-wide SELECT on `egress_audit` passed every grant assertion
+    and took the live answer endpoint down: `record_egress` ends `RETURNING
+    egress_id`, and a RETURNING clause needs SELECT on the columns it names. So
+    this test exercises the statement rather than the privilege.
+    """
+    with connect(least_privilege_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute("SET ROLE radar_kb_public")
+        cursor.execute(
+            """
+            INSERT INTO kx.egress_audit
+                (provider, model, purpose, payload_chars, payload_sha256, outcome,
+                 worker_release)
+            VALUES ('zai', 'glm-5.2', 'test', 1, %s, 'succeeded', 'test')
+            RETURNING egress_id
+            """,
+            ("0" * 64,),
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["egress_id"]
+        # And still no reading of anybody else's call.
+        cursor.execute("RESET ROLE")
+        cursor.execute(
+            "SELECT has_column_privilege('radar_kb_public', 'kx.egress_audit',"
+            " 'error_detail', 'SELECT') AS allowed"
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["allowed"] is False
 
 
 def test_the_public_search_reads_the_narrowed_view(least_privilege_dsn: str) -> None:

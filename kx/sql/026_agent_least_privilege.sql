@@ -14,7 +14,13 @@ SET search_path = kx, public;
 --   research_answers    SELECT   needed: the answer cache reads its own rows
 --                       INSERT   needed: decision 9 keeps the chat for analysis
 --   egress_audit        INSERT   needed: a model call must leave an audit row
---                       SELECT   NOT needed - nothing reads it back
+--                       SELECT   needed on ONE column, and only for that INSERT:
+--                                `record_egress` ends `RETURNING egress_id`, and
+--                                PostgreSQL checks SELECT on every column a
+--                                RETURNING clause names. Revoking the table-wide
+--                                SELECT without noticing that took the public
+--                                answer endpoint down with "permission denied
+--                                for table egress_audit" - on an INSERT
 --   embedding_models    SELECT   NOT needed - nothing joins it on this path
 --   text_embeddings     SELECT   needed by the semantic arm, but far too wide:
 --                                it carries 19 851 chunk vectors of the whole
@@ -32,7 +38,9 @@ SET search_path = kx, public;
 --   agent.statement_vector  one vector per admitted statement, for the search
 --   kx.metadata        SELECT - the version gate every command runs first
 --   kx.research_answers SELECT, INSERT - the answer cache and its journal
---   kx.egress_audit    INSERT only - the record that a model call happened
+--   kx.egress_audit    INSERT, plus SELECT on `egress_id` alone - the record
+--                      that a model call happened, and the id its own INSERT
+--                      hands back. The other fourteen columns stay unreadable.
 -- ---------------------------------------------------------------------------
 
 -- The semantic arm needs a vector per statement, and nothing else. Restricting it
@@ -58,7 +66,11 @@ GRANT SELECT ON agent.statement_vector TO radar_kb_public;
 
 REVOKE SELECT ON kx.text_embeddings FROM radar_kb_public;
 REVOKE SELECT ON kx.embedding_models FROM radar_kb_public;
+-- Not the whole table: `record_egress` writes with `RETURNING egress_id`, and a
+-- RETURNING clause needs SELECT on the columns it names. One column is the
+-- smallest grant that lets the audit row be written at all.
 REVOKE SELECT ON kx.egress_audit FROM radar_kb_public;
+GRANT SELECT (egress_id) ON kx.egress_audit TO radar_kb_public;
 
 UPDATE metadata SET value = '26'::jsonb, updated_at = clock_timestamp()
 WHERE key = 'schema_version';

@@ -99,13 +99,39 @@ const STATEMENT = {
   matched_by: ["слова", "смысл"],
 };
 
+// EXACTLY what `/kb/ask` returns: `EvidenceElement.as_json()` merged with
+// `Labels.as_json()`, which is camelCase throughout. The first version of this
+// fixture spread the snake_case database row instead, so the four assertions
+// below passed while the live Ask tab was silently dropping every label, the
+// date and the character range. A fixture in a shape the server never sends
+// certifies the client against a server that does not exist.
+const ASK_EVIDENCE = {
+  n: 1,
+  claimId: "c1",
+  quote: "Порог автономии определяет границу между классами решений.",
+  sourceUrl: "https://example.org/a",
+  charStart: 100,
+  charEnd: 158,
+  relevance: 0.5,
+  audience: "public",
+  materialKind: "fact",
+  admission: "knowledge",
+  status: "canon",
+  primarySource: "Gartner",
+  isRetelling: true,
+  shownOn: "2026-06-01",
+  shownKind: "published",
+  topics: ["Пороги автономии"],
+  matchedBy: ["слова", "смысл"],
+};
+
 const ANSWER = {
   question: "что такое порог автономии",
   answer: "Порог автономии — решение организации.",
   refusalReason: null,
   machineNotice: "Машинный ответ, не редакция базы.",
   signature: "AgPM Radar, машинная сборка",
-  evidence: [{ ...STATEMENT, n: 1, quote: STATEMENT.quote_text, sourceUrl: STATEMENT.source_url }],
+  evidence: [ASK_EVIDENCE],
 };
 
 globalThis.fetch = async (raw, options) => {
@@ -169,6 +195,29 @@ for (const [tab, path, marker] of [
   if (!requests.includes(path)) fail(`the ${tab} tab did not fetch ${path}`);
   const panel = elements.get({ observatory: "agentObservatory", topics: "agentTopics", wiki: "agentWiki", gaps: "agentGaps" }[tab]);
   if (!panel.innerHTML.includes(marker)) fail(`the ${tab} tab rendered nothing recognisable`);
+}
+
+// The panels speak snake_case and the answer speaks camelCase. Both must render
+// the same labels, which is why the client normalises at one boundary instead of
+// falling back field by field - three fields got a fallback and the rest did not,
+// and the Ask tab lost every label in production while this file stayed green.
+globalThis.fetch = async raw => {
+  requests.push(String(raw));
+  return {
+    ok: true,
+    status: 200,
+    async json() {
+      return { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
+    },
+  };
+};
+const observatory = elements.get("agentObservatory");
+observatory.dataset.loaded = "";
+observatory.innerHTML = "";
+click({ dataset: { agentTab: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
+await settle();
+for (const marker of ["знаки 100–158", "канон", "пересказ → Gartner", "дата публикации"]) {
+  if (!observatory.innerHTML.includes(marker)) fail(`a snake_case row lost "${marker}"`);
 }
 
 // A refusal is still an answer with a notice, and never a blank panel.

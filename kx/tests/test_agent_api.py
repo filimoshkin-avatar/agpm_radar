@@ -321,3 +321,24 @@ def test_a_limit_from_a_url_cannot_be_raised_without_bound() -> None:
     assert _int("99999999", 10) == MAX_HITS
     assert _int("7", 10) == 7
     assert _int("0", 10) == 1
+
+
+def test_the_reader_chooses_which_half_of_the_base_is_searched() -> None:
+    """Decision 3 keeps knowledge and the chronicle apart; the chip picks one.
+
+    The chips used to be decorative: the client never sent the choice and the
+    service hard-coded `knowledge`, so selecting "хронике рынка" and asking about
+    a market event returned a refusal with the chip lit.
+    """
+    talking = service(cached_answer=None, agent_search=[])
+    talking.ask("что случилось на рынке", admission="observatory")
+    name, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
+    assert name == "agent_search"
+    assert kwargs["filters"]["admission"] == "observatory"
+
+
+def test_an_admission_nobody_named_does_not_widen_the_search() -> None:
+    talking = service(cached_answer=None, agent_search=[])
+    talking.ask("вопрос", admission="everything")
+    _, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
+    assert kwargs["filters"]["admission"] == "knowledge"

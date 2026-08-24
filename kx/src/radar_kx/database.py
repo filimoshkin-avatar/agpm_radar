@@ -113,6 +113,10 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: observation, and the reading pass is what makes that countable.
 PROMOTION_FLOOR = 2
 
+#: How many events of each class the observatory shows. Per class, because the
+#: whole point of decision 4 is that a reader sees the classes side by side.
+OBSERVATORY_PER_CLASS = 60
+
 SCHEMA_VERSION = 26
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
@@ -5462,6 +5466,11 @@ class Database:
     ) -> list[dict[str, Any]]:
         """A cut by class of event over a period (decision 4), not a feed.
 
+        The cap is per class. A single cap over the whole cut, after ordering by
+        class name, handed the alphabetically first class the entire budget - so
+        a "cut by class of event" returned exactly one class and looked, from the
+        outside, like a base that had only ever seen кейсы.
+
         Sorted newest first inside each class, and every row says which date it is
         showing - the source's own, or the day the radar found it. A chronicle
         that mixes the two silently dates an article to the day somebody crawled
@@ -5473,15 +5482,27 @@ class Database:
                 SELECT claim_id, statement, quote_text, source_url, source_title,
                        material_kind, primary_source, is_retelling,
                        shown_on, shown_kind, status
-                FROM agent.statement
-                WHERE admission = 'observatory'
-                  AND (%s::date IS NULL OR shown_on >= %s::date)
-                  AND (%s::date IS NULL OR shown_on <= %s::date)
-                  AND (%s::text IS NULL OR material_kind = %s::text)
+                FROM (
+                    SELECT statement.*,
+                           row_number() OVER (
+                               PARTITION BY statement.material_kind
+                               ORDER BY statement.shown_on DESC NULLS LAST,
+                                        statement.claim_id
+                           ) AS within_class
+                    FROM agent.statement AS statement
+                    WHERE statement.admission = 'observatory'
+                      AND (%s::date IS NULL OR statement.shown_on >= %s::date)
+                      AND (%s::date IS NULL OR statement.shown_on <= %s::date)
+                      AND (%s::text IS NULL OR statement.material_kind = %s::text)
+                ) AS by_class
+                -- The cap is per class, not over the whole cut. A single LIMIT
+                -- after an alphabetical sort by kind gave the first class the
+                -- entire budget: "срез по классам событий" showed one class and
+                -- the reader had no way to know the others existed.
+                WHERE within_class <= %s
                 ORDER BY material_kind, shown_on DESC NULLS LAST, claim_id
-                LIMIT 400
                 """,
-                (since, since, until, until, kind, kind),
+                (since, since, until, until, kind, kind, OBSERVATORY_PER_CLASS),
             )
             return [dict(row) for row in cursor.fetchall()]
 

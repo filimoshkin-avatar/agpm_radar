@@ -210,7 +210,9 @@ class AgentService:
         )
         return {"query": question[:MAX_QUESTION_CHARS], "hits": hits, "licence": LICENCE}
 
-    def ask(self, question: str, *, client: str = "unknown") -> dict[str, Any]:
+    def ask(
+        self, question: str, *, client: str = "unknown", admission: str = "knowledge"
+    ) -> dict[str, Any]:
         """The agent's own answer, marked as machine-written, with its evidence under it.
 
         The order is the owner's, not the model's: the base retrieves, the model
@@ -223,6 +225,11 @@ class AgentService:
         question = question.strip()[:MAX_QUESTION_CHARS]
         if not question:
             return {"error": "пустой вопрос"}
+        # Decision 3 keeps knowledge and the market chronicle apart, and the
+        # reader chooses which one the question is aimed at. Anything else is
+        # knowledge: an unknown value must not quietly widen the search.
+        if admission not in ("knowledge", "observatory"):
+            admission = "knowledge"
 
         cached = self.database.cached_answer(question, scope="public")
         if cached is not None:
@@ -244,7 +251,7 @@ class AgentService:
 
         hits = self.database.agent_search(
             question,
-            filters={"admission": "knowledge"},
+            filters={"admission": admission},
             limit=PACKAGE_SIZE,
             question_vector=self._vector(question),
         )
@@ -459,9 +466,14 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             except (ValueError, TypeError):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "тело запроса не JSON"})
                 return
-            question = str(payload.get("question", "")) if isinstance(payload, dict) else ""
+            asked = payload if isinstance(payload, dict) else {}
+            question = str(asked.get("question", ""))
+            admission = str(asked.get("admission", "knowledge"))
             try:
-                self._json(HTTPStatus.OK, service.ask(question, client=self._client()))
+                self._json(
+                    HTTPStatus.OK,
+                    service.ask(question, client=self._client(), admission=admission),
+                )
             except OrchestratorError:
                 # The model was unreachable or refused. That is not an answer and
                 # must not look like one - and the reason belongs in the journal,
