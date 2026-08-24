@@ -32,6 +32,8 @@ inside an evidence package.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -52,6 +54,14 @@ from radar_kx.research import (
 from radar_kx.research import parse_answer as parse_research_answer
 
 MAX_BODY_BYTES = 8 * 1024
+
+#: How many model-backed answers one client may ask for in a window, and how many
+#: the service may produce in a day for everyone together. `/kb/ask` reaches a
+#: paid model with no login in front of it, so these two numbers are the whole of
+#: what stands between a `for` loop and the bill.
+ASKS_PER_CLIENT = 10
+ASK_WINDOW_SECONDS = 300.0
+DAILY_ASK_BUDGET = 500
 
 #: Longest question accepted. A question is one question; a page of text pasted
 #: into the box is a way to spend the model budget, not a way to ask.
@@ -76,6 +86,71 @@ LICENCE = (
 )
 
 
+class AskBudget:
+    """What a public, unauthenticated, model-backed endpoint is allowed to spend.
+
+    `/kb/ask` reaches a paid model. It has no login by the owner's decision, so
+    the only thing between a `for` loop and the model bill is this. Two limits,
+    because they fail differently:
+
+    * **per client, per window** - one caller cannot monopolise the endpoint;
+    * **per day, for everyone** - a thousand callers each under the per-client
+      limit still add up, and a budget that only bounds individuals bounds
+      nothing.
+
+    Neither is a security boundary. A client is a proxy header and can be
+    spoofed; the daily cap is what actually holds when it is. Cached answers are
+    free and never counted: the same question asked twice costs one call.
+
+    In-process on purpose. The service is one process on one host, and a shared
+    counter would be a second thing to run and to keep correct for a limit whose
+    whole job is to be approximately right.
+    """
+
+    def __init__(
+        self,
+        *,
+        per_client: int = ASKS_PER_CLIENT,
+        window: float = ASK_WINDOW_SECONDS,
+        per_day: int = DAILY_ASK_BUDGET,
+    ) -> None:
+        self._per_client = per_client
+        self._window = window
+        self._per_day = per_day
+        self._asked: dict[str, list[float]] = {}
+        self._day: tuple[int, int] = (0, 0)
+        self._lock = threading.Lock()
+
+    def _today(self, moment: float) -> int:
+        return int(moment // 86400)
+
+    def refused(self, client: str, *, now: float | None = None) -> str | None:
+        """Why this call may not be made, or `None` if it may.
+
+        Counts the call when it allows it: a check that does not consume is a
+        check every concurrent request passes.
+        """
+        moment = time.time() if now is None else now
+        today = self._today(moment)
+        with self._lock:
+            day, spent = self._day
+            if day != today:
+                day, spent = today, 0
+                self._asked.clear()
+            if spent >= self._per_day:
+                self._day = (day, spent)
+                return "today"
+            recent = [at for at in self._asked.get(client, []) if moment - at < self._window]
+            if len(recent) >= self._per_client:
+                self._asked[client] = recent
+                self._day = (day, spent)
+                return "client"
+            recent.append(moment)
+            self._asked[client] = recent
+            self._day = (day, spent + 1)
+        return None
+
+
 class AgentService:
     """What the agent mode may ask for. Reads; the only writes are its own log."""
 
@@ -85,6 +160,8 @@ class AgentService:
         #: Loaded once on the first question and kept. Loading e5 takes seconds;
         #: doing it per question would make the semantic arm the slow part.
         self._model: Any = None
+        self._model_lock = threading.Lock()
+        self.budget = AskBudget()
 
     # -- level 4: the backbone and the shelves ---------------------------------
 
@@ -133,7 +210,7 @@ class AgentService:
         )
         return {"query": question[:MAX_QUESTION_CHARS], "hits": hits, "licence": LICENCE}
 
-    def ask(self, question: str) -> dict[str, Any]:
+    def ask(self, question: str, *, client: str = "unknown") -> dict[str, Any]:
         """The agent's own answer, marked as machine-written, with its evidence under it.
 
         The order is the owner's, not the model's: the base retrieves, the model
@@ -157,6 +234,13 @@ class AgentService:
                 verification=cached.get("verification"),
                 from_cache=True,
             )
+
+        # Only a question the cache cannot answer costs anything, so the budget
+        # is charged here rather than at the door: asking the same thing twice is
+        # free and should stay free.
+        refused = self.budget.refused(client)
+        if refused is not None:
+            return self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
 
         hits = self.database.agent_search(
             question,
@@ -234,8 +318,9 @@ class AgentService:
         except ImportError:  # pragma: no cover - depends on the runtime
             return None
         try:
-            if self._model is None:
-                self._model = load_model()
+            with self._model_lock:
+                if self._model is None:
+                    self._model = load_model()
             return to_pgvector(encode(self._model, [question], is_query=True)[0])
         except Exception:  # pragma: no cover - a missing model is not a failed answer
             return None
@@ -342,10 +427,31 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "нет такого адреса", "path": path})
 
+        def _client(self) -> str:
+            """Who is asking, as well as a reverse proxy can say.
+
+            Spoofable, and treated as such: this identifies a caller for a speed
+            limit, never for a permission. The daily cap is what holds when the
+            header lies.
+            """
+            forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            return forwarded or self.client_address[0]
+
         def do_POST(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
             if path != "/ask":
                 self._json(HTTPStatus.NOT_FOUND, {"error": "нет такого адреса", "path": path})
+                return
+            # A JSON content type is what makes a cross-origin POST ask the
+            # browser for permission first. Without this check the endpoint is a
+            # form target: any page could spend this service's model budget with
+            # its visitors' browsers, and never even see the answer.
+            content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+            if content_type != "application/json":
+                self._json(
+                    HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                    {"error": "ожидается Content-Type: application/json"},
+                )
                 return
             try:
                 length = min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES)
@@ -355,14 +461,13 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 return
             question = str(payload.get("question", "")) if isinstance(payload, dict) else ""
             try:
-                self._json(HTTPStatus.OK, service.ask(question))
-            except OrchestratorError as error:
+                self._json(HTTPStatus.OK, service.ask(question, client=self._client()))
+            except OrchestratorError:
                 # The model was unreachable or refused. That is not an answer and
-                # must not look like one.
-                self._json(
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    {"error": "модель недоступна", "detail": str(error)[:200]},
-                )
+                # must not look like one - and the reason belongs in the journal,
+                # not in a public response: it carries the provider's own status
+                # line and body fragments.
+                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "модель сейчас недоступна"})
 
         def log_message(self, format: str, *args: Any) -> None:
             """Silence. systemd already timestamps, and a URL carries a question."""
@@ -370,9 +475,15 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
-def _int(value: str | None, default: int) -> int:
+def _int(value: str | None, default: int, *, ceiling: int = MAX_HITS) -> int:
+    """A number from a URL, kept between one and a ceiling.
+
+    The first version capped only the bottom, so `?limit=99999999` returned a
+    whole table in one response. A limit a caller can raise without bound is not
+    a limit.
+    """
     try:
-        return max(1, int(value or default))
+        return max(1, min(ceiling, int(value or default)))
     except ValueError:
         return default
 

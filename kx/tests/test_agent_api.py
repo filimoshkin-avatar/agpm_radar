@@ -13,12 +13,14 @@ from typing import Any
 import pytest
 
 from radar_kx.agent_api import (
+    ASKS_PER_CLIENT,
     LICENCE,
     MACHINE_NOTICE,
     MAX_HITS,
     MAX_QUESTION_CHARS,
     SIGNATURE,
     AgentService,
+    AskBudget,
     _int,
     _query,
 )
@@ -253,3 +255,69 @@ def test_the_four_levels_arrive_together_for_one_statement() -> None:
 def test_the_response_is_json_a_browser_can_read() -> None:
     answered = service(agent_topics=[{"topic_key": "k", "title": "Т", "statements": 3}]).topics()
     assert json.loads(json.dumps(answered, ensure_ascii=False, default=str))["topics"]
+
+
+# ---------------------------------------------------------------------------
+# What stands between a `for` loop and the model bill
+# ---------------------------------------------------------------------------
+
+
+def test_a_client_asking_too_fast_is_refused_without_a_model_call() -> None:
+    """`/ask` reaches a paid model with no login in front of it."""
+    talking = service(cached_answer=None, agent_search=[])
+    for _ in range(ASKS_PER_CLIENT):
+        talking.ask("вопрос " + str(_), client="1.2.3.4")
+    calls_before = len(talking.database.asked)  # type: ignore[attr-defined]
+    answered = talking.ask("ещё один вопрос", client="1.2.3.4")
+    assert answered["refusalReason"] == "rate_limited_client"
+    assert answered["machineNotice"] == MACHINE_NOTICE
+    # And it cost nothing: no retrieval, so no model call behind it.
+    assert len(talking.database.asked) == calls_before + 1  # type: ignore[attr-defined]
+
+
+def test_another_client_is_not_punished_for_the_first_one() -> None:
+    talking = service(cached_answer=None, agent_search=[])
+    for index in range(ASKS_PER_CLIENT):
+        talking.ask(f"вопрос {index}", client="1.2.3.4")
+    answered = talking.ask("свежий вопрос", client="5.6.7.8")
+    assert answered["refusalReason"] != "rate_limited_client"
+
+
+def test_the_day_has_a_ceiling_that_a_thousand_clients_cannot_walk_around() -> None:
+    """A budget that only bounds individuals bounds nothing."""
+    budget = AskBudget(per_client=1000, window=300.0, per_day=3)
+    assert budget.refused("a") is None
+    assert budget.refused("b") is None
+    assert budget.refused("c") is None
+    assert budget.refused("d") == "today"
+
+
+def test_the_budget_resets_the_next_day() -> None:
+    budget = AskBudget(per_client=1, window=300.0, per_day=1)
+    day_one = 1_700_000_000.0
+    assert budget.refused("a", now=day_one) is None
+    assert budget.refused("a", now=day_one + 60) == "today"
+    assert budget.refused("a", now=day_one + 86_400 * 2) is None
+
+
+def test_a_cached_answer_costs_nothing_and_is_never_charged() -> None:
+    """The same question twice is one model call; the budget must not say otherwise."""
+    talking = service(
+        cached_answer={
+            "answer_text": "Ответ.",
+            "refusal_reason": None,
+            "evidence_package": [HIT],
+            "verification": None,
+        }
+    )
+    for _ in range(ASKS_PER_CLIENT * 3):
+        answered = talking.ask("один и тот же вопрос", client="1.2.3.4")
+        assert answered["answer"] == "Ответ."
+        assert answered["fromCache"] is True
+
+
+def test_a_limit_from_a_url_cannot_be_raised_without_bound() -> None:
+    """`?limit=99999999` returned a whole table before there was a ceiling."""
+    assert _int("99999999", 10) == MAX_HITS
+    assert _int("7", 10) == 7
+    assert _int("0", 10) == 1

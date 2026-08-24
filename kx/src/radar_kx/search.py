@@ -520,9 +520,8 @@ ranked_meaning AS (
         SELECT scoped.claim_id,
                vectors.embedding <=> %(question_vector)s::vector AS distance
         FROM scoped
-        JOIN kx.text_embeddings AS vectors
-          ON vectors.owner_kind = 'claim_evidence'
-         AND vectors.owner_key = scoped.claim_id::text
+        JOIN agent.statement_vector AS vectors
+          ON vectors.claim_id = scoped.claim_id::text
          AND vectors.model_id = %(embedding_model)s
         WHERE %(question_vector)s::text IS NOT NULL
         ORDER BY distance

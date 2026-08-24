@@ -53,6 +53,8 @@ MIGRATION_022 = "022_knowledge_units.sql"
 MIGRATION_023 = "023_document_dates.sql"
 MIGRATION_024 = "024_agent_surface.sql"
 MIGRATION_025 = "025_link_judgements.sql"
+#: Written and verified, awaiting the owner's word to apply it.
+MIGRATION_026 = "026_agent_least_privilege.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
     MIGRATION_004,
@@ -195,6 +197,13 @@ def agent_dsn(migrated_dsn: str) -> str:
 @pytest.fixture
 def judged_dsn(migrated_dsn: str) -> str:
     """Alias kept for the tests written against 025 specifically."""
+    return migrated_dsn
+
+
+@pytest.fixture
+def least_privilege_dsn(migrated_dsn: str) -> str:
+    """A database at schema 26 - the narrowed grants, proposed."""
+    _apply(migrated_dsn, (MIGRATION_026,))
     return migrated_dsn
 
 

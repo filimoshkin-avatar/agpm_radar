@@ -1491,7 +1491,7 @@ function agentStatementCard(row, ordinal) {
       </blockquote>
       <div class="agent-statement__source">
         <span class="agent-statement__sourcelabel">Источник:</span>
-        <a href="${escapeHtml(row.source_url || row.sourceUrl || "#")}" target="_blank" rel="noopener noreferrer">
+        <a href="${escapeHtml(safeExternalUrl(row.source_url || row.sourceUrl))}" target="_blank" rel="noopener noreferrer">
           ${escapeHtml(row.source_title || row.source_url || row.sourceUrl || "источник")}
         </a>
       </div>
