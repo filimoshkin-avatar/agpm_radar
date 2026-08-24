@@ -49,3 +49,16 @@ button.act:disabled { opacity: .35; cursor: default; }
 .doc pre code { background: none; padding: 0; }
 .doc blockquote { border-left: 3px solid #c9c2b6; color: #5d574e; padding-left: 14px; margin: 12px 0; }
 .back { display: inline-block; margin-bottom: 14px; font-size: 14px; color: #3f6699; }
+
+/* Справочные вкладки: не ждут решения, поэтому и счётчика у них нет. */
+nav .sep {
+  align-self: center;
+  margin: 0 2px 0 10px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  opacity: .5;
+}
+
+nav button.ref { opacity: .72; }
+nav button.ref.on { opacity: 1; }

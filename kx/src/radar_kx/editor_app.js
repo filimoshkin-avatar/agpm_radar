@@ -23,12 +23,25 @@ async function api(path, options) {
 async function drawNav() {
   const summary = await api("api/summary");
   nav.replaceChildren();
-  for (const queue of summary.queues) {
+  // Two groups, because they answer different questions. The first is "what is
+  // waiting for me"; a reference tab that always reads zero, standing among
+  // them, teaches the eye to skip a zero.
+  const waiting = summary.queues.filter(queue => !queue.reference);
+  const reference = summary.queues.filter(queue => queue.reference);
+  for (const queue of waiting) {
     const button = el("button", queue.key === current ? "on" : "", queue.title);
     const count = el("span", "n", queue.count);
     button.appendChild(count);
     button.addEventListener("click", () => show(queue.key));
     nav.appendChild(button);
+  }
+  if (reference.length) {
+    nav.appendChild(el("span", "sep", "справочно"));
+    for (const queue of reference) {
+      const button = el("button", queue.key === current ? "on ref" : "ref", queue.title);
+      button.addEventListener("click", () => show(queue.key));
+      nav.appendChild(button);
+    }
   }
   const docs = el("button", current === "docs" ? "on" : "", "Документы");
   docs.addEventListener("click", () => showDocs());

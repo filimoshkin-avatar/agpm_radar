@@ -515,18 +515,25 @@ def test_only_the_decisions_that_are_current_are_on_the_wall() -> None:
     # them: 6 leaves the status change to her after the machine proposes it, and
     # 11 says an expired statement joins a review queue and nothing happens on
     # its own. A wall without them would mean both decisions had nowhere to land.
+    # Four questions and one reference. The other four were retired on
+    # 2026-08-24 because the decisions behind them had been made elsewhere - see
+    # each entry's own `reason`.
     assert [queue.key for queue in QUEUES] == [
         "skeleton",
-        "comparison",
         "wiki",
         "promotion",
         "freshness",
+        "hosts",
+    ]
+    assert [queue.key for queue in QUEUES if queue.reference] == ["skeleton"]
+    assert {item.queue.key for item in RETIRED} == {
+        "comparison",
         "families",
         "duplicates",
         "ideas",
-        "hosts",
-    ]
-    assert {item.queue.key for item in RETIRED} == {"evidence", "aliases"}
+        "evidence",
+        "aliases",
+    }
     # Retired means off the wall, not half-off: the API refuses the key too.
     assert all(item.queue.key not in QUEUES_BY_KEY for item in RETIRED)
     # And each one says what would put it back, so this is a decision and not a loss.
@@ -554,11 +561,13 @@ def test_the_queue_can_render_what_the_comparison_records(placed: dict[str, Any]
     # The first version recorded only claim ids, and the voting queue - which shows
     # the quotation and the score beside it - died on the first request with a
     # KeyError. A comparison nobody can look at is not a comparison.
-    from radar_kx.editor_queues import QUEUES
+    from radar_kx.editor_queues import RETIRED_BY_KEY
 
     database = cast(Database, placed["database"])
     database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
-    queue = next(item for item in QUEUES if item.key == "comparison")
+    # Off the wall since 2026-08-24, still loadable - that is what makes the
+    # retirement reversible rather than a deletion with extra steps.
+    queue = RETIRED_BY_KEY["comparison"]
     total, items = queue.load(database, 25)
     assert total == 1
     quotes = [child["quote"] for child in items[0].children]
@@ -585,7 +594,7 @@ def test_the_page_says_nothing_about_the_method_or_the_rank(placed: dict[str, An
     # The first eighteen votes were taken with the methods named, the semantic one
     # first, and a score printed beside one of the two. Three biases, all pointing
     # the same way, and 12-0 under them is not 12-0.
-    from radar_kx.editor_queues import QUEUES_BY_KEY
+    from radar_kx.editor_queues import RETIRED_BY_KEY
 
     database = cast(Database, placed["database"])
     database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
@@ -596,7 +605,7 @@ def test_the_page_says_nothing_about_the_method_or_the_rank(placed: dict[str, An
     # Stable across reloads, so a reader who comes back sees the same page.
     assert rows == database.method_comparison_queue()[1]
 
-    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
+    _, items = RETIRED_BY_KEY["comparison"].load(database, 5)
     rendered = json.dumps(items[0].as_json(), ensure_ascii=False)
     for tell in ("СМЫСЛОВОЙ", "СЛОВЕСНЫЙ", "косинус", "полнотекстов", "Rank"):
         assert tell not in rendered
@@ -607,20 +616,26 @@ def test_the_page_says_nothing_about_the_method_or_the_rank(placed: dict[str, An
 def test_the_choice_is_translated_back_into_a_method_and_a_rank(
     placed: dict[str, Any],
 ) -> None:
-    from radar_kx.editor_queues import QUEUES_BY_KEY, decide
+    from radar_kx.editor_queues import RETIRED_BY_KEY, decide
 
     database = cast(Database, placed["database"])
     database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
-    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
+    _, items = RETIRED_BY_KEY["comparison"].load(database, 5)
     statement_id = items[0].item_id
     chosen = next(child for child in items[0].children if child["id"] == placed["paraphrase"])
-    outcome = decide(
-        database,
-        key="comparison",
-        item_id=f"{statement_id}/{chosen['id']}",
-        action="chosen",
-        actor="owner",
-    )
+    # Straight to the queue's own `decide`: the public one refuses a retired key,
+    # which is asserted below and is the whole contract of retirement.
+    retired = RETIRED_BY_KEY["comparison"]
+    assert retired.decide is not None
+    outcome = retired.decide(database, f"{statement_id}/{chosen['id']}", "chosen", "owner")
+    with pytest.raises(KeyError):
+        decide(
+            database,
+            key="comparison",
+            item_id=f"{statement_id}/{chosen['id']}",
+            action="chosen",
+            actor="owner",
+        )
     # The paraphrase is what the semantic side reached and the lexical side cannot.
     assert outcome["winner"] == "semantic"
     assert outcome["semanticRank"] == 1
@@ -680,11 +695,11 @@ def test_a_pair_that_quotes_the_same_words_is_not_a_choice(placed: dict[str, Any
 def test_picking_one_of_five_finishes_the_card(placed: dict[str, Any]) -> None:
     # Each candidate carries its own button, and they are alternatives. Leaving the
     # other four live invites a second vote that the store refuses in silence.
-    from radar_kx.editor_queues import QUEUES_BY_KEY
+    from radar_kx.editor_queues import RETIRED_BY_KEY
 
     database = cast(Database, placed["database"])
     database.compare_binding_methods_within_topics(model_id=TEST_MODEL)
-    _, items = QUEUES_BY_KEY["comparison"].load(database, 5)
+    _, items = RETIRED_BY_KEY["comparison"].load(database, 5)
     assert items[0].as_json()["exclusive"] is True
 
 

@@ -496,3 +496,41 @@ def test_the_count_on_a_queue_and_its_list_agree(migrated_dsn: str) -> None:
                 f"{queue.key}: says {total} and lists {len(rows)} - the count query and the "
                 "page query do not apply the same filters"
             )
+
+
+def test_the_wall_holds_only_what_awaits_a_decision(migrated_dsn: str) -> None:
+    """Four queues answer a question; one shows what is already in force.
+
+    Four more were retired on 2026-08-24 because the decisions they served had
+    been made elsewhere: the linking-method comparison was settled by its own
+    220 votes, source families and duplicate clusters were superseded by
+    counting primary sources rather than publishers, and the idea layer was
+    overtaken by the subject backbone it predates.
+    """
+    from radar_kx.editor_queues import QUEUES, RETIRED
+
+    deciding = [queue.key for queue in QUEUES if not queue.reference]
+    assert deciding == ["wiki", "promotion", "freshness", "hosts"]
+    assert [queue.key for queue in QUEUES if queue.reference] == ["skeleton"]
+
+    retired = {entry.queue.key for entry in RETIRED}
+    assert {"comparison", "families", "duplicates", "ideas"} <= retired
+
+    # Retirement is not deletion: each one still loads, and each says what would
+    # put it back, so nobody has to reconstruct the reasoning from a git log.
+    for entry in RETIRED:
+        assert entry.queue.load is not None
+        assert entry.reason.strip()
+        assert entry.returns_when.strip()
+
+
+def test_a_reference_tab_is_not_counted_as_pending(migrated_dsn: str) -> None:
+    """It will always read zero, and a zero among pending work trains the eye."""
+    from radar_kx.database import Database
+    from radar_kx.editor_queues import queue_summary
+
+    summary = queue_summary(Database(_settings(migrated_dsn)))
+    reference = [row for row in summary if row["reference"]]
+    assert len(reference) == 1
+    assert reference[0]["key"] == "skeleton"
+    assert all("reference" in row for row in summary), "the client cannot tell them apart"
