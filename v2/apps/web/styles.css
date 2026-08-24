@@ -2294,4 +2294,112 @@ body.is-subscribed .agent-sub-toggle {
 
 @media (max-width: 640px) {
   .agent-sub-panel { right: 16px; left: 16px; width: auto; }
+/* ── The dialogue's own map ────────────────────────────────────────────────
+ *
+ * The bottom edge belongs to the composer: history is one compact control,
+ * not a chip row that grows with every turn. The list is a real listbox; the
+ * current turn is marked by the scroll-spy; the day seam is a quiet line. */
+
+.chat-history { position: relative; }
+
+.chat-history__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.chat-history__toggle:hover { border-color: var(--near); color: var(--near); }
+.chat-history__toggle[aria-expanded="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.chat-history__toggle[aria-expanded="true"] .chat-history__caret { transform: rotate(180deg); }
+.chat-history__caret { transition: transform 0.15s; }
+#chatHistoryPos { color: var(--near); }
+
+.chat-history__list {
+  position: absolute;
+  bottom: 40px;
+  left: 0;
+  z-index: 20;
+  width: min(440px, calc(100vw - 40px));
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(31, 36, 41, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-history__row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.chat-history__row:hover { background: var(--bg); }
+.chat-history__row:focus-visible { outline: 2px solid var(--near); }
+.chat-history__row.is-current { background: rgba(43, 74, 117, 0.08); }
+.chat-history__n { flex: 0 0 auto; color: var(--near); font-size: 11px; }
+.chat-history__q { flex-grow: 1; font-size: 12.5px; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-history__at { flex: 0 0 auto; color: var(--muted); font-size: 10.5px; }
+
+/* The day seam between turns of different days. */
+.chat-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.chat-day::before, .chat-day::after {
+  content: "";
+  flex-grow: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+/* The way up, beside the way down. */
+.chat-up {
+  position: absolute;
+  right: 16px;
+  top: -44px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--secondary);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+
+.chat-up:hover { border-color: var(--near); color: var(--near); }
+
+@media (max-width: 640px) {
+  .chat-history__list { left: auto; right: 0; }
 }

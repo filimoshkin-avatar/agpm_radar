@@ -1934,37 +1934,114 @@ document.getElementById("chatDown")?.addEventListener("click", () => {
     ?.scrollIntoView({ behavior: "smooth", block: "end" });
 });
 
-/* The mini-map of asked questions: with several turns, «which question was
- * that answer to» stops being answerable by memory alone. One chip per turn,
- * one click - one smooth jump with a flash. */
+/* ── The dialogue's own map: one collapsible control, a list, a position ────
+ *
+ * Best practice for a chat's bottom edge: the composer owns it - one compact
+ * «вопросы диалога ▾» instead of a chip row that grows with every turn. The
+ * list is a real listbox (number, time, question), the current turn is marked
+ * by a scroll-spy, and the toggle itself says «вопрос N из M» while the reader
+ * is up in the thread, so the way back is always one glance away. */
+let chatCurrentTurn = -1;
+
 function chatShort(text, max) {
   const value = String(text || "");
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-function chatRenderNav() {
-  const nav = document.getElementById("chatNav");
-  if (!nav) return;
-  if (chatTurns.length < 2) {
-    nav.hidden = true;
-    nav.innerHTML = "";
-    return;
-  }
-  nav.hidden = false;
-  nav.innerHTML = chatTurns.map((turn, index) => `
-    <button class="chat-nav__chip mono" type="button" data-nav-turn="${index}"
-      title="${escapeHtml(turn.question || "")}">${index + 1} · ${escapeHtml(chatShort(turn.question, 26))}</button>
-  `).join("");
+function chatHistoryRows() {
+  return chatTurns.map((turn, index) => `
+    <button class="chat-history__row${index === chatCurrentTurn ? " is-current" : ""}"
+      type="button" role="option" data-history-turn="${index}"
+      title="${escapeHtml(turn.question || "")}">
+      <span class="mono chat-history__n">${index + 1}</span>
+      <span class="chat-history__q">${escapeHtml(chatShort(turn.question, 44))}</span>
+      <span class="mono chat-history__at">${escapeHtml(turn.at || "")}</span>
+    </button>`).join("");
 }
 
-document.getElementById("chatNav")?.addEventListener("click", event => {
-  const chip = event.target.closest("[data-nav-turn]");
-  if (!chip) return;
-  const turn = document.querySelector(`#agentThread [data-turn="${chip.dataset.navTurn}"]`);
+function chatRenderNav() {
+  const toggle = document.getElementById("chatHistoryToggle");
+  const count = document.getElementById("chatHistoryCount");
+  const list = document.getElementById("chatHistoryList");
+  if (!toggle) return;
+  toggle.hidden = chatTurns.length < 2;
+  if (count) count.textContent = chatTurns.length ? `(${chatTurns.length})` : "";
+  if (list && !list.hidden) list.innerHTML = chatHistoryRows();
+}
+
+function chatHistoryToggleOpen(open) {
+  const list = document.getElementById("chatHistoryList");
+  const toggle = document.getElementById("chatHistoryToggle");
+  if (!list || !toggle) return;
+  list.hidden = !open;
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) list.innerHTML = chatHistoryRows();
+}
+
+document.getElementById("chatHistoryToggle")?.addEventListener("click", () => {
+  const list = document.getElementById("chatHistoryList");
+  chatHistoryToggleOpen(Boolean(list && list.hidden));
+});
+
+document.getElementById("chatHistoryList")?.addEventListener("click", event => {
+  const row = event.target.closest("[data-history-turn]");
+  if (!row) return;
+  const turn = document.querySelector(`#agentThread [data-turn="${row.dataset.historyTurn}"]`);
   if (!turn) return;
   turn.scrollIntoView({ behavior: "smooth", block: "center" });
   turn.classList.add("is-flash");
   setTimeout(() => turn.classList.remove("is-flash"), 1600);
+  chatHistoryToggleOpen(false);
+});
+
+/** The scroll-spy: which turn is on screen right now. Runs inside the same
+ *  passive scroll listener the unread pill uses - one listener, both duties. */
+function chatUpdatePosition() {
+  const thread = document.getElementById("agentThread");
+  if (!thread || !chatTurns.length) return;
+  const mark = (window.innerHeight || 800) * 0.4;
+  let current = chatTurns.length - 1;
+  for (const node of thread.querySelectorAll?.("[data-turn]") || []) {
+    const top = node.getBoundingClientRect ? node.getBoundingClientRect().top : 0;
+    if (top <= mark) {
+      const parsed = Number(node.dataset.turn);
+      if (Number.isInteger(parsed) && parsed >= 0) current = parsed;
+    }
+  }
+  if (current === chatCurrentTurn) return;
+  chatCurrentTurn = current;
+  const pos = document.getElementById("chatHistoryPos");
+  if (pos) {
+    const show = !chatNearBottom() && chatTurns.length > 1;
+    pos.hidden = !show;
+    pos.textContent = show ? `· вопрос ${current + 1} из ${chatTurns.length}` : "";
+  }
+  const list = document.getElementById("chatHistoryList");
+  if (list && !list.hidden) {
+    list.querySelectorAll("[data-history-turn]").forEach(row => {
+      row.classList.toggle("is-current", Number(row.dataset.historyTurn) === current);
+    });
+  }
+}
+
+/* The way up is as owed as the way down: a thread taller than a screen gets
+ * both pills, and they never appear together with the welcome screen. */
+function chatUpSync() {
+  const up = document.getElementById("chatUp");
+  if (!up) return;
+  try {
+    up.hidden = window.scrollY < (window.innerHeight || 800) * 1.2;
+  } catch {
+    up.hidden = true;
+  }
+}
+
+document.getElementById("chatUp")?.addEventListener("click", () => {
+  try {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch {
+    /* no window to scroll: nothing to offer */
+  }
 });
 
 function agentChatInit() {
@@ -1980,6 +2057,8 @@ function agentChatInit() {
       chatUnread = 0;
       chatDownSync();
     }
+    chatUpdatePosition();
+    chatUpSync();
   }, { passive: true });
   if (!chatSession) {
     try { chatSession = crypto.randomUUID(); } catch (error) { chatSession = "s-" + Date.now(); }
@@ -1994,8 +2073,11 @@ function agentChatInit() {
       thread.innerHTML = "";
       // A restored session is not a performance: no stagger, no pop - the
       // answers the reader has already read simply stand where they stood.
-      chatTurns.forEach((turn, index) =>
-        thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, index, false)));
+      let previousDate = null;
+      chatTurns.forEach((turn, index) => {
+        thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, index, false, previousDate));
+        previousDate = turn.dateLabel || previousDate;
+      });
     }
     chatRenderNav();
     chatComposerSync();
@@ -2060,7 +2142,12 @@ function chatRefusalText(answered, evidence) {
  *  the way a streamed answer does; a restored session skips the theatre and
  *  just is what it is. The verified text arrives whole (the server streams
  *  stages, never an unverified draft), so this is pacing, not pretending. */
-function chatTurnHtml(turn, index, fresh = false) {
+function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
+  // A dialogue that spans days gets its seams: a quiet separator names the day,
+  // the way every messenger a reader already knows does it.
+  const daySeparator = turn.dateLabel && turn.dateLabel !== previousDate
+    ? `<div class="chat-day"><span>${escapeHtml(turn.dateLabel)}</span></div>`
+    : "";
   const answered = turn.answered || {};
   const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
   const clauses = Array.isArray(answered.clauses) ? answered.clauses : [];
@@ -2077,6 +2164,7 @@ function chatTurnHtml(turn, index, fresh = false) {
       : `<p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
   const evidenceId = `ev-${index}`;
   return `
+    ${daySeparator}
     <div class="chat-turn${fresh ? " is-fresh" : ""}" data-turn="${index}">
       <div class="agent-q" data-copy-q="${index}" title="нажмите — вопрос скопируется">${escapeHtml(turn.question || "")}
         <span class="agent-q__meta">${escapeHtml(turn.at || "")}</span>
@@ -2310,6 +2398,9 @@ async function agentAsk(question) {
   chatShowWelcome(false);
   const now = new Date();
   const at = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const dateLabel = now.toLocaleDateString
+    ? now.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })
+    : "";
   // The running turn is a wrapper: the question appears at once, the conveyor
   // under it, and the finished card replaces the conveyor in the same wrapper.
   const wrapper = document.createElement("div");
@@ -2374,11 +2465,12 @@ async function agentAsk(question) {
     return;
   }
   wrapper.remove();
-  const turn = { question, at, answered };
+  const turn = { question, at, dateLabel, answered };
   chatTurns.push(turn);
   chatPersist();
   chatRenderNav();
-  thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, chatTurns.length - 1, true));
+  thread.insertAdjacentHTML("beforeend",
+    chatTurnHtml(turn, chatTurns.length - 1, true, chatTurns[chatTurns.length - 2]?.dateLabel || null));
   chatFollowBottom(thread.lastElementChild);
   agentState.busy = false;
   chatAbort = null;

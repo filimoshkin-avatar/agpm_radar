@@ -265,7 +265,16 @@
         <div id="agentThread" class="agent-chat__thread" hidden></div>
 
         <div class="agent-composer">
-          <div id="chatNav" class="chat-nav" aria-label="Вопросы этого диалога" hidden></div>
+          <div class="chat-history">
+            <button id="chatHistoryToggle" class="chat-history__toggle" type="button" hidden
+                    aria-expanded="false" aria-controls="chatHistoryList">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 3.5h10M2 7h10M2 10.5h6"></path></svg>
+              вопросы диалога <span id="chatHistoryCount" class="mono"></span>
+              <span id="chatHistoryPos" class="mono" hidden></span>
+              <span class="chat-history__caret" aria-hidden="true">▾</span>
+            </button>
+            <div id="chatHistoryList" class="chat-history__list" hidden role="listbox" aria-label="Вопросы этого диалога"></div>
+          </div>
           <form id="agentForm" class="agent-ask agent-composer__row">
             <span class="agent-ask__icon" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
@@ -288,6 +297,9 @@
           <button id="chatDown" class="chat-down" type="button" hidden>
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 2v9M3 7.5 7 11.5 11 7.5"></path></svg>
             <span id="chatDownCount">к новым ответам</span>
+          </button>
+          <button id="chatUp" class="chat-up" type="button" hidden aria-label="Наверх к началу диалога">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 12V3M3 6.5 7 2.5l4 4"></path></svg>
           </button>
         </div>
 
@@ -373,6 +385,6 @@
   </nav>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260824-agent-access"></script>
+  <script src="/assets/app.mjs?v=20260824-access-nav"></script>
 </body>
 </html>
