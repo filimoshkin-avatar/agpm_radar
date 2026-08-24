@@ -445,6 +445,7 @@ def _parser() -> argparse.ArgumentParser:
     # and the audit row that proves it happened.
     probe_parser = subparsers.add_parser("model-probe")
     probe_parser.add_argument("--model", choices=sorted(ALLOWED_MODELS), default=None)
+    probe_parser.add_argument("--tools", action="store_true")
 
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("--workers", type=int, default=8)
@@ -1316,7 +1317,11 @@ def main(argv: list[str] | None = None) -> None:
         _print_json([run_type.as_json() for run_type in RUN_TYPES.values()])
         return
     if args.command == "model-probe":
-        _print_json(ModelGateway(database, settings).probe(model=args.model).as_json())
+        gateway = ModelGateway(database, settings)
+        if args.tools:
+            _print_json(gateway.supports_tools(model=args.model))
+            return
+        _print_json(gateway.probe(model=args.model).as_json())
         return
     if args.command == "run":
         _print_json(run_until_idle(settings, workers=args.workers))

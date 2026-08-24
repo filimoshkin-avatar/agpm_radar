@@ -294,13 +294,25 @@ def test_another_client_is_not_punished_for_the_first_one() -> None:
     assert answered["refusalReason"] != "rate_limited_client"
 
 
-def test_the_day_has_a_ceiling_that_a_thousand_clients_cannot_walk_around() -> None:
-    """A budget that only bounds individuals bounds nothing."""
-    budget = AskBudget(per_client=1000, window=300.0, per_day=3)
-    assert budget.refused("a") is None
-    assert budget.refused("b") is None
-    assert budget.refused("c") is None
-    assert budget.refused("d") == "today"
+def test_the_day_has_no_ceiling_unless_one_is_asked_for() -> None:
+    """The owner's call: the point of the base is that people use it.
+
+    A limit that turns the agent off at four in the afternoon is a worse failure
+    than the bill it was guarding. The mechanism stays - `per_day` still bounds
+    when a number is given - and the default is off.
+    """
+    from radar_kx.agent_api import DAILY_ASK_BUDGET
+
+    assert DAILY_ASK_BUDGET == 0
+    unbounded = AskBudget(per_client=1000, window=300.0)
+    assert all(unbounded.refused(f"client-{n}") is None for n in range(50))
+
+    # And it is still a mechanism, not a deleted one.
+    bounded = AskBudget(per_client=1000, window=300.0, per_day=3)
+    assert bounded.refused("a") is None
+    assert bounded.refused("b") is None
+    assert bounded.refused("c") is None
+    assert bounded.refused("d") == "today"
 
 
 def test_the_budget_resets_the_next_day() -> None:

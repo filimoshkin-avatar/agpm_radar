@@ -307,7 +307,58 @@ class ModelGateway:
         self.database = database
         self.settings = settings
 
-    def _post(self, model: str, payload: str, system: str | None) -> dict[str, Any]:
+    def supports_tools(self, *, model: str | None = None) -> dict[str, Any]:
+        """Whether the profile passes tool definitions through to the model.
+
+        An agent that can reach the base's own routes - search, the graph, the
+        contradictions - is a different product from one that gets a package of
+        quotations and writes prose about it. Whether that is possible at all
+        rests on one question about the profile, and guessing at it would put a
+        whole design on an assumption.
+
+        Deliberately not a `run`: this asks what the transport can carry, not
+        what a model can answer, and it must not look like a knowledge call in
+        the audit.
+        """
+        chosen = model or DEFAULT_MODEL
+        probe = {
+            "type": "function",
+            "function": {
+                "name": "kb_search",
+                "description": "поиск утверждений в базе знаний",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"q": {"type": "string", "description": "запрос"}},
+                    "required": ["q"],
+                },
+            },
+        }
+        try:
+            body = self._post(
+                chosen,
+                "Найди в базе знаний утверждения про пороги автономии агентов.",
+                None,
+                tools=[probe],
+            )
+        except (httpx.HTTPError, OrchestratorError, json.JSONDecodeError) as exc:
+            return {"model": chosen, "tools": False, "detail": f"{type(exc).__name__}: {exc}"[:400]}
+        message = ((body.get("choices") or [{}])[0]).get("message") or {}
+        calls = message.get("tool_calls") or []
+        return {
+            "model": chosen,
+            "tools": bool(calls),
+            "calls": calls[:2],
+            "content": (message.get("content") or "")[:200],
+        }
+
+    def _post(
+        self,
+        model: str,
+        payload: str,
+        system: str | None,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         if not self.settings.hermes_key:
             raise OrchestratorError("RADAR_KX_HERMES_KEY is not set")
         messages: list[dict[str, str]] = []
@@ -317,7 +368,12 @@ class ModelGateway:
         response = httpx.post(
             f"{self.settings.hermes_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {self.settings.hermes_key}"},
-            json={"model": model, "messages": messages, "stream": False},
+            json={
+                "model": model,
+                "messages": messages,
+                "stream": False,
+                **({"tools": tools} if tools else {}),
+            },
             timeout=self.settings.hermes_timeout_seconds,
             trust_env=False,
         )

@@ -63,7 +63,12 @@ MAX_BODY_BYTES = 8 * 1024
 #: what stands between a `for` loop and the bill.
 ASKS_PER_CLIENT = 10
 ASK_WINDOW_SECONDS = 300.0
-DAILY_ASK_BUDGET = 500
+#: No ceiling on the day. The owner's call: the point of the base is that people
+#: use it, and a limit that turns the agent off at four in the afternoon is a
+#: worse failure than the bill it was guarding. What stays is the per-client
+#: window, which is not a budget - it is what stands between a `for` loop and the
+#: endpoint, and it lets a person hold a conversation while refusing a script.
+DAILY_ASK_BUDGET = 0
 
 #: Longest question accepted. A question is one question; a page of text pasted
 #: into the box is a way to spend the model budget, not a way to ask.
@@ -139,7 +144,9 @@ class AskBudget:
             if day != today:
                 day, spent = today, 0
                 self._asked.clear()
-            if spent >= self._per_day:
+            # `0` means no ceiling on the day. The per-client window below is
+            # what remains, and it is an abuse limit rather than a budget.
+            if self._per_day and spent >= self._per_day:
                 self._day = (day, spent)
                 return "today"
             recent = [at for at in self._asked.get(client, []) if moment - at < self._window]

@@ -216,7 +216,9 @@ def test_the_second_model_answers_when_the_first_refuses(migrated_dsn: str) -> N
     gateway = ModelGateway(Database(_settings(migrated_dsn)), _settings(migrated_dsn))
     asked: list[str] = []
 
-    def refuse_the_first(model: str, payload: str, system: str | None) -> dict[str, object]:
+    def refuse_the_first(
+        model: str, payload: str, system: str | None, **_: object
+    ) -> dict[str, object]:
         asked.append(model)
         if model == FALLBACK_ORDER[0]:
             raise OrchestratorError("hermes returned 503: upstream unavailable")
@@ -236,7 +238,9 @@ def test_a_model_named_outright_is_not_swapped(migrated_dsn: str) -> None:
     gateway = ModelGateway(Database(_settings(migrated_dsn)), _settings(migrated_dsn))
     asked: list[str] = []
 
-    def always_refuse(model: str, payload: str, system: str | None) -> dict[str, object]:
+    def always_refuse(
+        model: str, payload: str, system: str | None, **_: object
+    ) -> dict[str, object]:
         asked.append(model)
         raise OrchestratorError("hermes returned 503: upstream unavailable")
 
@@ -253,7 +257,9 @@ def test_every_attempt_is_audited_even_the_ones_that_failed(migrated_dsn: str) -
     database = Database(settings)
     gateway = ModelGateway(database, settings)
 
-    def refuse_the_first(model: str, payload: str, system: str | None) -> dict[str, object]:
+    def refuse_the_first(
+        model: str, payload: str, system: str | None, **_: object
+    ) -> dict[str, object]:
         if model == FALLBACK_ORDER[0]:
             raise OrchestratorError("hermes returned 503: upstream unavailable")
         return {"choices": [{"message": {"content": "ready"}}]}
