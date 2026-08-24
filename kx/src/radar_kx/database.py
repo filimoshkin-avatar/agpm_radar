@@ -5830,8 +5830,15 @@ class Database:
         One hop. Two hops out of a statement with eleven links is a hairball
         nobody reads, and the reader can walk by clicking.
         """
+        from radar_kx.graph_layers import GRAPH_SCHEMA_VERSION, annotate_edge, graph_meta
+
         nodes: dict[str, dict[str, Any]] = {}
         edges: list[dict[str, Any]] = []
+
+        def edge(source: str, target: str, relation: str) -> None:
+            edges.append(
+                {"from": source, "to": target, "relation": relation, **annotate_edge(relation)}
+            )
 
         def add(kind: str, key: str, label: str, **extra: Any) -> str:
             node = f"{kind}:{key}"
@@ -5858,6 +5865,20 @@ class Database:
                 cursor.execute(
                     """
                     WITH either_way AS (
+                        SELECT to_id AS claim_id FROM agent.link WHERE from_id = %(claim_id)s
+                        UNION ALL
+                        SELECT from_id AS claim_id FROM agent.link WHERE to_id = %(claim_id)s
+                    )
+                    SELECT count(*) AS total
+                    FROM either_way JOIN agent.statement AS other USING (claim_id)
+                    """,
+                    {"claim_id": claim_id},
+                )
+                counted = cursor.fetchone()
+                linked_total = int(counted["total"]) if counted else 0
+                cursor.execute(
+                    """
+                    WITH either_way AS (
                         SELECT link_type, to_id AS claim_id, 'outgoing' AS direction
                         FROM agent.link WHERE from_id = %(claim_id)s
                         UNION ALL
@@ -5873,6 +5894,7 @@ class Database:
                     """,
                     {"claim_id": claim_id, "limit": limit},
                 )
+                shown_links = 0
                 for row in cursor.fetchall():
                     other = add(
                         "statement",
@@ -5881,20 +5903,18 @@ class Database:
                         materialKind=row["material_kind"],
                         status=row["status"],
                     )
-                    edges.append(
-                        {
-                            "from": centre if row["direction"] == "outgoing" else other,
-                            "to": other if row["direction"] == "outgoing" else centre,
-                            "relation": str(row["link_type"]),
-                        }
-                    )
+                    if row["direction"] == "outgoing":
+                        edge(centre, other, str(row["link_type"]))
+                    else:
+                        edge(other, centre, str(row["link_type"]))
+                    shown_links += 1
                 cursor.execute(
                     "SELECT topic_key, title FROM agent.statement_topic WHERE claim_id = %s",
                     (claim_id,),
                 )
                 for row in cursor.fetchall():
                     subject = add("topic", str(row["topic_key"]), str(row["title"]))
-                    edges.append({"from": centre, "to": subject, "relation": "about"})
+                    edge(centre, subject, "about")
                 cursor.execute(
                     "SELECT entity_id, entity_type, canonical_name, role"
                     " FROM agent.statement_entity WHERE claim_id = %s"
@@ -5909,8 +5929,42 @@ class Database:
                         entityType=row["entity_type"],
                         role=row["role"],
                     )
-                    edges.append({"from": centre, "to": named, "relation": "mentions"})
-                return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+                    edge(centre, named, "mentions")
+                # How much more each drawn neighbour itself holds: an honest
+                # answer to "why only these" needs the counts, not a shrug.
+                topic_keys = [n["key"] for n in nodes.values() if n["kind"] == "topic"]
+                if topic_keys:
+                    cursor.execute(
+                        "SELECT topic_key, count(*) AS total FROM agent.statement_topic"
+                        " WHERE topic_key = ANY(%s) GROUP BY topic_key",
+                        (topic_keys,),
+                    )
+                    for row in cursor.fetchall():
+                        nodes[f"topic:{row['topic_key']}"]["hiddenNeighborCount"] = max(
+                            0, int(row["total"]) - 1
+                        )
+                entity_keys = [n["key"] for n in nodes.values() if n["kind"] == "entity"]
+                if entity_keys:
+                    cursor.execute(
+                        "SELECT entity_id, statements FROM agent.entity WHERE entity_id = ANY(%s)",
+                        (entity_keys,),
+                    )
+                    for row in cursor.fetchall():
+                        nodes[f"entity:{row['entity_id']}"]["hiddenNeighborCount"] = max(
+                            0, int(row["statements"]) - 1
+                        )
+                total_neighbours = linked_total + len(topic_keys) + len(entity_keys)
+                return {
+                    "schemaVersion": GRAPH_SCHEMA_VERSION,
+                    "centre": centre,
+                    "nodes": list(nodes.values()),
+                    "edges": edges,
+                    "meta": graph_meta(
+                        total=total_neighbours,
+                        returned=len(nodes) - 1,
+                        policy="link-limit" if linked_total > shown_links else "all-neighbours",
+                    ),
+                }
 
             if entity_id:
                 cursor.execute(
@@ -5947,8 +6001,20 @@ class Database:
                         materialKind=row["material_kind"],
                         status=row["status"],
                     )
-                    edges.append({"from": node, "to": centre, "relation": "mentions"})
-                return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+                    edge(node, centre, "mentions")
+                # `statements` on the entity row is the number of admitted
+                # statements naming it - exactly the neighbourhood's true size.
+                return {
+                    "schemaVersion": GRAPH_SCHEMA_VERSION,
+                    "centre": centre,
+                    "nodes": list(nodes.values()),
+                    "edges": edges,
+                    "meta": graph_meta(
+                        total=int(middle["statements"] or 0),
+                        returned=len(nodes) - 1,
+                        policy="most-recent",
+                    ),
+                }
 
             if not topic_key:
                 return {"centre": None, "nodes": [], "edges": []}
@@ -5970,6 +6036,17 @@ class Database:
             )
             cursor.execute(
                 """
+                SELECT count(*) AS total
+                FROM agent.statement AS statement
+                JOIN agent.statement_topic AS placed USING (claim_id)
+                WHERE placed.topic_key = %s AND statement.admission = 'knowledge'
+                """,
+                (topic_key,),
+            )
+            topic_counted = cursor.fetchone()
+            topic_total = int(topic_counted["total"]) if topic_counted else 0
+            cursor.execute(
+                """
                 SELECT statement.claim_id, statement.statement, statement.material_kind,
                        statement.status
                 FROM agent.statement AS statement
@@ -5988,8 +6065,21 @@ class Database:
                     materialKind=row["material_kind"],
                     status=row["status"],
                 )
-                edges.append({"from": node, "to": centre, "relation": "about"})
-        return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+                edge(node, centre, "about")
+            # A topic's neighbourhood is its statements: hundreds, occasionally
+            # a thousand. The list is this subject's primary view; a graph here
+            # is a filtered subset, and the meta says so plainly.
+            return {
+                "schemaVersion": GRAPH_SCHEMA_VERSION,
+                "centre": centre,
+                "nodes": list(nodes.values()),
+                "edges": edges,
+                "meta": graph_meta(
+                    total=topic_total,
+                    returned=len(nodes) - 1,
+                    policy="most-recent-knowledge",
+                ),
+            }
 
     def agent_entities(self, *, kind: str | None = None, limit: int = 60) -> list[dict[str, Any]]:
         """The names the base uses, most-named first, optionally of one type.
