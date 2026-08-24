@@ -1319,13 +1319,23 @@ document.addEventListener("click", event => {
   // branch, and a throw here would take the page's whole click handling with it.
   const named = event.target.closest?.("[data-graph-node]")?.dataset?.graphNode;
   if (named) {
+    // Three kinds of node, three route parameters: an entity node used to land
+    // on `claim=` and drew an empty picture for a name that is not a claim.
     const [kind, ...rest] = named.split(":");
     const key = rest.join(":");
-    agentLoadGraph(kind === "topic" ? `topic=${encodeURIComponent(key)}` : `claim=${encodeURIComponent(key)}`);
+    const parameter = kind === "topic" ? "topic" : kind === "entity" ? "entity" : "claim";
+    agentLoadGraph(`${parameter}=${encodeURIComponent(key)}`);
     return;
   }
   const button = event.target.closest("button");
   if (!button) return;
+  if (button.dataset.forceGraph) {
+    // A subject's list is the honest default; its graph is a choice, and the
+    // choice is the reader's, made knowingly (the meta has said how much of
+    // the neighbourhood these thirty are).
+    agentLoadGraph(button.dataset.forceGraph, { forceCanvas: true });
+    return;
+  }
   if (button.id === "printGazette") {
     printGazette();
     return;
@@ -2093,87 +2103,169 @@ const AGENT_ENTITY_LABEL = {
   practice: "практика"
 };
 
-/** UC-05, the two modes this base can actually draw.
- *
- * A subject and what stands under it; a statement and what the base linked it
- * to. The other four modes need entities, and there are none - a picture drawn
- * from an empty table would be an empty picture claiming to be a graph.
- *
- * Radial rather than force-directed on purpose: one hop from one centre has a
- * shape already, and a simulation would spend a second arriving at it.
+/** UC-05, the two modes this base can actually draw: a subject and what
+ *  stands under it, a statement and what the base linked it to. The other
+ *  four modes need relations the schema does not hold yet.
  */
-function agentGraphSvg(data) {
+/* ── «Связи»: one neighbourhood, two equal representations ────────────────
+ *
+ * A drawing is one way to see a neighbourhood, a list is another. The default
+ * follows the centre: a subject's statements read as a grouped list, a
+ * statement's ties read as a picture. The canvas needs the vendored Cytoscape;
+ * where it is absent - an old browser, the console smoke - or the screen is a
+ * phone, the list is not a fallback but the whole interface, and it is the
+ * accessible one: real buttons, real focus, changes announced.
+ */
+
+let linksCanvas = null;
+
+function agentGraphDestroy() {
+  if (linksCanvas) {
+    try {
+      linksCanvas.destroy();
+    } catch (error) {
+      /* a tab being torn down owes nothing to the canvas */
+    }
+    linksCanvas = null;
+  }
+}
+
+const AGENT_NODE_SHAPE = { topic: "rectangle", entity: "diamond", statement: "ellipse" };
+
+function agentGraphRoute(nodeId) {
+  const [kind, ...rest] = String(nodeId).split(":");
+  const key = rest.join(":");
+  const parameter = kind === "topic" ? "topic" : kind === "entity" ? "entity" : "claim";
+  return `${parameter}=${encodeURIComponent(key)}`;
+}
+
+function agentLinksGraphRender(data, host) {
+  if (typeof cytoscape !== "function") return false;
+  agentGraphDestroy();
   const nodes = data.nodes || [];
   const edges = data.edges || [];
-  const centre = nodes.find(node => node.id === data.centre);
-  if (!centre) return `<p class="agent-links__empty">Здесь пока не на что смотреть.</p>`;
-  const others = nodes.filter(node => node.id !== data.centre);
-  const width = 900;
-  const height = Math.max(420, 260 + others.length * 9);
-  const cx = width / 2;
-  const cy = height / 2;
-  const radius = Math.min(cx, cy) - 110;
-  const place = new Map([[centre.id, { x: cx, y: cy }]]);
-  others.forEach((node, index) => {
-    const angle = (index / Math.max(1, others.length)) * Math.PI * 2 - Math.PI / 2;
-    place.set(node.id, { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius });
+  linksCanvas = cytoscape({
+    container: host,
+    elements: [
+      ...nodes.map(node => ({
+        data: { id: node.id, label: node.label, kind: node.kind, centre: node.id === data.centre }
+      })),
+      ...edges.map((edge, index) => ({
+        data: {
+          id: `e${index}`,
+          source: edge.from,
+          target: edge.to,
+          relation: edge.relation,
+          layer: edge.layer || "structural",
+          explanation: edge.explanation || ""
+        }
+      }))
+    ],
+    style: [
+      {
+        selector: "node",
+        style: {
+          // Three kinds of thing, three shapes and colours, as before: colour
+          // alone would leave the picture unreadable to anybody who does not
+          // separate blue from amber.
+          shape: ele => AGENT_NODE_SHAPE[ele.data("kind")] || "ellipse",
+          "background-color": ele => (ele.data("centre") ? "#1f242a"
+            : ele.data("kind") === "topic" ? "#2b4a75"
+            : ele.data("kind") === "entity" ? "#a96b12" : "#ffffff"),
+          "border-width": 2,
+          "border-color": ele => (ele.data("kind") === "statement" && !ele.data("centre")
+            ? "#1f242a" : "#e6e8e7"),
+          width: 30,
+          height: 30,
+          label: "data(label)",
+          "text-wrap": "wrap",
+          "text-max-width": 130,
+          "font-size": 10,
+          color: "#1f242a",
+          "text-valign": "bottom",
+          "text-margin-y": 8
+        }
+      },
+      {
+        selector: "edge",
+        style: {
+          // Structural ties are the base's own plumbing - grey, quiet. Authorial
+          // ties are the model's suggestions - coloured, and never to be read
+          // as an established part of the canon.
+          width: ele => (ele.data("relation") === "contradicts" ? 2 : 1.4),
+          "line-color": ele => (ele.data("layer") === "authorial"
+            ? AGENT_RELATION_COLOUR[ele.data("relation")] || "#a96b12"
+            : "#c9cdcf"),
+          "curve-style": "haystack",
+          "haystack-radius": 0.4,
+          opacity: 0.7
+        }
+      },
+      { selector: "edge:selected", style: { width: 3, opacity: 1 } }
+    ],
+    layout: {
+      // A subject's neighbourhood is a bundle of same-shaped statements: a grid
+      // keeps them countable. Ties around a statement have a shape of their own.
+      name: String(data.centre || "").startsWith("topic:") ? "grid" : "cose",
+      nodeDimensionsIncludeLabels: true,
+      animate: false,
+      padding: 30
+    }
   });
-  const line = edges.map(edge => {
-    const from = place.get(edge.from);
-    const to = place.get(edge.to);
-    if (!from || !to) return "";
-    const colour = AGENT_RELATION_COLOUR[edge.relation] || "#8a9199";
-    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"
-      stroke="${colour}" stroke-width="${edge.relation === "contradicts" ? 2 : 1.2}"
-      stroke-opacity="${edge.relation === "related_to" ? 0.35 : 0.65}"></line>`;
+  linksCanvas.on("tap", "node", event => {
+    agentLoadGraph(agentGraphRoute(event.target.id()));
+  });
+  linksCanvas.on("tap", "edge", event => {
+    const line = document.getElementById("agentGraphMeta");
+    const spoken = event.target.data("explanation") || event.target.data("relation") || "";
+    if (line && spoken) line.textContent = spoken;
+  });
+  return true;
+}
+
+/** The list is the neighbourhood as real HTML: focusable rows, countable
+ *  groups, and the "+N" that says how much more a drawn neighbour itself
+ *  holds. It renders for every centre; the canvas is the addition. */
+function agentLinksListHtml(data) {
+  const nodes = (data.nodes || []).filter(node => node.id !== data.centre);
+  const centre = (data.nodes || []).find(node => node.id === data.centre);
+  const titles = { topic: "Темы", entity: "Имена", statement: "Утверждения" };
+  const groups = ["topic", "entity", "statement"].map(kind => {
+    const rows = nodes.filter(node => node.kind === kind);
+    if (!rows.length) return "";
+    return `<div class="agent-links__group">
+      <h4 class="agent-section">${titles[kind]}</h4>
+      <ul class="agent-links__rows">${rows.map(node => `
+        <li><button class="agent-links__row" type="button"
+            data-graph-node="${escapeHtml(node.kind)}:${escapeHtml(node.key)}">
+          <span class="agent-links__rowtext">${escapeHtml(node.label)}</span>${
+            node.hiddenNeighborCount
+              ? `<span class="agent-links__more mono" title="сколько ещё держит этот узел">+${Number(node.hiddenNeighborCount)}</span>`
+              : ""
+          }</button></li>`).join("")}
+      </ul></div>`;
   }).join("");
-  const dot = node => {
-    const at = place.get(node.id);
-    const isCentre = node.id === data.centre;
-    const label = node.label.length > 46 ? `${node.label.slice(0, 45)}…` : node.label;
-    // Three kinds of thing, three shapes: a subject is a square, a name is a
-    // diamond, a statement is a circle. Colour alone would leave the picture
-    // unreadable to anybody who does not separate blue from amber.
-    const size = isCentre ? 11 : node.kind === "statement" ? 5.5 : 8;
-    const fill = node.kind === "topic" ? "#2b4a75"
-      : node.kind === "entity" ? "#a96b12"
-      : isCentre ? "#1f242a" : "#ffffff";
-    const stroke = node.kind === "topic" ? "#2b4a75"
-      : node.kind === "entity" ? "#a96b12" : "#1f242a";
-    const shape = node.kind === "topic"
-      ? `<rect x="${at.x - size}" y="${at.y - size}" width="${size * 2}" height="${size * 2}"
-          fill="${fill}" stroke="${stroke}" stroke-width="1.4"></rect>`
-      : node.kind === "entity"
-        ? `<rect x="${at.x - size}" y="${at.y - size}" width="${size * 2}" height="${size * 2}"
-            transform="rotate(45 ${at.x} ${at.y})"
-            fill="${fill}" stroke="${stroke}" stroke-width="1.4"></rect>`
-        : `<circle cx="${at.x}" cy="${at.y}" r="${size}"
-            fill="${fill}" stroke="${stroke}" stroke-width="1.4"></circle>`;
-    const kind = node.entityType ? ` · ${AGENT_ENTITY_LABEL[node.entityType] || node.entityType}` : "";
-    return `<g class="agent-graph__node" data-graph-node="${escapeHtml(node.kind)}:${escapeHtml(node.key)}">
-      <title>${escapeHtml(node.label)}${escapeHtml(kind)}</title>
-      ${shape}
-      <text x="${at.x}" y="${at.y - (isCentre ? 18 : 13)}" text-anchor="middle"
-        class="agent-graph__label">${escapeHtml(label)}</text>
-    </g>`;
-  };
-  return `<svg viewBox="0 0 ${width} ${height}" class="agent-graph__svg" role="img"
-    aria-label="Граф связей вокруг выбранного узла">
-    <g>${line}</g>
-    ${others.map(dot).join("")}
-    ${dot(centre)}
-  </svg>`;
+  return `
+    <div class="agent-links__head">${centre ? escapeHtml(centre.label) : ""}</div>
+    ${groups || `<p class="agent-links__empty">Соседей у этого узла нет.</p>`}`;
 }
 
 function agentGraphLegend(edges) {
-  const seen = [...new Set((edges || []).map(edge => edge.relation))];
   const name = { supports: "подтверждает", contradicts: "противоречит", qualifies: "уточняет", related_to: "связанное", about: "тема", mentions: "называет" };
-  return seen.map(relation => `<span class="agent-graph__key">
-    <i style="background:${AGENT_RELATION_COLOUR[relation] || "#8a9199"}"></i>${escapeHtml(name[relation] || relation)}
-  </span>`).join("");
+  const seen = [...new Set((edges || []).map(edge => edge.relation))];
+  return seen.map(relation => {
+    // The legend is built only from relations actually present, and says which
+    // of them are the model's suggestions: a grey line is the base's plumbing,
+    // a coloured one is a claim about knowledge nobody has confirmed.
+    const present = (edges || []).find(edge => edge.relation === relation) || {};
+    const structural = present.layer !== "authorial";
+    return `<span class="agent-graph__key${structural ? " agent-graph__key--structural" : ""}">
+      <i style="background:${structural ? "#c9cdcf" : AGENT_RELATION_COLOUR[relation] || "#a96b12"}"></i>${escapeHtml(name[relation] || relation)}
+    </span>`;
+  }).join("");
 }
 
-async function agentLoadGraph(target) {
+async function agentLoadGraph(target, options = {}) {
   const box = document.getElementById("agentGraphBody");
   if (!box) return;
   const select = document.getElementById("agentGraphTopic");
@@ -2215,20 +2307,51 @@ async function agentLoadGraph(target) {
     ведёт кнопка «Что база связала с этим».</p>`;
     return;
   }
-  box.innerHTML = `<p class="agent-waiting">Собираю граф…</p>`;
+  box.innerHTML = `<p class="agent-waiting">Собираю связи…</p>`;
   try {
     const data = await kbFetch(`/graph?${query}&limit=40`);
     if (!data.centre) {
       box.innerHTML = `<p class="agent-links__empty">Такого узла в базе нет.</p>`;
       return;
     }
+    agentGraphDestroy();
     const legend = document.getElementById("agentGraphLegend");
     if (legend) legend.innerHTML = agentGraphLegend(data.edges);
+    // How much of the neighbourhood this is, said out loud: a thousand-statement
+    // subject drawn as thirty nodes must never read as the whole subject.
+    const meta = data.meta || {};
+    const policy = {
+      "most-recent": "показаны самые свежие",
+      "most-recent-knowledge": "показаны самые свежие из знания",
+      "link-limit": "показана часть связей",
+      "all-neighbours": "показаны все соседи"
+    }[meta.selectionPolicy] || "";
+    const metaLine = document.getElementById("agentGraphMeta");
+    if (metaLine) {
+      metaLine.textContent = meta.truncated
+        ? `Показано ${meta.returnedNeighborCount} из ${meta.totalNeighborCount} соседей — ${policy}.`
+        : `Соседей: ${meta.returnedNeighborCount || (data.nodes || []).length - 1}. ${policy}.`;
+    }
+    const machineProposed = (data.edges || []).some(edge => edge.layer === "authorial");
     box.innerHTML = `
-      <p class="agent-intro">${(data.nodes || []).length} узлов, ${(data.edges || []).length} связей.
-      Один шаг от центра: два шага от утверждения с одиннадцатью связями читать нельзя,
-      а дойти можно нажатием.</p>
-      ${agentGraphSvg(data)}`;
+      ${machineProposed
+        ? `<p class="agent-links__notice">Цветные связи предложила машина; владелец базы их не подтверждал. Серые линии — устройство базы, а не утверждения о знании.</p>`
+        : ""}
+      ${agentLinksListHtml(data)}`;
+    // The canvas is the addition, not the requirement: a phone, an old browser
+    // and the console smoke all get the list, and the list is complete.
+    const host = document.getElementById("agentGraphCanvas");
+    const width = document.documentElement?.clientWidth || 1200;
+    const isSubject = String(data.centre).startsWith("topic:");
+    const wantCanvas = Boolean(host)
+      && (options.forceCanvas || (!isSubject && width >= 640))
+      && (data.nodes || []).length <= 41;
+    const drawn = wantCanvas && agentLinksGraphRender(data, host);
+    if (host) host.hidden = !drawn;
+    if (host && isSubject && !options.forceCanvas) {
+      box.insertAdjacentHTML("afterbegin",
+        `<button class="agent-links__graphbtn" type="button" data-force-graph="${escapeHtml(query)}">показать эти ${meta.returnedNeighborCount || (data.nodes || []).length - 1} связей графом</button>`);
+    }
   } catch (error) {
     box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
@@ -2464,6 +2587,9 @@ function setAgentTab(tab) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
   });
+  // Leaving the Links tab tears its canvas down: a hidden canvas keeps its
+  // listeners and its memory for nothing.
+  if (tab !== "graph") agentGraphDestroy();
   if (tab === "find") agentLoadTopicOptions();
   if (tab === "ask") agentChatInit();
   if (tab === "observatory") agentLoadObservatory();

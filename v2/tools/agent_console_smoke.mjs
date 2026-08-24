@@ -57,6 +57,7 @@ const ids = [
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
+  "agentGraphCanvas", "agentGraphMeta",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
   "footerSources", "gazetteView", "heatmap", "included", "includedShare", "issueDate",
@@ -172,16 +173,29 @@ const LINKS = [
 ];
 
 const GRAPH = {
+  schemaVersion: "2.0",
   centre: "statement:c1",
   nodes: [
     { id: "statement:c1", kind: "statement", key: "c1", label: "порог автономии определяет границу" },
     { id: "statement:c2", kind: "statement", key: "c2", label: "порога не существует" },
-    { id: "topic:porogi", kind: "topic", key: "porogi", label: "Пороги автономии" },
+    { id: "topic:porogi", kind: "topic", key: "porogi", label: "Пороги автономии", hiddenNeighborCount: 17 },
+    { id: "entity:e1", kind: "entity", key: "e1", label: "Gartner" },
   ],
   edges: [
-    { from: "statement:c1", to: "statement:c2", relation: "contradicts" },
-    { from: "statement:c1", to: "topic:porogi", relation: "about" },
+    {
+      from: "statement:c1", to: "statement:c2", relation: "contradicts",
+      layer: "authorial", method: "model", reviewStatus: "unreviewed",
+      explanation: "Модель определила утверждения как противоречащие"
+    },
+    { from: "statement:c1", to: "topic:porogi", relation: "about", layer: "structural",
+      explanation: "Утверждение отнесено к теме скелета" },
+    { from: "statement:c1", to: "entity:e1", relation: "mentions", layer: "structural",
+      explanation: "Сущность названа в утверждении" },
   ],
+  meta: {
+    totalNeighborCount: 19, returnedNeighborCount: 3, hiddenNodeCount: 16,
+    truncated: true, selectionPolicy: "most-recent-knowledge"
+  },
 };
 
 const CONTRADICTIONS = {
@@ -332,10 +346,13 @@ if (!answered.includes("https://example.org/a")) fail("the source link is missin
 // The graph opens on whichever subject the picker holds.
 elements.get("agentGraphTopic").value = "porogi";
 
-// Every tab fetches its own data, and only when it is opened.
+// Every tab fetches its own data, and only when it is opened. The Links tab
+// renders the neighbourhood as a real list first: this smoke runs without the
+// vendored Cytoscape, and the list - not a canvas - must be the complete
+// interface there.
 for (const [tab, path, marker] of [
   ["observatory", "/kb/observatory", "инцидент"],
-  ["graph", "/kb/graph?topic=porogi&limit=40", "<svg"],
+  ["graph", "/kb/graph?topic=porogi&limit=40", "agent-links__row"],
   ["contradictions", "/kb/contradictions?limit=40", "порога не существует"],
   ["topics", "/kb/topics", "Пороги автономии"],
   ["wiki", "/kb/pages", "Страница"],
@@ -351,6 +368,20 @@ for (const [tab, path, marker] of [
   }[tab]);
   if (!panel.innerHTML.includes(marker)) fail(`the ${tab} tab rendered nothing recognisable`);
 }
+
+// The Links tab says how much of the neighbourhood it is holding back, and
+// which lines are the machine's unconfirmed suggestions.
+const linksMeta = elements.get("agentGraphMeta").textContent;
+if (!linksMeta.includes("из 19")) fail("the reader is not told how much of the neighbourhood is shown");
+if (!elements.get("agentGraphBody").innerHTML.includes("предложила машина"))
+  fail("an authorial edge was drawn without its machine provenance");
+
+// An entity node routes to `entity=`: it used to land on `claim=` and draw an
+// empty picture for a name that is not a claim.
+clickGraphNode("entity:e1");
+await settle();
+if (!requests.includes("/kb/graph?entity=e1&limit=40"))
+  fail("an entity node did not route through entity=");
 
 // UC-11: a contradiction is a pair, and half of one is not the finding.
 const clash = elements.get("agentContradictions").innerHTML;

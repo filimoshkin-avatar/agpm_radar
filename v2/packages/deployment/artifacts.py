@@ -132,6 +132,8 @@ WEB_PATHS: Final = (
     "apps/web/index.html",
     "apps/web/og-image-20260803.png",
     "apps/web/styles.css",
+    # The one vendored frontend dependency (provenance in apps/web/vendor/README.md).
+    "apps/web/vendor/cytoscape.3.30.4.min.js",
 )
 MIGRATION_PATHS: Final = (
     "apps/__init__.py",

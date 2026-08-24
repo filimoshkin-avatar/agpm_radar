@@ -1867,3 +1867,92 @@ body.is-agent .agent-view { display: block; }
   .agent-welcome__grid { grid-template-columns: 1fr; }
   .agent-versus { grid-template-columns: 1fr; }
 }
+
+/* ── «Связи»: the list, the canvas, the honesty line ────────────────────── */
+
+.agent-links__meta {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--secondary);
+}
+
+.agent-links__notice {
+  margin: 0 0 12px;
+  padding: 9px 13px;
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(169, 107, 18, 0.06);
+  font-size: 12.5px;
+  color: var(--secondary);
+}
+
+.agent-graph__canvas {
+  height: 480px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 14px;
+}
+
+.agent-links__group { margin-bottom: 12px; }
+
+.agent-links__rows {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-links__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+.agent-links__row:hover { border-color: var(--near); }
+.agent-links__row:focus-visible { outline: 2px solid var(--near); outline-offset: 1px; }
+
+.agent-links__rowtext { flex-grow: 1; font-size: 13px; line-height: 1.45; }
+
+.agent-links__more {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(31, 36, 41, 0.06);
+}
+
+.agent-links__graphbtn {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 13px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent-links__graphbtn:hover { border-color: var(--near); color: var(--near); }
+
+/* A grey legend key is the base's structure; a coloured one is a model's
+   suggestion the owner has not confirmed. */
+.agent-graph__key--structural { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .agent-graph__canvas { height: 360px; }
+}
