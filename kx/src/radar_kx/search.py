@@ -308,6 +308,14 @@ def search_sql(scope: str, *, match: str = "all") -> str:
 #: should not be answered out of a vendor's blog.
 FILTERS = ("admission", "material_kind", "status", "topic_key")
 
+#: What the reader's own search accepts on top of those four. `fresh` is the odd
+#: one out and is deliberately not in `FILTERS`: it is not a property of the
+#: statement but of the day it is read on, and the corpus search behind the
+#: editor has no use for it. Decision 11 makes expiry a review queue rather than
+#: a verdict, so the default shows everything and the filter is the reader's to
+#: apply.
+AGENT_FILTERS = (*FILTERS, "fresh")
+
 #: The three ways a quotation can be found. Kept as names rather than as booleans
 #: because they are shown to the reader - "why was this found" is UC-01's own
 #: question, and "matched your words" and "means something close" are different
@@ -480,7 +488,12 @@ WITH asked AS (
 scoped AS (
     SELECT statement.*
     FROM agent.statement AS statement
-    WHERE (%(admission)s::text IS NULL OR statement.admission = %(admission)s::text)
+    WHERE (
+          %(fresh)s::text IS NULL
+          OR statement.valid_until IS NULL
+          OR statement.valid_until >= clock_timestamp()
+      )
+      AND (%(admission)s::text IS NULL OR statement.admission = %(admission)s::text)
       AND (%(material_kind)s::text IS NULL OR statement.material_kind = %(material_kind)s::text)
       AND (%(status)s::text IS NULL OR statement.status = %(status)s::text)
       AND (
@@ -553,6 +566,7 @@ SELECT scoped.claim_id,
        scoped.shown_on,
        scoped.shown_kind,
        scoped.status,
+       scoped.valid_until,
        fused.relevance,
        fused.matched_by,
        (

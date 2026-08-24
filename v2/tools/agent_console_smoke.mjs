@@ -37,6 +37,8 @@ class FakeElement {
 
 const ids = [
   "activeFilter", "agentAnswer", "agentAsk", "agentForm", "agentGaps", "agentObservatory",
+  "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
+  "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
   "footerSources", "gazetteView", "heatmap", "included", "includedShare", "issueDate",
@@ -51,12 +53,33 @@ const documentHandlers = new Map();
 process.on("unhandledRejection", error => unhandled.push(error));
 
 globalThis.HTMLElement = FakeElement;
+
+// Attribute selectors, because the find and observatory controls are addressed
+// that way rather than by id. A registry the test fills, so a selector nobody
+// registered returns nothing instead of quietly matching everything.
+const bySelector = new Map();
+const register = (selector, element) => {
+  bySelector.set(selector, element);
+  return element;
+};
+
+globalThis.CSS = { escape: value => String(value) };
 globalThis.document = {
   body: new FakeElement("body"),
   addEventListener(event, handler) { documentHandlers.set(event, handler); },
+  createElement(tag) { return new FakeElement(tag); },
   getElementById(id) { return elements.get(id) || null; },
-  querySelector(selector) { return selector.startsWith("#") ? elements.get(selector.slice(1)) || null : null; },
-  querySelectorAll() { return []; },
+  querySelector(selector) {
+    if (selector.startsWith("#")) return elements.get(selector.slice(1)) || null;
+    return bySelector.get(selector) || null;
+  },
+  querySelectorAll(selector) {
+    const matches = [];
+    for (const [key, element] of bySelector) {
+      if (key.startsWith(selector.replace(/\]$/, "")) || key === selector) matches.push(element);
+    }
+    return matches;
+  },
 };
 globalThis.localStorage = { getItem() { return null; }, setItem() {} };
 globalThis.window = {
@@ -125,6 +148,32 @@ const ASK_EVIDENCE = {
   matchedBy: ["слова", "смысл"],
 };
 
+const LINKS = [
+  { link_type: "contradicts", direction: "outgoing", claim_id: "c2", statement: "порога не существует" },
+  { link_type: "qualifies", direction: "incoming", claim_id: "c3", statement: "только выше суммы" },
+];
+
+const CONTRADICTIONS = {
+  total: 283,
+  pairs: [{
+    from_id: "c1", to_id: "c2",
+    first_statement: "порог автономии определяет границу",
+    first_quote: "Порог автономии определяет границу между классами решений.",
+    first_char_start: 100, first_char_end: 158,
+    first_source_url: "https://example.org/a", first_source_title: "Пороги",
+    first_material_kind: "fact", first_status: "canon",
+    first_shown_on: "2026-06-01", first_shown_kind: "published",
+    first_primary_source: "Gartner", first_is_retelling: true, first_valid_until: null,
+    second_statement: "порога не существует",
+    second_quote: "Никакого порога автономии в практике не наблюдается.",
+    second_char_start: 10, second_char_end: 61,
+    second_source_url: "https://example.org/b", second_source_title: "Против порогов",
+    second_material_kind: "opinion", second_status: "observed_signal",
+    second_shown_on: "2026-07-02", second_shown_kind: "published",
+    second_primary_source: "", second_is_retelling: false, second_valid_until: null,
+  }],
+};
+
 const ANSWER = {
   question: "что такое порог автономии",
   answer: "Порог автономии — решение организации.",
@@ -139,7 +188,10 @@ globalThis.fetch = async (raw, options) => {
   requests.push(path);
   let payload = ISSUE;
   if (path === "/kb/ask") payload = ANSWER;
-  else if (path === "/kb/observatory") payload = { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
+  else if (path.startsWith("/kb/observatory")) payload = { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
+  else if (path.startsWith("/kb/search")) payload = { hits: [{ ...STATEMENT, valid_until: "2020-01-01T00:00:00+00:00" }] };
+  else if (path.startsWith("/kb/contradictions")) payload = CONTRADICTIONS;
+  else if (path.startsWith("/kb/statement/")) payload = { ...STATEMENT, links: LINKS };
   else if (path === "/kb/topics") payload = { topics: [{ topic_key: "porogi", title: "Пороги автономии", path: "Управление / Пороги", statements: 12 }] };
   else if (path.startsWith("/kb/topics/")) payload = { title: "Пороги автономии", path: "Управление / Пороги", statements: [STATEMENT] };
   else if (path === "/kb/pages") payload = { pages: [{ relative_path: "wiki/a.md", title: "Страница", chars: 100 }] };
@@ -186,6 +238,7 @@ if (!answered.includes("https://example.org/a")) fail("the source link is missin
 // Every tab fetches its own data, and only when it is opened.
 for (const [tab, path, marker] of [
   ["observatory", "/kb/observatory", "инцидент"],
+  ["contradictions", "/kb/contradictions?limit=40", "порога не существует"],
   ["topics", "/kb/topics", "Пороги автономии"],
   ["wiki", "/kb/pages", "Страница"],
   ["gaps", "/kb/gaps?limit=60", "нет темы про страхование"],
@@ -193,9 +246,51 @@ for (const [tab, path, marker] of [
   click({ dataset: { agentTab: tab }, classList: { toggle() {} }, setAttribute() {} });
   await settle();
   if (!requests.includes(path)) fail(`the ${tab} tab did not fetch ${path}`);
-  const panel = elements.get({ observatory: "agentObservatory", topics: "agentTopics", wiki: "agentWiki", gaps: "agentGaps" }[tab]);
+  const panel = elements.get({
+    observatory: "agentObservatoryBody", contradictions: "agentContradictions",
+    topics: "agentTopics", wiki: "agentWiki", gaps: "agentGaps",
+  }[tab]);
   if (!panel.innerHTML.includes(marker)) fail(`the ${tab} tab rendered nothing recognisable`);
 }
+
+// UC-11: a contradiction is a pair, and half of one is not the finding.
+const clash = elements.get("agentContradictions").innerHTML;
+if (!clash.includes("порог автономии определяет границу")) fail("the first side of a clash is missing");
+if (!clash.includes("Никакого порога автономии")) fail("the second side of a clash is missing");
+if (!clash.includes("283")) fail("the reader is not told how many disagreements the base holds");
+
+// UC-01: finding costs the reader nothing, and says which arm found each hit.
+// `/ask` reaches a paid model behind a limit; this must not.
+const findQuery = register('[data-find-filter="material_kind"]', new FakeElement("select"));
+findQuery.dataset.findFilter = "material_kind";
+findQuery.value = "fact";
+elements.get("agentFindQuery").value = "порог автономии";
+await elements.get("agentFindForm").handler({ preventDefault() {} });
+await settle();
+const found = elements.get("agentFindResults").innerHTML;
+const searched = requests.find(path => path.startsWith("/kb/search"));
+if (!searched) fail("the find tab never reached the base");
+if (!searched.includes("material_kind=fact")) fail("the find tab dropped its filter");
+if (requests.filter(path => path === "/kb/ask").length !== 1)
+  fail("finding must not spend a model call");
+if (!found.includes("по словам") || !found.includes("по смыслу"))
+  fail("a hit rendered without saying which arm found it");
+if (!found.includes("знаки 100–158")) fail("a hit rendered without its character range");
+
+// Decision 11 on screen: an expiry is a review due, and the reader sees the date.
+if (!found.includes("срок истёк 2020-01-01")) fail("an expired statement rendered as fresh");
+
+// Level five: what the base linked to this, on demand and not before.
+const before = requests.filter(path => path.startsWith("/kb/statement/")).length;
+if (before) fail("links were fetched before anybody asked for them");
+const linksBox = register('[data-agent-links-for="c1"]', new FakeElement());
+linksBox.hidden = true;
+click({ dataset: { agentLinks: "c1" }, classList: { toggle() {} }, setAttribute() {} });
+await settle();
+if (!requests.some(path => path.startsWith("/kb/statement/c1"))) fail("the links never loaded");
+if (!linksBox.innerHTML.includes("противоречит")) fail("a contradiction is not named in the card");
+// "второе уточняет первое": an incoming `qualifies` means this one qualifies the other.
+if (!linksBox.innerHTML.includes("уточняет")) fail("the qualifying link lost its direction");
 
 // The panels speak snake_case and the answer speaks camelCase. Both must render
 // the same labels, which is why the client normalises at one boundary instead of
@@ -211,7 +306,7 @@ globalThis.fetch = async raw => {
     },
   };
 };
-const observatory = elements.get("agentObservatory");
+const observatory = elements.get("agentObservatoryBody");
 observatory.dataset.loaded = "";
 observatory.innerHTML = "";
 click({ dataset: { agentTab: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
@@ -240,4 +335,6 @@ if (!refused.includes("нет подтверждений")) fail("a refusal did 
 
 if (unhandled.length) fail(unhandled.map(String).join("; "));
 
-process.stdout.write("Agent view console smoke: PASS (answer, labels, four tabs, refusal)\n");
+process.stdout.write(
+  "Agent view console smoke: PASS (answer, labels, find, contradictions, links, expiry, six tabs, refusal)\n"
+);

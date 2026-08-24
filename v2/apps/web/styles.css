@@ -1468,3 +1468,114 @@ body.is-agent .agent-view { display: block; }
   .agent-ask { height: auto; flex-wrap: wrap; padding: 10px 12px; }
   .agent-ask__input { min-width: 60%; }
 }
+
+/* --- Найти, Противоречия, срок актуальности, раскрытие связей ------------ */
+
+.agent-find__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 10px 0 4px;
+}
+
+.agent-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+
+.agent-select select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  max-width: 15rem;
+}
+
+.agent-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Decision 11: an expiry queues a review, it does not overrule the statement -
+   so the label is legible and calm, never an alarm. */
+.agent-label--stale {
+  background: rgba(120, 113, 108, .14);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.agent-links__toggle {
+  margin-top: 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+
+.agent-links { margin-top: 10px; }
+.agent-links__head { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.agent-links__empty { font-size: 13px; color: var(--muted); margin: 0; }
+.agent-links__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+
+.agent-links__item {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, auto) 1fr;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+
+.agent-links__item--contradicts { border-left-color: rgba(169, 61, 34, .55); }
+.agent-links__item--supports { border-left-color: rgba(38, 122, 90, .45); }
+
+.agent-links__type {
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 2px;
+}
+
+.agent-links__item--contradicts .agent-links__type { color: rgba(169, 61, 34, .9); }
+
+/* A contradiction is a pair. Side by side where there is room, stacked where
+   there is not - but never one of the two alone. */
+.agent-clash {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.agent-clash__mark {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(169, 61, 34, .9);
+  writing-mode: vertical-rl;
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .agent-clash { grid-template-columns: 1fr; }
+  .agent-clash__mark { writing-mode: horizontal-tb; }
+}

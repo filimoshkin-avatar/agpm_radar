@@ -76,6 +76,7 @@ from radar_kx.research import (
     normalize_question,
 )
 from radar_kx.search import (
+    AGENT_FILTERS,
     AGENT_SEARCH_SQL,
     FILTERS,
     RRF_K,
@@ -5512,7 +5513,12 @@ class Database:
         return {**dict(topic), "statements": statements, "spread": spread}
 
     def agent_observatory(
-        self, *, since: str | None = None, until: str | None = None, kind: str | None = None
+        self,
+        *,
+        since: str | None = None,
+        until: str | None = None,
+        kind: str | None = None,
+        fresh: bool = False,
     ) -> list[dict[str, Any]]:
         """A cut by class of event over a period (decision 4), not a feed.
 
@@ -5529,9 +5535,9 @@ class Database:
         with self.connect() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT claim_id, statement, quote_text, source_url, source_title,
-                       material_kind, primary_source, is_retelling,
-                       shown_on, shown_kind, status
+                SELECT claim_id, statement, quote_text, char_start, char_end,
+                       source_url, source_title, material_kind, primary_source,
+                       is_retelling, shown_on, shown_kind, status, valid_until
                 FROM (
                     SELECT statement.*,
                            row_number() OVER (
@@ -5544,6 +5550,11 @@ class Database:
                       AND (%s::date IS NULL OR statement.shown_on >= %s::date)
                       AND (%s::date IS NULL OR statement.shown_on <= %s::date)
                       AND (%s::text IS NULL OR statement.material_kind = %s::text)
+                      AND (
+                          NOT %s::boolean
+                          OR statement.valid_until IS NULL
+                          OR statement.valid_until >= clock_timestamp()
+                      )
                 ) AS by_class
                 -- The cap is per class, not over the whole cut. A single LIMIT
                 -- after an alphabetical sort by kind gave the first class the
@@ -5552,9 +5563,65 @@ class Database:
                 WHERE within_class <= %s
                 ORDER BY material_kind, shown_on DESC NULLS LAST, claim_id
                 """,
-                (since, since, until, until, kind, kind, OBSERVATORY_PER_CLASS),
+                (since, since, until, until, kind, kind, fresh, OBSERVATORY_PER_CLASS),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    def agent_contradictions(self, *, limit: int = 60) -> tuple[int, list[dict[str, Any]]]:
+        """Every pair the judge called incompatible, both sides shown together.
+
+        283 of the 15 414 links are `contradicts`, and they are the reason a base
+        like this is worth reading: two sources saying incompatible things about
+        one subject is the finding, not a defect to hide. A card that shows only
+        the statement you arrived at cannot show that - by the time a reader has
+        found one side, they have no way to know the other exists.
+
+        Symmetric, so the pair is rendered once: which claim sits in `from_id` is
+        decided by comparing two uuids and carries nothing (see
+        `promotion_candidates`). The stable order is the newer side first, so a
+        reader meets the disagreement at its most recent end.
+        """
+        query = """
+            SELECT link.from_id, link.to_id,
+                   first.statement AS first_statement, first.quote_text AS first_quote,
+                   first.source_url AS first_source_url,
+                   first.source_title AS first_source_title,
+                   first.material_kind AS first_material_kind,
+                   first.status AS first_status, first.shown_on AS first_shown_on,
+                   first.shown_kind AS first_shown_kind,
+                   first.primary_source AS first_primary_source,
+                   first.is_retelling AS first_is_retelling,
+                   first.char_start AS first_char_start, first.char_end AS first_char_end,
+                   first.valid_until AS first_valid_until,
+                   second.statement AS second_statement, second.quote_text AS second_quote,
+                   second.source_url AS second_source_url,
+                   second.source_title AS second_source_title,
+                   second.material_kind AS second_material_kind,
+                   second.status AS second_status, second.shown_on AS second_shown_on,
+                   second.shown_kind AS second_shown_kind,
+                   second.primary_source AS second_primary_source,
+                   second.is_retelling AS second_is_retelling,
+                   second.char_start AS second_char_start, second.char_end AS second_char_end,
+                   second.valid_until AS second_valid_until,
+                   (
+                       SELECT array_agg(DISTINCT placed.title ORDER BY placed.title)
+                       FROM agent.statement_topic AS placed
+                       WHERE placed.claim_id IN (link.from_id, link.to_id)
+                   ) AS topics
+            FROM agent.link AS link
+            JOIN agent.statement AS first ON first.claim_id = link.from_id
+            JOIN agent.statement AS second ON second.claim_id = link.to_id
+            WHERE link.link_type = 'contradicts'
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(f"SELECT count(*) AS total FROM ({query}) AS all_of_them")  # noqa: S608
+            total = int(one_row(cursor)["total"])
+            ordered = (
+                f"{query} ORDER BY greatest(first.shown_on, second.shown_on)"
+                " DESC NULLS LAST, link.from_id LIMIT %s"
+            )
+            cursor.execute(ordered, (limit,))
+            return total, [dict(row) for row in cursor.fetchall()]
 
     def agent_gaps(self, *, limit: int = 50) -> list[dict[str, Any]]:
         with self.connect() as connection, connection.cursor() as cursor:
@@ -5591,9 +5658,9 @@ class Database:
         question_vector: str | None = None,
     ) -> list[dict[str, Any]]:
         """The reader's own search: hybrid, filtered, and saying why each hit is here."""
-        unknown = set(filters or ()) - set(FILTERS)
+        unknown = set(filters or ()) - set(AGENT_FILTERS)
         if unknown:
-            raise ValueError(f"unknown filters {sorted(unknown)}; expected {list(FILTERS)}")
+            raise ValueError(f"unknown filters {sorted(unknown)}; expected {list(AGENT_FILTERS)}")
         parameters: dict[str, Any] = {
             "question": question,
             "rrf_k": RRF_K,
@@ -5601,7 +5668,7 @@ class Database:
             "question_vector": question_vector,
             "embedding_model": DEFAULT_MODEL,
             "semantic_depth": SEMANTIC_DEPTH,
-            **{name: (filters or {}).get(name) for name in FILTERS},
+            **{name: (filters or {}).get(name) for name in AGENT_FILTERS},
         }
         with self.connect() as connection, connection.cursor() as cursor:
             cursor.execute(AGENT_SEARCH_SQL, parameters)

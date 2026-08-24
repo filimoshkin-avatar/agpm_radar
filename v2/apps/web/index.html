@@ -164,14 +164,65 @@
   <section id="agentView" class="agent-view" aria-label="Агент базы знаний" hidden>
     <div class="agent-view__inner">
       <div class="agent-tabs" role="tablist" aria-label="Разделы базы знаний">
-        <button class="agent-tab is-active" type="button" data-agent-tab="ask" role="tab" aria-selected="true">Спросить</button>
+        <button class="agent-tab is-active" type="button" data-agent-tab="find" role="tab" aria-selected="true">Найти</button>
+        <button class="agent-tab" type="button" data-agent-tab="ask" role="tab" aria-selected="false">Спросить</button>
         <button class="agent-tab" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">Обсерватория</button>
+        <button class="agent-tab" type="button" data-agent-tab="contradictions" role="tab" aria-selected="false">Противоречия</button>
         <button class="agent-tab" type="button" data-agent-tab="topics" role="tab" aria-selected="false">Понятия</button>
         <button class="agent-tab" type="button" data-agent-tab="wiki" role="tab" aria-selected="false">Wiki</button>
         <button class="agent-tab" type="button" data-agent-tab="gaps" role="tab" aria-selected="false">Пробелы</button>
       </div>
 
-      <div id="agentAsk" class="agent-panel">
+      <div id="agentFind" class="agent-panel">
+        <form id="agentFindForm" class="agent-ask">
+          <span class="agent-ask__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+          </span>
+          <input id="agentFindQuery" class="agent-ask__input" type="search" autocomplete="off"
+                 placeholder="Найти утверждения по словам и по смыслу" aria-label="Поиск по базе знаний">
+          <button class="agent-ask__submit" type="submit">Найти</button>
+        </form>
+        <div class="agent-find__filters" id="agentFindFilters">
+          <label class="agent-select">допуск
+            <select data-find-filter="admission">
+              <option value="">любой</option>
+              <option value="knowledge">знание</option>
+              <option value="observatory">хроника рынка</option>
+            </select>
+          </label>
+          <label class="agent-select">вид
+            <select data-find-filter="material_kind">
+              <option value="">любой</option>
+              <option value="fact">факт</option>
+              <option value="opinion">мнение</option>
+              <option value="case">кейс</option>
+              <option value="forecast">прогноз</option>
+              <option value="product_release">релиз</option>
+              <option value="incident">инцидент</option>
+            </select>
+          </label>
+          <label class="agent-select">статус
+            <select data-find-filter="status">
+              <option value="">любой</option>
+              <option value="canon">канон</option>
+              <option value="operationalization">операционализация</option>
+              <option value="external_reference">внешняя ссылка</option>
+              <option value="observed_signal">наблюдаемый сигнал</option>
+            </select>
+          </label>
+          <label class="agent-select">тема
+            <select data-find-filter="topic_key" id="agentFindTopic">
+              <option value="">любая</option>
+            </select>
+          </label>
+          <label class="agent-check">
+            <input type="checkbox" data-find-filter="fresh" value="1"> только актуальное
+          </label>
+        </div>
+        <div id="agentFindResults" class="agent-answer" aria-live="polite"></div>
+      </div>
+
+      <div id="agentAsk" class="agent-panel" hidden>
         <form id="agentForm" class="agent-ask">
           <span class="agent-ask__icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
@@ -188,7 +239,34 @@
         <div id="agentAnswer" class="agent-answer" aria-live="polite"></div>
       </div>
 
-      <div id="agentObservatory" class="agent-panel" hidden></div>
+      <div id="agentObservatory" class="agent-panel" hidden>
+        <div class="agent-find__filters" id="agentObservatoryFilters">
+          <label class="agent-select">период
+            <select data-observatory="since">
+              <option value="">всё время</option>
+              <option value="month">последний месяц</option>
+              <option value="quarter">последний квартал</option>
+              <option value="year">последний год</option>
+            </select>
+          </label>
+          <label class="agent-select">класс события
+            <select data-observatory="kind">
+              <option value="">все шесть</option>
+              <option value="incident">инцидент</option>
+              <option value="product_release">релиз</option>
+              <option value="forecast">прогноз</option>
+              <option value="case">кейс</option>
+              <option value="fact">факт</option>
+              <option value="opinion">мнение</option>
+            </select>
+          </label>
+          <label class="agent-check">
+            <input type="checkbox" data-observatory="fresh" value="1"> только актуальное
+          </label>
+        </div>
+        <div id="agentObservatoryBody"></div>
+      </div>
+      <div id="agentContradictions" class="agent-panel" hidden></div>
       <div id="agentTopics" class="agent-panel" hidden></div>
       <div id="agentWiki" class="agent-panel" hidden></div>
       <div id="agentGaps" class="agent-panel" hidden></div>

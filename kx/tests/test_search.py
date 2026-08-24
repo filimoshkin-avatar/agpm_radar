@@ -419,3 +419,39 @@ def test_a_hit_says_whether_meaning_found_it() -> None:
     assert hit.as_json()["meaningPosition"] == 4
     # A hit no lexical arm reached is exactly what the meaning arm exists for.
     assert hit.ru_position is None and hit.en_position is None
+
+
+def test_the_reader_can_ask_for_what_has_not_gone_stale() -> None:
+    """Decision 11 makes expiry a review queue, so the filter is the reader's.
+
+    Off by default: an expired forecast is not a false one, it is one whose
+    review is due. But 557 statements on production are past their date, and a
+    reader who wants only what still stands has to be able to say so.
+    """
+    from radar_kx.search import AGENT_FILTERS, AGENT_SEARCH_SQL, FILTERS
+
+    assert "fresh" in AGENT_FILTERS
+    assert "fresh" not in FILTERS, "the corpus search behind the editor has no use for it"
+    assert "%(fresh)s::text IS NULL" in AGENT_SEARCH_SQL
+    assert "statement.valid_until >= clock_timestamp()" in AGENT_SEARCH_SQL
+    # And the date itself comes back, or the label has nothing to render.
+    assert "scoped.valid_until" in AGENT_SEARCH_SQL
+
+
+def test_every_bare_parameter_in_the_agent_search_carries_a_cast() -> None:
+    """The `IS NULL` beside an untyped parameter is what took /kb/search down.
+
+    PostgreSQL refuses the whole statement with "could not determine data type
+    of parameter", so one uncast filter breaks every search, not only the one
+    using it.
+    """
+    import re
+
+    from radar_kx.search import AGENT_SEARCH_SQL
+
+    uncast = {
+        name
+        for name, tail in re.findall(r"%\((\w+)\)s(\s*(?:IS|=|<|>)?)", AGENT_SEARCH_SQL)
+        if "IS" in tail
+    }
+    assert not uncast, f"these are compared to NULL with no cast: {sorted(uncast)}"

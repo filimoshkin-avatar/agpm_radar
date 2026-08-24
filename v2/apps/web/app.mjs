@@ -291,6 +291,9 @@ function setViewMode(mode) {
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
   document.getElementById("gazetteView")?.toggleAttribute("hidden", state.viewMode !== "gazette");
   document.getElementById("agentView")?.toggleAttribute("hidden", state.viewMode !== "agent");
+  // The opening tab is marked active in the markup, so no `setAgentTab` runs for
+  // it and nothing would fill its subject list.
+  if (state.viewMode === "agent" && agentState.tab === "find") agentLoadTopicOptions();
   document.querySelectorAll("[data-view-mode]").forEach(button => {
     const active = button.dataset.viewMode === state.viewMode;
     button.classList.toggle("is-active", active);
@@ -1322,6 +1325,10 @@ document.addEventListener("click", event => {
     setAgentTab(button.dataset.agentTab);
     return;
   }
+  if (button.dataset.agentLinks) {
+    agentToggleLinks(button.dataset.agentLinks);
+    return;
+  }
   if (button.dataset.agentTopic) {
     agentOpenTopic(button.dataset.agentTopic);
     return;
@@ -1432,7 +1439,7 @@ const AGENT_STATUS_CLASS = {
   hypothesis: "agent-label--far"
 };
 
-const agentState = { tab: "ask", admission: "knowledge", busy: false };
+const agentState = { tab: "find", admission: "knowledge", busy: false };
 
 async function kbFetch(path, options) {
   const response = await fetch(`${KB}${path}`, options);
@@ -1472,8 +1479,28 @@ function agentRow(row) {
     isRetelling: Boolean(pick("is_retelling", "isRetelling")),
     shownOn: pick("shown_on", "shownOn"),
     shownKind: pick("shown_kind", "shownKind"),
+    validUntil: pick("valid_until", "validUntil"),
     matchedBy: pick("matched_by", "matchedBy") || []
   };
+}
+
+const AGENT_LINK_LABEL = {
+  supports: "подтверждает",
+  contradicts: "противоречит",
+  qualifies: "уточняет",
+  related_to: "связанное"
+};
+
+/** Decision 11 made visible.
+ *
+ * An expired statement is not a false one - the owner's rule says its review is
+ * due. So the label says the date and nothing stronger, and the reader decides.
+ */
+function agentStale(row) {
+  if (!row.validUntil) return "";
+  const until = String(row.validUntil).slice(0, 10);
+  if (until >= new Date().toISOString().slice(0, 10)) return "";
+  return `<span class="agent-label agent-label--stale">⧖ срок истёк ${escapeHtml(until)}</span>`;
 }
 
 function agentDate(row) {
@@ -1495,6 +1522,7 @@ function agentLabels(row) {
   if (row.isRetelling && row.primarySource) {
     parts.push(`<span class="agent-label agent-label--retelling">пересказ → ${escapeHtml(row.primarySource)}</span>`);
   }
+  parts.push(agentStale(row));
   return parts.join("");
 }
 
@@ -1530,7 +1558,59 @@ function agentStatementCard(raw, ordinal) {
           ${escapeHtml(row.sourceTitle || row.sourceUrl || "источник")}
         </a>
       </div>
+      ${row.claimId ? `<button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">
+        Что база связала с этим
+      </button>
+      <div class="agent-links" data-agent-links-for="${escapeHtml(row.claimId)}" hidden></div>` : ""}
     </article>`;
+}
+
+/** Level five, on demand: what else the base says about the same thing.
+ *
+ * `agent.link` stores a pair once in uuid order, so the direction on the row is
+ * about which side the judge was shown first. For `qualifies` that matters and
+ * the phrasing follows it; the other three read the same from either end.
+ */
+async function agentToggleLinks(claimId) {
+  const box = document.querySelector(`[data-agent-links-for="${CSS.escape(claimId)}"]`);
+  if (!box) return;
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  if (box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Читаю связи…</p>`;
+  try {
+    const data = await kbFetch(`/statement/${encodeURIComponent(claimId)}`);
+    const links = Array.isArray(data.links) ? data.links : [];
+    if (!links.length) {
+      box.innerHTML = `<p class="agent-links__empty">База не связала это утверждение ни с чем.</p>`;
+      box.dataset.loaded = "1";
+      return;
+    }
+    const contradictions = links.filter(link => link.link_type === "contradicts").length;
+    box.innerHTML = `
+      <p class="agent-links__head">
+        ${links.length} ${plural(links.length, "связь", "связи", "связей")}${
+          contradictions ? ` · ${contradictions} ${plural(contradictions, "противоречие", "противоречия", "противоречий")}` : ""
+        }
+      </p>
+      <ul class="agent-links__list">
+        ${links.map(link => {
+          const type = AGENT_LINK_LABEL[link.link_type] || link.link_type;
+          // "второе уточняет первое": on an outgoing link the other statement
+          // qualifies this one, on an incoming one this qualifies the other.
+          const arrow = link.link_type === "qualifies"
+            ? (link.direction === "incoming" ? "→ уточняет" : "← уточняется")
+            : type;
+          return `<li class="agent-links__item agent-links__item--${escapeHtml(link.link_type)}">
+            <span class="agent-links__type">${escapeHtml(link.link_type === "qualifies" ? arrow : type)}</span>
+            <span class="agent-links__text">${escapeHtml(link.statement || "")}</span>
+          </li>`;
+        }).join("")}
+      </ul>`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
 }
 
 async function agentAsk(question) {
@@ -1586,12 +1666,138 @@ function plural(n, one, few, many) {
   return many;
 }
 
-async function agentLoadObservatory() {
-  const box = document.getElementById("agentObservatory");
+function agentFindFilters() {
+  const chosen = new URLSearchParams();
+  document.querySelectorAll("[data-find-filter]").forEach(control => {
+    const value = control.type === "checkbox" ? (control.checked ? control.value : "") : control.value;
+    if (value) chosen.set(control.dataset.findFilter, value);
+  });
+  return chosen;
+}
+
+/** Populate the subject filter from the backbone rather than from a hard list.
+ *
+ * 229 accepted subjects, and they are the owner's to change - a copy in the
+ * client would be a second list to keep in step with the first.
+ */
+async function agentLoadTopicOptions() {
+  const select = document.getElementById("agentFindTopic");
+  if (!select || select.dataset.loaded) return;
+  try {
+    const data = await kbFetch("/topics");
+    (data.topics || []).forEach(topic => {
+      const option = document.createElement("option");
+      option.value = topic.topic_key;
+      option.textContent = `${topic.title} (${topic.statements})`;
+      select.append(option);
+    });
+    select.dataset.loaded = "1";
+  } catch {
+    // A subject list that would not load is not a reason to break the search:
+    // every other filter still narrows, and the field itself still works.
+  }
+}
+
+/** UC-01: what was found, and beside each hit which arm found it.
+ *
+ * Separate from `/ask` on purpose. Asking reaches a paid model behind a limit of
+ * ten questions per five minutes; finding a quotation is free and unmetered, and
+ * making the reader spend the first to do the second was the gap.
+ */
+async function agentFind() {
+  const box = document.getElementById("agentFindResults");
+  const query = document.getElementById("agentFindQuery")?.value.trim();
+  if (!box || !query) return;
+  box.innerHTML = `<p class="agent-waiting">Ищу по словам и по смыслу…</p>`;
+  const parameters = agentFindFilters();
+  parameters.set("q", query);
+  parameters.set("limit", "25");
+  try {
+    const data = await kbFetch(`/search?${parameters.toString()}`);
+    if (data.error) {
+      box.innerHTML = `<p class="agent-waiting">${escapeHtml(data.error)}</p>`;
+      return;
+    }
+    const hits = Array.isArray(data.hits) ? data.hits : [];
+    if (!hits.length) {
+      box.innerHTML = `<p class="agent-links__empty">Ничего не нашлось. Попробуйте снять фильтры или переформулировать.</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <p class="agent-intro">${hits.length} ${plural(hits.length, "утверждение", "утверждения", "утверждений")}.
+      Рядом с каждым видно, какая рука его нашла: по словам, по смыслу или обеими.</p>
+      ${hits.map((row, index) => agentStatementCard(row, index + 1)).join("")}`;
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+/** UC-11: where the base disagrees with itself, both sides at once. */
+async function agentLoadContradictions() {
+  const box = document.getElementById("agentContradictions");
   if (!box || box.dataset.loaded) return;
+  box.innerHTML = `<p class="agent-waiting">Загрузка разногласий…</p>`;
+  try {
+    const data = await kbFetch("/contradictions?limit=40");
+    const pairs = Array.isArray(data.pairs) ? data.pairs : [];
+    box.innerHTML = `
+      <p class="agent-intro">Пары, которые база считает несовместимыми: об одном предмете
+      сказано разное. Это находка, а не поломка — и решает её читатель, а не машина.
+      Всего таких пар ${data.total}, ниже ${pairs.length} самых свежих.</p>
+      ${pairs.map(pair => `
+        <div class="agent-clash">
+          ${agentStatementCard(agentSide(pair, "first"))}
+          <div class="agent-clash__mark" aria-hidden="true">противоречит</div>
+          ${agentStatementCard(agentSide(pair, "second"))}
+        </div>`).join("")}`;
+    box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+/** One half of a contradicting pair, in the shape every card already reads. */
+function agentSide(pair, side) {
+  return {
+    claim_id: pair[`${side === "first" ? "from" : "to"}_id`],
+    statement: pair[`${side}_statement`],
+    quote_text: pair[`${side}_quote`],
+    char_start: pair[`${side}_char_start`],
+    char_end: pair[`${side}_char_end`],
+    source_url: pair[`${side}_source_url`],
+    source_title: pair[`${side}_source_title`],
+    material_kind: pair[`${side}_material_kind`],
+    status: pair[`${side}_status`],
+    shown_on: pair[`${side}_shown_on`],
+    shown_kind: pair[`${side}_shown_kind`],
+    primary_source: pair[`${side}_primary_source`],
+    is_retelling: pair[`${side}_is_retelling`],
+    valid_until: pair[`${side}_valid_until`]
+  };
+}
+
+function agentObservatoryQuery() {
+  const chosen = new URLSearchParams();
+  const since = document.querySelector('[data-observatory="since"]')?.value;
+  const kind = document.querySelector('[data-observatory="kind"]')?.value;
+  const fresh = document.querySelector('[data-observatory="fresh"]')?.checked;
+  if (since) {
+    const days = { month: 30, quarter: 92, year: 365 }[since];
+    const from = new Date(Date.now() - days * 86400000);
+    chosen.set("since", from.toISOString().slice(0, 10));
+  }
+  if (kind) chosen.set("kind", kind);
+  if (fresh) chosen.set("fresh", "1");
+  return chosen;
+}
+
+async function agentLoadObservatory(options) {
+  const box = document.getElementById("agentObservatoryBody");
+  if (!box || (box.dataset.loaded && !options?.refresh)) return;
   box.innerHTML = `<p class="agent-waiting">Загрузка хроники…</p>`;
   try {
-    const data = await kbFetch("/observatory");
+    const parameters = agentObservatoryQuery().toString();
+    const data = await kbFetch(parameters ? `/observatory?${parameters}` : "/observatory");
     const rows = data.observatory || [];
     const byKind = new Map();
     rows.forEach(row => {
@@ -1599,6 +1805,11 @@ async function agentLoadObservatory() {
       if (!byKind.has(key)) byKind.set(key, []);
       byKind.get(key).push(row);
     });
+    if (!rows.length) {
+      box.innerHTML = `<p class="agent-links__empty">За выбранный период в этих классах ничего нет.</p>`;
+      box.dataset.loaded = "1";
+      return;
+    }
     box.innerHTML = `
       <p class="agent-intro">Срез по классам событий, а не лента: что случилось на рынке — отдельно
       от знания, которое база держит о классе явлений.</p>
@@ -1609,7 +1820,7 @@ async function agentLoadObservatory() {
               ${escapeHtml(AGENT_KIND_LABEL[kind] || kind)}
               <span class="mono">${items.length}</span>
             </h3>
-            ${items.slice(0, 12).map(row => agentStatementCard(row)).join("")}
+            ${items.map(row => agentStatementCard(row)).join("")}
           </section>`).join("")}
       </div>`;
     box.dataset.loaded = "1";
@@ -1735,7 +1946,9 @@ function setAgentTab(tab) {
   agentState.tab = tab;
   const panels = {
     ask: "agentAsk",
+    find: "agentFind",
     observatory: "agentObservatory",
+    contradictions: "agentContradictions",
     topics: "agentTopics",
     wiki: "agentWiki",
     gaps: "agentGaps"
@@ -1748,7 +1961,9 @@ function setAgentTab(tab) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
   });
+  if (tab === "find") agentLoadTopicOptions();
   if (tab === "observatory") agentLoadObservatory();
+  if (tab === "contradictions") agentLoadContradictions();
   if (tab === "topics") agentLoadTopics();
   if (tab === "wiki") agentLoadWiki();
   if (tab === "gaps") agentLoadGaps();
@@ -1758,4 +1973,19 @@ document.getElementById("agentForm")?.addEventListener("submit", event => {
   event.preventDefault();
   const question = document.getElementById("agentQuestion")?.value.trim();
   if (question) agentAsk(question);
+});
+
+document.getElementById("agentFindForm")?.addEventListener("submit", event => {
+  event.preventDefault();
+  agentFind();
+});
+
+/* A filter is a new search, not a new page: the reader changes "вид" and expects
+ * the list under it to answer, without hunting for a button. */
+document.getElementById("agentFindFilters")?.addEventListener("change", () => {
+  if (document.getElementById("agentFindQuery")?.value.trim()) agentFind();
+});
+
+document.getElementById("agentObservatoryFilters")?.addEventListener("change", () => {
+  agentLoadObservatory({ refresh: true });
 });

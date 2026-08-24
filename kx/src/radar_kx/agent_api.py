@@ -178,14 +178,21 @@ class AgentService:
         return {**card, "signature": SIGNATURE, "licence": LICENCE}
 
     def observatory(
-        self, *, since: str | None, until: str | None, kind: str | None
+        self, *, since: str | None, until: str | None, kind: str | None, fresh: bool = False
     ) -> dict[str, Any]:
         """A cut by class of event over a period - decision 4, not a feed."""
         return {
-            "observatory": self.database.agent_observatory(since=since, until=until, kind=kind),
+            "observatory": self.database.agent_observatory(
+                since=since, until=until, kind=kind, fresh=fresh
+            ),
             "signature": SIGNATURE,
             "licence": LICENCE,
         }
+
+    def contradictions(self, limit: int) -> dict[str, Any]:
+        """Where the base disagrees with itself, both sides at once (UC-11)."""
+        total, pairs = self.database.agent_contradictions(limit=limit)
+        return {"total": total, "pairs": pairs, "signature": SIGNATURE, "licence": LICENCE}
 
     def gaps(self, limit: int) -> dict[str, Any]:
         return {"gaps": self.database.agent_gaps(limit=limit)}
@@ -207,8 +214,17 @@ class AgentService:
         """Evidential search: what was found, and why each thing was found."""
         if not question.strip():
             return {"error": "пустой запрос"}
+        # With no vector the meaning arm excludes itself - `WHERE
+        # question_vector IS NOT NULL` - and the whole of UC-01's "three arms"
+        # collapses to two lexical ones. `ask` passed one from the start and
+        # `search` never did, so the same phrase answered twice over: through
+        # `ask`, "слова, смысл" and statements about delegated autonomy; through
+        # `search`, "слова" and whatever shared a word stem.
         hits = self.database.agent_search(
-            question[:MAX_QUESTION_CHARS], filters=filters, limit=min(limit, MAX_HITS)
+            question[:MAX_QUESTION_CHARS],
+            filters=filters,
+            limit=min(limit, MAX_HITS),
+            question_vector=self._vector(question[:MAX_QUESTION_CHARS]),
         )
         return {"query": question[:MAX_QUESTION_CHARS], "hits": hits, "licence": LICENCE}
 
@@ -413,7 +429,14 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                         since=parameters.get("since"),
                         until=parameters.get("until"),
                         kind=parameters.get("kind"),
+                        fresh=parameters.get("fresh") == "1",
                     ),
+                )
+                return
+            if path == "/contradictions":
+                self._json(
+                    HTTPStatus.OK,
+                    service.contradictions(_int(parameters.get("limit"), 60)),
                 )
                 return
             if path == "/gaps":

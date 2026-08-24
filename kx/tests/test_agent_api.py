@@ -62,6 +62,9 @@ class FakeDatabase:
     def agent_statement(self, claim_id: str) -> Any:
         return self._record("agent_statement", claim_id=claim_id)
 
+    def agent_contradictions(self, **kwargs: Any) -> Any:
+        return self._record("agent_contradictions", **kwargs) or (0, [])
+
     def cached_answer(self, question: str, **kwargs: Any) -> Any:
         return self._record("cached_answer", question=question, **kwargs)
 
@@ -206,7 +209,12 @@ def test_the_observatory_passes_the_period_and_the_class_through() -> None:
     talking = service(agent_observatory=[])
     talking.observatory(since="2026-06-01", until="2026-08-01", kind="incident")
     _, kwargs = talking.database.asked[0]  # type: ignore[attr-defined]
-    assert kwargs == {"since": "2026-06-01", "until": "2026-08-01", "kind": "incident"}
+    assert kwargs == {
+        "since": "2026-06-01",
+        "until": "2026-08-01",
+        "kind": "incident",
+        "fresh": False,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -395,3 +403,38 @@ def test_an_answer_the_service_cannot_read_still_gets_a_reply() -> None:
     assert body["error"]
     # And nothing of the traceback reaches the caller.
     assert "JSON object" not in json.dumps(body, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# UC-01: the search has three arms, and one of them was never given anything
+# ---------------------------------------------------------------------------
+
+
+def test_the_reader_search_reaches_for_the_meaning_arm() -> None:
+    """`ask` passed a question vector from the first day; `search` never did.
+
+    The arm excludes itself when the vector is NULL - `WHERE question_vector IS
+    NOT NULL` - so the endpoint the reader would use ran on words alone while
+    the documentation, the labels and the arm's own name all said otherwise.
+    Measured on production before the fix: the same phrase through `ask` came
+    back "слова, смысл" and about delegated autonomy, through `search` "слова"
+    and about whatever shared a stem.
+    """
+    reading = service(agent_search=[HIT])
+    reading.search("что мешает доверять автономным исполнителям", filters={}, limit=5)
+    called = [call for call in reading.database.asked if call[0] == "agent_search"]  # type: ignore[attr-defined]
+    assert called, "the search never reached the database"
+    assert "question_vector" in called[0][1], (
+        "search must offer the meaning arm a vector, the way ask does"
+    )
+
+
+def test_the_contradictions_route_answers_with_both_sides() -> None:
+    """A pair is the finding. One side of it is just a statement."""
+    pair = {"from_id": "a", "to_id": "b", "first_statement": "растёт", "second_statement": "падает"}
+    reading = service(agent_contradictions=(283, [pair]))
+    answered = reading.contradictions(60)
+    assert answered["total"] == 283
+    assert answered["pairs"][0]["first_statement"] == "растёт"
+    assert answered["pairs"][0]["second_statement"] == "падает"
+    assert answered["signature"] == SIGNATURE
