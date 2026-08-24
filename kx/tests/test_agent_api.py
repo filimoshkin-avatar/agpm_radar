@@ -8,7 +8,7 @@ arriving together, and an answer never being returned without its evidence.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -342,3 +342,56 @@ def test_an_admission_nobody_named_does_not_widen_the_search() -> None:
     talking.ask("вопрос", admission="everything")
     _, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
     assert kwargs["filters"]["admission"] == "knowledge"
+
+
+# ---------------------------------------------------------------------------
+# What a public endpoint owes a caller when it cannot answer
+# ---------------------------------------------------------------------------
+
+
+def test_an_answer_the_service_cannot_read_still_gets_a_reply() -> None:
+    """`parse_answer` raises `ValueError`, and only `OrchestratorError` was caught.
+
+    An unparseable model reply therefore raised through
+    `BaseHTTPRequestHandler`, which logs a traceback and closes the socket: the
+    caller got no status line at all, and the site showed a network error rather
+    than a failure. A public endpoint owes an answer even when the answer is no.
+    """
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from radar_kx.agent_api import AgentService, make_handler
+
+    class Unreadable:
+        """A service whose model said something the protocol cannot read."""
+
+        def ask(
+            self, question: str, *, client: str, admission: str = "knowledge"
+        ) -> dict[str, Any]:
+            raise ValueError("answer contains no JSON object")
+
+    handler = make_handler(cast(AgentService, Unreadable()))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address[0], server.server_address[1]
+        connection = http.client.HTTPConnection(str(host), int(port), timeout=5)
+        connection.request(
+            "POST",
+            "/ask",  # Caddy serves this on /kb/ask
+            body=json.dumps({"question": "вопрос"}),
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        body = json.loads(response.read())
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert response.status == 503
+    assert body["error"]
+    # And nothing of the traceback reaches the caller.
+    assert "JSON object" not in json.dumps(body, ensure_ascii=False)

@@ -941,10 +941,14 @@ def main() -> None:
         link_dropped: dict[str, int] = {}
         refusals = 0
         links_written = 0
+        # Pairs a judge actually looked at. `len(pairs)` counts what was offered,
+        # and a refused batch was never judged - reporting it as judged makes
+        # `leftUnlinked` count the model being unavailable as the model saying no.
+        judged_pairs = 0
         lock = threading.Lock()
 
         def judge(block: list[Pair]) -> None:
-            nonlocal refusals, links_written
+            nonlocal refusals, links_written, judged_pairs
             try:
                 result = gateway.run(
                     KNOWLEDGE_LINK, build_linking_payload(block), system=LINK_INSTRUCTIONS
@@ -959,6 +963,7 @@ def main() -> None:
             )
             with lock:
                 judgements.extend(found)
+                judged_pairs += len(block)
                 links_written += int(stored["written"])
                 for key, value in thrown.items():
                     link_dropped[key] = link_dropped.get(key, 0) + value
@@ -969,7 +974,8 @@ def main() -> None:
 
         _print_json(
             {
-                **summarize_links(judgements, len(pairs), link_dropped),
+                **summarize_links(judgements, judged_pairs, link_dropped),
+                "pairsOffered": len(pairs),
                 "written": links_written,
                 "batches": len(pair_batches),
                 "batchesRefused": refusals,

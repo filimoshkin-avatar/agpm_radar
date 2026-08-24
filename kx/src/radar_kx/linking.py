@@ -48,9 +48,25 @@ BATCH = 20
 #: fifth are almost always `related_to` at best and the call costs the same.
 NEIGHBOURS = 3
 
-#: Cosine distance beyond which two statements are not about the same thing. e5
-#: puts genuinely related sentences under 0.25 and unrelated ones above 0.4;
-#: 0.32 is the middle of that gap, measured on this corpus.
+#: Cosine distance beyond which a pair is not offered to the judge - and, on this
+#: corpus, a rail nothing touches.
+#:
+#: It was written down as "e5 puts related sentences under 0.25 and unrelated ones
+#: above 0.4, so 0.32 is the middle of that gap". That is the shape of the general
+#: claim about e5, and it is not what these vectors do. Measured over 20 000
+#: random pairs of production statements: median 0.217, p95 0.271, max 0.354 -
+#: **19 986 of 20 000 sit under 0.32**. multilingual-e5-small packs one language
+#: domain into a narrow cone, so "unrelated" here is 0.22, not 0.45.
+#:
+#: So the shortlist that produced the 15 414 links is really *same subject, three
+#: nearest* - the subject comes from the model reading the words, the ordering
+#: from the embedder, and this constant excludes almost nothing. That is a
+#: defensible pipeline, and it is not the one the comment described.
+#:
+#: Left at 0.32 deliberately. A floor that actually cut would have to be around
+#: 0.15 for this corpus, and moving it changes which pairs get judged - a re-run
+#: against a different shortlist, and a decision about the base, not a constant to
+#: quietly retune.
 MAX_DISTANCE = 0.32
 
 #: Longest statement sent. A judgement is about what two sentences say to each

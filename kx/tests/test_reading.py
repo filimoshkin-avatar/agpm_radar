@@ -221,12 +221,6 @@ def test_a_kind_with_no_interval_never_expires() -> None:
     assert valid_until("fact", None, {}) is None
 
 
-def test_an_undated_document_expires_from_today_rather_than_never() -> None:
-    computed = valid_until("forecast", None, {"forecast": timedelta(days=1)})
-    assert computed is not None
-    assert computed > datetime.now(UTC)
-
-
 # ---------------------------------------------------------------------------
 # The report
 # ---------------------------------------------------------------------------
@@ -251,3 +245,73 @@ def test_the_summary_separates_what_was_read_from_what_was_thrown_away() -> None
     assert report["withoutASubject"] == 1
     # Nothing was thrown away, so the report does not carry an empty tally.
     assert report["dropped"] == {}
+
+
+def test_a_statement_nobody_can_date_has_no_expiry() -> None:
+    """The anchor is the document, never the clock.
+
+    Falling back to `now()` put 6 625 of 13 876 production statements on a clock
+    that started the day the reading pass ran - months after the material - and
+    made them all expire together on its anniversary. A date nobody knows is
+    `None`, which keeps the statement out of the expiry queue instead of giving
+    it a number that is really a record of when a job ran.
+    """
+    from radar_kx.reading import valid_until
+
+    rules = {"forecast": timedelta(days=365)}
+    assert valid_until("forecast", None, rules) is None
+    dated = datetime(2025, 11, 2, tzinfo=UTC)
+    assert valid_until("forecast", dated, rules) == datetime(2026, 11, 2, tzinfo=UTC)
+    assert valid_until("fact", dated, {"fact": None}) is None
+
+
+def test_an_invented_subject_is_not_reported_as_no_subject() -> None:
+    """Two different gaps, and the owner acts on them differently.
+
+    "Nothing was named" is a statement with no subject. "These were named and the
+    backbone has none of them" is a candidate subject list - so the names go into
+    the line rather than being replaced by the other message.
+    """
+    from radar_kx.reading import NO_SUBJECT_NAMED, not_in_the_backbone
+
+    assert not_in_the_backbone(()) == NO_SUBJECT_NAMED
+    line = not_in_the_backbone(("agent/orchestration", "agent/handoff"))
+    assert "agent/orchestration" in line
+    assert "agent/handoff" in line
+    assert line != NO_SUBJECT_NAMED
+
+
+def test_a_source_that_is_not_a_name_is_not_stored_as_one() -> None:
+    """`str(False)` is "False", which reads as a name and satisfies the CHECK.
+
+    `a_retelling_names_its_source` only asks that the field be non-empty, so a
+    model answering `"source": false` would have produced a retelling attributed
+    to somebody called False. None reached production; the check is here so none
+    can.
+    """
+    readings, _ = parse_readings(
+        json.dumps(
+            [
+                {
+                    "item": 1,
+                    "kind": "fact",
+                    "source": False,
+                    "retelling": False,
+                    "admission": "knowledge",
+                    "topics": [],
+                }
+            ]
+        ),
+        (
+            ReadableClaim(
+                claim_id="11111111-1111-1111-1111-111111111111",
+                statement="что-то",
+                quote="что-то",
+                corpus="материал выпуска",
+                dated_on=None,
+            ),
+        ),
+        frozenset(),
+    )
+    assert readings[0].primary_source == ""
+    assert readings[0].is_retelling is False

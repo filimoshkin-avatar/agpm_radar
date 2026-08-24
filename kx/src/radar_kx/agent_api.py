@@ -32,8 +32,10 @@ inside an evidence package.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -325,11 +327,20 @@ class AgentService:
         except ImportError:  # pragma: no cover - depends on the runtime
             return None
         try:
+            # The whole call, not just the load. One model object served every
+            # thread of a ThreadingHTTPServer, and `encode` runs a torch forward
+            # pass on shared state. Encoding one short question is milliseconds,
+            # so serialising it costs nothing worth measuring.
             with self._model_lock:
                 if self._model is None:
                     self._model = load_model()
-            return to_pgvector(encode(self._model, [question], is_query=True)[0])
+                return to_pgvector(encode(self._model, [question], is_query=True)[0])
         except Exception:  # pragma: no cover - a missing model is not a failed answer
+            # Still not a failed answer: the arm switches off and the search stays
+            # word-only, by design. But it says so. Swallowing this silently meant
+            # a broken embedder degraded every answer in the same way a runtime
+            # without torch does, and nothing anywhere could tell the two apart.
+            sys.stderr.write(f"semantic arm off:\n{traceback.format_exc()}")
             return None
 
     @staticmethod
@@ -480,6 +491,20 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 # not in a public response: it carries the provider's own status
                 # line and body fragments.
                 self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "модель сейчас недоступна"})
+            except Exception:
+                # Anything else - most likely `parse_answer` on a reply that is not
+                # the JSON the protocol asked for. Before this, such a reply raised
+                # through `BaseHTTPRequestHandler`, which logs the traceback and
+                # closes the socket: the caller got no status line at all, and the
+                # site showed a network error rather than a failure. A public
+                # endpoint owes an answer even when the answer is "no".
+                # `log_message` is deliberately silent, so the traceback goes
+                # straight to stderr, which is what systemd journals.
+                sys.stderr.write(f"ask failed:\n{traceback.format_exc()}")
+                self._json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "ответ модели не удалось разобрать"},
+                )
 
         def log_message(self, format: str, *args: Any) -> None:
             """Silence. systemd already timestamps, and a URL carries a question."""

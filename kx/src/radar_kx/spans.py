@@ -169,6 +169,30 @@ def is_table_row(line: str) -> bool:
     return line.lstrip().startswith("|") or line.count("|") >= _MIN_PIPES_IN_A_ROW
 
 
+def _word_edge(text: str, edge: int, natural: int, *, forward: bool) -> int:
+    """Pull a capped block edge off the middle of a word.
+
+    `MAX_QUOTE_CHARS` is a character count, so when it binds it lands wherever it
+    lands - and the sentence walk downstream cannot tell that edge from the end
+    of a real paragraph, so it will happily widen a quotation to it and cut a word
+    in half. No production span is long enough to reach the cap (the longest is
+    911 characters against a 1 500 cap), but the quotation is the thing this whole
+    store is for, and "never cuts a word" is cheaper to keep than to prove.
+
+    An edge that came from a real boundary is returned untouched.
+    """
+    if edge == natural or not 0 < edge < len(text):
+        return edge
+    if text[edge - 1].isspace() or text[edge].isspace():
+        return edge
+    step = 1 if forward else -1
+    moved = edge
+    while 0 < moved < len(text) and not text[moved - 1 if forward else moved].isspace():
+        moved += step
+    # A single word longer than the whole allowance has no boundary to find.
+    return moved if 0 < moved < len(text) else edge
+
+
 def block_of(text: str, start: int, end: int) -> Block:
     """The structural unit around the span, and how far widening may go.
 
@@ -204,7 +228,7 @@ def block_of(text: str, start: int, end: int) -> Block:
             if _opens_a_block(text[previous_start : left - 1]):
                 break
             left = previous_start
-        left = max(left, floor)
+        left = min(_word_edge(text, max(left, floor), first_start, forward=True), start)
 
     ceiling = min(len(text), start + MAX_QUOTE_CHARS)
     right = last_end
@@ -213,7 +237,7 @@ def block_of(text: str, start: int, end: int) -> Block:
         if _opens_a_block(text[following_start:following_end]):
             break
         right = following_end
-    right = min(right, ceiling)
+    right = max(_word_edge(text, min(right, ceiling), last_end, forward=False), end)
     widest = max((len(line) for line in text[left:right].split("\n")), default=0)
     return Block(left, right, kind, widest)
 

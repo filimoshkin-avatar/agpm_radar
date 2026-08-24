@@ -272,3 +272,49 @@ def test_an_example_shows_what_each_side_gained() -> None:
     assert example["gainedOnTheLeft"] == "Второе "
     assert example["gainedOnTheRight"].endswith(".")
     assert example["quote"] in repair.widened
+
+
+def test_the_cap_never_lands_inside_a_word() -> None:
+    """`MAX_QUOTE_CHARS` is a character count, so when it binds it binds anywhere.
+
+    The sentence walk downstream cannot tell that artificial edge from the end of
+    a real paragraph, so it widened a quotation to it and cut a word in half -
+    reported, wrongly, as "widened to the edge of the block". No production span
+    is long enough to reach the cap (the longest is 911 against a cap of 1 500),
+    which is exactly why this is a test rather than a repair.
+    """
+    from radar_kx.spans import MAX_QUOTE_CHARS, expand
+
+    text = ("abcdefg " * 500).strip()
+    widened = expand(text, 0, MAX_QUOTE_CHARS - 200)
+    assert widened.end < MAX_QUOTE_CHARS
+    assert not text[widened.end - 1].isspace()
+    assert text[widened.end].isspace(), "the quotation stops at the end of a word"
+
+    # A single word longer than the whole allowance has no boundary to find, and
+    # the cap is still the cap.
+    solid = "x" * 4000
+    assert expand(solid, 0, 1300).end == MAX_QUOTE_CHARS
+
+
+def test_widening_never_puts_an_edge_inside_a_word() -> None:
+    """The property, over thirty thousand shapes rather than one."""
+    import random
+
+    from radar_kx.spans import expand
+
+    random.seed(7)
+    alphabet = "абв где\nжз\n\nийк lmn."
+    for _ in range(30000):
+        size = random.randint(20, 400)  # noqa: S311 - a seeded fuzz, not a secret
+        text = "".join(random.choice(alphabet) for _ in range(size))  # noqa: S311
+        if not text.strip():
+            continue
+        start = random.randrange(len(text))  # noqa: S311
+        end = random.randrange(start + 1, len(text) + 1)  # noqa: S311
+        widened = expand(text, start, end)
+        assert widened.start <= start and widened.end >= end
+        if widened.start < start < len(text) and widened.start > 0:
+            assert text[widened.start - 1].isspace() or text[widened.start].isspace()
+        if widened.end > end and widened.end < len(text):
+            assert text[widened.end].isspace() or text[widened.end - 1].isspace()

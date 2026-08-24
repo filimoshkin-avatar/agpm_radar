@@ -32,7 +32,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 #: Her six kinds of material (§5, decision 7).
@@ -54,6 +54,20 @@ MAX_TOPICS = 3
 #: did not say what was missing. A silence and a named gap are different answers,
 #: and the queue has to be able to tell them apart.
 NO_SUBJECT_NAMED = "предмет не назван: тема не выбрана и причина не указана"
+
+#: The other way a statement ends up with no subject: the model named subjects
+#: that are not in the backbone. The keys it asked for go into the line, because
+#: that is the useful half - a gap row saying "not named" would be false, and the
+#: names are a candidate subject list rather than noise.
+NOT_IN_THE_BACKBONE = "названных тем нет в скелете: {keys}"
+
+
+def not_in_the_backbone(keys: Sequence[str]) -> str:
+    """The gap line for a reading whose every named subject was invented."""
+    if not keys:
+        return NO_SUBJECT_NAMED
+    return NOT_IN_THE_BACKBONE.format(keys=", ".join(keys))
+
 
 #: Longest quotation sent with a statement. A widened quotation is a sentence or
 #: two; beyond that the model is reading the article, which is what the egress
@@ -77,8 +91,11 @@ class ReadableClaim:
     #: `issue perimeter` or `canon`. Which corpus it came out of changes what a
     #: sensible admission is, and the model is told rather than left to guess.
     corpus: str
-    #: The day the document was published, for the expiry arithmetic. `None` when
-    #: only the radar's own date is known - then the expiry is measured from that.
+    #: The day this statement is dated to, for the expiry arithmetic: the day the
+    #: document was published, or - when the source said nothing - the day the
+    #: radar first saw it. `document_dates.shown_on` is NOT NULL, so a statement
+    #: whose document has been dated always has one of the two. `None` means no
+    #: date row at all, and then nothing is measured (see `valid_until`).
     dated_on: datetime | None
 
 
@@ -163,7 +180,16 @@ def build_payload(claims: Sequence[ReadableClaim]) -> str:
 
 
 def _clean(value: Any, *, limit: int = 200) -> str:
-    return " ".join(str(value).split())[:limit] if value is not None else ""
+    """A model's field as a line of text, or nothing.
+
+    Only strings and numbers become text. A JSON `false` for "who originally said
+    this" used to pass through `str()` and be stored as the primary source
+    "False" - a value that reads as a name, satisfies the retelling constraint,
+    and is not one. Anything that is not a scalar is the model failing to answer.
+    """
+    if value is None or isinstance(value, bool) or not isinstance(value, str | int | float):
+        return ""
+    return " ".join(str(value).split())[:limit]
 
 
 def parse_readings(
@@ -263,11 +289,20 @@ def valid_until(
     Arithmetic, not judgement: `material_kind_freshness` holds the interval the
     owner set for each kind, and expiry only queues a review - it changes nothing
     on its own (decision 11). A kind with no interval never expires.
+
+    Measured from the *document*, never from the clock. Falling back to "now" put
+    the anchor on the day the reading pass happened to run: 6 625 of 13 876
+    statements on production - every one whose document carried no published date
+    - were given a `valid_until` exactly one interval after the pass, so their
+    freshness clocks started months late and would have expired together on its
+    anniversary. A statement nobody can date cannot have its freshness measured,
+    and saying so with `None` is the honest answer; measuring from today is a
+    number that looks like knowledge and is a record of when the job ran.
     """
     interval = freshness.get(kind)
-    if interval is None:
+    if interval is None or dated_on is None:
         return None
-    return (dated_on or datetime.now(UTC)) + interval
+    return dated_on + interval
 
 
 def summarize(readings: Sequence[Reading], dropped: Mapping[str, int]) -> dict[str, Any]:

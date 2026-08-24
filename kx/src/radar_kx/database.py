@@ -64,7 +64,7 @@ from radar_kx.linking import Judgement, Pair
 from radar_kx.manifest import Manifest
 from radar_kx.parser import ParsedContent, parse_content
 from radar_kx.publication import InvariantReport, decide
-from radar_kx.reading import NO_SUBJECT_NAMED, ReadableClaim, Reading
+from radar_kx.reading import ReadableClaim, Reading, not_in_the_backbone
 from radar_kx.reading import valid_until as expiry_of
 from radar_kx.reconciliation import FileStoreEntry, compare, payload_sha256
 from radar_kx.release import ReleaseComposition, ReleaseError, compose, reconcile
@@ -117,7 +117,7 @@ PROMOTION_FLOOR = 2
 #: whole point of decision 4 is that a reader sees the classes side by side.
 OBSERVATORY_PER_CLASS = 60
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 28
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4848,21 +4848,39 @@ class Database:
             # Forward: question -> statement -> quotation -> span -> source.
             cursor.execute(
                 """
-                SELECT count(*) AS statements,
-                       count(*) FILTER (WHERE evidence.claim_id IS NOT NULL) AS with_a_quotation,
-                       count(*) FILTER (
+                SELECT count(DISTINCT claims.claim_id) AS statements,
+                       count(DISTINCT claims.claim_id)
+                           FILTER (WHERE evidence.claim_id IS NOT NULL) AS with_a_quotation,
+                       count(DISTINCT claims.claim_id) FILTER (
                            WHERE substr(versions.canonical_text, evidence.char_start + 1,
                                         evidence.char_end - evidence.char_start)
                                  = evidence.quote_text
                        ) AS quotation_reproduces,
-                       count(*) FILTER (WHERE documents.canonical_url <> '') AS with_a_source,
-                       count(*) FILTER (WHERE reading.claim_id IS NOT NULL) AS read,
-                       count(*) FILTER (WHERE dates.document_id IS NOT NULL) AS dated
+                       count(DISTINCT claims.claim_id)
+                           FILTER (WHERE documents.canonical_url <> '') AS with_a_source,
+                       count(DISTINCT claims.claim_id)
+                           FILTER (WHERE reading.claim_id IS NOT NULL) AS read,
+                       count(DISTINCT claims.claim_id)
+                           FILTER (WHERE dates.document_id IS NOT NULL) AS dated,
+                       -- `claim_evidence` is keyed by (claim, version, start, end), so
+                       -- more than one exact quotation per statement is legal. None
+                       -- exist today, and five queries elsewhere join on the claim
+                       -- alone and would each silently multiply their rows if one
+                       -- appeared. Counted here so it is seen rather than discovered.
+                       count(*) - count(DISTINCT claims.claim_id)
+                           AS quotations_beyond_the_first
                 FROM kx.claims AS claims
-                JOIN kx.claim_evidence AS evidence
+                -- LEFT, and the whole point of the measurement. Under an inner
+                -- join `with_a_quotation` was tautologically equal to
+                -- `statements`: a statement with no exact quotation left the
+                -- numerator and the denominator together, so the one failure this
+                -- report exists to catch was the one it could never show.
+                LEFT JOIN kx.claim_evidence AS evidence
                   ON evidence.claim_id = claims.claim_id AND evidence.match_status = 'exact'
-                JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
-                JOIN kx.documents AS documents ON documents.document_id = versions.document_id
+                LEFT JOIN kx.document_versions AS versions
+                       ON versions.version_id = claims.version_id
+                LEFT JOIN kx.documents AS documents
+                       ON documents.document_id = versions.document_id
                 LEFT JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
                 LEFT JOIN kx.document_dates AS dates ON dates.document_id = documents.document_id
                 """
@@ -5057,18 +5075,44 @@ class Database:
         machine's to suggest.
         """
         query = """
-            WITH support AS (
-                SELECT links.to_id AS claim_id,
+            WITH confirmation AS (
+                -- Both ends of every `supports` link, and the reason both count.
+                --
+                -- The judge is shown an ordered pair and answers "the second
+                -- confirms the first", so its verdict looks directional. But which
+                -- statement is shown first is decided by `source.claim_id <
+                -- other.claim_id` - a comparison of two uuids. The order carries no
+                -- evidence, so a query that reads it is counting a coin flip.
+                --
+                -- What the link asserts is symmetric: the same state of affairs,
+                -- observed a second time from somewhere else. That makes each link
+                -- one independent observation for the statement at *either* end.
+                --
+                -- Measured on production: the `to` side alone (what this counted
+                -- before) clears the floor for 682 statements, the `from` side for
+                -- 674, and only 113 are in both - the overlap is small precisely
+                -- because the coin flip is independent per pair. Both sides: 1 557.
+                SELECT from_id AS claim_id, to_id AS confirmer
+                FROM kx.knowledge_links
+                WHERE link_type = 'supports'
+                  AND from_kind = 'claim' AND to_kind = 'claim'
+                UNION ALL
+                SELECT to_id AS claim_id, from_id AS confirmer
+                FROM kx.knowledge_links
+                WHERE link_type = 'supports'
+                  AND from_kind = 'claim' AND to_kind = 'claim'
+            ),
+            support AS (
+                SELECT confirmation.claim_id,
                        count(DISTINCT coalesce(
                            nullif(reading.primary_source, ''), documents.canonical_url
                        )) AS independent
-                FROM kx.knowledge_links AS links
-                JOIN kx.claims AS claims ON claims.claim_id = links.from_id
-                JOIN kx.claim_reading AS reading ON reading.claim_id = links.from_id
+                FROM confirmation
+                JOIN kx.claims AS claims ON claims.claim_id = confirmation.confirmer
+                JOIN kx.claim_reading AS reading
+                  ON reading.claim_id = confirmation.confirmer
                 JOIN kx.document_versions AS versions ON versions.version_id = claims.version_id
                 JOIN kx.documents AS documents ON documents.document_id = versions.document_id
-                WHERE links.link_type = 'supports'
-                  AND links.from_kind = 'claim' AND links.to_kind = 'claim'
                 GROUP BY 1
             ),
             candidates AS (
@@ -5355,10 +5399,16 @@ class Database:
         concept_claim_id, _, claim_id = item_id.partition("/")
         if not concept_claim_id or not claim_id:
             raise ValueError("item id must be 'concept_claim_id/claim_id'")
+        # Each branch clears the other side. `concept_evidence` carries CHECK
+        # (confirmed_at IS NULL OR rejected_at IS NULL), so stamping one column on
+        # a row that already holds the other raised a constraint violation - which
+        # meant changing a verdict was the one thing this could not do.
         stamped = (
-            "confirmed_at = clock_timestamp(), confirmed_by = %(actor)s"
+            "confirmed_at = clock_timestamp(), confirmed_by = %(actor)s,"
+            " rejected_at = NULL, rejected_by = NULL"
             if verdict == "confirmed"
-            else "rejected_at = clock_timestamp(), rejected_by = %(actor)s"
+            else "rejected_at = clock_timestamp(), rejected_by = %(actor)s,"
+            " confirmed_at = NULL, confirmed_by = NULL"
         )
         with self.connect() as connection:
             self.require_schema(connection)
@@ -5579,17 +5629,36 @@ class Database:
                 (claim_id,),
             )
             topics = [dict(row) for row in cursor.fetchall()]
+            # `agent.link` stores each pair once, in uuid order, so half of every
+            # statement's links point at it rather than out of it. Reading only
+            # `from_id` hid those: 794 statements on production have links and
+            # would have rendered none at all.
+            #
+            # `direction` comes back because it is the only thing that makes
+            # `qualifies` readable. The judge answers about an ordered pair - "the
+            # second qualifies the first" - so on an outgoing link the *other*
+            # statement qualifies this one, and on an incoming link this one
+            # qualifies the other. `supports`, `contradicts` and `related_to` say
+            # the same thing whichever end you read them from.
             cursor.execute(
                 """
-                SELECT link.link_type, link.to_id AS claim_id, other.statement,
-                       other.material_kind, other.status
-                FROM agent.link AS link
-                JOIN agent.statement AS other ON other.claim_id = link.to_id
-                WHERE link.from_id = %s
-                ORDER BY link.link_type, other.claim_id
+                WITH either_way AS (
+                    SELECT link.link_type, link.to_id AS claim_id, 'outgoing' AS direction
+                    FROM agent.link AS link
+                    WHERE link.from_id = %(claim_id)s
+                    UNION ALL
+                    SELECT link.link_type, link.from_id AS claim_id, 'incoming' AS direction
+                    FROM agent.link AS link
+                    WHERE link.to_id = %(claim_id)s
+                )
+                SELECT either_way.link_type, either_way.direction, either_way.claim_id,
+                       other.statement, other.material_kind, other.status
+                FROM either_way
+                JOIN agent.statement AS other USING (claim_id)
+                ORDER BY either_way.link_type, other.claim_id
                 LIMIT 40
                 """,
-                (claim_id,),
+                {"claim_id": claim_id},
             )
             links = [dict(row) for row in cursor.fetchall()]
         return {**dict(found), "topics": topics, "links": links}
@@ -5615,7 +5684,7 @@ class Database:
                            evidence.quote_text,
                            CASE WHEN documents.canonical_url LIKE 'agpm-canon:%%'
                                 THEN 'канон AgPM' ELSE 'материал выпуска' END AS corpus,
-                           dates.published_on
+                           coalesce(dates.published_on, dates.shown_on) AS dated_on
                     FROM kx.claims AS claims
                     JOIN kx.claim_evidence AS evidence
                       ON evidence.claim_id = claims.claim_id
@@ -5643,8 +5712,8 @@ class Database:
                 quote=str(row["quote_text"]),
                 corpus=str(row["corpus"]),
                 dated_on=(
-                    datetime.combine(row["published_on"], time.min, tzinfo=UTC)
-                    if row["published_on"] is not None
+                    datetime.combine(row["dated_on"], time.min, tzinfo=UTC)
+                    if row["dated_on"] is not None
                     else None
                 ),
             )
@@ -5699,7 +5768,21 @@ class Database:
                         ),
                     )
                     written["readings"] += cursor.rowcount
-                    for topic_key in reading.topic_keys:
+                    # Which of the named subjects the backbone actually has. The
+                    # insert below used to be the check, and it could not be one:
+                    # a key the backbone does not carry inserts no row and says
+                    # nothing, so a statement whose every subject was invented
+                    # left neither a placement nor a gap. Six statements on
+                    # production sit in that hole.
+                    accepted: list[str] = []
+                    if reading.topic_keys:
+                        cursor.execute(
+                            "SELECT topic_key FROM kx.topics"
+                            " WHERE topic_key = ANY(%s::text[]) AND state = 'accepted'",
+                            (list(reading.topic_keys),),
+                        )
+                        accepted = [str(row["topic_key"]) for row in cursor.fetchall()]
+                    for topic_key in accepted:
                         cursor.execute(
                             """
                             INSERT INTO kx.claim_topics
@@ -5712,14 +5795,22 @@ class Database:
                             (reading.claim_id, reading.confidence, read_by, topic_key),
                         )
                         written["topics"] += cursor.rowcount
-                    if not reading.topic_keys:
+                    # Decision 8's queue is about what the *base* cannot place. A
+                    # statement the reading threw out is not in the base, so what
+                    # it lacks is not a gap in it - 2 300 of the 2 628 rows this
+                    # wrote on production were rejected statements.
+                    if not accepted and reading.admission != "rejected":
                         cursor.execute(
                             """
                             INSERT INTO kx.claim_gaps (claim_id, missing, noted_by, method)
                             VALUES (%s, %s, %s, 'model')
                             ON CONFLICT (claim_id) DO NOTHING
                             """,
-                            (reading.claim_id, reading.missing or NO_SUBJECT_NAMED, read_by),
+                            (
+                                reading.claim_id,
+                                reading.missing or not_in_the_backbone(reading.topic_keys),
+                                read_by,
+                            ),
                         )
                         written["gaps"] += cursor.rowcount
         return written
