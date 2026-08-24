@@ -39,6 +39,11 @@ ALLOWED = {
     # needs is granted on that one column, so it is a column privilege and does
     # not appear here - `test_the_audit_row_can_actually_be_written` covers it.
     ("kx", "egress_audit", "INSERT"),
+    # Migration 031. The wall asks one question of this table - "is this key
+    # live" - and stamps one column when the answer is yes. The UPDATE is a
+    # column privilege on `last_used_at` alone, so it does not appear here;
+    # `test_the_stamp_cannot_widen_into_the_status` covers that it is narrow.
+    ("kx", "access_keys", "SELECT"),
 }
 
 
@@ -135,3 +140,26 @@ def test_the_public_search_reads_the_narrowed_view(least_privilege_dsn: str) -> 
 
     assert "agent.statement_vector" in AGENT_SEARCH_SQL
     assert "kx.text_embeddings" not in AGENT_SEARCH_SQL
+
+
+def test_the_stamp_cannot_widen_into_the_status(least_privilege_dsn: str) -> None:
+    """`last_used_at` is telemetry; `status` and `expires_at` are the wall itself.
+
+    The serving role writes the first and must not be able to touch the other
+    two - a role that can flip `status` to 'active' or push `expires_at` forward
+    does not need a key at all.
+    """
+    with connect(least_privilege_dsn) as connection, connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT column_name FROM information_schema.column_privileges
+            WHERE grantee = 'radar_kb_public'
+              AND table_schema = 'kx' AND table_name = 'access_keys'
+              AND privilege_type = 'UPDATE'
+            """
+        )
+        writable = {str(row["column_name"]) for row in cursor.fetchall()}
+    assert writable == {"last_used_at"}, (
+        f"the serving role may write {sorted(writable)} on access_keys; "
+        "only last_used_at is telemetry, the rest is the wall"
+    )
