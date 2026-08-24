@@ -2008,14 +2008,17 @@ function chatUpdatePosition() {
       if (Number.isInteger(parsed) && parsed >= 0) current = parsed;
     }
   }
-  if (current === chatCurrentTurn) return;
-  chatCurrentTurn = current;
+  // The chip answers two things - which turn, and whether the reader is above
+  // the bottom - and only the first is `current`. Leaving on an unchanged turn
+  // left it showing «вопрос 3 из 5» to somebody already back at the foot.
   const pos = document.getElementById("chatHistoryPos");
   if (pos) {
     const show = !chatNearBottom() && chatTurns.length > 1;
     pos.hidden = !show;
     pos.textContent = show ? `· вопрос ${current + 1} из ${chatTurns.length}` : "";
   }
+  if (current === chatCurrentTurn) return;
+  chatCurrentTurn = current;
   const list = document.getElementById("chatHistoryList");
   if (list && !list.hidden) {
     list.querySelectorAll("[data-history-turn]").forEach(row => {
@@ -2052,13 +2055,23 @@ function agentChatInit() {
   // Attached on first open rather than at module evaluation - a reader who
   // never opens the chat gets no global listener, and a host without
   // `window.addEventListener` must not take the whole file down with it.
+  // Coalesced into one frame: the handler reads the geometry of every turn, and
+  // a scroll fires far more often than the screen redraws.
+  let scrollPending = false;
   window.addEventListener?.("scroll", () => {
-    if (chatUnread && chatNearBottom()) {
-      chatUnread = 0;
-      chatDownSync();
-    }
-    chatUpdatePosition();
-    chatUpSync();
+    if (scrollPending) return;
+    scrollPending = true;
+    const run = () => {
+      scrollPending = false;
+      if (chatUnread && chatNearBottom()) {
+        chatUnread = 0;
+        chatDownSync();
+      }
+      chatUpdatePosition();
+      chatUpSync();
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    else run();
   }, { passive: true });
   if (!chatSession) {
     try { chatSession = crypto.randomUUID(); } catch (error) { chatSession = "s-" + Date.now(); }
