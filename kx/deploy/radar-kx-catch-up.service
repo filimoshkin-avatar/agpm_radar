@@ -16,21 +16,27 @@ ConditionPathIsDirectory=/opt/radar-kx/current
 # against `egress_audit` between passes, so it holds even when a pass's own
 # estimate of its cost is wrong.
 #
-# --budget is the number that decides what an unattended day costs. 400 calls is
-# about a day and a half of a normal issue at current volumes, so a quiet day
-# leaves headroom and a burst does not run away.
+# --budget is the number that decides what an unattended day costs. There is no
+# daily cap on the model itself - the owner's call - so this is about how fast
+# the backlog is worked through rather than about a bill. 3 000 clears the
+# accumulated linking in a couple of days; a normal issue costs a few dozen.
 Type=oneshot
 User=radar_kx
 Group=radar_kx
 WorkingDirectory=/opt/radar-kx/current
-EnvironmentFile=/etc/radar-kx/worker.env
-EnvironmentFile=-/etc/radar-kx/orchestrator.env
-EnvironmentFile=-/etc/radar-kx/catch-up.env
 Environment=PYTHONPATH=/opt/radar-kx/current/src
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
-Environment=RADAR_KX_CATCH_UP_BUDGET=400
+
+# The default, and then the files that may override it. systemd applies these in
+# the order written, so a default declared *after* the file it is meant to be
+# overridden by silently wins: the first version of this unit read 400 while
+# /etc/radar-kx/catch-up.env said 3000, and nothing said so.
+Environment=RADAR_KX_CATCH_UP_BUDGET=3000
+EnvironmentFile=/etc/radar-kx/worker.env
+EnvironmentFile=-/etc/radar-kx/orchestrator.env
+EnvironmentFile=-/etc/radar-kx/catch-up.env
 
 ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx catch-up \
     --budget ${RADAR_KX_CATCH_UP_BUDGET}
