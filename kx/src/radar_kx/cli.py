@@ -484,9 +484,12 @@ def _parser() -> argparse.ArgumentParser:
 #: spend more than the budget allows, and a pass that stops early is cheaper to
 #: fix than one that overruns.
 CALLS_PER_ITEM = {
-    # Extraction is per fragment, and a document holds 2.9 of them on average
-    # with a 95th percentile of 8. Eight is what the ceiling assumes.
-    "extract-claims": 8.0,
+    # `extract-claims --limit` counts fragments, not documents, and a fragment
+    # is exactly one call. The first version of this table assumed documents and
+    # eight calls each, so a budget of 400 bought fifty calls of extraction
+    # instead of four hundred - safe, and wrong by a factor of eight. Found by
+    # running it with the real budget and counting.
+    "extract-claims": 1.0,
     "read-claims": 1.0 / READING_BATCH,
     "link-claims": 1.0 / LINKING_BATCH,
     "find-entities": 1.0 / ENTITY_BATCH,

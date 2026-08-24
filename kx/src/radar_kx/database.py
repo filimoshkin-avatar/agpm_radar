@@ -5742,14 +5742,28 @@ class Database:
             cursor.execute(
                 """
                 SELECT
-                  (SELECT count(*) FROM kx.document_versions AS versions
+                  -- Fragments, not documents: the limit the pass takes is in
+                  -- fragments, and a number in the journal that is not in the
+                  -- same unit as the knob beside it is a number nobody can act
+                  -- on. Same condition `extraction_fragments` applies.
+                  (SELECT count(*)
+                     FROM kx.chunks
+                     JOIN kx.documents AS documents
+                       ON documents.best_version_id = chunks.version_id
+                     JOIN kx.document_versions AS versions
+                       ON versions.version_id = chunks.version_id
                     WHERE versions.is_complete
-                      AND EXISTS (
-                          SELECT 1 FROM kx.issue_perimeter_documents AS perimeter
-                          WHERE perimeter.document_id = versions.document_id
+                      -- The same scope the pass reads: `perimeter` is an alias
+                      -- for `historical`, which is the issue perimeter.
+                      AND documents.document_id IN (
+                          SELECT DISTINCT document_id FROM kx.issue_perimeter_members
                       )
                       AND NOT EXISTS (
-                          SELECT 1 FROM kx.claims WHERE claims.version_id = versions.version_id
+                          SELECT 1 FROM kx.processing_runs AS runs
+                          WHERE runs.version_id = chunks.version_id
+                            AND runs.processor = 'claim_extraction'
+                            AND runs.status = 'succeeded'
+                            AND runs.raw_output ->> 'chunkId' = chunks.chunk_id
                       )) AS to_extract,
                   (SELECT count(*) FROM kx.claims
                     WHERE NOT EXISTS (

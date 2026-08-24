@@ -95,13 +95,14 @@ def test_the_ceiling_is_measured_not_predicted() -> None:
     # The order is the only one the data allows: a statement cannot be read
     # before it is extracted, nor linked before it is read.
     assert set(CALLS_PER_ITEM) == set(CATCH_UP_ORDER)
-    # Extraction is per fragment and the rest are batched, so its ratio is the
-    # only one above one - and it is the pessimistic end of the measurement
-    # (2.9 fragments per document on average, 8 at the 95th percentile).
-    assert CALLS_PER_ITEM["extract-claims"] >= 8.0
-    assert all(
-        CALLS_PER_ITEM[stage] <= 1.0 for stage in CATCH_UP_ORDER if stage != "extract-claims"
-    )
+    # `extract-claims --limit` counts fragments and a fragment is exactly one
+    # call, so its ratio is one. The first version of this table read the limit
+    # as documents and assumed eight calls each; a budget of 400 then bought
+    # fifty calls of extraction. Safe, and wrong by a factor of eight - found by
+    # running it with the real budget and counting what left the host.
+    assert CALLS_PER_ITEM["extract-claims"] == 1.0
+    # The rest are batched, so one call covers a whole batch.
+    assert all(CALLS_PER_ITEM[stage] < 1.0 for stage in CATCH_UP_ORDER if stage != "extract-claims")
 
 
 def test_a_budget_of_nothing_runs_nothing() -> None:
