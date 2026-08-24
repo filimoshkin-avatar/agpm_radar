@@ -167,6 +167,7 @@
         <button class="agent-tab is-active" type="button" data-agent-tab="find" role="tab" aria-selected="true">Найти</button>
         <button class="agent-tab" type="button" data-agent-tab="ask" role="tab" aria-selected="false">Спросить</button>
         <button class="agent-tab" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">Обсерватория</button>
+        <button class="agent-tab" type="button" data-agent-tab="graph" role="tab" aria-selected="false">Граф</button>
         <button class="agent-tab" type="button" data-agent-tab="contradictions" role="tab" aria-selected="false">Противоречия</button>
         <button class="agent-tab" type="button" data-agent-tab="topics" role="tab" aria-selected="false">Понятия</button>
         <button class="agent-tab" type="button" data-agent-tab="wiki" role="tab" aria-selected="false">Wiki</button>
@@ -265,6 +266,17 @@
           </label>
         </div>
         <div id="agentObservatoryBody"></div>
+      </div>
+      <div id="agentGraph" class="agent-panel" hidden>
+        <div class="agent-find__filters">
+          <label class="agent-select">тема
+            <select id="agentGraphTopic">
+              <option value="">выберите тему</option>
+            </select>
+          </label>
+          <span class="agent-graph__legend" id="agentGraphLegend"></span>
+        </div>
+        <div id="agentGraphBody"></div>
       </div>
       <div id="agentContradictions" class="agent-panel" hidden></div>
       <div id="agentTopics" class="agent-panel" hidden></div>

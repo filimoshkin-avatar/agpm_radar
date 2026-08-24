@@ -1315,6 +1315,15 @@ async function loadSecondaryData() {
 }
 
 document.addEventListener("click", event => {
+  // Read the attribute rather than trust the match: this runs before every other
+  // branch, and a throw here would take the page's whole click handling with it.
+  const named = event.target.closest?.("[data-graph-node]")?.dataset?.graphNode;
+  if (named) {
+    const [kind, ...rest] = named.split(":");
+    const key = rest.join(":");
+    agentLoadGraph(kind === "topic" ? `topic=${encodeURIComponent(key)}` : `claim=${encodeURIComponent(key)}`);
+    return;
+  }
   const button = event.target.closest("button");
   if (!button) return;
   if (button.id === "printGazette") {
@@ -1323,6 +1332,11 @@ document.addEventListener("click", event => {
   }
   if (button.dataset.agentTab) {
     setAgentTab(button.dataset.agentTab);
+    return;
+  }
+  if (button.dataset.agentGraph) {
+    setAgentTab("graph");
+    agentLoadGraph(`claim=${encodeURIComponent(button.dataset.agentGraph)}`);
     return;
   }
   if (button.dataset.agentLinks) {
@@ -1561,6 +1575,9 @@ function agentStatementCard(raw, ordinal) {
       ${row.claimId ? `<button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">
         Что база связала с этим
       </button>
+      <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">
+        Показать в графе
+      </button>
       <div class="agent-links" data-agent-links-for="${escapeHtml(row.claimId)}" hidden></div>` : ""}
     </article>`;
 }
@@ -1727,6 +1744,121 @@ async function agentFind() {
       <p class="agent-intro">${hits.length} ${plural(hits.length, "утверждение", "утверждения", "утверждений")}.
       Рядом с каждым видно, какая рука его нашла: по словам, по смыслу или обеими.</p>
       ${hits.map((row, index) => agentStatementCard(row, index + 1)).join("")}`;
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+const AGENT_RELATION_COLOUR = {
+  supports: "#1e6e62",
+  contradicts: "#a93d22",
+  qualifies: "#a96b12",
+  related_to: "#6b6880",
+  about: "#2b4a75"
+};
+
+/** UC-05, the two modes this base can actually draw.
+ *
+ * A subject and what stands under it; a statement and what the base linked it
+ * to. The other four modes need entities, and there are none - a picture drawn
+ * from an empty table would be an empty picture claiming to be a graph.
+ *
+ * Radial rather than force-directed on purpose: one hop from one centre has a
+ * shape already, and a simulation would spend a second arriving at it.
+ */
+function agentGraphSvg(data) {
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const centre = nodes.find(node => node.id === data.centre);
+  if (!centre) return `<p class="agent-links__empty">Здесь пока не на что смотреть.</p>`;
+  const others = nodes.filter(node => node.id !== data.centre);
+  const width = 900;
+  const height = Math.max(420, 260 + others.length * 9);
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(cx, cy) - 110;
+  const place = new Map([[centre.id, { x: cx, y: cy }]]);
+  others.forEach((node, index) => {
+    const angle = (index / Math.max(1, others.length)) * Math.PI * 2 - Math.PI / 2;
+    place.set(node.id, { x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius });
+  });
+  const line = edges.map(edge => {
+    const from = place.get(edge.from);
+    const to = place.get(edge.to);
+    if (!from || !to) return "";
+    const colour = AGENT_RELATION_COLOUR[edge.relation] || "#8a9199";
+    return `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"
+      stroke="${colour}" stroke-width="${edge.relation === "contradicts" ? 2 : 1.2}"
+      stroke-opacity="${edge.relation === "related_to" ? 0.35 : 0.65}"></line>`;
+  }).join("");
+  const dot = node => {
+    const at = place.get(node.id);
+    const isCentre = node.id === data.centre;
+    const isTopic = node.kind === "topic";
+    const label = node.label.length > 46 ? `${node.label.slice(0, 45)}…` : node.label;
+    return `<g class="agent-graph__node" data-graph-node="${escapeHtml(node.kind)}:${escapeHtml(node.key)}">
+      <circle cx="${at.x}" cy="${at.y}" r="${isCentre ? 11 : isTopic ? 8 : 5.5}"
+        fill="${isTopic ? "#2b4a75" : isCentre ? "#1f242a" : "#ffffff"}"
+        stroke="${isTopic ? "#2b4a75" : "#1f242a"}" stroke-width="1.4"></circle>
+      <text x="${at.x}" y="${at.y - (isCentre ? 18 : 12)}" text-anchor="middle"
+        class="agent-graph__label">${escapeHtml(label)}</text>
+    </g>`;
+  };
+  return `<svg viewBox="0 0 ${width} ${height}" class="agent-graph__svg" role="img"
+    aria-label="Граф связей вокруг выбранного узла">
+    <g>${line}</g>
+    ${others.map(dot).join("")}
+    ${dot(centre)}
+  </svg>`;
+}
+
+function agentGraphLegend(edges) {
+  const seen = [...new Set((edges || []).map(edge => edge.relation))];
+  const name = { supports: "подтверждает", contradicts: "противоречит", qualifies: "уточняет", related_to: "связанное", about: "тема" };
+  return seen.map(relation => `<span class="agent-graph__key">
+    <i style="background:${AGENT_RELATION_COLOUR[relation] || "#8a9199"}"></i>${escapeHtml(name[relation] || relation)}
+  </span>`).join("");
+}
+
+async function agentLoadGraph(target) {
+  const box = document.getElementById("agentGraphBody");
+  if (!box) return;
+  const select = document.getElementById("agentGraphTopic");
+  if (select && !select.dataset.loaded) {
+    try {
+      const data = await kbFetch("/topics");
+      (data.topics || []).forEach(topic => {
+        const option = document.createElement("option");
+        option.value = topic.topic_key;
+        option.textContent = `${topic.title} (${topic.statements})`;
+        select.append(option);
+      });
+      select.dataset.loaded = "1";
+    } catch {
+      // The picker is a convenience; a statement can still be opened from a card.
+    }
+  }
+  const query = target || (select?.value ? `topic=${encodeURIComponent(select.value)}` : "");
+  if (!query) {
+    box.innerHTML = `<p class="agent-intro">Выберите тему — и база покажет, что под ней стоит
+    и чем эти утверждения связаны между собой. Из карточки любого утверждения сюда же
+    ведёт кнопка «Что база связала с этим».</p>`;
+    return;
+  }
+  box.innerHTML = `<p class="agent-waiting">Собираю граф…</p>`;
+  try {
+    const data = await kbFetch(`/graph?${query}&limit=40`);
+    if (!data.centre) {
+      box.innerHTML = `<p class="agent-links__empty">Такого узла в базе нет.</p>`;
+      return;
+    }
+    const legend = document.getElementById("agentGraphLegend");
+    if (legend) legend.innerHTML = agentGraphLegend(data.edges);
+    box.innerHTML = `
+      <p class="agent-intro">${(data.nodes || []).length} узлов, ${(data.edges || []).length} связей.
+      Один шаг от центра: два шага от утверждения с одиннадцатью связями читать нельзя,
+      а дойти можно нажатием.</p>
+      ${agentGraphSvg(data)}`;
   } catch (error) {
     box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
@@ -1948,6 +2080,7 @@ function setAgentTab(tab) {
     ask: "agentAsk",
     find: "agentFind",
     observatory: "agentObservatory",
+    graph: "agentGraph",
     contradictions: "agentContradictions",
     topics: "agentTopics",
     wiki: "agentWiki",
@@ -1963,6 +2096,7 @@ function setAgentTab(tab) {
   });
   if (tab === "find") agentLoadTopicOptions();
   if (tab === "observatory") agentLoadObservatory();
+  if (tab === "graph") agentLoadGraph();
   if (tab === "contradictions") agentLoadContradictions();
   if (tab === "topics") agentLoadTopics();
   if (tab === "wiki") agentLoadWiki();
@@ -1988,4 +2122,8 @@ document.getElementById("agentFindFilters")?.addEventListener("change", () => {
 
 document.getElementById("agentObservatoryFilters")?.addEventListener("change", () => {
   agentLoadObservatory({ refresh: true });
+});
+
+document.getElementById("agentGraphTopic")?.addEventListener("change", () => {
+  agentLoadGraph();
 });

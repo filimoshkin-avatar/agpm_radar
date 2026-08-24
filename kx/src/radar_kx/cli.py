@@ -29,6 +29,11 @@ from radar_kx.duplicates import (
     find_shingle_clusters,
 )
 from radar_kx.editor_service import generate_token, serve
+from radar_kx.entities import BATCH as ENTITY_BATCH
+from radar_kx.entities import INSTRUCTIONS as ENTITY_INSTRUCTIONS
+from radar_kx.entities import EntityError, Mention, parse_mentions
+from radar_kx.entities import build_payload as build_entity_payload
+from radar_kx.entities import summarize as summarize_entities
 from radar_kx.evaluation import evaluate, load_gold_set
 from radar_kx.extraction import ExtractionError, ProposedClaim, align_all, prompt_sha256
 from radar_kx.graph import unsupported
@@ -50,6 +55,7 @@ from radar_kx.manifest import load_manifest
 from radar_kx.orchestrator import (
     ALLOWED_MODELS,
     CLAIM_READING,
+    ENTITY_EXTRACTION,
     IDEA_STATEMENT,
     KNOWLEDGE_LINK,
     QUOTE_TRANSLATION,
@@ -341,6 +347,14 @@ def _parser() -> argparse.ArgumentParser:
     read_claims_parser.add_argument("--workers", type=int, default=8)
 
     subparsers.add_parser("reading-report")
+
+    # Slice 4: who and what the statements name, so UC-05 has something to draw.
+    entities_parser = subparsers.add_parser("find-entities")
+    entities_parser.add_argument("--limit", type=int, default=100000)
+    entities_parser.add_argument("--batch", type=int, default=ENTITY_BATCH)
+    entities_parser.add_argument("--workers", type=int, default=6)
+
+    subparsers.add_parser("entity-report")
 
     # Stage 2: shortlist by both methods, then judge. No signature - decision 4
     # leaves linking to the machine.
@@ -992,6 +1006,67 @@ def main() -> None:
     if args.command == "linking-report":
         _print_json(database.linking_report())
         return
+    if args.command == "find-entities":
+        if not settings.hermes_key:
+            raise SystemExit("RADAR_KX_HERMES_KEY is not set. Use `kxorch find-entities ...`.")
+        unnamed = database.claims_without_entities(limit=args.limit)
+        if not unnamed:
+            _print_json({"claims": 0, "note": "нечего читать: все допущенные уже прочитаны"})
+            return
+        gateway = ModelGateway(database, settings)
+        blocks = [
+            unnamed[start : start + args.batch] for start in range(0, len(unnamed), args.batch)
+        ]
+
+        totals = {"entities": 0, "mentions": 0, "read": 0}
+        entity_dropped: dict[str, int] = {}
+        entity_refusals = 0
+        mentions: list[Mention] = []
+        lock = threading.Lock()
+
+        def find_one(block: list[dict[str, Any]]) -> None:
+            nonlocal entity_refusals
+            try:
+                result = gateway.run(
+                    ENTITY_EXTRACTION, build_entity_payload(block), system=ENTITY_INSTRUCTIONS
+                )
+                found, thrown = parse_mentions(result.content, block)
+            except (OrchestratorError, EntityError):
+                # A batch whose answer cannot be used is left unread rather than
+                # written half-way: nothing is marked read, so the next pass
+                # picks the same statements up.
+                with lock:
+                    entity_refusals += 1
+                return
+            written = database.record_mentions(
+                found, [str(row["claim_id"]) for row in block], found_by=ENTITY_EXTRACTION.model
+            )
+            with lock:
+                for key, value in written.items():
+                    totals[key] += value
+                for key, value in thrown.items():
+                    entity_dropped[key] = entity_dropped.get(key, 0) + value
+                mentions.extend(found)
+
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for _ in pool.map(find_one, blocks):
+                pass
+
+        _print_json(
+            {
+                **summarize_entities(mentions, entity_dropped),
+                **totals,
+                "claims": len(unnamed),
+                "batches": len(blocks),
+                "batchesRefused": entity_refusals,
+            }
+        )
+        return
+
+    if args.command == "entity-report":
+        _print_json(database.entity_report())
+        return
+
     if args.command == "reading-report":
         _print_json(database.reading_report())
         return

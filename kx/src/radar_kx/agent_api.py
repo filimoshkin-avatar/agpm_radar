@@ -189,6 +189,11 @@ class AgentService:
             "licence": LICENCE,
         }
 
+    def graph(self, *, claim: str | None, topic: str | None, limit: int) -> dict[str, Any]:
+        """UC-05: what one thing is connected to, as a picture rather than a list."""
+        found = self.database.agent_graph(claim_id=claim, topic_key=topic, limit=limit)
+        return {**found, "signature": SIGNATURE, "licence": LICENCE}
+
     def contradictions(self, limit: int) -> dict[str, Any]:
         """Where the base disagrees with itself, both sides at once (UC-11)."""
         total, pairs = self.database.agent_contradictions(limit=limit)
@@ -430,6 +435,16 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                         until=parameters.get("until"),
                         kind=parameters.get("kind"),
                         fresh=parameters.get("fresh") == "1",
+                    ),
+                )
+                return
+            if path == "/graph":
+                self._json(
+                    HTTPStatus.OK,
+                    service.graph(
+                        claim=parameters.get("claim"),
+                        topic=parameters.get("topic"),
+                        limit=_int(parameters.get("limit"), 40),
                     ),
                 )
                 return

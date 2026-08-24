@@ -65,6 +65,9 @@ class FakeDatabase:
     def agent_contradictions(self, **kwargs: Any) -> Any:
         return self._record("agent_contradictions", **kwargs) or (0, [])
 
+    def agent_graph(self, **kwargs: Any) -> Any:
+        return self._record("agent_graph", **kwargs) or {"centre": None, "nodes": [], "edges": []}
+
     def cached_answer(self, question: str, **kwargs: Any) -> Any:
         return self._record("cached_answer", question=question, **kwargs)
 

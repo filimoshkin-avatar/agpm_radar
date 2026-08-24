@@ -225,6 +225,19 @@ KNOWLEDGE_LINK = RunType(
     max_payload_chars=14000,
 )
 
+ENTITY_EXTRACTION = RunType(
+    name="entity_extraction",
+    purpose="naming the organisations, people, standards and roles a statement mentions",
+    model=DEFAULT_MODEL,
+    context_rule=(
+        "a fixed instruction block naming the nine entity types and the two roles, "
+        "and at most eight quotations capped at 400 characters each. Never the "
+        "document: what a sentence names is in the sentence, and the article "
+        "around it names other things that this statement does not."
+    ),
+    max_payload_chars=14000,
+)
+
 #: Every run type the orchestrator knows. Later slices add theirs here, and a run
 #: type is not finished until its context rule is written (ADR-0005, consequences).
 RUN_TYPES: dict[str, RunType] = {
@@ -236,6 +249,7 @@ RUN_TYPES: dict[str, RunType] = {
     TOPIC_ASSIGNMENT.name: TOPIC_ASSIGNMENT,
     CLAIM_READING.name: CLAIM_READING,
     KNOWLEDGE_LINK.name: KNOWLEDGE_LINK,
+    ENTITY_EXTRACTION.name: ENTITY_EXTRACTION,
 }
 
 PROBE_PROMPT = "Reply with the single word: ready."

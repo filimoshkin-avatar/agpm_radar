@@ -1579,3 +1579,37 @@ body.is-agent .agent-view { display: block; }
   .agent-clash { grid-template-columns: 1fr; }
   .agent-clash__mark { writing-mode: horizontal-tb; }
 }
+
+/* --- Граф ---------------------------------------------------------------- */
+
+.agent-graph__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.agent-graph__label {
+  font-family: inherit;
+  font-size: 10.5px;
+  fill: var(--secondary);
+  pointer-events: none;
+}
+
+.agent-graph__node { cursor: pointer; }
+.agent-graph__node:hover circle { stroke-width: 2.4; }
+.agent-graph__node:hover .agent-graph__label { fill: var(--text); font-weight: 600; }
+
+.agent-graph__legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.agent-graph__key { display: inline-flex; align-items: center; gap: 5px; }
+.agent-graph__key i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }

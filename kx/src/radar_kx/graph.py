@@ -36,6 +36,11 @@ NODE_KINDS = (
     "version",
     "document",
     "source_family",
+    #: The owner's backbone and the entities statements name. Without these the
+    #: graph held provenance only - where a quotation came from, never what the
+    #: base says about it - and five of UC-05's six modes had nothing to draw.
+    "topic",
+    "entity",
 )
 
 #: Edges somebody authored. Every one is a claim about the world.
@@ -46,10 +51,26 @@ AUTHORED_RELATIONS = (
     "contradicts",
     "operationalizes",
     "depends-on",
+    #: The other two of decision 12's four. `supports` and `contradicts` were
+    #: already here and carry straight over.
+    "qualifies",
+    "related_to",
 )
 
 #: Edges that describe how the store is wired. These assert nothing.
-STRUCTURAL_RELATIONS = ("states", "evidenced_by", "quoted_from", "belongs_to", "proposed_from")
+#:
+#: `about` and `mentions` sit here rather than above on purpose: "a reading
+#: placed this statement under that subject" is a fact about the store, not
+#: somebody's claim about the world.
+STRUCTURAL_RELATIONS = (
+    "states",
+    "evidenced_by",
+    "quoted_from",
+    "belongs_to",
+    "proposed_from",
+    "about",
+    "mentions",
+)
 
 RELATIONS = AUTHORED_RELATIONS + STRUCTURAL_RELATIONS
 
@@ -144,6 +165,11 @@ def build(
     idea_evidence: Sequence[dict[str, Any]],
     claims: Sequence[dict[str, Any]],
     families: Sequence[dict[str, Any]],
+    topics: Sequence[dict[str, Any]] = (),
+    placements: Sequence[dict[str, Any]] = (),
+    knowledge_links: Sequence[dict[str, Any]] = (),
+    entities: Sequence[dict[str, Any]] = (),
+    entity_mentions: Sequence[dict[str, Any]] = (),
 ) -> Graph:
     """Project the store into nodes and edges.
 
@@ -231,6 +257,70 @@ def build(
             charEnd=row.get("char_end"),
         )
         link(version_node, document_node, "quoted_from")
+
+    # The knowledge layer. Everything above this line is provenance: where a
+    # quotation came from. Everything below is what the base says about it, and
+    # for one release the graph held only the first half.
+    for row in topics:
+        add(
+            Node(
+                node_id=node_id("topic", str(row["topic_key"])),
+                node_kind="topic",
+                label=label_of(str(row["title"])),
+                natural_key=str(row["topic_key"]),
+                attributes={
+                    "level": row.get("level"),
+                    "path": row.get("path"),
+                    "parentKey": row.get("parent_key"),
+                },
+            )
+        )
+
+    for row in topics:
+        parent = row.get("parent_key")
+        if parent:
+            # A subject sits under its parent, not beside it: the backbone is
+            # three levels deep and a flat list of 229 is not navigable.
+            link(
+                node_id("topic", str(row["topic_key"])),
+                node_id("topic", str(parent)),
+                "about",
+            )
+
+    for row in placements:
+        link(
+            node_id("claim", str(row["claim_id"])),
+            node_id("topic", str(row["topic_key"])),
+            "about",
+            confidence=row.get("confidence"),
+        )
+
+    for row in knowledge_links:
+        link(
+            node_id("claim", str(row["from_id"])),
+            node_id("claim", str(row["to_id"])),
+            str(row["link_type"]),
+            method=row.get("method"),
+        )
+
+    for row in entities:
+        add(
+            Node(
+                node_id=node_id("entity", str(row["entity_id"])),
+                node_kind="entity",
+                label=label_of(str(row["canonical_name"])),
+                natural_key=str(row["entity_id"]),
+                attributes={"type": row.get("entity_type")},
+            )
+        )
+
+    for row in entity_mentions:
+        link(
+            node_id("claim", str(row["claim_id"])),
+            node_id("entity", str(row["entity_id"])),
+            "mentions",
+            role=row.get("role"),
+        )
 
     for row in families:
         family_node = add(

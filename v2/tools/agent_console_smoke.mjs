@@ -27,6 +27,7 @@ class FakeElement {
   }
 
   addEventListener(event, handler) { this.handler = handler; }
+  append(child) { this.children = [...(this.children || []), child]; }
   closest() { return null; }
   focus() {}
   insertAdjacentHTML(_where, html) { this.innerHTML += html; }
@@ -38,6 +39,7 @@ class FakeElement {
 const ids = [
   "activeFilter", "agentAnswer", "agentAsk", "agentForm", "agentGaps", "agentObservatory",
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
+  "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
@@ -153,6 +155,19 @@ const LINKS = [
   { link_type: "qualifies", direction: "incoming", claim_id: "c3", statement: "только выше суммы" },
 ];
 
+const GRAPH = {
+  centre: "statement:c1",
+  nodes: [
+    { id: "statement:c1", kind: "statement", key: "c1", label: "порог автономии определяет границу" },
+    { id: "statement:c2", kind: "statement", key: "c2", label: "порога не существует" },
+    { id: "topic:porogi", kind: "topic", key: "porogi", label: "Пороги автономии" },
+  ],
+  edges: [
+    { from: "statement:c1", to: "statement:c2", relation: "contradicts" },
+    { from: "statement:c1", to: "topic:porogi", relation: "about" },
+  ],
+};
+
 const CONTRADICTIONS = {
   total: 283,
   pairs: [{
@@ -191,6 +206,7 @@ globalThis.fetch = async (raw, options) => {
   else if (path.startsWith("/kb/observatory")) payload = { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
   else if (path.startsWith("/kb/search")) payload = { hits: [{ ...STATEMENT, valid_until: "2020-01-01T00:00:00+00:00" }] };
   else if (path.startsWith("/kb/contradictions")) payload = CONTRADICTIONS;
+  else if (path.startsWith("/kb/graph")) payload = GRAPH;
   else if (path.startsWith("/kb/statement/")) payload = { ...STATEMENT, links: LINKS };
   else if (path === "/kb/topics") payload = { topics: [{ topic_key: "porogi", title: "Пороги автономии", path: "Управление / Пороги", statements: 12 }] };
   else if (path.startsWith("/kb/topics/")) payload = { title: "Пороги автономии", path: "Управление / Пороги", statements: [STATEMENT] };
@@ -209,7 +225,20 @@ await import("../apps/web/app.mjs");
 await settle();
 
 const fail = message => { throw new Error(`agent console smoke failed: ${message}`); };
-const click = button => documentHandlers.get("click")({ target: { closest() { return button; } } });
+// `closest` has to answer per selector, not "yes" to everything. The page asks
+// twice on every click - once for a graph node, once for a button - and a stub
+// that hands the button back both times sends every click down the wrong branch.
+const click = button => documentHandlers.get("click")({
+  target: {
+    closest(selector) {
+      if (selector === "button") return button;
+      if (selector === "[data-graph-node]") return button.dataset?.graphNode ? button : null;
+      return null;
+    },
+  },
+});
+
+const clickGraphNode = value => click({ dataset: { graphNode: value }, classList: { toggle() {} }, setAttribute() {} });
 
 // The reader opens the agent mode.
 click({ dataset: { viewMode: "agent" }, classList: { toggle() {} }, setAttribute() {} });
@@ -235,9 +264,13 @@ if (!answered.includes("по словам") || !answered.includes("по смыс
   fail("the reader is not told why the evidence was found");
 if (!answered.includes("https://example.org/a")) fail("the source link is missing");
 
+// The graph opens on whichever subject the picker holds.
+elements.get("agentGraphTopic").value = "porogi";
+
 // Every tab fetches its own data, and only when it is opened.
 for (const [tab, path, marker] of [
   ["observatory", "/kb/observatory", "инцидент"],
+  ["graph", "/kb/graph?topic=porogi&limit=40", "<svg"],
   ["contradictions", "/kb/contradictions?limit=40", "порога не существует"],
   ["topics", "/kb/topics", "Пороги автономии"],
   ["wiki", "/kb/pages", "Страница"],
@@ -247,7 +280,8 @@ for (const [tab, path, marker] of [
   await settle();
   if (!requests.includes(path)) fail(`the ${tab} tab did not fetch ${path}`);
   const panel = elements.get({
-    observatory: "agentObservatoryBody", contradictions: "agentContradictions",
+    observatory: "agentObservatoryBody", graph: "agentGraphBody",
+    contradictions: "agentContradictions",
     topics: "agentTopics", wiki: "agentWiki", gaps: "agentGaps",
   }[tab]);
   if (!panel.innerHTML.includes(marker)) fail(`the ${tab} tab rendered nothing recognisable`);
@@ -336,5 +370,5 @@ if (!refused.includes("нет подтверждений")) fail("a refusal did 
 if (unhandled.length) fail(unhandled.map(String).join("; "));
 
 process.stdout.write(
-  "Agent view console smoke: PASS (answer, labels, find, contradictions, links, expiry, six tabs, refusal)\n"
+  "Agent view console smoke: PASS (answer, labels, find, graph, contradictions, links, expiry, eight tabs, refusal)\n"
 );

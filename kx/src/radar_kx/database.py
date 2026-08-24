@@ -28,6 +28,7 @@ from radar_kx.embeddings import (
     text_fingerprint,
     to_pgvector,
 )
+from radar_kx.entities import Mention
 from radar_kx.extraction import (
     EXTRACTOR_VERSION,
     MAX_CLAIMS_PER_FRAGMENT,
@@ -118,7 +119,7 @@ PROMOTION_FLOOR = 2
 #: whole point of decision 4 is that a reader sees the classes side by side.
 OBSERVATORY_PER_CLASS = 60
 
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 29
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -3427,6 +3428,33 @@ class Database:
                     " WHERE current.decision_action <> 'retired'"
                 )
                 families = [dict(row) for row in cursor.fetchall()]
+                # The knowledge layer, which for one release was built and then
+                # left out of the projection entirely.
+                cursor.execute(
+                    "SELECT child.topic_key, child.title, child.level,"
+                    "       parent.topic_key AS parent_key,"
+                    "       coalesce(parent.title || ' / ', '') || child.title AS path"
+                    " FROM kx.topics AS child"
+                    " LEFT JOIN kx.topics AS parent ON parent.topic_id = child.parent_id"
+                    " WHERE child.state = 'accepted'"
+                )
+                topics = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT placed.claim_id, topics.topic_key, placed.confidence"
+                    " FROM kx.claim_topics AS placed"
+                    " JOIN kx.topics AS topics USING (topic_id)"
+                    " WHERE topics.state = 'accepted'"
+                )
+                placements = [dict(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    "SELECT from_id, to_id, link_type, method FROM kx.knowledge_links"
+                    " WHERE from_kind = 'claim' AND to_kind = 'claim'"
+                )
+                knowledge_links = [dict(row) for row in cursor.fetchall()]
+                cursor.execute("SELECT entity_id, entity_type, canonical_name FROM kx.entities")
+                entities = [dict(row) for row in cursor.fetchall()]
+                cursor.execute("SELECT claim_id, entity_id, role FROM kx.claim_entities")
+                entity_mentions = [dict(row) for row in cursor.fetchall()]
         return build_graph(
             concepts=concepts,
             concept_claims=concept_claims,
@@ -3435,6 +3463,11 @@ class Database:
             idea_evidence=idea_evidence,
             claims=claims,
             families=families,
+            topics=topics,
+            placements=placements,
+            knowledge_links=knowledge_links,
+            entities=entities,
+            entity_mentions=entity_mentions,
         )
 
     def record_graph_snapshot(
@@ -5566,6 +5599,256 @@ class Database:
                 (since, since, until, until, kind, kind, fresh, OBSERVATORY_PER_CLASS),
             )
             return [dict(row) for row in cursor.fetchall()]
+
+    def claims_without_entities(self, *, limit: int = 100000) -> list[dict[str, Any]]:
+        """Admitted statements nobody has read for entities yet.
+
+        Admitted only: a statement the reading threw out is not in the base, and
+        naming the organisations inside a vendor feature list would fill the
+        graph with exactly the noise decision 3 exists to keep out.
+        """
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT claims.claim_id, evidence.quote_text
+                    FROM kx.claims AS claims
+                    JOIN kx.claim_evidence AS evidence
+                      ON evidence.claim_id = claims.claim_id
+                     AND evidence.match_status = 'exact'
+                    JOIN kx.claim_reading AS reading ON reading.claim_id = claims.claim_id
+                    WHERE reading.admission <> 'rejected'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.claim_entities AS found
+                          WHERE found.claim_id = claims.claim_id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.entity_reads AS looked
+                          WHERE looked.claim_id = claims.claim_id
+                      )
+                    ORDER BY claims.claim_id
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                return [dict(row) for row in cursor.fetchall()]
+
+    def record_mentions(
+        self, mentions: Sequence[Mention], claims: Sequence[str], *, found_by: str
+    ) -> dict[str, int]:
+        """Write one batch: the entities, the mentions, and that the batch was read.
+
+        `entity_reads` is what stops the pass re-offering a statement that
+        genuinely names nothing. Without it "read and found none" and "not read"
+        look the same, and every run pays for the empty ones again - the defect
+        migration 025 fixed for linking, written down before it could happen here.
+        """
+        written = {"entities": 0, "mentions": 0, "read": 0}
+        with self.connect() as connection:
+            self.require_schema(connection)
+            with connection.transaction(), connection.cursor() as cursor:
+                for mention in mentions:
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.entities (entity_type, canonical_name)
+                        VALUES (%s, %s)
+                        ON CONFLICT (entity_type, canonical_name) DO NOTHING
+                        """,
+                        (mention.entity_type, mention.canonical_name),
+                    )
+                    written["entities"] += cursor.rowcount
+                    cursor.execute(
+                        "SELECT entity_id FROM kx.entities"
+                        " WHERE entity_type = %s AND canonical_name = %s",
+                        (mention.entity_type, mention.canonical_name),
+                    )
+                    entity = one_row(cursor)
+                    cursor.execute(
+                        """
+                        INSERT INTO kx.claim_entities (
+                            claim_id, entity_id, role, surface_form, found_by, method
+                        ) VALUES (%s, %s, %s, %s, %s, 'model')
+                        ON CONFLICT (claim_id, entity_id, role) DO NOTHING
+                        """,
+                        (
+                            mention.claim_id,
+                            entity["entity_id"],
+                            mention.role,
+                            mention.surface_form,
+                            found_by,
+                        ),
+                    )
+                    written["mentions"] += cursor.rowcount
+                    # The surface form is an alias of the entity: it is how some
+                    # source actually wrote the name, traced to the statement it
+                    # was written in rather than asserted.
+                    if mention.surface_form.casefold() != mention.canonical_name.casefold():
+                        cursor.execute(
+                            "INSERT INTO kx.entity_aliases (entity_id, alias, origin)"
+                            " VALUES (%s, %s, 'model') ON CONFLICT DO NOTHING",
+                            (entity["entity_id"], mention.surface_form),
+                        )
+                for claim_id in claims:
+                    cursor.execute(
+                        "INSERT INTO kx.entity_reads (claim_id, read_by) VALUES (%s, %s)"
+                        " ON CONFLICT DO NOTHING",
+                        (claim_id, found_by),
+                    )
+                    written["read"] += cursor.rowcount
+        return written
+
+    def entity_report(self) -> dict[str, Any]:
+        """What the base now knows about who and what it talks about."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT entity_type, count(*) AS total FROM kx.entities GROUP BY 1 ORDER BY 2 DESC"
+            )
+            by_type = {str(row["entity_type"]): row["total"] for row in cursor.fetchall()}
+            cursor.execute(
+                """
+                SELECT entities.entity_type, entities.canonical_name,
+                       count(DISTINCT mention.claim_id) AS statements
+                FROM kx.entities AS entities
+                JOIN kx.claim_entities AS mention USING (entity_id)
+                GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 15
+                """
+            )
+            most_named = [dict(row) for row in cursor.fetchall()]
+            cursor.execute(
+                "SELECT count(*) AS mentions,"
+                " count(DISTINCT claim_id) AS statements_naming_something"
+                " FROM kx.claim_entities"
+            )
+            reach = dict(one_row(cursor))
+            cursor.execute("SELECT count(*) AS read FROM kx.entity_reads")
+            read = dict(one_row(cursor))
+        return {"byType": by_type, "mostNamed": most_named, **reach, **read}
+
+    def agent_graph(
+        self, *, claim_id: str | None = None, topic_key: str | None = None, limit: int = 40
+    ) -> dict[str, Any]:
+        """The knowledge around one node, as nodes and edges the reader may see.
+
+        Built from `agent.*` rather than from `kx.graph_nodes`. Two reasons, and
+        the second is the load-bearing one:
+
+        * the snapshot in `kx` is provenance plus knowledge, and provenance is
+          document versions and raw text the serving role must not reach;
+        * a snapshot is taken at a moment. The reader asking "what is this
+          connected to" is asking about the base now, not about the base on the
+          day somebody last ran `build-graph`.
+
+        One hop. Two hops out of a statement with eleven links is a hairball
+        nobody reads, and the reader can walk by clicking.
+        """
+        nodes: dict[str, dict[str, Any]] = {}
+        edges: list[dict[str, Any]] = []
+
+        def add(kind: str, key: str, label: str, **extra: Any) -> str:
+            node = f"{kind}:{key}"
+            nodes.setdefault(node, {"id": node, "kind": kind, "key": key, "label": label, **extra})
+            return node
+
+        with self.connect() as connection, connection.cursor() as cursor:
+            if claim_id:
+                cursor.execute(
+                    "SELECT claim_id, statement, material_kind, status, admission"
+                    " FROM agent.statement WHERE claim_id = %s",
+                    (claim_id,),
+                )
+                middle = cursor.fetchone()
+                if middle is None:
+                    return {"centre": None, "nodes": [], "edges": []}
+                centre = add(
+                    "statement",
+                    str(middle["claim_id"]),
+                    str(middle["statement"]),
+                    materialKind=middle["material_kind"],
+                    status=middle["status"],
+                )
+                cursor.execute(
+                    """
+                    WITH either_way AS (
+                        SELECT link_type, to_id AS claim_id, 'outgoing' AS direction
+                        FROM agent.link WHERE from_id = %(claim_id)s
+                        UNION ALL
+                        SELECT link_type, from_id AS claim_id, 'incoming' AS direction
+                        FROM agent.link WHERE to_id = %(claim_id)s
+                    )
+                    SELECT either_way.link_type, either_way.direction, other.claim_id,
+                           other.statement, other.material_kind, other.status
+                    FROM either_way
+                    JOIN agent.statement AS other USING (claim_id)
+                    ORDER BY either_way.link_type, other.claim_id
+                    LIMIT %(limit)s
+                    """,
+                    {"claim_id": claim_id, "limit": limit},
+                )
+                for row in cursor.fetchall():
+                    other = add(
+                        "statement",
+                        str(row["claim_id"]),
+                        str(row["statement"]),
+                        materialKind=row["material_kind"],
+                        status=row["status"],
+                    )
+                    edges.append(
+                        {
+                            "from": centre if row["direction"] == "outgoing" else other,
+                            "to": other if row["direction"] == "outgoing" else centre,
+                            "relation": str(row["link_type"]),
+                        }
+                    )
+                cursor.execute(
+                    "SELECT topic_key, title FROM agent.statement_topic WHERE claim_id = %s",
+                    (claim_id,),
+                )
+                for row in cursor.fetchall():
+                    subject = add("topic", str(row["topic_key"]), str(row["title"]))
+                    edges.append({"from": centre, "to": subject, "relation": "about"})
+                return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+
+            if not topic_key:
+                return {"centre": None, "nodes": [], "edges": []}
+
+            cursor.execute(
+                "SELECT topic_key, title, level, path, parent_id FROM agent.topic"
+                " WHERE topic_key = %s",
+                (topic_key,),
+            )
+            middle = cursor.fetchone()
+            if middle is None:
+                return {"centre": None, "nodes": [], "edges": []}
+            centre = add(
+                "topic",
+                str(middle["topic_key"]),
+                str(middle["title"]),
+                level=middle["level"],
+                path=middle["path"],
+            )
+            cursor.execute(
+                """
+                SELECT statement.claim_id, statement.statement, statement.material_kind,
+                       statement.status
+                FROM agent.statement AS statement
+                JOIN agent.statement_topic AS placed USING (claim_id)
+                WHERE placed.topic_key = %s AND statement.admission = 'knowledge'
+                ORDER BY statement.shown_on DESC NULLS LAST, statement.claim_id
+                LIMIT %s
+                """,
+                (topic_key, limit),
+            )
+            for row in cursor.fetchall():
+                node = add(
+                    "statement",
+                    str(row["claim_id"]),
+                    str(row["statement"]),
+                    materialKind=row["material_kind"],
+                    status=row["status"],
+                )
+                edges.append({"from": node, "to": centre, "relation": "about"})
+        return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
 
     def agent_contradictions(self, *, limit: int = 60) -> tuple[int, list[dict[str, Any]]]:
         """Every pair the judge called incompatible, both sides shown together.
