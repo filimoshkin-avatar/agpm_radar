@@ -29,10 +29,14 @@ Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
 
-# The default, and then the files that may override it. systemd applies these in
-# the order written, so a default declared *after* the file it is meant to be
-# overridden by silently wins: the first version of this unit read 400 while
-# /etc/radar-kx/catch-up.env said 3000, and nothing said so.
+# The default. `EnvironmentFile=` overrides `Environment=` whatever order the two
+# are written in - measured, after this comment first claimed the opposite - so
+# /etc/radar-kx/catch-up.env wins and this line is only what applies without it.
+#
+# Worth knowing when checking: `systemctl show -p Environment` prints the
+# `Environment=` directives and does not expand the files, so it will show this
+# number even when the file has replaced it. Read the `budget` field in the run's
+# own journal line instead; that one is the number the pass actually used.
 Environment=RADAR_KX_CATCH_UP_BUDGET=3000
 EnvironmentFile=/etc/radar-kx/worker.env
 EnvironmentFile=-/etc/radar-kx/orchestrator.env
