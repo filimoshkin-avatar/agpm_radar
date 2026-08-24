@@ -121,7 +121,14 @@ PROMOTION_FLOOR = 2
 #: whole point of decision 4 is that a reader sees the classes side by side.
 OBSERVATORY_PER_CLASS = 60
 
-SCHEMA_VERSION = 30
+#: The shape of a subscription key, in one place. The wall checks the length
+#: before it hashes anything, and derives that length from these two - a
+#: hand-written length disagreed with this generator by four characters and
+#: refused every issued key.
+ACCESS_KEY_PREFIX = "radar-"
+ACCESS_KEY_ENTROPY_BYTES = 30
+
+SCHEMA_VERSION = 31
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -5523,7 +5530,7 @@ class Database:
 
     def access_issue_key(self, *, plan: str, days: int, note: str, actor: str) -> dict[str, Any]:
         """Create a key and return it whole - the only moment it exists whole."""
-        key = f"radar-{secrets.token_urlsafe(30)}"
+        key = f"{ACCESS_KEY_PREFIX}{secrets.token_urlsafe(ACCESS_KEY_ENTROPY_BYTES)}"
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
         with self.connect() as connection, connection.cursor() as cursor:
             cursor.execute(
@@ -5606,10 +5613,16 @@ class Database:
             row = cursor.fetchone()
             if row is None:
                 return None
-            cursor.execute(
-                "UPDATE kx.access_keys SET last_used_at = now() WHERE key_hash = %s",
-                (digest,),
-            )
+            try:
+                cursor.execute(
+                    "UPDATE kx.access_keys SET last_used_at = now() WHERE key_hash = %s",
+                    (digest,),
+                )
+            except Exception:
+                # The docstring promised best-effort and the code did not deliver
+                # it: an unguarded stamp turned a privilege problem into a dropped
+                # connection on every valid key. `last_used_at` is telemetry.
+                connection.rollback()
             return dict(row)
 
     # ---------------------------------------------------------------------

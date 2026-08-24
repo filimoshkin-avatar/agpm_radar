@@ -164,7 +164,7 @@ def test_the_worker_gate_matches_the_migration_it_requires() -> None:
     # order "database first, release second".
     # The constant tracks what is applied, not what is written: require_schema is a
     # hard gate, so a repository ahead of production cannot be released at all.
-    assert "SCHEMA_VERSION = 30" in source
+    assert "SCHEMA_VERSION = 31" in source
     assert "UPDATE metadata SET value = '3'::jsonb" in schema
     caveat = (Path(__file__).parents[1] / "sql" / "004_publication_caveat.sql").read_text(
         encoding="utf-8"

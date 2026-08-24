@@ -40,7 +40,15 @@ COMMENT ON TABLE kx.access_keys IS
 CREATE INDEX access_keys_status_idx ON kx.access_keys (status, expires_at);
 
 -- The serving role reads the table to answer "is this key live" - nothing else
--- of the key exists to read. Writes stay with the editor's role.
+-- of the key exists to read. It also stamps `last_used_at`, and that is the
+-- whole of its writing: a column grant, not a table one, so the role that
+-- answers the door cannot flip a status or move an expiry. Without this the
+-- stamp raised `permission denied` on every valid key and took the request's
+-- connection down with it.
 GRANT SELECT ON kx.access_keys TO radar_kb_public;
+GRANT UPDATE (last_used_at) ON kx.access_keys TO radar_kb_public;
+
+UPDATE metadata SET value = '31'::jsonb, updated_at = clock_timestamp()
+WHERE key = 'schema_version';
 
 COMMIT;

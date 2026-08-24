@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import secrets
 import threading
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
@@ -65,8 +66,11 @@ class KeyFake:
         client: str,
         admission: str = "knowledge",
         asks_per_client: int | None = None,
+        key_digest: str | None = None,
     ) -> dict[str, Any]:
-        self.asked.append({"path": "ask", "asks_per_client": asks_per_client})
+        self.asked.append(
+            {"path": "ask", "asks_per_client": asks_per_client, "key_digest": key_digest}
+        )
         return {"question": question}
 
     def guard_check(self, authorization: str | None) -> dict[str, Any]:
@@ -144,9 +148,13 @@ def test_a_live_key_opens_browsing_and_reaches_the_wider_window() -> None:
 def test_the_conversation_paths_stay_open_without_a_key() -> None:
     """The dialogue is the free tier: no key may ever stand in front of it.
 
-    The graph and statement paths belong to the free tier too: a conversation
-    expands what it shows - one known node's neighbourhood, inside the chat -
-    and neither path lists nor searches, so they are walking, not browsing.
+    `/graph` is not part of it. The first version of this test asserted that it
+    was, on the reasoning that walking a node's neighbourhood is not browsing -
+    and the reasoning did not survive measurement: `/graph?topic=` returned fifty
+    statement texts per request and said how many more it held. The owner's call
+    (2026-08-24) is that walking is a subscriber's affordance. `/statement` does
+    stay open, knowingly: it walks the same way, so the corpus is slowed rather
+    than closed, and that is written where the gate list is.
     """
     server, thread = _serve(KeyFake(live=False))
     try:
@@ -158,7 +166,7 @@ def test_the_conversation_paths_stay_open_without_a_key() -> None:
         assert status == HTTPStatus.OK
         assert "prompts" in body
         status, _ = _get(connection, "/graph?claim=c1")
-        assert status == HTTPStatus.OK
+        assert status == HTTPStatus.FORBIDDEN
         status, _ = _get(connection, "/statement/c1")
         assert status == HTTPStatus.OK
     finally:
@@ -238,3 +246,75 @@ def test_a_valid_answer_is_cached_and_a_revocation_lands_within_the_ttl() -> Non
     assert guard.check(key)["valid"] is True
     fresh = AccessGuard(cast(Database, database), ttl_seconds=60.0)
     assert fresh.check(key)["valid"] is False
+
+
+def test_a_key_the_owner_issues_is_a_key_the_wall_accepts() -> None:
+    """The generator and the shape check must not drift apart.
+
+    They did: the check was written as 42 by hand against a generator that makes
+    46, so every key the owner issued was refused before the base was asked, and
+    the subscription was inert. Nothing above caught it, because every other test
+    builds its key out of `KEY_LENGTH` itself - an input derived from the
+    constant under test can never disagree with it. This one starts from the
+    issuing code and walks to the wall.
+    """
+    from radar_kx.agent_api import AccessGuard
+    from radar_kx.database import ACCESS_KEY_ENTROPY_BYTES, ACCESS_KEY_PREFIX
+
+    issued: dict[str, Any] = {}
+
+    class Issuing:
+        """Only the two seams `access_issue_key` touches."""
+
+        def connect(self) -> Any:
+            return _Connection(issued)
+
+    class Reading:
+        def __init__(self) -> None:
+            self.asked = 0
+
+        def access_key(self, digest: str) -> dict[str, Any]:
+            self.asked += 1
+            return {"plan": "full", "expires_at": "2027-01-01"}
+
+    key = Database.access_issue_key(
+        cast(Database, Issuing()), plan="full", days=30, note="", actor="owner"
+    )["key"]
+    assert key.startswith(ACCESS_KEY_PREFIX)
+    assert len(key) == len(ACCESS_KEY_PREFIX) + len(secrets.token_urlsafe(ACCESS_KEY_ENTROPY_BYTES))
+
+    reading = Reading()
+    guard = AccessGuard(cast(Database, reading))
+    assert guard.check(f"Bearer {key}")["valid"] is True
+    assert reading.asked == 1, "the wall refused an issued key before it asked the base"
+
+
+class _Cursor:
+    def __init__(self, sink: dict[str, Any]) -> None:
+        self._sink = sink
+
+    def execute(self, statement: str, parameters: Any = None) -> None:
+        self._sink["parameters"] = parameters
+
+    def fetchone(self) -> dict[str, Any]:
+        return {"key_id": "00000000-0000-0000-0000-000000000000", "expires_at": "2027-01-01"}
+
+    def __enter__(self) -> _Cursor:
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        return None
+
+
+class _Connection:
+    def __init__(self, sink: dict[str, Any]) -> None:
+        self._sink = sink
+
+    def cursor(self) -> _Cursor:
+        return _Cursor(self._sink)
+
+    def __enter__(self) -> _Connection:
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        return None

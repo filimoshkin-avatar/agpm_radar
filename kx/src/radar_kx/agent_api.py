@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import sys
 import threading
 import time
@@ -55,7 +56,7 @@ from radar_kx.agent_chat import (
     welcome_prompts,
 )
 from radar_kx.config import Settings
-from radar_kx.database import Database
+from radar_kx.database import ACCESS_KEY_ENTROPY_BYTES, ACCESS_KEY_PREFIX, Database
 from radar_kx.orchestrator import RESEARCH_ANSWER, ModelGateway, OrchestratorError
 from radar_kx.research import (
     PACKAGE_SIZE,
@@ -96,12 +97,18 @@ MAX_HITS = 50
 #: regardless, because the answer the agent shows a reader is the product's free
 #: tier, not a leak of the paid one.
 #:
-#: `/graph` and `/statement` are deliberately NOT here. They are how a
-#: conversation expands what it already shows - one known node's neighbourhood,
-#: inside the chat (owner's call, 2026-08-24) - and neither lists nor searches:
-#: there is no way to browse the base through them, only to walk from a node a
-#: reader already holds. The browsing apparatus itself - search, the shelves,
-#: the observatory cuts - is what the subscription opens.
+#: `/graph` is here as a **product boundary, not a protection**, and the
+#: difference is worth writing down because the first version of this list said
+#: the opposite. Walking from node to node is subscriber's work by the owner's
+#: call (2026-08-24); it is not, however, what keeps the corpus in. Measured the
+#: same day: `/graph?topic=` returned fifty statement texts per request and
+#: announced how many more it held, and `/statement/<id>` returns eight
+#: neighbours with their texts - so browsing the base without a key remains
+#: possible through `/statement`, which the owner has chosen to leave open. A
+#: reader who wants the shelves, the search and the cuts still needs a key; a
+#: script that wants the texts is slowed, not stopped. Saying that plainly here
+#: is the point: the next person to read this list must not mistake it for a
+#: fence it is not.
 GATED_PATHS: Final = frozenset(
     {
         "/search",
@@ -111,6 +118,7 @@ GATED_PATHS: Final = frozenset(
         "/contradictions",
         "/gaps",
         "/pages",
+        "/graph",
     }
 )
 GATED_PREFIXES: Final = ("/topics/", "/pages/")
@@ -120,10 +128,21 @@ GATED_PREFIXES: Final = ("/topics/", "/pages/")
 #: the bill, nothing more.
 SUBSCRIBER_ASKS_PER_CLIENT = 30
 
+#: And a ceiling on the key itself, per day. The window above counts clients, so
+#: it stops one person and not one key: a key that has spread to a hundred
+#: addresses buys a hundred windows, and there is no daily budget behind it. This
+#: is what makes a leaked key finite rather than free.
+SUBSCRIBER_ASKS_PER_KEY_PER_DAY = 500
+
 #: Key shape, checked before any digest is computed: shaping first keeps the
 #: database away from arbitrary probe strings.
-KEY_PREFIX = "radar-"
-KEY_LENGTH = 42
+#:
+#: The length is derived from the generator rather than written beside it. Set by
+#: hand it was 42 against a real key of 46, and every key the owner issued was
+#: refused before the database was ever asked - while the tests, which built
+#: their keys out of this same constant, stayed green through it.
+KEY_PREFIX = ACCESS_KEY_PREFIX
+KEY_LENGTH = len(KEY_PREFIX) + len(secrets.token_urlsafe(ACCESS_KEY_ENTROPY_BYTES))
 
 
 class AccessGuard:
@@ -139,25 +158,31 @@ class AccessGuard:
     oracle that distinguishes "never seen" from "seen and refused".
     """
 
-    def __init__(self, database: Database, *, ttl_seconds: float = 60.0) -> None:
+    def __init__(self, database: Database, *, ttl_seconds: float = 60.0, limit: int = 4096) -> None:
         self._database = database
         self._ttl = ttl_seconds
+        self._limit = limit
         self._cache: dict[str, tuple[bool, str | None, Any, float]] = {}
         self._lock = threading.Lock()
 
     def check(self, authorization: str | None) -> dict[str, Any]:
         header = (authorization or "").strip()
         if not header.startswith("Bearer "):
-            return {"valid": False, "plan": None, "expiresAt": None}
+            return {"valid": False, "plan": None, "expiresAt": None, "digest": None}
         key = header[len("Bearer ") :].strip()
         if not key.startswith(KEY_PREFIX) or len(key) != KEY_LENGTH:
-            return {"valid": False, "plan": None, "expiresAt": None}
+            return {"valid": False, "plan": None, "expiresAt": None, "digest": None}
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
         now = time.monotonic()
         with self._lock:
             cached = self._cache.get(digest)
             if cached is not None and now - cached[3] < self._ttl:
-                return {"valid": cached[0], "plan": cached[1], "expiresAt": cached[2]}
+                return {
+                    "valid": cached[0],
+                    "plan": cached[1],
+                    "expiresAt": cached[2],
+                    "digest": digest,
+                }
         found = self._database.access_key(digest)
         answer: dict[str, Any] = {
             "valid": found is not None,
@@ -165,8 +190,16 @@ class AccessGuard:
             "expiresAt": found and found.get("expires_at"),
         }
         with self._lock:
+            # Keyed by a digest of whatever the caller sent, so the cache is a
+            # place an unauthenticated stranger can put things. Bounded, and the
+            # oldest go first: a probe loop must not be able to grow it forever.
+            if len(self._cache) >= self._limit:
+                for stale in sorted(self._cache, key=lambda seen: self._cache[seen][3])[
+                    : max(1, self._limit // 4)
+                ]:
+                    self._cache.pop(stale, None)
             self._cache[digest] = (answer["valid"], answer["plan"], answer["expiresAt"], now)
-        return answer
+        return {**answer, "digest": digest}
 
 
 #: The two sentences that travel with every generated answer. The owner's wording
@@ -216,6 +249,9 @@ class AskBudget:
         self._window = window
         self._per_day = per_day
         self._asked: dict[str, list[float]] = {}
+        #: Per key, per day. The window above counts addresses; this counts the
+        #: key, which is the only thing a leaked key cannot change.
+        self._key_day: dict[str, int] = {}
         self._day: tuple[int, int] = (0, 0)
         self._lock = threading.Lock()
 
@@ -223,7 +259,13 @@ class AskBudget:
         return int(moment // 86400)
 
     def refused(
-        self, client: str, *, now: float | None = None, allowance: int | None = None
+        self,
+        client: str,
+        *,
+        now: float | None = None,
+        allowance: int | None = None,
+        key: str | None = None,
+        key_ceiling: int | None = None,
     ) -> str | None:
         """Why this call may not be made, or `None` if it may.
 
@@ -240,11 +282,15 @@ class AskBudget:
             if day != today:
                 day, spent = today, 0
                 self._asked.clear()
+                self._key_day.clear()
             # `0` means no ceiling on the day. The per-client window below is
             # what remains, and it is an abuse limit rather than a budget.
             if self._per_day and spent >= self._per_day:
                 self._day = (day, spent)
                 return "today"
+            if key and key_ceiling and self._key_day.get(key, 0) >= key_ceiling:
+                self._day = (day, spent)
+                return "key"
             recent = [at for at in self._asked.get(client, []) if moment - at < self._window]
             ceiling = allowance if allowance is not None else self._per_client
             if len(recent) >= ceiling:
@@ -253,6 +299,8 @@ class AskBudget:
                 return "client"
             recent.append(moment)
             self._asked[client] = recent
+            if key:
+                self._key_day[key] = self._key_day.get(key, 0) + 1
             self._day = (day, spent + 1)
         return None
 
@@ -364,6 +412,7 @@ class AgentService:
         client: str = "unknown",
         admission: str = "knowledge",
         asks_per_client: int | None = None,
+        key_digest: str | None = None,
     ) -> dict[str, Any]:
         """The agent's own answer: the last event of the flow below, nothing more.
 
@@ -372,14 +421,24 @@ class AgentService:
         """
         result: dict[str, Any] = {"error": "пустой вопрос"}
         for event, payload in self._answer_flow(
-            question, client=client, admission=admission, asks_per_client=asks_per_client
+            question,
+            client=client,
+            admission=admission,
+            asks_per_client=asks_per_client,
+            key_digest=key_digest,
         ):
             if event == "result":
                 result = payload
         return result
 
     def _answer_flow(
-        self, question: str, *, client: str, admission: str, asks_per_client: int | None = None
+        self,
+        question: str,
+        *,
+        client: str,
+        admission: str,
+        asks_per_client: int | None = None,
+        key_digest: str | None = None,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """The verified pipeline as a stream of stages with the answer last.
 
@@ -425,7 +484,12 @@ class AgentService:
         # free and should stay free.
         # A subscriber's window is wider (the owner's call) - and it is still
         # the same window, per client, not per key: a shared key shares it.
-        refused = self.budget.refused(client, allowance=asks_per_client)
+        refused = self.budget.refused(
+            client,
+            allowance=asks_per_client,
+            key=key_digest,
+            key_ceiling=SUBSCRIBER_ASKS_PER_KEY_PER_DAY if key_digest else None,
+        )
         if refused is not None:
             yield "result", self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
             return
@@ -534,6 +598,7 @@ class AgentService:
         admission: str = "knowledge",
         session: str = "",
         asks_per_client: int | None = None,
+        key_digest: str | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """One turn of the conversation: live stages, then the answer with its cards.
 
@@ -551,7 +616,11 @@ class AgentService:
         stages: list[dict[str, Any]] = []
         result: dict[str, Any] = {"error": "пустой вопрос"}
         for event, payload in self._answer_flow(
-            question, client=client, admission=admission, asks_per_client=asks_per_client
+            question,
+            client=client,
+            admission=admission,
+            asks_per_client=asks_per_client,
+            key_digest=key_digest,
         ):
             if event == "stage":
                 stages.append(payload)
@@ -577,6 +646,7 @@ class AgentService:
         admission: str = "knowledge",
         session: str = "",
         asks_per_client: int | None = None,
+        key_digest: str | None = None,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """The same turn as `chat`, yielding stages as they complete (SSE)."""
         if not valid_session(session):
@@ -586,7 +656,11 @@ class AgentService:
         choice = select_tool(question, topics)
         stages: list[dict[str, Any]] = []
         for event, payload in self._answer_flow(
-            question, client=client, admission=admission, asks_per_client=asks_per_client
+            question,
+            client=client,
+            admission=admission,
+            asks_per_client=asks_per_client,
+            key_digest=key_digest,
         ):
             if event == "stage":
                 stages.append(payload)
@@ -898,6 +972,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             # not multiply anybody's reach.
             access = service.access(self.headers.get("Authorization"))
             asks = SUBSCRIBER_ASKS_PER_CLIENT if access["valid"] else None
+            digest = access.get("digest") if access["valid"] else None
             if path == "/ask":
                 try:
                     self._json(
@@ -907,6 +982,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                             client=self._client(),
                             admission=admission,
                             asks_per_client=asks,
+                            key_digest=digest,
                         ),
                     )
                 except OrchestratorError:
@@ -940,6 +1016,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                         admission=admission,
                         session=session,
                         asks_per_client=asks,
+                        key_digest=digest,
                     )
                     self._json(
                         HTTPStatus.BAD_REQUEST if "error" in answered else HTTPStatus.OK,
@@ -968,6 +1045,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                     admission=admission,
                     session=session,
                     asks_per_client=asks,
+                    key_digest=digest,
                 ):
                     self._sse(event, payload)
             except OrchestratorError:
