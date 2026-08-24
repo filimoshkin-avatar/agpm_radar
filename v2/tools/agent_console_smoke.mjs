@@ -23,7 +23,7 @@ class FakeElement {
     this.style = {};
     this.textContent = "";
     this.value = "";
-    this.classList = { add() {}, remove() {}, toggle() {} };
+    this.classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
   }
 
   addEventListener(event, handler) { this.handler = handler; }

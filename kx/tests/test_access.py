@@ -50,6 +50,14 @@ class KeyFake:
     def prompts(self, *, count: int = 6, seed: int | None = None) -> dict[str, Any]:
         return {"prompts": [], "pool": 0, "poolCurated": 0}
 
+    def graph(self, **kwargs: Any) -> dict[str, Any]:
+        self.asked.append({"path": "graph"})
+        return {"centre": None, "nodes": [], "edges": []}
+
+    def statement(self, claim_id: str) -> dict[str, Any]:
+        self.asked.append({"path": "statement"})
+        return {"claimId": claim_id}
+
     def ask(
         self,
         question: str,
@@ -92,13 +100,11 @@ def test_browsing_without_a_key_meets_one_shape_of_refusal() -> None:
             "/topics/porogi",
             "/search?q=a",
             "/observatory",
-            "/graph",
             "/entities",
             "/contradictions",
             "/gaps",
             "/pages",
             "/pages/wiki/a.md",
-            "/statement/c1",
         ):
             status, body = _get(connection, path)
             assert status == HTTPStatus.FORBIDDEN, path
@@ -136,7 +142,12 @@ def test_a_live_key_opens_browsing_and_reaches_the_wider_window() -> None:
 
 
 def test_the_conversation_paths_stay_open_without_a_key() -> None:
-    """The dialogue is the free tier: no key may ever stand in front of it."""
+    """The dialogue is the free tier: no key may ever stand in front of it.
+
+    The graph and statement paths belong to the free tier too: a conversation
+    expands what it shows - one known node's neighbourhood, inside the chat -
+    and neither path lists nor searches, so they are walking, not browsing.
+    """
     server, thread = _serve(KeyFake(live=False))
     try:
         host, port = server.server_address[0], server.server_address[1]
@@ -146,6 +157,10 @@ def test_the_conversation_paths_stay_open_without_a_key() -> None:
         status, body = _get(connection, "/prompts")
         assert status == HTTPStatus.OK
         assert "prompts" in body
+        status, _ = _get(connection, "/graph?claim=c1")
+        assert status == HTTPStatus.OK
+        status, _ = _get(connection, "/statement/c1")
+        assert status == HTTPStatus.OK
     finally:
         server.shutdown()
         server.server_close()

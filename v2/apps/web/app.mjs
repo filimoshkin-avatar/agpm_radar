@@ -293,10 +293,173 @@ const VIEW_MODES = ["radar", "gazette", "agent"];
 // mode - not only the one that triggered it.
 const agentState = { tab: "find", admission: "knowledge", busy: false };
 
+// Declared at the top on purpose: a stored agent mode runs `setAgentTab` at
+// import time, before the graph section below has initialised - a `let` down
+// there is a landmine this page has stepped on before.
+let linksCanvas = null;
+
+/* ── Subscription access: a key is a capability, kept on the reader's device ──
+ *
+ * The dialogue is free; browsing the base is subscribed (owner's decision,
+ * 2026-08-24). The interface hides nothing cleverly - without a key the agent
+ * mode simply is the conversation, and the server remains the wall either way. */
+
+const ACCESS_STORE = "radarAccess.v1";
+const agentAccess = { key: "", plan: null, expiresAt: null };
+
+function accessApply(valid) {
+  document.body.classList.toggle("is-subscribed", valid);
+  const button = document.getElementById("agentSubButton");
+  const label = document.getElementById("agentSubLabel");
+  if (button && label) {
+    const until = agentAccess.expiresAt ? String(agentAccess.expiresAt).slice(0, 10) : "";
+    label.textContent = valid
+      ? `подписка${until ? ` до ${until}` : ""}`
+      : "Режим подписки";
+  }
+  const out = document.getElementById("agentSubOut");
+  if (out) out.hidden = !valid;
+}
+
+function accessSave() {
+  try {
+    localStorage.setItem(ACCESS_STORE, JSON.stringify(agentAccess));
+  } catch {
+    /* a private window keeps its key to itself */
+  }
+}
+
+function accessLoad() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ACCESS_STORE) || "null");
+    if (stored && typeof stored.key === "string" && stored.key) {
+      agentAccess.key = stored.key;
+      agentAccess.plan = stored.plan || null;
+      agentAccess.expiresAt = stored.expiresAt || null;
+      return true;
+    }
+  } catch {
+    /* nothing stored is nothing to load */
+  }
+  return false;
+}
+
+async function accessEnter(key, message) {
+  const trimmed = String(key || "").trim();
+  if (!trimmed) return;
+  try {
+    const response = await fetch(`${KB}/access/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: trimmed })
+    });
+    const checked = await response.json();
+    if (checked && checked.valid) {
+      agentAccess.key = trimmed;
+      agentAccess.plan = checked.plan || null;
+      agentAccess.expiresAt = checked.expiresAt || null;
+      accessSave();
+      accessApply(true);
+      if (message) {
+        message.hidden = false;
+        message.textContent = "Ключ принят. Вкладки базы — в вашем распоряжении.";
+      }
+      document.getElementById("agentSubPanel")?.toggleAttribute("hidden", true);
+      return;
+    }
+    if (message) {
+      message.hidden = false;
+      message.textContent = "Ключ не подошёл — проверьте его или напишите владельцу.";
+    }
+  } catch (error) {
+    if (message) {
+      message.hidden = false;
+      message.textContent = "Проверить ключ не вышло — попробуйте ещё раз.";
+    }
+  }
+}
+
+function accessInit() {
+  accessApply(accessLoad());
+  // A key may arrive by link: #key=radar-…  It applies once and leaves the
+  // URL. Outside a browser (the console smoke) there is no location to read
+  // and none to clean.
+  try {
+    const match = /^#key=(.+)$/.exec(location.hash || "");
+    if (match && match[1]) {
+      accessEnter(decodeURIComponent(match[1]));
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+  } catch {
+    /* no location, no key-by-link */
+  }
+}
+
+/* The button does not switch anything - it explains, and offers the two doors:
+ * a request to the owner, or a key the reader already holds. */
+document.getElementById("agentSubButton")?.addEventListener("click", () => {
+  const panel = document.getElementById("agentSubPanel");
+  const button = document.getElementById("agentSubButton");
+  if (!panel) return;
+  const opening = panel.hidden;
+  panel.toggleAttribute("hidden", !opening);
+  button?.setAttribute("aria-expanded", opening ? "true" : "false");
+  if (opening && agentAccess.key) {
+    const message = document.getElementById("agentSubMessage");
+    if (message) {
+      message.hidden = false;
+      message.textContent = `Подписка активна${
+        agentAccess.expiresAt ? ` до ${String(agentAccess.expiresAt).slice(0, 10)}` : ""
+      }.`;
+    }
+  }
+});
+
+document.getElementById("agentSubEnter")?.addEventListener("click", () => {
+  accessEnter(
+    document.getElementById("agentSubKey")?.value,
+    document.getElementById("agentSubMessage")
+  );
+});
+
+document.getElementById("agentSubKey")?.addEventListener("keydown", event => {
+  if (event.key === "Enter") document.getElementById("agentSubEnter")?.click();
+});
+
+document.getElementById("agentSubOut")?.addEventListener("click", () => {
+  agentAccess.key = "";
+  agentAccess.plan = null;
+  agentAccess.expiresAt = null;
+  accessSave();
+  accessApply(false);
+  const message = document.getElementById("agentSubMessage");
+  if (message) {
+    message.hidden = false;
+    message.textContent = "Вы вышли из подписки. Диалог с агентом продолжает работать.";
+  }
+  if (state.viewMode === "agent") setAgentTab("ask");
+});
+
 function setViewMode(mode) {
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
+  // The agent mode has its own name and its own instruments: the issue date,
+  // the period switch and the radar search have nothing to say here.
+  const brand = document.getElementById("brandTitle");
+  if (brand) brand.textContent = state.viewMode === "agent" ? "Агент базы знаний AgPM" : "Радар AgPM";
+  const subButton = document.getElementById("agentSubButton");
+  subButton?.toggleAttribute("hidden", state.viewMode !== "agent");
+  if (state.viewMode !== "agent") {
+    document.getElementById("agentSubPanel")?.toggleAttribute("hidden", true);
+  }
+  // A free reader lands in the conversation - it is their whole interface.
+  // Subscribers land there too; their difference is what else they can open.
+  // Deferred a microtask: a stored agent mode runs this at import time, and
+  // `setAgentTab` reaches declarations the module has not initialised yet.
+  if (state.viewMode === "agent" && !document.body.classList.contains("is-subscribed")) {
+    queueMicrotask(() => setAgentTab("ask"));
+  }
   document.getElementById("gazetteView")?.toggleAttribute("hidden", state.viewMode !== "gazette");
   document.getElementById("agentView")?.toggleAttribute("hidden", state.viewMode !== "agent");
   // The opening tab is marked active in the markup, so no `setAgentTab` runs for
@@ -321,6 +484,7 @@ function initViewMode() {
   } catch {
     saved = "radar";
   }
+  accessInit();
   setViewMode(window.location.hash === "#gazette" ? "gazette" : saved);
 }
 
@@ -1353,8 +1517,15 @@ document.addEventListener("click", event => {
     return;
   }
   if (button.dataset.agentGraph) {
-    setAgentTab("graph");
-    agentLoadGraph(`claim=${encodeURIComponent(button.dataset.agentGraph)}`);
+    const claim = `claim=${encodeURIComponent(button.dataset.agentGraph)}`;
+    // Inside the conversation the neighbourhood opens in the thread - the chat
+    // is a free reader's whole interface. Elsewhere (a subscriber's tab) it
+    // walks the tab as before.
+    if (button.closest("#agentThread")) chatGraphTurn(claim);
+    else {
+      setAgentTab("graph");
+      agentLoadGraph(claim);
+    }
     return;
   }
   if (button.dataset.agentLinks) {
@@ -1473,7 +1644,14 @@ const AGENT_STATUS_CLASS = {
 
 
 async function kbFetch(path, options) {
-  const response = await fetch(`${KB}${path}`, options);
+  // A key, when the reader holds one, travels with every request: the server
+  // decides what it opens, the client only asks.
+  const headers = new Headers(options?.headers || {});
+  if (agentAccess.key) headers.set("Authorization", `Bearer ${agentAccess.key}`);
+  const response = await fetch(`${KB}${path}`, { ...options, headers });
+  if (response.status === 403) {
+    throw new Error("раздел доступен по подписке — войдите по ключу");
+  }
   if (!response.ok && response.status !== 404) {
     throw new Error(`служба базы знаний ответила ${response.status}`);
   }
@@ -2220,7 +2398,19 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
   }
   const jump = event.target.closest("[data-open-links]");
   if (jump) {
-    chatOpenLinks(jump.dataset.openLinks ? `claim=${encodeURIComponent(jump.dataset.openLinks)}` : "");
+    // In the conversation, the neighbourhood arrives as a card in the thread:
+    // a free reader's whole interface is the chat, so the graph comes to them.
+    chatGraphTurn(jump.dataset.openLinks ? `claim=${encodeURIComponent(jump.dataset.openLinks)}` : "");
+    return;
+  }
+  const chatNode = event.target.closest("[data-chat-node]");
+  if (chatNode) {
+    chatGraphTurn(agentGraphRoute(chatNode.dataset.chatNode));
+    return;
+  }
+  const closer = event.target.closest("[data-close-graph]");
+  if (closer) {
+    closer.closest(".chat-turn--graph")?.remove();
     return;
   }
   const teaser = event.target.closest("[data-sub-teaser]");
@@ -2291,9 +2481,77 @@ function chatCopyTurn(index, button) {
  * is one click from its full neighbourhood in «Связи». Where Cytoscape is
  * absent the block still opens: it just offers the jump instead of the sketch. */
 
-function chatOpenLinks(query) {
-  document.querySelector('[data-agent-tab="graph"]')?.click();
-  agentLoadGraph(query);
+/** The conversation walks in place: a node's neighbourhood arrives as a card
+ *  in the thread, the way the answer did. Nothing in the chat switches a free
+ *  reader to a tab - the chat is their whole interface, so the graph comes to
+ *  the chat. Subscribers get the same card; their tab remains for browsing. */
+async function chatGraphTurn(query) {
+  const thread = document.getElementById("agentThread");
+  if (!thread || !query) return;
+  const card = document.createElement("div");
+  card.className = "chat-turn chat-turn--graph is-fresh";
+  card.innerHTML = `
+    <div class="chat-graph__head">
+      <span class="agent-ask__label">связи узла</span>
+      <span class="agent-graph__legend"></span>
+      <span class="agent-spacer"></span>
+      <button class="chat-graph__close" type="button" data-close-graph aria-label="Убрать карточку">✕</button>
+    </div>
+    <p class="agent-links__meta" aria-live="polite">Собираю соседей…</p>
+    <div class="agent-graph__canvas" hidden></div>
+    <div class="chat-graph__list"></div>`;
+  thread.appendChild(card);
+  chatFollowBottom(card);
+  const meta = card.querySelector(".agent-links__meta");
+  try {
+    const data = await kbFetch(`/graph?${query}&limit=40`);
+    if (!data.centre) {
+      if (meta) meta.textContent = "Такого узла в базе нет.";
+      return;
+    }
+    agentGraphDestroy();
+    card.querySelector(".agent-graph__legend")?.replaceChildren();
+    const legend = card.querySelector(".agent-graph__legend");
+    if (legend) legend.innerHTML = agentGraphLegend(data.edges);
+    const info = data.meta || {};
+    const policy = {
+      "most-recent": "показаны самые свежие",
+      "most-recent-knowledge": "показаны самые свежие из знания",
+      "link-limit": "показана часть связей",
+      "all-neighbours": "показаны все соседи"
+    }[info.selectionPolicy] || "";
+    if (meta) {
+      meta.textContent = info.truncated
+        ? `Показано ${info.returnedNeighborCount} из ${info.totalNeighborCount} соседей — ${policy}.`
+        : `Соседей: ${info.returnedNeighborCount || (data.nodes || []).length - 1}. ${policy}.`;
+    }
+    const machineProposed = (data.edges || []).some(edge => edge.layer === "authorial");
+    const list = card.querySelector(".chat-graph__list");
+    if (list) {
+      list.innerHTML = `
+        ${machineProposed
+          ? `<p class="agent-links__notice">Цветные связи предложила машина; владелец базы их не подтверждал.</p>`
+          : ""}
+        ${agentLinksListHtml(data)}`;
+      // Rows walk the conversation, not the tab: rename the routing attribute
+      // so the thread's own delegation picks them up.
+      list.querySelectorAll("[data-graph-node]").forEach(row => {
+        row.dataset.chatNode = row.dataset.graphNode || "";
+        delete row.dataset.graphNode;
+      });
+    }
+    const host = card.querySelector(".agent-graph__canvas");
+    const width = document.documentElement?.clientWidth || 1200;
+    const isSubject = String(data.centre).startsWith("topic:");
+    const wantCanvas = Boolean(host)
+      && (String(query).includes("force=1") || (!isSubject && width >= 640))
+      && (data.nodes || []).length <= 41;
+    if (host) host.__chatWalk = true;
+    const drawn = wantCanvas && agentLinksGraphRender(data, host);
+    if (host) host.hidden = !drawn;
+  } catch (error) {
+    if (meta) meta.textContent = error.message;
+  }
 }
 
 function chatMinisDestroy() {
@@ -2362,7 +2620,7 @@ function chatMiniGraph(index, host) {
   });
   mini.on("tap", "node", event => {
     const claim = event.target.data("claim");
-    if (claim) chatOpenLinks(`claim=${encodeURIComponent(claim)}`);
+    if (claim) chatGraphTurn(`claim=${encodeURIComponent(claim)}`);
   });
   chatMinis.set(index, mini);
 }
@@ -2632,7 +2890,6 @@ const AGENT_ENTITY_LABEL = {
  * accessible one: real buttons, real focus, changes announced.
  */
 
-let linksCanvas = null;
 
 function agentGraphDestroy() {
   if (linksCanvas) {
@@ -2728,7 +2985,11 @@ function agentLinksGraphRender(data, host) {
     }
   });
   linksCanvas.on("tap", "node", event => {
-    agentLoadGraph(agentGraphRoute(event.target.id()));
+    // Where a node tap goes depends on whose graph this is: the tab's canvas
+    // walks the tab, a card inside the conversation walks the conversation -
+    // a free reader's only surface is the chat, and it must never bounce them
+    // into a tab they cannot read.
+    (host.__chatWalk ? chatGraphTurn : agentLoadGraph)(agentGraphRoute(event.target.id()));
   });
   linksCanvas.on("tap", "edge", event => {
     const line = document.getElementById("agentGraphEdge");

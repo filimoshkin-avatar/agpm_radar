@@ -40,7 +40,7 @@
         </svg>
       </span>
       <span>
-        <span class="brand__title">Радар AgPM</span>
+        <span class="brand__title" id="brandTitle">Радар AgPM</span>
         <span class="brand__subtitle">Агентное управление проектами</span>
       </span>
     </a>
@@ -56,8 +56,30 @@
         <span aria-hidden="true">⌖</span>
         <input id="search" type="search" placeholder="Поиск по радару">
       </label>
+      <button id="agentSubButton" class="agent-sub-toggle" type="button" hidden
+        aria-haspopup="true" aria-expanded="false">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="5" width="7" height="5" rx="1"></rect><path d="M4 5V3.5a2 2 0 0 1 4 0V5"></path></svg>
+        <span id="agentSubLabel">Режим подписки</span>
+      </button>
     </div>
   </header>
+
+  <div id="agentSubPanel" class="agent-sub-panel" hidden role="dialog" aria-label="Подписка на базу знаний">
+    <h3 class="agent-sub-panel__title">Режим подписки</h3>
+    <p class="agent-sub-panel__text">
+      По подписке — самостоятельная работа с базой: поиск по утверждениям,
+      Обсерватория, Связи, Противоречия, Понятия, Wiki, карта пробелов и подписка
+      на узлы. Без подписки режим «Агент» — это диалог: агент отвечает и
+      показывает доказательства.
+    </p>
+    <a id="agentSubRequest" class="agent-sub-panel__cta" href="#">получить доступ</a>
+    <div class="agent-sub-panel__enter">
+      <input id="agentSubKey" type="text" autocomplete="off" placeholder="radar-…" aria-label="Ключ подписки">
+      <button id="agentSubEnter" type="button">войти по ключу</button>
+      <button id="agentSubOut" type="button" hidden>выйти</button>
+    </div>
+    <p id="agentSubMessage" class="agent-sub-panel__message" hidden></p>
+  </div>
 
   <main id="top" class="page">
     <section class="filters" aria-label="Фильтры">
@@ -350,6 +372,6 @@
   </nav>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260824-chat-polish"></script>
+  <script src="/assets/app.mjs?v=20260824-agent-access"></script>
 </body>
 </html>

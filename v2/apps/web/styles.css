@@ -2187,3 +2187,111 @@ body.is-agent .agent-view { display: block; }
   color: var(--muted);
   font-style: italic;
 }
+
+/* ── Subscription access ───────────────────────────────────────────────────
+ *
+ * A free reader's agent mode is the conversation: the tab row is not locked,
+ * it is absent - the interface never advertises what it cannot deliver. The
+ * button in the header explains the split instead. */
+
+body.is-agent .issue-date,
+body.is-agent .segments,
+body.is-agent .search {
+  display: none;
+}
+
+body.is-agent:not(.is-subscribed) .agent-tabs {
+  display: none;
+}
+
+.agent-sub-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 12px;
+  cursor: help;
+}
+
+body.is-subscribed .agent-sub-toggle {
+  border-style: solid;
+  cursor: pointer;
+}
+
+.agent-sub-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+.agent-sub-panel {
+  position: fixed;
+  top: 64px;
+  right: 28px;
+  z-index: 30;
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(31, 36, 41, 0.14);
+}
+
+.agent-sub-panel__title { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.agent-sub-panel__text { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: var(--secondary); }
+.agent-sub-panel__cta {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--near);
+  border-bottom: 1px dashed rgba(43, 74, 117, 0.4);
+  text-decoration: none;
+}
+.agent-sub-panel__enter { display: flex; gap: 8px; }
+.agent-sub-panel__enter input {
+  flex-grow: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+}
+.agent-sub-panel__enter button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.agent-sub-panel__message { margin: 10px 0 0; font-size: 12.5px; color: var(--secondary); }
+
+/* The in-chat graph card: a neighbourhood arrives as a turn of the dialogue. */
+
+.chat-turn--graph {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.chat-graph__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chat-graph__close {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.chat-graph__close:hover { color: var(--text); }
+.chat-graph__list { display: flex; flex-direction: column; gap: 8px; }
+.chat-turn--graph .agent-graph__canvas { height: 300px; margin-bottom: 8px; }
+
+@media (max-width: 640px) {
+  .agent-sub-panel { right: 16px; left: 16px; width: auto; }
+}

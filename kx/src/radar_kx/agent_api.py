@@ -95,20 +95,25 @@ MAX_HITS = 50
 #: service serves - `/ask`, the `/chat` pair, `/prompts`, `/health` - stays open
 #: regardless, because the answer the agent shows a reader is the product's free
 #: tier, not a leak of the paid one.
+#:
+#: `/graph` and `/statement` are deliberately NOT here. They are how a
+#: conversation expands what it already shows - one known node's neighbourhood,
+#: inside the chat (owner's call, 2026-08-24) - and neither lists nor searches:
+#: there is no way to browse the base through them, only to walk from a node a
+#: reader already holds. The browsing apparatus itself - search, the shelves,
+#: the observatory cuts - is what the subscription opens.
 GATED_PATHS: Final = frozenset(
     {
         "/search",
         "/topics",
         "/observatory",
-        "/graph",
         "/entities",
         "/contradictions",
         "/gaps",
         "/pages",
-        "/statement",
     }
 )
-GATED_PREFIXES: Final = ("/topics/", "/pages/", "/statement/")
+GATED_PREFIXES: Final = ("/topics/", "/pages/")
 
 #: A subscriber's conversation window. Higher than the free one by the owner's
 #: call - and still a window, not a budget: it stands between a shared key and
