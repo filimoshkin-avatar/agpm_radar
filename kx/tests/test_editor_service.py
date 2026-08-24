@@ -438,3 +438,61 @@ def test_the_queue_is_ordered_by_word_overlap_not_by_retrieval_rank(
     far = "procurement cycles lengthened after the regulator published guidance"
     assert term_coverage(statement, close) > term_coverage(statement, far)
     assert term_coverage(statement, far) < 0.2
+
+
+def test_a_host_left_as_it_is_does_not_come_back(migrated_dsn: str) -> None:
+    """Only `confirmed` wrote a profile, so the queue remembered a yes and
+    forgot every no.
+
+    Found by signing the queues in bulk: 76 hosts collected 2 042 identical
+    rejections, because each rejection left the host exactly where it was and
+    the next page offered it again as a fresh question. Same shape as the
+    linking drift migration 025 fixed - a verdict that changes nothing must
+    still be a verdict the queue reads.
+    """
+    from radar_kx.database import Database
+
+    database = Database(_settings(migrated_dsn))
+    before, _ = database.hosts_awaiting_policy(limit=5)
+    # `acquisition_gap_queue` is a view over `fetch_queue` and `documents`; the
+    # host is read out of the document's URL.
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        document = "c" * 64
+        cursor.execute(
+            "INSERT INTO kx.documents (document_id, canonical_url) VALUES (%s, %s)",
+            (document, "https://blocked.example/a"),
+        )
+        cursor.execute(
+            "INSERT INTO kx.fetch_queue (document_id, status, terminal_reason, last_error_code)"
+            " VALUES (%s, 'failed', 'blocked_by_host', 'robots_denied')",
+            (document,),
+        )
+    after_adding, rows = database.hosts_awaiting_policy(limit=50)
+    assert after_adding == before + 1
+    assert any(str(row["host"]) == "blocked.example" for row in rows)
+
+    database.decide_host_policy(host="blocked.example", verdict="rejected", actor="test")
+    after_deciding, rows = database.hosts_awaiting_policy(limit=50)
+    assert after_deciding == before, "a host she decided on is still being offered"
+    assert not any(str(row["host"]) == "blocked.example" for row in rows)
+
+
+def test_the_count_on_a_queue_and_its_list_agree(migrated_dsn: str) -> None:
+    """Every queue answers twice - a page and a total - from two queries.
+
+    A filter added to one and not the other gives a tab that announces work and
+    shows none, which is how the wiki queue once reported 0 and how the hosts
+    queue kept announcing 86 after the page had emptied.
+    """
+    from radar_kx.database import Database
+    from radar_kx.editor_queues import QUEUES
+
+    database = Database(_settings(migrated_dsn))
+    for queue in QUEUES:
+        total, rows = queue.load(database, 200)
+        assert total >= len(rows), f"{queue.key}: the page holds more than the count admits"
+        if total <= 200:
+            assert total == len(rows), (
+                f"{queue.key}: says {total} and lists {len(rows)} - the count query and the "
+                "page query do not apply the same filters"
+            )

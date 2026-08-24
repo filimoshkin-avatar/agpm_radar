@@ -1754,7 +1754,20 @@ const AGENT_RELATION_COLOUR = {
   contradicts: "#a93d22",
   qualifies: "#a96b12",
   related_to: "#6b6880",
-  about: "#2b4a75"
+  about: "#2b4a75",
+  mentions: "#a96b12"
+};
+
+const AGENT_ENTITY_LABEL = {
+  organisation: "организация",
+  person: "человек",
+  platform: "платформа",
+  standard: "стандарт",
+  industry: "отрасль",
+  role: "роль",
+  risk: "риск",
+  control: "контроль",
+  practice: "практика"
 };
 
 /** UC-05, the two modes this base can actually draw.
@@ -1794,13 +1807,30 @@ function agentGraphSvg(data) {
   const dot = node => {
     const at = place.get(node.id);
     const isCentre = node.id === data.centre;
-    const isTopic = node.kind === "topic";
     const label = node.label.length > 46 ? `${node.label.slice(0, 45)}…` : node.label;
+    // Three kinds of thing, three shapes: a subject is a square, a name is a
+    // diamond, a statement is a circle. Colour alone would leave the picture
+    // unreadable to anybody who does not separate blue from amber.
+    const size = isCentre ? 11 : node.kind === "statement" ? 5.5 : 8;
+    const fill = node.kind === "topic" ? "#2b4a75"
+      : node.kind === "entity" ? "#a96b12"
+      : isCentre ? "#1f242a" : "#ffffff";
+    const stroke = node.kind === "topic" ? "#2b4a75"
+      : node.kind === "entity" ? "#a96b12" : "#1f242a";
+    const shape = node.kind === "topic"
+      ? `<rect x="${at.x - size}" y="${at.y - size}" width="${size * 2}" height="${size * 2}"
+          fill="${fill}" stroke="${stroke}" stroke-width="1.4"></rect>`
+      : node.kind === "entity"
+        ? `<rect x="${at.x - size}" y="${at.y - size}" width="${size * 2}" height="${size * 2}"
+            transform="rotate(45 ${at.x} ${at.y})"
+            fill="${fill}" stroke="${stroke}" stroke-width="1.4"></rect>`
+        : `<circle cx="${at.x}" cy="${at.y}" r="${size}"
+            fill="${fill}" stroke="${stroke}" stroke-width="1.4"></circle>`;
+    const kind = node.entityType ? ` · ${AGENT_ENTITY_LABEL[node.entityType] || node.entityType}` : "";
     return `<g class="agent-graph__node" data-graph-node="${escapeHtml(node.kind)}:${escapeHtml(node.key)}">
-      <circle cx="${at.x}" cy="${at.y}" r="${isCentre ? 11 : isTopic ? 8 : 5.5}"
-        fill="${isTopic ? "#2b4a75" : isCentre ? "#1f242a" : "#ffffff"}"
-        stroke="${isTopic ? "#2b4a75" : "#1f242a"}" stroke-width="1.4"></circle>
-      <text x="${at.x}" y="${at.y - (isCentre ? 18 : 12)}" text-anchor="middle"
+      <title>${escapeHtml(node.label)}${escapeHtml(kind)}</title>
+      ${shape}
+      <text x="${at.x}" y="${at.y - (isCentre ? 18 : 13)}" text-anchor="middle"
         class="agent-graph__label">${escapeHtml(label)}</text>
     </g>`;
   };
@@ -1814,7 +1844,7 @@ function agentGraphSvg(data) {
 
 function agentGraphLegend(edges) {
   const seen = [...new Set((edges || []).map(edge => edge.relation))];
-  const name = { supports: "подтверждает", contradicts: "противоречит", qualifies: "уточняет", related_to: "связанное", about: "тема" };
+  const name = { supports: "подтверждает", contradicts: "противоречит", qualifies: "уточняет", related_to: "связанное", about: "тема", mentions: "называет" };
   return seen.map(relation => `<span class="agent-graph__key">
     <i style="background:${AGENT_RELATION_COLOUR[relation] || "#8a9199"}"></i>${escapeHtml(name[relation] || relation)}
   </span>`).join("");
@@ -1838,7 +1868,24 @@ async function agentLoadGraph(target) {
       // The picker is a convenience; a statement can still be opened from a card.
     }
   }
-  const query = target || (select?.value ? `topic=${encodeURIComponent(select.value)}` : "");
+  const picked = document.getElementById("agentGraphEntity");
+  if (picked && !picked.dataset.loaded) {
+    try {
+      const data = await kbFetch("/entities?limit=80");
+      (data.entities || []).forEach(entity => {
+        const option = document.createElement("option");
+        option.value = entity.entity_id;
+        option.textContent = `${entity.canonical_name} — ${AGENT_ENTITY_LABEL[entity.entity_type] || entity.entity_type} (${entity.statements})`;
+        picked.append(option);
+      });
+      picked.dataset.loaded = "1";
+    } catch {
+      // A name list that would not load still leaves the subject picker working.
+    }
+  }
+  const query = target
+    || (picked?.value ? `entity=${encodeURIComponent(picked.value)}` : "")
+    || (select?.value ? `topic=${encodeURIComponent(select.value)}` : "");
   if (!query) {
     box.innerHTML = `<p class="agent-intro">Выберите тему — и база покажет, что под ней стоит
     и чем эти утверждения связаны между собой. Из карточки любого утверждения сюда же
@@ -2125,5 +2172,13 @@ document.getElementById("agentObservatoryFilters")?.addEventListener("change", (
 });
 
 document.getElementById("agentGraphTopic")?.addEventListener("change", () => {
+  const entity = document.getElementById("agentGraphEntity");
+  if (entity) entity.value = "";
+  agentLoadGraph();
+});
+
+document.getElementById("agentGraphEntity")?.addEventListener("change", () => {
+  const topic = document.getElementById("agentGraphTopic");
+  if (topic) topic.value = "";
   agentLoadGraph();
 });

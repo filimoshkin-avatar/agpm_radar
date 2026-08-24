@@ -189,10 +189,22 @@ class AgentService:
             "licence": LICENCE,
         }
 
-    def graph(self, *, claim: str | None, topic: str | None, limit: int) -> dict[str, Any]:
+    def graph(
+        self, *, claim: str | None, topic: str | None, entity: str | None, limit: int
+    ) -> dict[str, Any]:
         """UC-05: what one thing is connected to, as a picture rather than a list."""
-        found = self.database.agent_graph(claim_id=claim, topic_key=topic, limit=limit)
+        found = self.database.agent_graph(
+            claim_id=claim, topic_key=topic, entity_id=entity, limit=limit
+        )
         return {**found, "signature": SIGNATURE, "licence": LICENCE}
+
+    def entities(self, *, kind: str | None, limit: int) -> dict[str, Any]:
+        """Who and what the base talks about, most named first."""
+        return {
+            "entities": self.database.agent_entities(kind=kind, limit=limit),
+            "signature": SIGNATURE,
+            "licence": LICENCE,
+        }
 
     def contradictions(self, limit: int) -> dict[str, Any]:
         """Where the base disagrees with itself, both sides at once (UC-11)."""
@@ -444,7 +456,17 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                     service.graph(
                         claim=parameters.get("claim"),
                         topic=parameters.get("topic"),
+                        entity=parameters.get("entity"),
                         limit=_int(parameters.get("limit"), 40),
+                    ),
+                )
+                return
+            if path == "/entities":
+                self._json(
+                    HTTPStatus.OK,
+                    service.entities(
+                        kind=parameters.get("kind"),
+                        limit=_int(parameters.get("limit"), 60),
                     ),
                 )
                 return

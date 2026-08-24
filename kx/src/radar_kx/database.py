@@ -119,7 +119,7 @@ PROMOTION_FLOOR = 2
 #: whole point of decision 4 is that a reader sees the classes side by side.
 OBSERVATORY_PER_CLASS = 60
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -4443,6 +4443,18 @@ class Database:
                               lower(split_part(split_part(gaps.canonical_url, '://', 2), '/', 1))
                     WHERE gaps.terminal_reason = 'blocked_by_host'
                       AND profiles.host IS NULL
+                      -- A host she looked at and left as it is must not come
+                      -- back tomorrow. Only `confirmed` writes a profile, so
+                      -- without this the queue remembered a yes and forgot every
+                      -- no: 76 hosts collected 2 042 identical rejections in one
+                      -- batch, and each of them read as a fresh question.
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.editorial_decisions AS decided
+                          WHERE decided.object_kind = 'host_profile'
+                            AND decided.object_key =
+                                lower(split_part(
+                                    split_part(gaps.canonical_url, '://', 2), '/', 1))
+                      )
                     GROUP BY 1, 2
                     ORDER BY documents DESC
                     LIMIT %s
@@ -4459,7 +4471,18 @@ class Database:
                     LEFT JOIN kx.host_profiles AS profiles
                            ON profiles.host =
                               lower(split_part(split_part(gaps.canonical_url, '://', 2), '/', 1))
-                    WHERE gaps.terminal_reason = 'blocked_by_host' AND profiles.host IS NULL
+                    WHERE gaps.terminal_reason = 'blocked_by_host'
+                      AND profiles.host IS NULL
+                      -- The same exclusion as the page above. The count is its
+                      -- own query, so a filter added to one and not the other
+                      -- gives a tab that says 86 and lists none.
+                      AND NOT EXISTS (
+                          SELECT 1 FROM kx.editorial_decisions AS decided
+                          WHERE decided.object_kind = 'host_profile'
+                            AND decided.object_key =
+                                lower(split_part(
+                                    split_part(gaps.canonical_url, '://', 2), '/', 1))
+                      )
                     """
                 )
                 total = int(cast(int, one_row(cursor)["total"]))
@@ -5730,7 +5753,12 @@ class Database:
         return {"byType": by_type, "mostNamed": most_named, **reach, **read}
 
     def agent_graph(
-        self, *, claim_id: str | None = None, topic_key: str | None = None, limit: int = 40
+        self,
+        *,
+        claim_id: str | None = None,
+        topic_key: str | None = None,
+        entity_id: str | None = None,
+        limit: int = 40,
     ) -> dict[str, Any]:
         """The knowledge around one node, as nodes and edges the reader may see.
 
@@ -5811,6 +5839,59 @@ class Database:
                 for row in cursor.fetchall():
                     subject = add("topic", str(row["topic_key"]), str(row["title"]))
                     edges.append({"from": centre, "to": subject, "relation": "about"})
+                cursor.execute(
+                    "SELECT entity_id, entity_type, canonical_name, role"
+                    " FROM agent.statement_entity WHERE claim_id = %s"
+                    " ORDER BY role, canonical_name",
+                    (claim_id,),
+                )
+                for row in cursor.fetchall():
+                    named = add(
+                        "entity",
+                        str(row["entity_id"]),
+                        str(row["canonical_name"]),
+                        entityType=row["entity_type"],
+                        role=row["role"],
+                    )
+                    edges.append({"from": centre, "to": named, "relation": "mentions"})
+                return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+
+            if entity_id:
+                cursor.execute(
+                    "SELECT entity_id, entity_type, canonical_name, statements"
+                    " FROM agent.entity WHERE entity_id = %s",
+                    (entity_id,),
+                )
+                middle = cursor.fetchone()
+                if middle is None:
+                    return {"centre": None, "nodes": [], "edges": []}
+                centre = add(
+                    "entity",
+                    str(middle["entity_id"]),
+                    str(middle["canonical_name"]),
+                    entityType=middle["entity_type"],
+                )
+                cursor.execute(
+                    """
+                    SELECT statement.claim_id, statement.statement,
+                           statement.material_kind, statement.status, named.role
+                    FROM agent.statement_entity AS named
+                    JOIN agent.statement AS statement USING (claim_id)
+                    WHERE named.entity_id = %s
+                    ORDER BY named.role, statement.shown_on DESC NULLS LAST, statement.claim_id
+                    LIMIT %s
+                    """,
+                    (entity_id, limit),
+                )
+                for row in cursor.fetchall():
+                    node = add(
+                        "statement",
+                        str(row["claim_id"]),
+                        str(row["statement"]),
+                        materialKind=row["material_kind"],
+                        status=row["status"],
+                    )
+                    edges.append({"from": node, "to": centre, "relation": "mentions"})
                 return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
 
             if not topic_key:
@@ -5853,6 +5934,22 @@ class Database:
                 )
                 edges.append({"from": node, "to": centre, "relation": "about"})
         return {"centre": centre, "nodes": list(nodes.values()), "edges": edges}
+
+    def agent_entities(self, *, kind: str | None = None, limit: int = 60) -> list[dict[str, Any]]:
+        """The names the base uses, most-named first, optionally of one type.
+
+        The count is what the reader can check: it is the number of admitted
+        statements naming it, which is exactly what the graph will draw.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT entity_id, entity_type, canonical_name, statements"
+                " FROM agent.entity"
+                " WHERE (%s::text IS NULL OR entity_type = %s::text)"
+                " ORDER BY statements DESC, canonical_name LIMIT %s",
+                (kind, kind, limit),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def agent_contradictions(self, *, limit: int = 60) -> tuple[int, list[dict[str, Any]]]:
         """Every pair the judge called incompatible, both sides shown together.

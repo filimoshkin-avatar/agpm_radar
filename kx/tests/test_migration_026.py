@@ -26,6 +26,10 @@ ALLOWED = {
     ("agent", "link", "SELECT"),
     ("agent", "page", "SELECT"),
     ("agent", "gap", "SELECT"),
+    # 030: who and what the admitted statements name, so UC-05's entity modes
+    # have something to draw. Narrowed to entities the reader can already reach.
+    ("agent", "entity", "SELECT"),
+    ("agent", "statement_entity", "SELECT"),
     # The schema-version gate every command runs before it does anything.
     ("kx", "metadata", "SELECT"),
     # The answer cache reads its own rows; decision 9 keeps the chat for analysis.
