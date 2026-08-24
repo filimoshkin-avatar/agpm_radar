@@ -2115,3 +2115,68 @@ body.is-agent .agent-view { display: block; }
 
 .agent-work__detail { color: var(--muted); font-size: 11px; }
 .agent-work__step.is-done .agent-work__detail { color: var(--mid); }
+
+/* ── The in-answer graph sketch ──────────────────────────────────────────── */
+
+.chat-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: chatRise 0.4s ease-out both;
+}
+
+.chat-mini[hidden] { display: none; }
+
+.chat-mini__host {
+  height: 260px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.chat-mini__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .chat-mini__host { height: 200px; }
+}
+
+/* ── «Подписаться на узел»: visible, priced, not yet live ─────────────────
+ *
+ * A dashed chip with two icons - the feed and the lock - reads as "exists,
+ * costs something" without a word; the word arrives on click. */
+
+.agent-answer__topics {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.agent-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.agent-sub svg { opacity: 0.75; }
+.agent-sub:hover { border-color: var(--accent); color: var(--accent); }
+
+.agent-sub__note {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-style: italic;
+}

@@ -1870,14 +1870,18 @@ function chatTurnHtml(turn, index, fresh = false) {
           <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
         </div>
         ${body}
+        ${chatTopicsRow(evidence)}
         ${chatToolCardsHtml(answered)}
         ${evidence.length ? `
           <div class="agent-answer__levels">
             <button class="agent-level" type="button" data-toggle="${evidenceId}">Доказательства
               <span class="agent-level__count">${evidence.length}</span>
             </button>
+            ${evidence.length >= 2 ? `
+              <button class="agent-level" type="button" data-graph-mini="${index}">В графе</button>` : ""}
             <button class="agent-turn__copy" type="button" data-copy-turn="${index}">копировать ответ</button>
           </div>
+          <div class="chat-mini" id="mini-${index}" hidden></div>
           <div class="agent-evidence" id="${evidenceId}" hidden>
             ${evidence.map((row, ordinal) =>
               `<div id="ev-${index}-${ordinal + 1}"${fresh ? ` style="--j:${ordinal}"` : ""}>${agentStatementCard(row, ordinal + 1)}</div>`
@@ -1909,6 +1913,10 @@ function chatToolCardHtml(card) {
           ${Array.isArray(data.statements)
             ? data.statements.slice(0, 5).map(statement => agentStatementCard(statement)).join("")
             : `<pre class="agent-tool__raw">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`}
+          <div class="agent-answer__topics">
+            ${chatSubTeaser(String(title))}
+            <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+          </div>
         </div>
       </details>`;
   }
@@ -2180,6 +2188,32 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
     agentAsk(retry.dataset.retry || "");
     return;
   }
+  const mini = event.target.closest("[data-graph-mini]");
+  if (mini) {
+    const host = document.getElementById(`mini-${mini.dataset.graphMini}`);
+    if (!host) return;
+    const opening = host.hidden;
+    host.hidden = !opening;
+    mini.classList.toggle("is-open", opening);
+    if (opening && !host.dataset.drawn) {
+      host.dataset.drawn = "1";
+      chatMiniGraph(Number(mini.dataset.graphMini), host);
+    }
+    return;
+  }
+  const jump = event.target.closest("[data-open-links]");
+  if (jump) {
+    chatOpenLinks(jump.dataset.openLinks ? `claim=${encodeURIComponent(jump.dataset.openLinks)}` : "");
+    return;
+  }
+  const teaser = event.target.closest("[data-sub-teaser]");
+  if (teaser) {
+    // Not dead, not lying: the click says what the feature costs and when it
+    // is coming, once per row.
+    const note = teaser.closest(".agent-answer__topics, .agent-tool__body")?.querySelector(".agent-sub__note");
+    if (note) note.hidden = !note.hidden;
+    return;
+  }
   // A footnote whose target sits in a hidden block goes nowhere: open the
   // evidence first, and let the anchor do its own scrolling afterwards.
   const cite = event.target.closest(".agent-cite");
@@ -2230,6 +2264,120 @@ function chatCopyTurn(index, button) {
     ? clauses.map(clause => clause.text).join("\n")
     : answered.answer || chatRefusalText(answered, answered.evidence || []);
   chatCopyText(`${turn.question}\n\n${text}\n\n${answered.machineNotice || ""}`, button);
+}
+
+/* ── «В графе»: the answer's own shape, drawn from what it already carries ──
+ *
+ * The evidence rows arrive with their topics, so the map needs no new request:
+ * statements on one side, the subjects they land on on the other. It is a
+ * sketch of the answer, not the base - one hop deep, and every statement node
+ * is one click from its full neighbourhood in «Связи». Where Cytoscape is
+ * absent the block still opens: it just offers the jump instead of the sketch. */
+
+function chatOpenLinks(query) {
+  document.querySelector('[data-agent-tab="graph"]')?.click();
+  agentLoadGraph(query);
+}
+
+function chatMiniGraph(index, host) {
+  const turn = chatTurns[index];
+  const evidence = Array.isArray(turn?.answered?.evidence) ? turn.answered.evidence : [];
+  const openButton = claim =>
+    `<button class="agent-turn__copy" type="button" data-open-links="${escapeHtml(claim || "")}">открыть в «Связях»</button>`;
+  if (typeof cytoscape !== "function") {
+    host.innerHTML = `
+      <p class="agent-waiting">Мини-граф здесь не рисуется, но соседей видно целиком.</p>
+      <div class="chat-mini__foot">${openButton(chatTopClaim(evidence))}</div>`;
+    return;
+  }
+  host.innerHTML = `<div class="chat-mini__host"></div>
+    <div class="chat-mini__foot">${
+      openButton(chatTopClaim(evidence))
+    } один шаг от центра; узел-утверждение уводит в «Связи»</div>`;
+  const statements = evidence.map((row, order) => ({
+    data: {
+      id: `s${order}`,
+      label: chatShort(row.statement || row.quote_text || row.quote || "", 30),
+      claim: row.claim_id || row.claimId || ""
+    }
+  }));
+  const topicLabels = new Set();
+  evidence.forEach(row => (row.topics || []).forEach(topic => topicLabels.add(topic)));
+  const topics = [...topicLabels].map((label, order) => ({
+    data: { id: `t${order}`, label: chatShort(label, 24), topic: label }
+  }));
+  const edges = [];
+  evidence.forEach((row, order) => {
+    (row.topics || []).forEach(topic => {
+      const target = topics.findIndex(node => node.data.topic === topic);
+      if (target !== -1) edges.push({ data: { id: `e${order}-${target}`, source: `s${order}`, target: `t${target}` } });
+    });
+  });
+  const canvas = host.firstElementChild;
+  const mini = cytoscape({
+    container: canvas,
+    elements: [...statements, ...topics, ...edges],
+    style: [
+      { selector: "node", style: {
+        shape: ele => (ele.data("topic") !== undefined ? "rectangle" : "ellipse"),
+        "background-color": ele => (ele.data("topic") !== undefined ? "#2b4a75" : "#ffffff"),
+        "border-width": 2,
+        "border-color": ele => (ele.data("topic") !== undefined ? "#2b4a75" : "#1f242a"),
+        width: 24, height: 24,
+        label: "data(label)", "text-wrap": "wrap", "text-max-width": 110,
+        "font-size": 9, color: "#1f242a", "text-valign": "bottom", "text-margin-y": 6
+      } },
+      { selector: "edge", style: {
+        "line-color": "#c9cdcf", width: 1.2, "curve-style": "haystack", opacity: 0.7
+      } }
+    ],
+    layout: { name: "grid", nodeDimensionsIncludeLabels: true, animate: false, padding: 20 }
+  });
+  mini.on("tap", "node", event => {
+    const claim = event.target.data("claim");
+    if (claim) chatOpenLinks(`claim=${encodeURIComponent(claim)}`);
+  });
+}
+
+function chatTopClaim(evidence) {
+  let best = null;
+  let bestScore = -1;
+  evidence.forEach(row => {
+    const score = Number(row.relevance != null ? row.relevance : 0);
+    const claim = row.claim_id || row.claimId || "";
+    if (claim && score >= bestScore) { best = claim; bestScore = score; }
+  });
+  return best || "";
+}
+
+/* ── «Подписаться на узел»: shown, priced, not yet live ────────────────────
+ *
+ * The owner's decision: the button is part of the interface now, marked
+ * «доступна по подписке», and turns real once access levels exist. A visible
+ * control that says what it costs beats an invisible feature - and a dead
+ * button that pretends to work beats nothing only in products that lie. */
+
+const CHAT_SUB_LOCK = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="5" width="7" height="5" rx="1"></rect><path d="M4 5V3.5a2 2 0 0 1 4 0V5"></path></svg>`;
+const CHAT_SUB_RSS = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="3" cy="11" r="1.3" fill="currentColor" stroke="none"></circle><path d="M1.5 6.5a6 6 0 0 1 6 6"></path><path d="M1.5 2.5a10 10 0 0 1 10 10"></path></svg>`;
+
+function chatSubTeaser(label) {
+  return `
+    <button class="agent-sub" type="button" data-sub-teaser="${escapeHtml(label)}"
+      title="Подписка на узел — доступна по подписке" aria-label="Подписаться на «${escapeHtml(label)}» — доступна по подписке">
+      ${CHAT_SUB_RSS}${CHAT_SUB_LOCK}${escapeHtml(label)}
+    </button>`;
+}
+
+function chatTopicsRow(evidence) {
+  const titles = new Set();
+  (evidence || []).forEach(row => (row.topics || []).forEach(topic => titles.add(topic)));
+  if (!titles.size) return "";
+  return `
+    <div class="agent-answer__topics">
+      <span class="agent-ask__label">темы ответа:</span>
+      ${[...titles].map(chatSubTeaser).join("")}
+      <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+    </div>`;
 }
 
 /* Enter asks, Shift+Enter breaks a line - the convention every chat reader

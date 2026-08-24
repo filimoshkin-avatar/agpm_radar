@@ -226,10 +226,15 @@ const ANSWER = {
   refusalReason: null,
   machineNotice: "Машинный ответ, не редакция базы.",
   signature: "AgPM Radar, машинная сборка",
-  evidence: [ASK_EVIDENCE],
+  evidence: [
+    ASK_EVIDENCE,
+    { ...ASK_EVIDENCE, n: 2, claimId: "c2", quote: "Никакого порога автономии в практике не наблюдается.",
+      sourceUrl: "https://example.org/b", sourceTitle: "Против порогов", charStart: 10, charEnd: 61,
+      materialKind: "opinion", status: "observed_signal", isRetelling: false, shownOn: "2026-07-02" },
+  ],
   clauses: [{ text: "Порог автономии — решение организации.", evidence: [1] }],
   stages: [
-    { step: "search", done: true, hits: 1, cache: false },
+    { step: "search", done: true, hits: 2, cache: false },
     { step: "draft", done: true },
     { step: "verify", done: true, passes: true },
   ],
@@ -359,6 +364,11 @@ if (!answered.includes("дата публикации")) fail("the reader is not
 if (!answered.includes("по словам") || !answered.includes("по смыслу"))
   fail("the reader is not told why the evidence was found");
 if (!answered.includes("https://example.org/a")) fail("the source link is missing");
+// The answer carries its own shape: a graph sketch button, and a subscribe
+// teaser that says plainly what it costs rather than pretending to work.
+if (!answered.includes("data-graph-mini")) fail("an answer with evidence offers no graph sketch");
+if (!answered.includes("доступна по подписке")) fail("the subscribe teaser does not say what it costs");
+if (!answered.includes("Пороги автономии")) fail("the answer's topics row is missing");
 
 // The graph opens on whichever subject the picker holds.
 elements.get("agentGraphTopic").value = "porogi";
