@@ -10,7 +10,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Final, cast
 
 import psycopg
 from psycopg import Connection
@@ -248,6 +248,63 @@ def one_row(cursor: psycopg.Cursor[dict[str, Any]]) -> dict[str, Any]:
     if row is None:
         raise RuntimeError("aggregate query returned no row")
     return row
+
+
+#: The shortlist the linking pass judges, and the queue counter counts. One
+#: text, deliberately: two copies of a fifty-line filter drift, and a counter
+#: that has drifted from the pass it counts is worse than no counter at all.
+#: `catch_up_pending` said "nothing to do" while twenty thousand pairs waited,
+#: because linking had no counter here at all.
+_LINK_SHORTLIST_SQL: Final = """
+WITH knowledge AS (
+                        SELECT claims.claim_id, claims.normalized_text, vectors.embedding
+                        FROM kx.claims AS claims
+                        JOIN kx.claim_reading AS reading USING (claim_id)
+                        JOIN kx.text_embeddings AS vectors
+                          ON vectors.owner_kind = 'claim_evidence'
+                         AND vectors.owner_key = claims.claim_id::text
+                         AND vectors.model_id = %(model)s
+                        WHERE reading.admission = 'knowledge'
+                    ),
+                    placed AS (
+                        SELECT claim_topics.claim_id, topics.topic_key, topics.title
+                        FROM kx.claim_topics
+                        JOIN kx.topics AS topics USING (topic_id)
+                        WHERE topics.state = 'accepted'
+                    ),
+                    nearest AS (
+                        SELECT source.claim_id AS from_id,
+                               source.normalized_text AS from_text,
+                               other.claim_id AS to_id,
+                               other.normalized_text AS to_text,
+                               source.embedding <=> other.embedding AS distance,
+                               shared.title AS shared_topic,
+                               row_number() OVER (
+                                   PARTITION BY source.claim_id
+                                   ORDER BY source.embedding <=> other.embedding
+                               ) AS rank
+                        FROM knowledge AS source
+                        JOIN placed AS source_topic ON source_topic.claim_id = source.claim_id
+                        JOIN placed AS shared
+                          ON shared.topic_key = source_topic.topic_key
+                         AND shared.claim_id <> source.claim_id
+                        JOIN knowledge AS other ON other.claim_id = shared.claim_id
+                        WHERE source.claim_id < other.claim_id
+                          AND source.embedding <=> other.embedding <= %(max_distance)s
+                          AND NOT EXISTS (
+                              SELECT 1 FROM kx.knowledge_links AS existing
+                              WHERE existing.from_kind = 'claim'
+                                AND existing.from_id = source.claim_id
+                                AND existing.to_kind = 'claim'
+                                AND existing.to_id = other.claim_id
+                          )
+                          AND NOT EXISTS (
+                              SELECT 1 FROM kx.link_judgements AS looked
+                              WHERE looked.from_id = source.claim_id
+                                AND looked.to_id = other.claim_id
+                          )
+                    )
+"""
 
 
 class Database:
@@ -5335,61 +5392,14 @@ class Database:
             self.require_schema(connection)
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """
-                    WITH knowledge AS (
-                        SELECT claims.claim_id, claims.normalized_text, vectors.embedding
-                        FROM kx.claims AS claims
-                        JOIN kx.claim_reading AS reading USING (claim_id)
-                        JOIN kx.text_embeddings AS vectors
-                          ON vectors.owner_kind = 'claim_evidence'
-                         AND vectors.owner_key = claims.claim_id::text
-                         AND vectors.model_id = %(model)s
-                        WHERE reading.admission = 'knowledge'
-                    ),
-                    placed AS (
-                        SELECT claim_topics.claim_id, topics.topic_key, topics.title
-                        FROM kx.claim_topics
-                        JOIN kx.topics AS topics USING (topic_id)
-                        WHERE topics.state = 'accepted'
-                    ),
-                    nearest AS (
-                        SELECT source.claim_id AS from_id,
-                               source.normalized_text AS from_text,
-                               other.claim_id AS to_id,
-                               other.normalized_text AS to_text,
-                               source.embedding <=> other.embedding AS distance,
-                               shared.title AS shared_topic,
-                               row_number() OVER (
-                                   PARTITION BY source.claim_id
-                                   ORDER BY source.embedding <=> other.embedding
-                               ) AS rank
-                        FROM knowledge AS source
-                        JOIN placed AS source_topic ON source_topic.claim_id = source.claim_id
-                        JOIN placed AS shared
-                          ON shared.topic_key = source_topic.topic_key
-                         AND shared.claim_id <> source.claim_id
-                        JOIN knowledge AS other ON other.claim_id = shared.claim_id
-                        WHERE source.claim_id < other.claim_id
-                          AND source.embedding <=> other.embedding <= %(max_distance)s
-                          AND NOT EXISTS (
-                              SELECT 1 FROM kx.knowledge_links AS existing
-                              WHERE existing.from_kind = 'claim'
-                                AND existing.from_id = source.claim_id
-                                AND existing.to_kind = 'claim'
-                                AND existing.to_id = other.claim_id
-                          )
-                          AND NOT EXISTS (
-                              SELECT 1 FROM kx.link_judgements AS looked
-                              WHERE looked.from_id = source.claim_id
-                                AND looked.to_id = other.claim_id
-                          )
-                    )
-                    SELECT DISTINCT ON (from_id, to_id)
-                           from_id, from_text, to_id, to_text, distance, shared_topic
-                    FROM nearest
-                    WHERE rank <= %(neighbours)s
-                    ORDER BY from_id, to_id, distance
-                    LIMIT %(limit)s
+                    _LINK_SHORTLIST_SQL  # noqa: S608 -- both halves are literals here
+                    + """
+        SELECT DISTINCT ON (from_id, to_id)
+               from_id, from_text, to_id, to_text, distance, shared_topic
+        FROM nearest
+        WHERE rank <= %(neighbours)s
+        ORDER BY from_id, to_id, distance
+        LIMIT %(limit)s
                     """,
                     {
                         "model": DEFAULT_MODEL,
@@ -5889,7 +5899,27 @@ class Database:
                       )) AS to_name
                 """
             )
-            return {key: int(cast(int, value)) for key, value in one_row(cursor).items()}
+            pending = {key: int(cast(int, value)) for key, value in one_row(cursor).items()}
+            # Linking, counted by the same filter the pass judges by rather than
+            # by a second copy of it. It costs a scan of the shortlist - about
+            # twenty seconds - and a pass that runs once a day can afford to
+            # know its own size. Without this the line said "nothing to do"
+            # while twenty-one thousand pairs waited behind it, and the ceiling
+            # beside the number was the only honest thing on the row.
+            cursor.execute(
+                _LINK_SHORTLIST_SQL  # noqa: S608 -- both halves are literals here
+                + """
+        SELECT count(*) AS to_link
+        FROM (SELECT DISTINCT from_id, to_id FROM nearest WHERE rank <= %(neighbours)s) AS shortlist
+                """,
+                {
+                    "model": DEFAULT_MODEL,
+                    "neighbours": LINK_NEIGHBOURS,
+                    "max_distance": LINK_MAX_DISTANCE,
+                },
+            )
+            pending["to_link"] = int(cast(int, one_row(cursor)["to_link"]))
+            return pending
 
     def entity_report(self) -> dict[str, Any]:
         """What the base now knows about who and what it talks about."""
