@@ -54,6 +54,7 @@ class FakeElement {
 const ids = [
   "activeFilter", "agentThread", "agentWelcome", "promptGrid", "poolNote", "morePrompts",
   "newDialog", "agentMic", "agentAsk", "agentForm", "agentGaps", "agentObservatory",
+  "agentSend", "agentChars", "chatNav", "chatDown", "chatDownCount", "chatMicLive",
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",

@@ -1927,6 +1927,173 @@ body.is-agent .agent-view { display: block; }
   margin-bottom: 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
+/* ── The conversation, polished ────────────────────────────────────────────
+ *
+ * A turn that arrives all at once reads as a dump; a turn that reveals itself
+ * clause by clause reads as an answer being given. The verified text arrives
+ * whole from the server (it streams stages, never an unverified draft), so the
+ * reveal is pacing, not pretence - and `prefers-reduced-motion` switches it off. */
+
+.chat-turn { display: flex; flex-direction: column; gap: 14px; }
+
+.chat-turn.is-flash {
+  outline: 2px solid rgba(43, 74, 117, 0.35);
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+
+@keyframes chatRise {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes chatPop {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.chat-turn.is-fresh .agent-q { animation: chatPop 0.32s ease-out both; }
+
+.chat-turn.is-fresh .agent-answer__text {
+  animation: chatRise 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: calc(0.15s + var(--i, 0) * 0.16s);
+}
+
+.chat-turn.is-fresh .agent-tool {
+  animation: chatRise 0.45s ease-out both;
+  animation-delay: calc(0.25s + var(--i, 0) * 0.16s);
+}
+
+.chat-turn.is-fresh .agent-evidence > div {
+  animation: chatRise 0.4s ease-out both;
+  animation-delay: calc(0.3s + var(--j, 0) * 0.09s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-turn.is-fresh .agent-q,
+  .chat-turn.is-fresh .agent-answer__text,
+  .chat-turn.is-fresh .agent-tool,
+  .chat-turn.is-fresh .agent-evidence > div {
+    animation: none;
+  }
+  .chat-turn, .chat-nav__chip, .chat-down { scroll-behavior: auto; }
+}
+
+/* The composer: a field that grows with the question, a counter near the
+   server's cut, and a send button that becomes «стоп» while a turn runs. */
+
+.agent-composer { position: relative; }
+
+.agent-composer .agent-ask {
+  height: auto;
+  min-height: 46px;
+  align-items: flex-end;
+}
+
+.agent-composer .agent-ask__input {
+  display: block;
+  resize: none;
+  overflow-y: auto;
+  max-height: 132px;
+  padding: 12px 0;
+  line-height: 1.45;
+  scrollbar-width: thin;
+}
+
+.agent-composer__chars {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-family: "PT Mono", ui-monospace, monospace;
+  padding-bottom: 13px;
+}
+
+.agent-composer__chars.is-over { color: var(--accent); font-weight: 600; }
+
+.agent-ask__submit:disabled { opacity: 0.45; cursor: default; }
+
+.agent-ask__submit.is-stop { background: var(--accent); }
+
+.agent-composer__mic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--secondary);
+  padding: 6px 2px 0;
+}
+
+.agent-composer__bars { display: inline-flex; align-items: flex-end; gap: 2px; }
+.agent-composer__bars i {
+  width: 3px;
+  background: var(--accent);
+  border-radius: 1.5px;
+  animation: chatBars 0.9s ease-in-out infinite;
+}
+.agent-composer__bars i:nth-child(1) { height: 6px; animation-delay: -0.3s; }
+.agent-composer__bars i:nth-child(2) { height: 11px; animation-delay: -0.15s; }
+.agent-composer__bars i:nth-child(3) { height: 8px; animation-delay: 0s; }
+
+@keyframes chatBars {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+/* The mini-map of asked questions, above the composer. */
+
+.chat-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.chat-nav__chip {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chat-nav__chip:hover { border-color: var(--near); color: var(--near); }
+
+/* The pill that says answers landed below the reader's current place. */
+
+.chat-down {
+  position: absolute;
+  right: 16px;
+  top: -44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(31, 36, 41, 0.18);
+}
+
+.chat-down:hover { background: var(--near); border-color: var(--near); }
+
+/* Small courtesies on the cards. */
+
+.agent-turn__copy {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
   background: #fff;
   color: var(--secondary);
   font-size: 12px;
@@ -1942,3 +2109,9 @@ body.is-agent .agent-view { display: block; }
 @media (max-width: 640px) {
   .agent-graph__canvas { height: 360px; }
 }
+.agent-turn__copy:hover { border-color: var(--near); color: var(--near); }
+
+.agent-q[data-copy-q] { cursor: copy; }
+
+.agent-work__detail { color: var(--muted); font-size: 11px; }
+.agent-work__step.is-done .agent-work__detail { color: var(--mid); }

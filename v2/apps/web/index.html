@@ -242,23 +242,30 @@
         <div id="agentThread" class="agent-chat__thread" hidden></div>
 
         <div class="agent-composer">
-          <form id="agentForm" class="agent-ask">
+          <div id="chatNav" class="chat-nav" aria-label="Вопросы этого диалога" hidden></div>
+          <form id="agentForm" class="agent-ask agent-composer__row">
             <span class="agent-ask__icon" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
             </span>
-            <input id="agentQuestion" class="agent-ask__input" type="search" autocomplete="off"
-                   placeholder="Спросите базу знаний об агентном управлении — или уточните предыдущий ответ" aria-label="Вопрос к базе знаний">
+            <textarea id="agentQuestion" class="agent-ask__input" rows="1" autocomplete="off"
+                   placeholder="Спросите базу знаний об агентном управлении — или уточните предыдущий ответ. Enter — спросить, Shift+Enter — новая строка" aria-label="Вопрос к базе знаний"></textarea>
+            <span id="agentChars" class="agent-composer__chars" hidden></span>
             <button class="agent-mic" id="agentMic" type="button" aria-label="Спросить голосом" title="Спросить голосом">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="1.5" width="4" height="8" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14.5"></line></svg>
             </button>
-            <button class="agent-ask__submit" type="submit">Спросить</button>
+            <button class="agent-ask__submit" id="agentSend" type="submit">Спросить</button>
           </form>
+          <div id="chatMicLive" class="agent-composer__mic" hidden></div>
           <div class="agent-ask__filters chipline" id="agentFilters">
             <span class="agent-ask__label">искать в:</span>
             <button class="chip is-active" type="button" data-agent-admission="knowledge">знании</button>
             <button class="chip" type="button" data-agent-admission="observatory">хронике рынка</button>
             <button class="chip" id="newDialog" type="button">＋ новый диалог</button>
           </div>
+          <button id="chatDown" class="chat-down" type="button" hidden>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 2v9M3 7.5 7 11.5 11 7.5"></path></svg>
+            <span id="chatDownCount">к новым ответам</span>
+          </button>
         </div>
 
       </div>
@@ -343,6 +350,6 @@
   </nav>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260824-links-tdz"></script>
+  <script src="/assets/app.mjs?v=20260824-chat-polish"></script>
 </body>
 </html>

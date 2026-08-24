@@ -1662,9 +1662,15 @@ const CHAT_STEPS = [
   ["verify", "проверка по цитатам"]
 ];
 const CHAT_STORE = "radarAgentChat.v1";
+// The server cuts a question at 500 characters (MAX_QUESTION_CHARS); the
+// counter says so while there is still something to do about it.
+const CHAT_MAX_QUESTION = 500;
 let chatSession = "";
 let chatTurns = [];
 let chatReady = false;
+let chatAbort = null;
+let chatUnread = 0;
+let chatListener = null;
 
 /** The session lives on the reader's device: the owner's decision is that
  *  questions and answers are analysis material without addresses, so the
@@ -1682,6 +1688,81 @@ function chatShowWelcome(show) {
   document.getElementById("agentThread")?.toggleAttribute("hidden", show);
 }
 
+/* ── Follow the bottom only while the reader is already there ─────────────
+ *
+ * The one scrolling rule a chat owes its reader: never drag somebody who is
+ * reading upwards. While they sit at the bottom, new content arrives under
+ * their eyes; the moment they scroll up, finished answers are counted in the
+ * «вниз» pill instead, and one click brings them back. */
+
+function chatNearBottom() {
+  try {
+    const page = document.documentElement || document.body;
+    return window.innerHeight + window.scrollY >= page.scrollHeight - 140;
+  } catch (error) {
+    return true;
+  }
+}
+
+function chatFollowBottom(node) {
+  if (chatNearBottom()) {
+    node?.scrollIntoView({ behavior: "smooth", block: "end" });
+    return;
+  }
+  chatUnread += 1;
+  chatDownSync();
+}
+
+function chatDownSync() {
+  const pill = document.getElementById("chatDown");
+  if (!pill) return;
+  pill.hidden = chatUnread === 0;
+  const label = document.getElementById("chatDownCount");
+  if (label && chatUnread > 0) {
+    label.textContent = chatUnread > 1 ? `${chatUnread} новых ответа внизу` : "новый ответ внизу";
+  }
+}
+
+document.getElementById("chatDown")?.addEventListener("click", () => {
+  chatUnread = 0;
+  chatDownSync();
+  document.getElementById("agentThread")?.lastElementChild
+    ?.scrollIntoView({ behavior: "smooth", block: "end" });
+});
+
+/* The mini-map of asked questions: with several turns, «which question was
+ * that answer to» stops being answerable by memory alone. One chip per turn,
+ * one click - one smooth jump with a flash. */
+function chatShort(text, max) {
+  const value = String(text || "");
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function chatRenderNav() {
+  const nav = document.getElementById("chatNav");
+  if (!nav) return;
+  if (chatTurns.length < 2) {
+    nav.hidden = true;
+    nav.innerHTML = "";
+    return;
+  }
+  nav.hidden = false;
+  nav.innerHTML = chatTurns.map((turn, index) => `
+    <button class="chat-nav__chip mono" type="button" data-nav-turn="${index}"
+      title="${escapeHtml(turn.question || "")}">${index + 1} · ${escapeHtml(chatShort(turn.question, 26))}</button>
+  `).join("");
+}
+
+document.getElementById("chatNav")?.addEventListener("click", event => {
+  const chip = event.target.closest("[data-nav-turn]");
+  if (!chip) return;
+  const turn = document.querySelector(`#agentThread [data-turn="${chip.dataset.navTurn}"]`);
+  if (!turn) return;
+  turn.scrollIntoView({ behavior: "smooth", block: "center" });
+  turn.classList.add("is-flash");
+  setTimeout(() => turn.classList.remove("is-flash"), 1600);
+});
+
 function agentChatInit() {
   if (chatReady) return;
   chatReady = true;
@@ -1696,12 +1777,18 @@ function agentChatInit() {
     const thread = document.getElementById("agentThread");
     if (thread) {
       thread.innerHTML = "";
-      chatTurns.forEach((turn, index) => thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, index)));
+      // A restored session is not a performance: no stagger, no pop - the
+      // answers the reader has already read simply stand where they stood.
+      chatTurns.forEach((turn, index) =>
+        thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, index, false)));
     }
+    chatRenderNav();
+    chatComposerSync();
     chatShowWelcome(false);
     return;
   }
   agentLoadPrompts();
+  chatComposerSync();
 }
 
 async function agentLoadPrompts() {
@@ -1726,6 +1813,7 @@ async function agentLoadPrompts() {
       card.addEventListener("click", () => {
         const input = document.getElementById("agentQuestion");
         if (input) input.value = prompts[index] ? prompts[index].text : "";
+        chatComposerSync();
         agentAsk(input ? input.value.trim() : "");
       });
     });
@@ -1748,45 +1836,54 @@ function chatRefusalText(answered, evidence) {
 
 /** The answer card: clauses with their citation chips, the disclosure button,
  *  and the evidence under it - each statement the base actually holds, with
- *  its quote and its source, the same card the Find tab renders. */
-function chatTurnHtml(turn, index) {
+ *  its quote and its source, the same card the Find tab renders.
+ *
+ *  A fresh turn reveals itself in steps - clauses, then cards, then evidence -
+ *  the way a streamed answer does; a restored session skips the theatre and
+ *  just is what it is. The verified text arrives whole (the server streams
+ *  stages, never an unverified draft), so this is pacing, not pretending. */
+function chatTurnHtml(turn, index, fresh = false) {
   const answered = turn.answered || {};
   const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
   const clauses = Array.isArray(answered.clauses) ? answered.clauses : [];
   const chip = number =>
     `<a class="agent-cite" href="#ev-${index}-${number}">${Number(number) || "?"}</a>`;
+  const step = order => fresh ? ` style="--i:${order}"` : "";
   const body = clauses.length
-    ? clauses.map(clause => `
-        <p class="agent-answer__text">${escapeHtml(clause.text || "")}${
+    ? clauses.map((clause, order) => `
+        <p class="agent-answer__text"${step(order)}>${escapeHtml(clause.text || "")}${
           Array.isArray(clause.evidence) ? clause.evidence.map(chip).join("") : ""
         }</p>`).join("")
     : answered.answer
-      ? `<p class="agent-answer__text">${escapeHtml(answered.answer)}</p>`
-      : `<p class="agent-answer__text agent-answer__text--refused">${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
+      ? `<p class="agent-answer__text"${step(0)}>${escapeHtml(answered.answer)}</p>`
+      : `<p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
   const evidenceId = `ev-${index}`;
   return `
-    <div class="agent-q">${escapeHtml(turn.question || "")}
-      <span class="agent-q__meta">${escapeHtml(turn.at || "")}</span>
-    </div>
-    <div class="agent-answer__card">
-      <div class="agent-answer__notice">
-        <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
-        <span class="agent-spacer"></span>
-        <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
+    <div class="chat-turn${fresh ? " is-fresh" : ""}" data-turn="${index}">
+      <div class="agent-q" data-copy-q="${index}" title="нажмите — вопрос скопируется">${escapeHtml(turn.question || "")}
+        <span class="agent-q__meta">${escapeHtml(turn.at || "")}</span>
       </div>
-      ${body}
-      ${chatToolCardsHtml(answered)}
-      ${evidence.length ? `
-        <div class="agent-answer__levels">
-          <button class="agent-level" type="button" data-toggle="${evidenceId}">Доказательства
-            <span class="agent-level__count">${evidence.length}</span>
-          </button>
+      <div class="agent-answer__card">
+        <div class="agent-answer__notice">
+          <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
+          <span class="agent-spacer"></span>
+          <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
         </div>
-        <div class="agent-evidence" id="${evidenceId}" hidden>
-          ${evidence.map((row, ordinal) =>
-            `<div id="ev-${index}-${ordinal + 1}">${agentStatementCard(row, ordinal + 1)}</div>`
-          ).join("")}
-        </div>` : ""}
+        ${body}
+        ${chatToolCardsHtml(answered)}
+        ${evidence.length ? `
+          <div class="agent-answer__levels">
+            <button class="agent-level" type="button" data-toggle="${evidenceId}">Доказательства
+              <span class="agent-level__count">${evidence.length}</span>
+            </button>
+            <button class="agent-turn__copy" type="button" data-copy-turn="${index}">копировать ответ</button>
+          </div>
+          <div class="agent-evidence" id="${evidenceId}" hidden>
+            ${evidence.map((row, ordinal) =>
+              `<div id="ev-${index}-${ordinal + 1}"${fresh ? ` style="--j:${ordinal}"` : ""}>${agentStatementCard(row, ordinal + 1)}</div>`
+            ).join("")}
+          </div>` : ""}
+      </div>
     </div>`;
 }
 
@@ -1863,6 +1960,16 @@ function chatWorkAdvance(work, stage) {
   if (!step || !stage.done) return;
   step.classList.remove("is-now");
   step.classList.add("is-done");
+  // A stage that finishes says what it found: the conveyor is not a spinner,
+  // it is the turn's own account of itself.
+  if (stage.step === "search" && stage.hits != null) {
+    step.insertAdjacentHTML("beforeend",
+      ` <span class="agent-work__detail">${stage.hits} ${plural(stage.hits, "находка", "находки", "находок")}${stage.cache ? " · из кэша" : ""}</span>`);
+  }
+  if (stage.step === "verify") {
+    step.insertAdjacentHTML("beforeend",
+      ` <span class="agent-work__detail">${stage.passes ? "прошла" : "не прошла"}</span>`);
+  }
   // An arrow sits between two steps, so the neighbour to light up is the next
   // node carrying `data-step`, not the next sibling - which is the arrow.
   const steps = Array.from(work.querySelectorAll("[data-step]"));
@@ -1872,11 +1979,12 @@ function chatWorkAdvance(work, stage) {
 
 /** Read the SSE frames the service sends: `event: name` + `data: json`, one
  *  blank line between frames. The stream answers or errors; both are frames. */
-async function chatStreamTurn(question, work) {
+async function chatStreamTurn(question, work, signal) {
   const response = await fetch(`${KB}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession })
+    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    signal
   });
   if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
   const reader = response.body.getReader();
@@ -1910,59 +2018,168 @@ async function chatStreamTurn(question, work) {
 
 /** The plain JSON endpoint with the stages replayed: the same turn when the
  *  stream cannot be read (an old proxy, a strict corporate network). */
-async function chatJsonTurn(question, work) {
+async function chatJsonTurn(question, work, signal) {
   const answered = await kbFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession })
+    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    signal
   });
   (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));
   return answered;
+}
+
+/** The button has two faces: «спросить» when idle, «стоп» while a turn runs.
+ *  Stopping aborts the stream - the reader's page, the reader's call. */
+function chatComposerBusy(busy) {
+  const send = document.getElementById("agentSend");
+  if (!send) return;
+  send.textContent = busy ? "стоп" : "Спросить";
+  send.classList.toggle("is-stop", busy);
+  send.disabled = busy ? false : !String(chatInput()?.value || "").trim();
+}
+
+function chatInput() {
+  return document.getElementById("agentQuestion");
+}
+
+function chatComposerSync() {
+  const input = chatInput();
+  if (!input) return;
+  // The field grows with the question, to a point: a long question is
+  // scrollable, the page is not for pushing around by a textarea.
+  if (input.scrollHeight) {
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+  }
+  const length = (input.value || "").length;
+  const counter = document.getElementById("agentChars");
+  if (counter) {
+    counter.hidden = length < 400;
+    counter.textContent = `${Math.min(length, 999)}/${CHAT_MAX_QUESTION}`;
+    counter.classList.toggle("is-over", length > CHAT_MAX_QUESTION);
+  }
+  if (!agentState.busy) {
+    const send = document.getElementById("agentSend");
+    if (send) send.disabled = !length;
+  }
+}
+
+function chatSubmit() {
+  const input = chatInput();
+  const question = String(input?.value || "").trim();
+  if (agentState.busy) {
+    chatAbort?.abort();
+    return;
+  }
+  if (question) agentAsk(question);
 }
 
 async function agentAsk(question) {
   const thread = document.getElementById("agentThread");
   if (!thread || agentState.busy || !question) return;
   agentState.busy = true;
+  chatAbort = new AbortController();
+  chatComposerBusy(true);
   chatShowWelcome(false);
   const now = new Date();
   const at = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  thread.insertAdjacentHTML("beforeend", `
-    <div class="agent-q">${escapeHtml(question)}<span class="agent-q__meta">${at}</span></div>`);
+  // The running turn is a wrapper: the question appears at once, the conveyor
+  // under it, and the finished card replaces the conveyor in the same wrapper.
+  const wrapper = document.createElement("div");
+  wrapper.className = "chat-turn is-fresh";
+  wrapper.dataset.turn = "run";
+  wrapper.innerHTML = `
+    <div class="agent-q">${escapeHtml(question)}<span class="agent-q__meta">${at}</span></div>`;
+  thread.appendChild(wrapper);
   const work = document.createElement("div");
   work.innerHTML = chatWorkHtml();
   const workNode = work.firstElementChild;
-  thread.appendChild(workNode);
+  wrapper.appendChild(workNode);
   workNode.querySelector('[data-step="search"]')?.classList.add("is-now");
-  workNode.scrollIntoView({ behavior: "smooth", block: "center" });
-  const input = document.getElementById("agentQuestion");
+  chatFollowBottom(wrapper);
+  const input = chatInput();
   if (input) input.value = "";
+  chatComposerSync();
   let answered = null;
+  let stopped = false;
+  let failure = null;
   try {
-    answered = await chatStreamTurn(question, workNode);
+    answered = await chatStreamTurn(question, workNode, chatAbort.signal);
   } catch (error) {
-    try {
-      answered = await chatJsonTurn(question, workNode);
-    } catch (fallback) {
-      workNode.remove();
-      thread.insertAdjacentHTML("beforeend",
-        `<p class="agent-waiting">${escapeHtml(fallback.message || error.message)}</p>`);
-      agentState.busy = false;
-      return;
+    if (error && error.name === "AbortError") {
+      stopped = true;
+    } else {
+      try {
+        answered = await chatJsonTurn(question, workNode, chatAbort.signal);
+      } catch (fallback) {
+        if (fallback && fallback.name === "AbortError") stopped = true;
+        else failure = fallback.message || error.message;
+      }
     }
   }
   workNode.remove();
+  if (stopped) {
+    wrapper.insertAdjacentHTML("beforeend", `
+      <div class="agent-answer__card"><div class="agent-answer__notice">Машинный ответ, не редакция базы</div>
+        <p class="agent-answer__text agent-answer__text--refused">Ответ остановлен.</p>
+        <div class="agent-answer__levels">
+          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">спросить снова</button>
+        </div>
+      </div>`);
+    chatFollowBottom(wrapper);
+    agentState.busy = false;
+    chatAbort = null;
+    chatComposerBusy(false);
+    return;
+  }
+  if (!answered) {
+    wrapper.insertAdjacentHTML("beforeend", `
+      <div class="agent-answer__card"><div class="agent-answer__notice">Машинный ответ, не редакция базы</div>
+        <p class="agent-answer__text agent-answer__text--refused">${escapeHtml(failure || "поток оборвался")}</p>
+        <div class="agent-answer__levels">
+          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">спросить снова</button>
+        </div>
+      </div>`);
+    chatFollowBottom(wrapper);
+    agentState.busy = false;
+    chatAbort = null;
+    chatComposerBusy(false);
+    return;
+  }
+  wrapper.remove();
   const turn = { question, at, answered };
   chatTurns.push(turn);
   chatPersist();
-  thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, chatTurns.length - 1));
-  thread.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" });
+  chatRenderNav();
+  thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, chatTurns.length - 1, true));
+  chatFollowBottom(thread.lastElementChild);
   agentState.busy = false;
+  chatAbort = null;
+  chatComposerBusy(false);
 }
 
 /** Levels are free: the disclosure button only unhides evidence that arrived
  *  with the answer, so the thread is delegated here once, not per turn. */
 document.getElementById("agentThread")?.addEventListener("click", event => {
+  // Copy is the quietest courtesy a card can offer, and a refusal with its
+  // nearby evidence is as worth copying as an answer.
+  const copyAnswer = event.target.closest("[data-copy-turn]");
+  if (copyAnswer) {
+    chatCopyTurn(Number(copyAnswer.dataset.copyTurn), copyAnswer);
+    return;
+  }
+  const copyQuestion = event.target.closest("[data-copy-q]");
+  if (copyQuestion) {
+    const turn = chatTurns[Number(copyQuestion.dataset.copyQ)];
+    chatCopyText(String(turn?.question || ""), copyQuestion);
+    return;
+  }
+  const retry = event.target.closest("[data-retry]");
+  if (retry) {
+    agentAsk(retry.dataset.retry || "");
+    return;
+  }
   // A footnote whose target sits in a hidden block goes nowhere: open the
   // evidence first, and let the anchor do its own scrolling afterwards.
   const cite = event.target.closest(".agent-cite");
@@ -1982,11 +2199,57 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
   button.classList.toggle("is-open", !block?.hidden);
 });
 
+function chatCopyText(text, button) {
+  const done = () => {
+    if (!button) return;
+    const was = button.textContent;
+    button.textContent = "скопировано ✓";
+    setTimeout(() => { button.textContent = was; }, 1600);
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => {});
+    return;
+  }
+  // The old road: a transient textarea. Executor-based copy is deprecated but
+  // not gone, and a no-op promise is worse than a second-best copy.
+  const scratch = document.createElement("textarea");
+  scratch.value = text;
+  document.body?.appendChild?.(scratch);
+  scratch.select?.();
+  try { document.execCommand("copy"); } catch (error) { /* denied is survivable */ }
+  scratch.remove?.();
+  done();
+}
+
+function chatCopyTurn(index, button) {
+  const turn = chatTurns[index];
+  if (!turn) return;
+  const answered = turn.answered || {};
+  const clauses = Array.isArray(answered.clauses) ? answered.clauses : [];
+  const text = clauses.length
+    ? clauses.map(clause => clause.text).join("\n")
+    : answered.answer || chatRefusalText(answered, answered.evidence || []);
+  chatCopyText(`${turn.question}\n\n${text}\n\n${answered.machineNotice || ""}`, button);
+}
+
+/* Enter asks, Shift+Enter breaks a line - the convention every chat reader
+ * already carries in their hands. */
+chatInput()?.addEventListener("input", chatComposerSync);
+chatInput()?.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    chatSubmit();
+  }
+});
+
 document.getElementById("morePrompts")?.addEventListener("click", agentLoadPrompts);
 
 document.getElementById("newDialog")?.addEventListener("click", () => {
   chatTurns = [];
+  chatUnread = 0;
+  chatDownSync();
   chatPersist();
+  chatRenderNav();
   const thread = document.getElementById("agentThread");
   if (thread) thread.innerHTML = "";
   chatShowWelcome(true);
@@ -1995,24 +2258,77 @@ document.getElementById("newDialog")?.addEventListener("click", () => {
 });
 
 /* The microphone is the browser's own, when it has one: the Web Speech API
- *  needs no dependency and no server, and where it is absent the button stays
- *  a button rather than becoming an error. */
+ *  needs no dependency and no server. Where the site's own Permissions-Policy
+ *  forbids it, the reader is told that plainly - a dead button that pretends
+ *  to listen is the one dishonesty this view must not allow. */
 document.getElementById("agentMic")?.addEventListener("click", () => {
   const recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const mic = document.getElementById("agentMic");
-  if (!recognition || !mic) return;
-  if (mic.classList.contains("is-listening")) { mic.classList.remove("is-listening"); return; }
-  const listener = new recognition();
-  listener.lang = "ru-RU";
-  listener.interimResults = false;
-  listener.onresult = event => {
-    const input = document.getElementById("agentQuestion");
-    if (input && event.results && event.results[0]) input.value = event.results[0][0].transcript;
+  const live = document.getElementById("chatMicLive");
+  if (!recognition || !mic) {
+    if (live) {
+      live.hidden = false;
+      live.textContent = "Браузер не поддерживает распознавание речи.";
+      setTimeout(() => { live.hidden = true; }, 3500);
+    }
+    return;
+  }
+  if (mic.classList.contains("is-listening")) {
+    try { chatListener?.stop(); } catch (error) { /* already stopped */ }
+    return;
+  }
+  const startedWith = String(chatInput()?.value || "");
+  chatListener = new recognition();
+  chatListener.lang = "ru-RU";
+  chatListener.interimResults = true;
+  chatListener.continuous = false;
+  chatListener.maxAlternatives = 1;
+  chatListener.onresult = event => {
+    let final = "";
+    let interim = "";
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      const result = event.results[index];
+      if (result.isFinal) final += result[0].transcript;
+      else interim += result[0].transcript;
+    }
+    const input = chatInput();
+    if (input && final) {
+      input.value = startedWith ? `${startedWith} ${final}` : final;
+      chatComposerSync();
+    }
+    if (live && interim) {
+      live.hidden = false;
+      live.innerHTML = `<span class="agent-composer__bars" aria-hidden="true"><i></i><i></i><i></i></span> слышу: ${escapeHtml(interim)}`;
+    }
   };
-  listener.onend = () => mic.classList.remove("is-listening");
-  listener.onerror = () => mic.classList.remove("is-listening");
+  chatListener.onend = () => {
+    mic.classList.remove("is-listening");
+    if (live) live.hidden = true;
+    chatComposerSync();
+  };
+  chatListener.onerror = event => {
+    mic.classList.remove("is-listening");
+    const reason = event.error === "not-allowed" || event.error === "service-not-allowed"
+      ? "Микрофон запрещён: сайт или браузер блокирует запись (Permissions-Policy)."
+      : event.error === "no-speech" ? ""
+      : `Микрофон недоступен: ${event.error || "неизвестная причина"}.`;
+    if (reason && live) {
+      live.hidden = false;
+      live.textContent = reason;
+      setTimeout(() => { live.hidden = true; }, 4500);
+    }
+  };
   mic.classList.add("is-listening");
-  listener.start();
+  if (live) {
+    live.hidden = false;
+    live.innerHTML = `<span class="agent-composer__bars" aria-hidden="true"><i></i><i></i><i></i></span> слушаю…`;
+  }
+  try {
+    chatListener.start();
+  } catch (error) {
+    mic.classList.remove("is-listening");
+    if (live) live.hidden = true;
+  }
 });
 
 function plural(n, one, few, many) {
@@ -2611,8 +2927,7 @@ function setAgentTab(tab) {
 
 document.getElementById("agentForm")?.addEventListener("submit", event => {
   event.preventDefault();
-  const question = document.getElementById("agentQuestion")?.value.trim();
-  if (question) agentAsk(question);
+  chatSubmit();
 });
 
 document.getElementById("agentFindForm")?.addEventListener("submit", event => {
