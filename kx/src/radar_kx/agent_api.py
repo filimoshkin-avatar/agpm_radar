@@ -31,6 +31,7 @@ inside an evidence package.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import threading
@@ -39,7 +40,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, Final
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from radar_kx.agent_chat import (
@@ -88,6 +89,80 @@ MAX_QUESTION_CHARS = 500
 #: How many hits a search returns at most. The reader is looking for evidence,
 #: not browsing a corpus.
 MAX_HITS = 50
+
+#: The owner's split (2026-08-24): the conversation is free, browsing the base
+#: is subscribed. These paths answer only with a live key; everything else the
+#: service serves - `/ask`, the `/chat` pair, `/prompts`, `/health` - stays open
+#: regardless, because the answer the agent shows a reader is the product's free
+#: tier, not a leak of the paid one.
+GATED_PATHS: Final = frozenset(
+    {
+        "/search",
+        "/topics",
+        "/observatory",
+        "/graph",
+        "/entities",
+        "/contradictions",
+        "/gaps",
+        "/pages",
+        "/statement",
+    }
+)
+GATED_PREFIXES: Final = ("/topics/", "/pages/", "/statement/")
+
+#: A subscriber's conversation window. Higher than the free one by the owner's
+#: call - and still a window, not a budget: it stands between a shared key and
+#: the bill, nothing more.
+SUBSCRIBER_ASKS_PER_CLIENT = 30
+
+#: Key shape, checked before any digest is computed: shaping first keeps the
+#: database away from arbitrary probe strings.
+KEY_PREFIX = "radar-"
+KEY_LENGTH = 42
+
+
+class AccessGuard:
+    """Is this request holding a live subscription key?
+
+    The answer is cached in-process for a minute, on the same reasoning as
+    `AskBudget`: one process on one host, and a cache whose whole job is to be
+    approximately right. A revocation lands within the minute; an issuance is
+    seen immediately, because a key nobody has probed with has no cache entry.
+
+    The key itself never travels past the digest. An invalid result is cached
+    too - refusing twice costs nothing, and the cache must not turn into an
+    oracle that distinguishes "never seen" from "seen and refused".
+    """
+
+    def __init__(self, database: Database, *, ttl_seconds: float = 60.0) -> None:
+        self._database = database
+        self._ttl = ttl_seconds
+        self._cache: dict[str, tuple[bool, str | None, Any, float]] = {}
+        self._lock = threading.Lock()
+
+    def check(self, authorization: str | None) -> dict[str, Any]:
+        header = (authorization or "").strip()
+        if not header.startswith("Bearer "):
+            return {"valid": False, "plan": None, "expiresAt": None}
+        key = header[len("Bearer ") :].strip()
+        if not key.startswith(KEY_PREFIX) or len(key) != KEY_LENGTH:
+            return {"valid": False, "plan": None, "expiresAt": None}
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        now = time.monotonic()
+        with self._lock:
+            cached = self._cache.get(digest)
+            if cached is not None and now - cached[3] < self._ttl:
+                return {"valid": cached[0], "plan": cached[1], "expiresAt": cached[2]}
+        found = self._database.access_key(digest)
+        answer: dict[str, Any] = {
+            "valid": found is not None,
+            "plan": found and found.get("plan"),
+            "expiresAt": found and found.get("expires_at"),
+        }
+        with self._lock:
+            self._cache[digest] = (answer["valid"], answer["plan"], answer["expiresAt"], now)
+        return answer
+
 
 #: The two sentences that travel with every generated answer. The owner's wording
 #: (decision 6), kept here as a constant rather than in a template, so no client
@@ -142,11 +217,16 @@ class AskBudget:
     def _today(self, moment: float) -> int:
         return int(moment // 86400)
 
-    def refused(self, client: str, *, now: float | None = None) -> str | None:
+    def refused(
+        self, client: str, *, now: float | None = None, allowance: int | None = None
+    ) -> str | None:
         """Why this call may not be made, or `None` if it may.
 
         Counts the call when it allows it: a check that does not consume is a
-        check every concurrent request passes.
+        check every concurrent request passes. `allowance` widens the window for
+        this one caller - a subscriber - without giving anyone a second bucket:
+        free calls and paid calls land in the same window, so a client cannot
+        double its reach by alternating keys.
         """
         moment = time.time() if now is None else now
         today = self._today(moment)
@@ -161,7 +241,8 @@ class AskBudget:
                 self._day = (day, spent)
                 return "today"
             recent = [at for at in self._asked.get(client, []) if moment - at < self._window]
-            if len(recent) >= self._per_client:
+            ceiling = allowance if allowance is not None else self._per_client
+            if len(recent) >= ceiling:
                 self._asked[client] = recent
                 self._day = (day, spent)
                 return "client"
@@ -182,6 +263,14 @@ class AgentService:
         self._model: Any = None
         self._model_lock = threading.Lock()
         self.budget = AskBudget()
+        #: Key validation has its own small window, so that probing keys cannot
+        #: spend anybody's question allowance - and cannot run unthrottled.
+        self.validate_budget = AskBudget(per_client=10, window=300.0, per_day=0)
+        self.guard = AccessGuard(database)
+
+    def access(self, authorization: str | None) -> dict[str, Any]:
+        """The one door every handler asks through, free paths included."""
+        return self.guard.check(authorization)
 
     # -- level 4: the backbone and the shelves ---------------------------------
 
@@ -264,7 +353,12 @@ class AgentService:
         return {"query": question[:MAX_QUESTION_CHARS], "hits": hits, "licence": LICENCE}
 
     def ask(
-        self, question: str, *, client: str = "unknown", admission: str = "knowledge"
+        self,
+        question: str,
+        *,
+        client: str = "unknown",
+        admission: str = "knowledge",
+        asks_per_client: int | None = None,
     ) -> dict[str, Any]:
         """The agent's own answer: the last event of the flow below, nothing more.
 
@@ -272,13 +366,15 @@ class AgentService:
         conversation layer builds on the same flow without touching it.
         """
         result: dict[str, Any] = {"error": "пустой вопрос"}
-        for event, payload in self._answer_flow(question, client=client, admission=admission):
+        for event, payload in self._answer_flow(
+            question, client=client, admission=admission, asks_per_client=asks_per_client
+        ):
             if event == "result":
                 result = payload
         return result
 
     def _answer_flow(
-        self, question: str, *, client: str, admission: str
+        self, question: str, *, client: str, admission: str, asks_per_client: int | None = None
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """The verified pipeline as a stream of stages with the answer last.
 
@@ -322,7 +418,9 @@ class AgentService:
         # Only a question the cache cannot answer costs anything, so the budget
         # is charged here rather than at the door: asking the same thing twice is
         # free and should stay free.
-        refused = self.budget.refused(client)
+        # A subscriber's window is wider (the owner's call) - and it is still
+        # the same window, per client, not per key: a shared key shares it.
+        refused = self.budget.refused(client, allowance=asks_per_client)
         if refused is not None:
             yield "result", self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
             return
@@ -430,6 +528,7 @@ class AgentService:
         client: str = "unknown",
         admission: str = "knowledge",
         session: str = "",
+        asks_per_client: int | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """One turn of the conversation: live stages, then the answer with its cards.
 
@@ -446,7 +545,9 @@ class AgentService:
         choice = select_tool(question, topics)
         stages: list[dict[str, Any]] = []
         result: dict[str, Any] = {"error": "пустой вопрос"}
-        for event, payload in self._answer_flow(question, client=client, admission=admission):
+        for event, payload in self._answer_flow(
+            question, client=client, admission=admission, asks_per_client=asks_per_client
+        ):
             if event == "stage":
                 stages.append(payload)
             elif event == "result":
@@ -470,6 +571,7 @@ class AgentService:
         client: str = "unknown",
         admission: str = "knowledge",
         session: str = "",
+        asks_per_client: int | None = None,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """The same turn as `chat`, yielding stages as they complete (SSE)."""
         if not valid_session(session):
@@ -478,7 +580,9 @@ class AgentService:
         topics = self.database.agent_topics()
         choice = select_tool(question, topics)
         stages: list[dict[str, Any]] = []
-        for event, payload in self._answer_flow(question, client=client, admission=admission):
+        for event, payload in self._answer_flow(
+            question, client=client, admission=admission, asks_per_client=asks_per_client
+        ):
             if event == "stage":
                 stages.append(payload)
                 yield event, payload
@@ -603,6 +707,18 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             if path in ("/", "/health"):
                 self._json(HTTPStatus.OK, {"service": "radar-kb", "status": "ok"})
                 return
+            # The subscription wall, before any routing: browsing endpoints answer
+            # only with a live key, and the refusal is one machine-readable shape.
+            # The conversation paths (/ask, /chat, /prompts) are not here, by the
+            # owner's decision - the dialogue stays free.
+            if path in GATED_PATHS or path.startswith(GATED_PREFIXES):
+                access = service.access(self.headers.get("Authorization"))
+                if not access["valid"]:
+                    self._json(
+                        HTTPStatus.FORBIDDEN,
+                        {"error": "subscription_required", "path": path},
+                    )
+                    return
             if path == "/topics":
                 self._json(HTTPStatus.OK, service.topics())
                 return
@@ -698,6 +814,41 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
             return forwarded or self.client_address[0]
 
+        def _validate_key(self) -> None:
+            """A key says what it opens, and nothing else.
+
+            Throttled apart from the question window: checking a key must not
+            spend anybody's conversation allowance, and must not run free either.
+            The answer carries no hint beyond valid/plan/expiry - a probe learns
+            one bit, at its own cost.
+            """
+            content_type = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+            if content_type != "application/json":
+                self._json(
+                    HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                    {"error": "ожидается Content-Type: application/json"},
+                )
+                return
+            if service.validate_budget.refused(self._client()) is not None:
+                self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "слишком много проверок"})
+                return
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES)
+                payload = json.loads(self.rfile.read(length) or b"{}")
+            except (ValueError, TypeError):
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "тело запроса не JSON"})
+                return
+            key = str(payload.get("key", "") if isinstance(payload, dict) else "")
+            checked = service.guard.check(f"Bearer {key.strip()}" if key else None)
+            self._json(
+                HTTPStatus.OK,
+                {
+                    "valid": bool(checked["valid"]),
+                    "plan": checked["plan"],
+                    "expiresAt": checked["expiresAt"],
+                },
+            )
+
         def _sse(self, event: str, payload: Any) -> None:
             """One server-sent event, flushed, so the conveyor is seen live.
 
@@ -710,6 +861,9 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
 
         def do_POST(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
+            if path == "/access/validate":
+                self._validate_key()
+                return
             if path not in ("/ask", "/chat", "/chat/stream"):
                 self._json(HTTPStatus.NOT_FOUND, {"error": "нет такого адреса", "path": path})
                 return
@@ -734,11 +888,21 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             question = str(asked.get("question", ""))
             admission = str(asked.get("admission", "knowledge"))
             session = str(asked.get("session", ""))
+            # A live key widens this client's conversation window. Free calls and
+            # keyed calls share one window per client, so alternating keys does
+            # not multiply anybody's reach.
+            access = service.access(self.headers.get("Authorization"))
+            asks = SUBSCRIBER_ASKS_PER_CLIENT if access["valid"] else None
             if path == "/ask":
                 try:
                     self._json(
                         HTTPStatus.OK,
-                        service.ask(question, client=self._client(), admission=admission),
+                        service.ask(
+                            question,
+                            client=self._client(),
+                            admission=admission,
+                            asks_per_client=asks,
+                        ),
                     )
                 except OrchestratorError:
                     # The model was unreachable or refused. That is not an answer and
@@ -770,6 +934,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                         client=self._client(),
                         admission=admission,
                         session=session,
+                        asks_per_client=asks,
                     )
                     self._json(
                         HTTPStatus.BAD_REQUEST if "error" in answered else HTTPStatus.OK,
@@ -797,6 +962,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                     client=self._client(),
                     admission=admission,
                     session=session,
+                    asks_per_client=asks,
                 ):
                     self._sse(event, payload)
             except OrchestratorError:

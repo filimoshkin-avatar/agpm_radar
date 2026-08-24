@@ -390,9 +390,17 @@ def test_an_answer_the_service_cannot_read_still_gets_a_reply() -> None:
         """A service whose model said something the protocol cannot read."""
 
         def ask(
-            self, question: str, *, client: str, admission: str = "knowledge"
+            self,
+            question: str,
+            *,
+            client: str,
+            admission: str = "knowledge",
+            asks_per_client: int | None = None,
         ) -> dict[str, Any]:
             raise ValueError("answer contains no JSON object")
+
+        def access(self, authorization: str | None) -> dict[str, Any]:
+            return {"valid": False, "plan": None, "expiresAt": None}
 
     handler = make_handler(cast(AgentService, Unreadable()))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)

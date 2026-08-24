@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
+import secrets
 import shutil
 import uuid
 from collections import Counter
@@ -5514,6 +5516,101 @@ class Database:
             )
             reach = dict(one_row(cursor))
         return {"byLinkType": by_type, **reach, **left_alone}
+
+    # ---------------------------------------------------------------------
+    # Subscription access: a key is a capability, not an identity.
+    # ---------------------------------------------------------------------
+
+    def access_issue_key(self, *, plan: str, days: int, note: str, actor: str) -> dict[str, Any]:
+        """Create a key and return it whole - the only moment it exists whole."""
+        key = f"radar-{secrets.token_urlsafe(30)}"
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO kx.access_keys
+                    (key_prefix, key_hash, plan, note, expires_at, created_by)
+                VALUES (%s, %s, %s, %s, now() + make_interval(days => %s), %s)
+                RETURNING key_id, expires_at
+                """,
+                (key[:14], digest, plan, note, days, actor),
+            )
+            row = dict(cursor.fetchone() or {})
+        return {
+            "key": key,
+            "keyId": str(row["key_id"]),
+            "prefix": key[:14],
+            "expiresAt": row["expires_at"],
+        }
+
+    def access_list_keys(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        """The owner's list: prefixes and fates, never keys."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT key_id, key_prefix, plan, status, expires_at, note,
+                       created_at, created_by, last_used_at
+                FROM kx.access_keys
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            return [{**dict(row), "keyId": str(row["key_id"])} for row in cursor.fetchall()]
+
+    def access_revoke_key(self, key_id: str, *, actor: str) -> bool:
+        """A revocation is a status flip; the row stays for the record."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE kx.access_keys
+                SET status = 'revoked',
+                    note = note || E'\nrevoked by ' || %s
+                WHERE key_id = %s AND status = 'active'
+                RETURNING key_id
+                """,
+                (actor, key_id),
+            )
+            return cursor.fetchone() is not None
+
+    def access_extend_key(self, key_id: str, *, days: int) -> bool:
+        """Extend from whichever end is later: a live key gains its days, an
+        expired one restarts from now, and neither loses time to the request."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE kx.access_keys
+                SET expires_at = GREATEST(expires_at, now()) + make_interval(days => %s),
+                    status = 'active'
+                WHERE key_id = %s
+                RETURNING key_id
+                """,
+                (days, key_id),
+            )
+            return cursor.fetchone() is not None
+
+    def access_key(self, digest: str) -> dict[str, Any] | None:
+        """One live key by hash, with a best-effort touch of `last_used_at`.
+
+        The touch shares the connection: if it fails the answer still stands -
+        `last_used_at` is telemetry, not a gate.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT plan, expires_at FROM kx.access_keys
+                WHERE key_hash = %s AND status = 'active' AND expires_at > now()
+                """,
+                (digest,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            cursor.execute(
+                "UPDATE kx.access_keys SET last_used_at = now() WHERE key_hash = %s",
+                (digest,),
+            )
+            return dict(row)
 
     # ---------------------------------------------------------------------
     # Stage 3: what the agent mode reads. Only `agent.*` - see migration 024.

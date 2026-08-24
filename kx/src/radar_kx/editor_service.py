@@ -185,6 +185,45 @@ class EditorService:
         path = self.docs_directory / name
         return {"name": name, "html": render_markdown(path.read_text(encoding="utf-8"))}
 
+    # -- subscription keys: issued here, gone everywhere else -------------------
+
+    def keys(self) -> dict[str, Any]:
+        """The list carries prefixes and fates; whole keys exist nowhere
+        readable, not even here - the database holds only hashes."""
+        return {"keys": self.database.access_list_keys()}
+
+    def issue_key(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """The one place a whole key is born, and is shown exactly once."""
+        plan = str(payload.get("plan") or "full")
+        if plan not in ("full",):
+            raise ValueError("неизвестный план")
+        try:
+            days = int(payload.get("days") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("срок — число дней") from exc
+        if not 1 <= days <= 3650:
+            raise ValueError("срок — от 1 до 3650 дней")
+        note = str(payload.get("note") or "")[:200]
+        return self.database.access_issue_key(plan=plan, days=days, note=note, actor=self.actor)
+
+    def revoke_key(self, payload: dict[str, Any]) -> dict[str, Any]:
+        key_id = str(payload.get("id") or "")
+        if not self.database.access_revoke_key(key_id, actor=self.actor):
+            raise KeyError("нет такого активного ключа")
+        return {"revoked": key_id}
+
+    def extend_key(self, payload: dict[str, Any]) -> dict[str, Any]:
+        key_id = str(payload.get("id") or "")
+        try:
+            days = int(payload.get("days") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("срок — число дней") from exc
+        if not 1 <= days <= 3650:
+            raise ValueError("срок — от 1 до 3650 дней")
+        if not self.database.access_extend_key(key_id, days=days):
+            raise KeyError("нет такого ключа")
+        return {"extended": key_id, "days": days}
+
 
 def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
@@ -260,6 +299,9 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                     name = unquote(next(iter(query.get("name", [])), ""))
                     self._json(HTTPStatus.OK, service.document(name))
                     return
+                if path == "/api/keys":
+                    self._json(HTTPStatus.OK, service.keys())
+                    return
             except KeyError as exc:
                 self._json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return
@@ -268,7 +310,13 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
         def do_POST(self) -> None:
             if not self._authorize():
                 return
-            if urlsplit(self.path).path.rstrip("/") != "/api/decide":
+            path = urlsplit(self.path).path.rstrip("/")
+            if path not in (
+                "/api/decide",
+                "/api/keys/issue",
+                "/api/keys/revoke",
+                "/api/keys/extend",
+            ):
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
             length = int(self.headers.get("Content-Length") or 0)
@@ -279,7 +327,14 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(payload, dict):
                     raise ValueError("body must be an object")
-                self._json(HTTPStatus.OK, service.decide(payload))
+                if path == "/api/decide":
+                    self._json(HTTPStatus.OK, service.decide(payload))
+                elif path == "/api/keys/issue":
+                    self._json(HTTPStatus.OK, service.issue_key(payload))
+                elif path == "/api/keys/revoke":
+                    self._json(HTTPStatus.OK, service.revoke_key(payload))
+                else:
+                    self._json(HTTPStatus.OK, service.extend_key(payload))
             except (KeyError, ValueError, json.JSONDecodeError) as exc:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
 

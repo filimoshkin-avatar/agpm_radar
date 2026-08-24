@@ -62,3 +62,18 @@ nav .sep {
 
 nav button.ref { opacity: .72; }
 nav button.ref.on { opacity: 1; }
+
+/* Keys: issued once, listed by prefix. */
+
+.keys__form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.keys__days { width: 80px; }
+.keys__note { flex: 1 1 240px; }
+.keys__issued { display: flex; flex-direction: column; gap: 4px; }
+.keys__warn { margin: 0; color: #8a6d3b; font-size: 13px; }
+.keys__key { font-family: ui-monospace, monospace; font-size: 13px; padding: 6px 10px;
+  background: #f6f3ea; border: 1px dashed #c9b98a; border-radius: 4px; user-select: all; }
+.keys__table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.keys__table th, .keys__table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #eee; }
+.keys__row--revoked td { color: #999; text-decoration: line-through; }
+.keys__row--revoked td.keys__actions { text-decoration: none; }
+.keys__actions button { margin-right: 6px; }

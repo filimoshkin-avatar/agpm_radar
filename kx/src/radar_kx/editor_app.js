@@ -46,6 +46,9 @@ async function drawNav() {
   const docs = el("button", current === "docs" ? "on" : "", "Документы");
   docs.addEventListener("click", () => showDocs());
   nav.appendChild(docs);
+  const keys = el("button", current === "keys" ? "on" : "", "Ключи");
+  keys.addEventListener("click", () => showKeys());
+  nav.appendChild(keys);
 }
 
 function childRow(queueKey, itemId, child, scope) {
@@ -184,3 +187,91 @@ async function showDocs(name) {
 }
 
 drawNav().then(() => show("comparison"));
+
+// -- Subscription keys: issued here, shown once, revoked here ------------------
+// The whole key exists only in the answer to "выдать"; the list that follows
+// carries prefixes. Copy it before leaving the screen - nothing can show it
+// again, and that is the point.
+
+async function showKeys() {
+  current = "keys";
+  await drawNav();
+  const list = await api("api/keys");
+  why.textContent =
+    "Ключи подписки: разговор с агентом свободен, блуждание по базе — по ключу. " +
+    "Полный ключ показывается один раз, при выдаче; в списке остаются только префиксы.";
+  body.replaceChildren();
+
+  const form = el("div", "keys__form");
+  const days = el("input", "keys__days");
+  days.type = "number";
+  days.min = "1";
+  days.max = "3650";
+  days.value = "30";
+  const note = el("input", "keys__note");
+  note.type = "text";
+  note.placeholder = "кому выдан (заметка владельца)";
+  const issue = el("button", "keys__issue", "выдать ключ");
+  const issued = el("div", "keys__issued");
+  issue.addEventListener("click", async () => {
+    issue.disabled = true;
+    try {
+      const made = await api("api/keys/issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days: Number(days.value), note: note.value }),
+      });
+      issued.replaceChildren();
+      const warn = el("p", "keys__warn",
+        "Ключ показан один раз — скопируйте сейчас и отправьте подписчику:");
+      const key = el("code", "keys__key", made.key);
+      issued.replaceChildren(warn, key);
+      showKeys();
+    } catch (error) {
+      issued.replaceChildren(el("p", "keys__warn", String(error.message || error)));
+    } finally {
+      issue.disabled = false;
+    }
+  });
+  form.append(el("span", null, "срок, дней:"), days, note, issue, issued);
+  body.appendChild(form);
+
+  const table = el("table", "keys__table");
+  const head = el("tr");
+  for (const title of ["префикс", "план", "статус", "до", "заметка", "выдан", "использован", ""]) {
+    head.appendChild(el("th", null, title));
+  }
+  table.appendChild(head);
+  for (const key of list.keys) {
+    const row = el("tr", key.status === "revoked" ? "keys__row--revoked" : "");
+    row.appendChild(el("td", "mono", key.key_prefix + "…"));
+    row.appendChild(el("td", null, key.plan));
+    row.appendChild(el("td", null, key.status === "active" ? "действует" : "отозван"));
+    row.appendChild(el("td", null, String(key.expires_at || "").slice(0, 10)));
+    row.appendChild(el("td", null, (key.note || "").split("\n")[0]));
+    row.appendChild(el("td", null, String(key.created_at || "").slice(0, 10)));
+    row.appendChild(el("td", null, key.last_used_at ? String(key.last_used_at).slice(0, 10) : "—"));
+    const actions = el("td", "keys__actions");
+    if (key.status === "active") {
+      const revoke = el("button", null, "отозвать");
+      revoke.addEventListener("click", () =>
+        api("api/keys/revoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: key.keyId }),
+        }).then(() => showKeys(), () => showKeys()));
+      actions.appendChild(revoke);
+    }
+    const extend = el("button", null, "+30 дней");
+    extend.addEventListener("click", () =>
+      api("api/keys/extend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: key.keyId, days: 30 }),
+      }).then(() => showKeys(), () => showKeys()));
+    actions.appendChild(extend);
+    row.appendChild(actions);
+    table.appendChild(row);
+  }
+  body.appendChild(table);
+}
