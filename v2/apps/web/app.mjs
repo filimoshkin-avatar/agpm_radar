@@ -1809,7 +1809,7 @@ async function agentToggleLinks(claimId) {
   if (!box.hidden) { box.hidden = true; return; }
   box.hidden = false;
   if (box.dataset.loaded) return;
-  box.innerHTML = `<p class="agent-waiting">Читаю связи…</p>`;
+  box.innerHTML = agentLoadingHtml("Читаю связи…");
   try {
     const data = await kbFetch(`/statement/${encodeURIComponent(claimId)}`);
     const links = Array.isArray(data.links) ? data.links : [];
@@ -2091,7 +2091,7 @@ function agentChatInit() {
 async function agentLoadPrompts() {
   const grid = document.getElementById("promptGrid");
   if (!grid) return;
-  grid.innerHTML = `<p class="agent-waiting">Собираю примеры из базы…</p>`;
+  grid.innerHTML = agentLoadingHtml("Собираю примеры из базы…");
   try {
     const data = await kbFetch("/prompts");
     const prompts = Array.isArray(data.prompts) ? data.prompts : [];
@@ -2259,14 +2259,42 @@ function chatToolCardHtml(card) {
   return "";
 }
 
+/* The conveyor must look alive while it works, and say how long it has been
+ * working: dots breathe on the current step, a quiet bar runs under the card,
+ * and a timer counts the seconds - «3,4 с» answers «зависло?» before the
+ * question is asked. */
 function chatWorkHtml() {
   return `
     <div class="agent-work">
       ${CHAT_STEPS.map(([step, label], index) => `
         ${index ? '<span class="agent-work__arrow">→</span>' : ""}
-        <span class="agent-work__step" data-step="${step}"><span class="dot"></span>${label}</span>
+        <span class="agent-work__step" data-step="${step}"><span class="dot"></span>${label}<span class="agent-work__dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
       `).join("")}
+      <span class="agent-work__timer mono" hidden></span>
+      <span class="agent-work__bar" aria-hidden="true"></span>
     </div>`;
+}
+
+/** Starts the conveyor's clock; returns the stop. The timer is stopped on
+ *  every exit from a turn - completion, stop, failure - because a clock that
+ *  outlives its process is a lie. */
+function chatWorkTimer(work) {
+  const node = work?.querySelector?.(".agent-work__timer");
+  if (!node) return () => {};
+  const now = () => (typeof performance !== "undefined" && performance.now) 
+    ? performance.now()
+    : Date.now();
+  const started = now();
+  const tick = () => {
+    const seconds = (now() - started) / 1000;
+    node.textContent = seconds < 60
+      ? `${seconds.toFixed(1).replace(".", ",")} с`
+      : `${Math.floor(seconds / 60)} мин ${String(Math.floor(seconds % 60)).padStart(2, "0")} с`;
+  };
+  node.hidden = false;
+  tick();
+  const timer = setInterval(tick, 100);
+  return () => clearInterval(timer);
 }
 
 function chatWorkAdvance(work, stage) {
@@ -2414,6 +2442,7 @@ async function agentAsk(question) {
   const workNode = work.firstElementChild;
   wrapper.appendChild(workNode);
   workNode.querySelector('[data-step="search"]')?.classList.add("is-now");
+  const stopTimer = chatWorkTimer(workNode);
   chatFollowBottom(wrapper, { counts: false });
   const input = chatInput();
   if (input) input.value = "";
@@ -2435,6 +2464,7 @@ async function agentAsk(question) {
       }
     }
   }
+  stopTimer();
   workNode.remove();
   if (stopped) {
     wrapper.insertAdjacentHTML("beforeend", `
@@ -2909,6 +2939,29 @@ function plural(n, one, few, many) {
   return many;
 }
 
+/** One waiting state for the whole agent mode: a quiet spinner and the words
+ *  of what is being waited for. Every slow surface speaks it - panels, lists,
+ *  the graph's pickers - so «идёт загрузка» looks the same wherever it is
+ *  looked for, and never again happens invisibly. */
+function agentLoadingHtml(text) {
+  return `<div class="agent-loading" role="status" aria-live="polite">
+    <span class="agent-loading__spin" aria-hidden="true"></span>
+    <span class="agent-loading__text">${escapeHtml(text || "загружаю…")}</span>
+  </div>`;
+}
+
+/** A picker that is filling says so in its own frame: disabled, dimmed, its
+ *  label wearing the same spinner. Empty-looking selects that are actually
+ *  loading are how a fast page teaches its reader to distrust it. */
+function agentSelectLoading(select, on, label) {
+  if (!select) return;
+  select.classList.toggle("is-loading", on);
+  select.disabled = on;
+  select.closest?.(".agent-select")?.classList?.toggle?.("is-loading", on);
+  const first = select.options?.[0];
+  if (first && label) first.textContent = label;
+}
+
 function agentFindFilters() {
   const chosen = new URLSearchParams();
   document.querySelectorAll("[data-find-filter]").forEach(control => {
@@ -2926,6 +2979,7 @@ function agentFindFilters() {
 async function agentLoadTopicOptions() {
   const select = document.getElementById("agentFindTopic");
   if (!select || select.dataset.loaded) return;
+  agentSelectLoading(select, true, "загружаю темы…");
   try {
     const data = await kbFetch("/topics");
     (data.topics || []).forEach(topic => {
@@ -2938,6 +2992,8 @@ async function agentLoadTopicOptions() {
   } catch {
     // A subject list that would not load is not a reason to break the search:
     // every other filter still narrows, and the field itself still works.
+  } finally {
+    agentSelectLoading(select, false, "тема");
   }
 }
 
@@ -2951,7 +3007,7 @@ async function agentFind() {
   const box = document.getElementById("agentFindResults");
   const query = document.getElementById("agentFindQuery")?.value.trim();
   if (!box || !query) return;
-  box.innerHTML = `<p class="agent-waiting">Ищу по словам и по смыслу…</p>`;
+  box.innerHTML = agentLoadingHtml("Ищу по словам и по смыслу…");
   const parameters = agentFindFilters();
   parameters.set("q", query);
   parameters.set("limit", "25");
@@ -3166,6 +3222,7 @@ async function agentLoadGraph(target, options = {}) {
   if (!box) return;
   const select = document.getElementById("agentGraphTopic");
   if (select && !select.dataset.loaded) {
+    agentSelectLoading(select, true, "загружаю темы…");
     try {
       const data = await kbFetch("/topics");
       (data.topics || []).forEach(topic => {
@@ -3177,10 +3234,13 @@ async function agentLoadGraph(target, options = {}) {
       select.dataset.loaded = "1";
     } catch {
       // The picker is a convenience; a statement can still be opened from a card.
+    } finally {
+      agentSelectLoading(select, false, "выберите тему");
     }
   }
   const picked = document.getElementById("agentGraphEntity");
   if (picked && !picked.dataset.loaded) {
+    agentSelectLoading(picked, true, "загружаю имена…");
     try {
       const data = await kbFetch("/entities?limit=80");
       (data.entities || []).forEach(entity => {
@@ -3192,6 +3252,8 @@ async function agentLoadGraph(target, options = {}) {
       picked.dataset.loaded = "1";
     } catch {
       // A name list that would not load still leaves the subject picker working.
+    } finally {
+      agentSelectLoading(picked, false, "выберите имя");
     }
   }
   const query = target
@@ -3203,7 +3265,7 @@ async function agentLoadGraph(target, options = {}) {
     ведёт кнопка «Что база связала с этим».</p>`;
     return;
   }
-  box.innerHTML = `<p class="agent-waiting">Собираю связи…</p>`;
+  box.innerHTML = agentLoadingHtml("Собираю связи…");
   try {
     const data = await kbFetch(`/graph?${query}&limit=40`);
     if (!data.centre) {
@@ -3259,7 +3321,7 @@ async function agentLoadGraph(target, options = {}) {
 async function agentLoadContradictions() {
   const box = document.getElementById("agentContradictions");
   if (!box || box.dataset.loaded) return;
-  box.innerHTML = `<p class="agent-waiting">Загрузка разногласий…</p>`;
+  box.innerHTML = agentLoadingHtml("Загрузка разногласий…");
   try {
     const data = await kbFetch("/contradictions?limit=40");
     const pairs = Array.isArray(data.pairs) ? data.pairs : [];
@@ -3317,7 +3379,7 @@ function agentObservatoryQuery() {
 async function agentLoadObservatory(options) {
   const box = document.getElementById("agentObservatoryBody");
   if (!box || (box.dataset.loaded && !options?.refresh)) return;
-  box.innerHTML = `<p class="agent-waiting">Загрузка хроники…</p>`;
+  box.innerHTML = agentLoadingHtml("Загрузка хроники…");
   try {
     const parameters = agentObservatoryQuery().toString();
     const data = await kbFetch(parameters ? `/observatory?${parameters}` : "/observatory");
@@ -3355,7 +3417,7 @@ async function agentLoadObservatory(options) {
 async function agentLoadTopics() {
   const box = document.getElementById("agentTopics");
   if (!box || box.dataset.loaded) return;
-  box.innerHTML = `<p class="agent-waiting">Загрузка скелета тем…</p>`;
+  box.innerHTML = agentLoadingHtml("Загрузка скелета тем…");
   try {
     const data = await kbFetch("/topics");
     const topics = (data.topics || []).filter(topic => topic.statements > 0);
@@ -3401,7 +3463,7 @@ async function agentOpenTopic(key) {
 async function agentLoadWiki() {
   const box = document.getElementById("agentWiki");
   if (!box || box.dataset.loaded) return;
-  box.innerHTML = `<p class="agent-waiting">Загрузка страниц…</p>`;
+  box.innerHTML = agentLoadingHtml("Загрузка страниц…");
   try {
     const data = await kbFetch("/pages");
     const pages = data.pages || [];
@@ -3446,7 +3508,7 @@ async function agentOpenPage(path) {
 async function agentLoadGaps() {
   const box = document.getElementById("agentGaps");
   if (!box || box.dataset.loaded) return;
-  box.innerHTML = `<p class="agent-waiting">Загрузка карты пробелов…</p>`;
+  box.innerHTML = agentLoadingHtml("Загрузка карты пробелов…");
   try {
     const data = await kbFetch("/gaps?limit=60");
     const gaps = data.gaps || [];
