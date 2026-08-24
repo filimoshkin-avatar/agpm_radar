@@ -36,12 +36,23 @@ import sys
 import threading
 import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from radar_kx.agent_chat import (
+    PROMPTS_ON_WELCOME,
+    TOOL_CONCEPT,
+    TOOL_CONTRA,
+    TOOL_GAPS,
+    TOOL_WATCH,
+    select_tool,
+    tool_card_limit,
+    valid_session,
+    welcome_prompts,
+)
 from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.orchestrator import RESEARCH_ANSWER, ModelGateway, OrchestratorError
@@ -255,7 +266,21 @@ class AgentService:
     def ask(
         self, question: str, *, client: str = "unknown", admission: str = "knowledge"
     ) -> dict[str, Any]:
-        """The agent's own answer, marked as machine-written, with its evidence under it.
+        """The agent's own answer: the last event of the flow below, nothing more.
+
+        Kept as its own method because `/ask` is a frozen public contract; the
+        conversation layer builds on the same flow without touching it.
+        """
+        result: dict[str, Any] = {"error": "пустой вопрос"}
+        for event, payload in self._answer_flow(question, client=client, admission=admission):
+            if event == "result":
+                result = payload
+        return result
+
+    def _answer_flow(
+        self, question: str, *, client: str, admission: str
+    ) -> Iterator[tuple[str, dict[str, Any]]]:
+        """The verified pipeline as a stream of stages with the answer last.
 
         The order is the owner's, not the model's: the base retrieves, the model
         drafts clauses and says which numbered quotation each rests on, and code
@@ -263,10 +288,15 @@ class AgentService:
         that does not survive the check becomes a refusal (ADR-0004 §9) rather
         than a hedged sentence, and what the base does hold nearby is returned
         beside it as its own field.
+
+        Each stage is yielded as `("stage", {...})` the moment it completes, so
+        the conversation endpoint can show the conveyor live; `("result", ...)`
+        closes the flow. `ask` drains it; the SSE route streams it.
         """
         question = question.strip()[:MAX_QUESTION_CHARS]
         if not question:
-            return {"error": "пустой вопрос"}
+            yield "result", {"error": "пустой вопрос"}
+            return
         # Decision 3 keeps knowledge and the market chronicle apart, and the
         # reader chooses which one the question is aimed at. Anything else is
         # knowledge: an unknown value must not quietly widen the search.
@@ -275,21 +305,27 @@ class AgentService:
 
         cached = self.database.cached_answer(question, scope="public")
         if cached is not None:
-            return self._as_answer(
-                question,
-                answer_text=cached.get("answer_text"),
-                refusal_reason=cached.get("refusal_reason"),
-                package=cached.get("evidence_package") or [],
-                verification=cached.get("verification"),
-                from_cache=True,
+            yield "stage", {"step": "search", "done": True, "hits": 0, "cache": True}
+            yield (
+                "result",
+                self._as_answer(
+                    question,
+                    answer_text=cached.get("answer_text"),
+                    refusal_reason=cached.get("refusal_reason"),
+                    package=cached.get("evidence_package") or [],
+                    verification=cached.get("verification"),
+                    from_cache=True,
+                ),
             )
+            return
 
         # Only a question the cache cannot answer costs anything, so the budget
         # is charged here rather than at the door: asking the same thing twice is
         # free and should stay free.
         refused = self.budget.refused(client)
         if refused is not None:
-            return self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
+            yield "result", self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
+            return
 
         hits = self.database.agent_search(
             question,
@@ -298,6 +334,7 @@ class AgentService:
             question_vector=self._vector(question),
         )
         package = build_package(hits, size=PACKAGE_SIZE)
+        yield "stage", {"step": "search", "done": True, "hits": len(package), "cache": False}
         if not package:
             refusal = refuse("no_evidence", "в базе нет подходящих подтверждений")
             self.database.record_answer(
@@ -308,12 +345,15 @@ class AgentService:
                 refusal=refusal,
                 answered_by="radar-kb-agent",
             )
-            return self._as_answer(question, refusal_reason=refusal.reason, package=[])
+            yield "result", self._as_answer(question, refusal_reason=refusal.reason, package=[])
+            return
 
         gateway = ModelGateway(self.database, self.settings)
         result = gateway.run(RESEARCH_ANSWER, build_answer_prompt(question, package))
         clauses = parse_research_answer(result.content)
+        yield "stage", {"step": "draft", "done": True}
         checked = verify(clauses, package, mode="strict")
+        yield "stage", {"step": "verify", "done": True, "passes": bool(checked.passes)}
         if not clauses or not checked.passes:
             refusal = refuse(
                 "no_evidence",
@@ -330,12 +370,16 @@ class AgentService:
                 model=RESEARCH_ANSWER.model,
                 answered_by="radar-kb-agent",
             )
-            return self._as_answer(
-                question,
-                refusal_reason=refusal.reason,
-                package=[element.as_json() for element in package],
-                verification=checked.as_json(),
+            yield (
+                "result",
+                self._as_answer(
+                    question,
+                    refusal_reason=refusal.reason,
+                    package=[element.as_json() for element in package],
+                    verification=checked.as_json(),
+                ),
             )
+            return
 
         answer_text = render(clauses)
         self.database.record_answer(
@@ -348,12 +392,131 @@ class AgentService:
             model=RESEARCH_ANSWER.model,
             answered_by="radar-kb-agent",
         )
-        return self._as_answer(
-            question,
-            answer_text=answer_text,
-            package=[element.as_json() for element in package],
-            verification=checked.as_json(),
+        # `render` joins clause texts and drops their evidence numbers, which is
+        # right for a flat answer and wrong for a conversation, where a clause
+        # must remain clickable down to its quotation. The clauses travel
+        # structured, beside the rendered text, and nothing about `/ask` changes.
+        yield (
+            "result",
+            {
+                **self._as_answer(
+                    question,
+                    answer_text=answer_text,
+                    package=[element.as_json() for element in package],
+                    verification=checked.as_json(),
+                ),
+                "clauses": [
+                    {"text": clause.text, "evidence": list(clause.evidence)} for clause in clauses
+                ],
+            },
         )
+
+    # -- the conversation layer --------------------------------------------------
+
+    def prompts(
+        self, *, count: int = PROMPTS_ON_WELCOME, seed: int | None = None
+    ) -> dict[str, Any]:
+        """The welcome screen's examples, sampled from a pool that follows the base.
+
+        Free by construction: the pool is assembled from the topic skeleton the
+        service already serves, and no model is involved.
+        """
+        return welcome_prompts(self.database.agent_topics(), count=count, seed=seed)
+
+    def chat(
+        self,
+        question: str,
+        *,
+        client: str = "unknown",
+        admission: str = "knowledge",
+        session: str = "",
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """One turn of the conversation: live stages, then the answer with its cards.
+
+        The verified pipeline is the spine of every turn and runs unchanged. What
+        the conversation adds is around it: the stages it passed through, a tool
+        card chosen deterministically from the question (a named subject gets its
+        concept card, a contradiction question gets both sides), and the session
+        label travelling back to the client untouched - stored nowhere, per the
+        owner's decision that a chat is analysis material, not publication.
+        """
+        if not valid_session(session):
+            return [], {"error": "недопустимый идентификатор сессии"}
+        topics = self.database.agent_topics()
+        choice = select_tool(question, topics)
+        stages: list[dict[str, Any]] = []
+        result: dict[str, Any] = {"error": "пустой вопрос"}
+        for event, payload in self._answer_flow(question, client=client, admission=admission):
+            if event == "stage":
+                stages.append(payload)
+            elif event == "result":
+                result = payload
+        if "error" in result:
+            return stages, result
+        cards = self._tool_cards(choice, limit=tool_card_limit(question))
+        return stages, {
+            **result,
+            "session": session,
+            "tool": choice.tool,
+            "toolBecause": choice.because,
+            "toolCards": cards,
+            "stages": stages,
+        }
+
+    def chat_events(
+        self,
+        question: str,
+        *,
+        client: str = "unknown",
+        admission: str = "knowledge",
+        session: str = "",
+    ) -> Iterator[tuple[str, dict[str, Any]]]:
+        """The same turn as `chat`, yielding stages as they complete (SSE)."""
+        if not valid_session(session):
+            yield "error", {"error": "недопустимый идентификатор сессии"}
+            return
+        topics = self.database.agent_topics()
+        choice = select_tool(question, topics)
+        stages: list[dict[str, Any]] = []
+        for event, payload in self._answer_flow(question, client=client, admission=admission):
+            if event == "stage":
+                stages.append(payload)
+                yield event, payload
+            elif event == "result":
+                if "error" in payload:
+                    yield "result", payload
+                    return
+                cards = self._tool_cards(choice, limit=tool_card_limit(question))
+                yield (
+                    "result",
+                    {
+                        **payload,
+                        "session": session,
+                        "tool": choice.tool,
+                        "toolBecause": choice.because,
+                        "toolCards": cards,
+                        "stages": stages,
+                    },
+                )
+
+    def _tool_cards(self, choice: Any, *, limit: int) -> list[dict[str, Any]]:
+        """A card is data from the base, not a model claim, so it carries no
+        verification and needs none: it is the evidence, shown directly."""
+        if choice.tool == TOOL_CONCEPT and choice.topic_key:
+            card = self.concept(choice.topic_key)
+            return [{"type": "concept", "data": card}] if "error" not in card else []
+        if choice.tool == TOOL_CONTRA:
+            return [{"type": "contradictions", "data": self.contradictions(limit)}]
+        if choice.tool == TOOL_GAPS:
+            return [{"type": "gaps", "data": self.gaps(limit)}]
+        if choice.tool == TOOL_WATCH:
+            return [
+                {
+                    "type": "observatory",
+                    "data": self.observatory(since=None, until=None, kind=None),
+                }
+            ]
+        return []
 
     def _vector(self, question: str) -> str | None:
         """The question as a vector, when this runtime can make one.
@@ -510,6 +673,19 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             if path.startswith("/statement/"):
                 self._json(HTTPStatus.OK, service.statement(unquote(path[len("/statement/") :])))
                 return
+            if path == "/prompts":
+                self._json(
+                    HTTPStatus.OK,
+                    service.prompts(
+                        count=_int(parameters.get("count"), PROMPTS_ON_WELCOME, ceiling=12),
+                        **(
+                            {"seed": _int(parameters.get("seed"), 0)}
+                            if parameters.get("seed")
+                            else {}
+                        ),
+                    ),
+                )
+                return
             self._json(HTTPStatus.NOT_FOUND, {"error": "нет такого адреса", "path": path})
 
         def _client(self) -> str:
@@ -522,9 +698,19 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
             return forwarded or self.client_address[0]
 
+        def _sse(self, event: str, payload: Any) -> None:
+            """One server-sent event, flushed, so the conveyor is seen live.
+
+            The draft is never streamed: stages are facts the code established,
+            and the answer event carries only what survived verification.
+            """
+            body = json.dumps(payload, ensure_ascii=False, default=str)
+            self.wfile.write(f"event: {event}\ndata: {body}\n\n".encode())
+            self.wfile.flush()
+
         def do_POST(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
-            if path != "/ask":
+            if path not in ("/ask", "/chat", "/chat/stream"):
                 self._json(HTTPStatus.NOT_FOUND, {"error": "нет такого адреса", "path": path})
                 return
             # A JSON content type is what makes a cross-origin POST ask the
@@ -547,31 +733,77 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             asked = payload if isinstance(payload, dict) else {}
             question = str(asked.get("question", ""))
             admission = str(asked.get("admission", "knowledge"))
+            session = str(asked.get("session", ""))
+            if path == "/ask":
+                try:
+                    self._json(
+                        HTTPStatus.OK,
+                        service.ask(question, client=self._client(), admission=admission),
+                    )
+                except OrchestratorError:
+                    # The model was unreachable or refused. That is not an answer and
+                    # must not look like one - and the reason belongs in the journal,
+                    # not in a public response: it carries the provider's own status
+                    # line and body fragments.
+                    self._json(
+                        HTTPStatus.SERVICE_UNAVAILABLE, {"error": "модель сейчас недоступна"}
+                    )
+                except Exception:
+                    # Anything else - most likely `parse_answer` on a reply that is not
+                    # the JSON the protocol asked for. Before this, such a reply raised
+                    # through `BaseHTTPRequestHandler`, which logs the traceback and
+                    # closes the socket: the caller got no status line at all, and the
+                    # site showed a network error rather than a failure. A public
+                    # endpoint owes an answer even when the answer is "no".
+                    # `log_message` is deliberately silent, so the traceback goes
+                    # straight to stderr, which is what systemd journals.
+                    sys.stderr.write(f"ask failed:\n{traceback.format_exc()}")
+                    self._json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"error": "ответ модели не удалось разобрать"},
+                    )
+                return
+            if path == "/chat":
+                try:
+                    _, answered = service.chat(
+                        question,
+                        client=self._client(),
+                        admission=admission,
+                        session=session,
+                    )
+                    self._json(
+                        HTTPStatus.BAD_REQUEST if "error" in answered else HTTPStatus.OK,
+                        answered,
+                    )
+                except OrchestratorError:
+                    self._json(
+                        HTTPStatus.SERVICE_UNAVAILABLE, {"error": "модель сейчас недоступна"}
+                    )
+                except Exception:
+                    sys.stderr.write(f"chat failed:\n{traceback.format_exc()}")
+                    self._json(
+                        HTTPStatus.SERVICE_UNAVAILABLE,
+                        {"error": "ответ модели не удалось разобрать"},
+                    )
+                return
+            # /chat/stream: the same turn, framed as server-sent events
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
             try:
-                self._json(
-                    HTTPStatus.OK,
-                    service.ask(question, client=self._client(), admission=admission),
-                )
+                for event, payload in service.chat_events(
+                    question,
+                    client=self._client(),
+                    admission=admission,
+                    session=session,
+                ):
+                    self._sse(event, payload)
             except OrchestratorError:
-                # The model was unreachable or refused. That is not an answer and
-                # must not look like one - and the reason belongs in the journal,
-                # not in a public response: it carries the provider's own status
-                # line and body fragments.
-                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "модель сейчас недоступна"})
+                self._sse("error", {"error": "модель сейчас недоступна"})
             except Exception:
-                # Anything else - most likely `parse_answer` on a reply that is not
-                # the JSON the protocol asked for. Before this, such a reply raised
-                # through `BaseHTTPRequestHandler`, which logs the traceback and
-                # closes the socket: the caller got no status line at all, and the
-                # site showed a network error rather than a failure. A public
-                # endpoint owes an answer even when the answer is "no".
-                # `log_message` is deliberately silent, so the traceback goes
-                # straight to stderr, which is what systemd journals.
-                sys.stderr.write(f"ask failed:\n{traceback.format_exc()}")
-                self._json(
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                    {"error": "ответ модели не удалось разобрать"},
-                )
+                sys.stderr.write(f"chat stream failed:\n{traceback.format_exc()}")
+                self._sse("error", {"error": "ответ модели не удалось разобрать"})
 
         def log_message(self, format: str, *args: Any) -> None:
             """Silence. systemd already timestamps, and a URL carries a question."""

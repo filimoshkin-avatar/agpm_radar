@@ -44,6 +44,9 @@ select = ["B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
 # The editor speaks Russian to its reader; the queue descriptions are the
 # interface, not identifiers.
 "src/radar_kx/editor_queues.py" = ["RUF001", "RUF003"]
+# The welcome prompts and keyword lists are questions a Russian reader is
+# invited to ask; every «с» in them is a letter, not a typo.
+"src/radar_kx/agent_chat.py" = ["RUF001"]
 # Same reason: the skeleton candidates are described to the reader in Russian.
 "src/radar_kx/skeleton.py" = ["RUF001", "RUF003"]
 # The notices, the licence line and the reader-facing errors are the base's own
