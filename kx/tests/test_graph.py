@@ -173,3 +173,51 @@ def test_a_label_is_for_scanning_a_diagram_not_for_reading() -> None:
 def test_an_unknown_node_kind_is_refused() -> None:
     with pytest.raises(ValueError, match="unknown node kind"):
         node_id("hunch", "x")
+
+
+def test_every_attribute_the_graph_carries_survives_json() -> None:
+    """A snapshot is written as JSON, so an attribute that will not serialise
+    stops `build-graph` after it has done all of its work.
+
+    `claim_topics.confidence` is numeric and psycopg hands it back as `Decimal`,
+    which `json.dumps` refuses - found on production with the whole projection
+    already built.
+    """
+    import json
+
+    from radar_kx.graph import build
+
+    graph = build(
+        concepts=[],
+        concept_claims=[],
+        concept_evidence=[],
+        ideas=[],
+        idea_evidence=[],
+        claims=[
+            {
+                "claim_id": "11111111-1111-1111-1111-111111111111",
+                "state": "active",
+                "version_id": "a" * 64,
+                "char_start": 0,
+                "char_end": 4,
+                "quote_text": "текст",
+                "document_id": "b" * 64,
+                "language": "ru",
+                "canonical_url": "https://example.org/a",
+            }
+        ],
+        families=[],
+        topics=[{"topic_key": "t-one", "title": "Тема", "level": 1, "path": "Тема"}],
+        placements=[
+            {
+                "claim_id": "11111111-1111-1111-1111-111111111111",
+                "topic_key": "t-one",
+                "confidence": 0.75,
+            }
+        ],
+        knowledge_links=[],
+    )
+    json.dumps(graph.as_json(), ensure_ascii=False)
+    for edge in graph.edges:
+        json.dumps(edge.attributes, ensure_ascii=False)
+    assert any(edge.relation == "about" for edge in graph.edges)

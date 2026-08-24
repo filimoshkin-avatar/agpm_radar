@@ -101,3 +101,22 @@ def test_one_sentence_can_name_several_entities(migrated_dsn: str) -> None:
                 " VALUES (%s, %s, 'mentioned', 'Gartner', 'test', 'model')",
                 (claim, found[0]),
             )
+
+
+def test_the_worker_can_reach_the_tables_it_writes(migrated_dsn: str) -> None:
+    """A grant left out of a migration is a runtime failure, not a lint.
+
+    The first version of 029 created both tables and granted neither, and
+    `build-graph` stopped with "permission denied for table claim_entities" the
+    moment the projection reached for them.
+    """
+    with connect(migrated_dsn) as connection, connection.cursor() as cursor:
+        for table in ("claim_entities", "entity_reads", "entities", "entity_aliases"):
+            cursor.execute(
+                "SELECT has_table_privilege('radar_kx', %s, 'SELECT') AS readable,"
+                "       has_table_privilege('radar_kx', %s, 'INSERT') AS writable",
+                (f"kx.{table}", f"kx.{table}"),
+            )
+            row = cursor.fetchone()
+            assert row is not None
+            assert row["readable"] and row["writable"], f"radar_kx cannot use kx.{table}"

@@ -94,6 +94,13 @@ COMMENT ON TABLE entity_reads IS
     'One row per statement the entity pass looked at. A statement naming nothing '
     'is a result, not a gap, and must not be offered again.';
 
+-- The worker writes both and reads both. Left out of the first version of this
+-- migration, which took `build-graph` down with "permission denied for table
+-- claim_entities" the moment the projection reached for them - a new table is
+-- not reachable just because the role owns everything beside it.
+GRANT ALL ON claim_entities, entity_reads TO radar_kx;
+GRANT ALL ON entities, entity_aliases TO radar_kx;
+
 UPDATE metadata SET value = '29'::jsonb, updated_at = clock_timestamp()
 WHERE key = 'schema_version';
 

@@ -3440,7 +3440,11 @@ class Database:
                 )
                 topics = [dict(row) for row in cursor.fetchall()]
                 cursor.execute(
-                    "SELECT placed.claim_id, topics.topic_key, placed.confidence"
+                    # float8, not numeric: a graph attribute is serialised to
+                    # JSON, and psycopg hands numeric back as `Decimal`, which
+                    # `json.dumps` refuses.
+                    "SELECT placed.claim_id, topics.topic_key,"
+                    " placed.confidence::float8 AS confidence"
                     " FROM kx.claim_topics AS placed"
                     " JOIN kx.topics AS topics USING (topic_id)"
                     " WHERE topics.state = 'accepted'"
