@@ -318,3 +318,35 @@ class _Connection:
 
     def __exit__(self, *_: Any) -> None:
         return None
+
+
+def test_a_malformed_identifier_gets_an_answer_and_not_a_dropped_socket() -> None:
+    """A read that cannot be served still owes a status line.
+
+    `/graph?claim=x` and `/statement/x` used to raise out of the handler: a
+    non-uuid compared against a uuid column is a `DataError`, nothing caught it,
+    and `BaseHTTPRequestHandler` answers a raised handler by closing the socket.
+    Caddy turned the silence into 502, so a typo in a link read as an outage.
+    """
+    import psycopg
+
+    class Brittle(KeyFake):
+        def graph(self, **kwargs: Any) -> dict[str, Any]:
+            raise psycopg.errors.InvalidTextRepresentation("invalid input for type uuid")
+
+        def statement(self, claim_id: str) -> dict[str, Any]:
+            raise psycopg.errors.InvalidTextRepresentation("invalid input for type uuid")
+
+    server, thread = _serve(Brittle(live=True))
+    key = "radar-" + "x" * (KEY_LENGTH - len(KEY_PREFIX))
+    try:
+        host, port = server.server_address[0], server.server_address[1]
+        connection = http.client.HTTPConnection(str(host), int(port), timeout=5)
+        for path in ("/graph?claim=x", "/statement/x"):
+            status, body = _get(connection, path, key)
+            assert status == HTTPStatus.BAD_REQUEST, f"{path} answered {status}"
+            assert body["error"] == "идентификатор не распознан"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

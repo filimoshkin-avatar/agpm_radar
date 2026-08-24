@@ -44,6 +44,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Final
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import psycopg
+
 from radar_kx.agent_chat import (
     PROMPTS_ON_WELCOME,
     TOOL_CONCEPT,
@@ -781,6 +783,34 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             self.wfile.write(body)
 
         def do_GET(self) -> None:
+            """Every read answers, including the reads that cannot be served.
+
+            A value that is not a uuid, where a uuid is compared, raised out of
+            the routing below - and a handler that raises is answered by
+            `BaseHTTPRequestHandler` with a log line and a closed socket. The
+            caller got no status line at all, and Caddy turned that into a 502:
+            `/graph?claim=x` and `/statement/x` both did it. The POST side has
+            said for a while that a public endpoint owes an answer even when the
+            answer is "no"; this is the same debt, on the side that only reads.
+
+            The two cases are told apart because they belong to different
+            people: a malformed identifier is the caller's, and says so; anything
+            else is ours, and must not be dressed up as the caller's mistake.
+            """
+            try:
+                self._route_get()
+            except psycopg.DataError:
+                self._json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "идентификатор не распознан", "path": urlsplit(self.path).path},
+                )
+            except Exception:
+                # `log_message` is deliberately silent, so the traceback goes
+                # straight to stderr, which is what systemd journals.
+                sys.stderr.write(f"read failed:\n{traceback.format_exc()}")
+                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "служба сейчас недоступна"})
+
+        def _route_get(self) -> None:
             path = urlsplit(self.path).path.rstrip("/") or "/"
             parameters = _query(self.path)
             if path in ("/", "/health"):
