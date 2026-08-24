@@ -1630,50 +1630,358 @@ async function agentToggleLinks(claimId) {
   }
 }
 
-async function agentAsk(question) {
-  const box = document.getElementById("agentAnswer");
-  if (!box || agentState.busy) return;
-  agentState.busy = true;
-  box.innerHTML = `<p class="agent-waiting">База читает свои утверждения…</p>`;
+/* ── The conversation ─────────────────────────────────────────────────────
+ *
+ * The Ask tab is a dialogue, not a form: a welcome screen with prompts sampled
+ * by the service, a thread that survives a reload, and a conveyor that shows
+ * the verification as it happens. Every turn is still the verified pipeline -
+ * the conveyor stages arrive as facts the code established, and the answer is
+ * rendered only from what survived the span check.
+ */
+
+const CHAT_STEPS = [
+  ["search", "поиск по базе"],
+  ["draft", "черновик пунктов"],
+  ["verify", "проверка по цитатам"]
+];
+const CHAT_STORE = "radarAgentChat.v1";
+let chatSession = "";
+let chatTurns = [];
+let chatReady = false;
+
+/** The session lives on the reader's device: the owner's decision is that
+ *  questions and answers are analysis material without addresses, so the
+ *  client is the only place a dialogue is stitched back together. */
+function chatPersist() {
   try {
-    const answered = await kbFetch("/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, admission: agentState.admission })
-    });
-    if (answered.error) {
-      box.innerHTML = `<p class="agent-waiting">${escapeHtml(answered.error)}</p>`;
-      return;
-    }
-    const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
-    const body = answered.answer
-      ? `<p class="agent-answer__text">${escapeHtml(answered.answer)}</p>`
-      : `<p class="agent-answer__text agent-answer__text--refused">${escapeHtml(
-          answered.refusalReason === "rate_limited_client"
-            ? "Слишком много вопросов подряд. Попробуйте через несколько минут."
-            : answered.refusalReason === "rate_limited_today"
-              ? "На сегодня лимит ответов исчерпан. Поиск и разделы работают."
-              : evidence.length
-                ? "В базе нет подтверждений, на которых можно построить ответ. Ниже — то, что нашлось рядом."
-                : "В базе нет подтверждений, на которых можно построить ответ."
-        )}</p>`;
-    box.innerHTML = `
-      <div class="agent-answer__card">
-        <div class="agent-answer__notice">
-          <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
-          <span class="agent-spacer"></span>
-          <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
-        </div>
-        ${body}
-      </div>
-      ${evidence.length ? `<h3 class="agent-section">Утверждения под ответом</h3>` : ""}
-      ${evidence.map((row, index) => agentStatementCard(row, index + 1)).join("")}`;
+    localStorage.setItem(CHAT_STORE, JSON.stringify({ session: chatSession, turns: chatTurns }));
   } catch (error) {
-    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
-  } finally {
-    agentState.busy = false;
+    /* a private window keeps its conversation to itself */
   }
 }
+
+function chatShowWelcome(show) {
+  document.getElementById("agentWelcome")?.toggleAttribute("hidden", !show);
+  document.getElementById("agentThread")?.toggleAttribute("hidden", show);
+}
+
+function agentChatInit() {
+  if (chatReady) return;
+  chatReady = true;
+  if (!chatSession) {
+    try { chatSession = crypto.randomUUID(); } catch (error) { chatSession = "s-" + Date.now(); }
+  }
+  let stored = null;
+  try { stored = JSON.parse(localStorage.getItem(CHAT_STORE) || "null"); } catch (error) { stored = null; }
+  if (stored && Array.isArray(stored.turns) && stored.turns.length) {
+    chatSession = stored.session || chatSession;
+    chatTurns = stored.turns.slice(-20);
+    const thread = document.getElementById("agentThread");
+    if (thread) {
+      thread.innerHTML = "";
+      chatTurns.forEach((turn, index) => thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, index)));
+    }
+    chatShowWelcome(false);
+    return;
+  }
+  agentLoadPrompts();
+}
+
+async function agentLoadPrompts() {
+  const grid = document.getElementById("promptGrid");
+  if (!grid) return;
+  grid.innerHTML = `<p class="agent-waiting">Собираю примеры из базы…</p>`;
+  try {
+    const data = await kbFetch("/prompts");
+    const prompts = Array.isArray(data.prompts) ? data.prompts : [];
+    grid.innerHTML = prompts.map(prompt => `
+      <button class="agent-prompt" type="button">
+        <span class="agent-prompt__cat agent-prompt__cat--${escapeHtml(prompt.category || "find")}">${escapeHtml(prompt.hint || "")}</span>
+        <p class="agent-prompt__text">${escapeHtml(prompt.text || "")}</p>
+      </button>`).join("");
+    const note = document.getElementById("poolNote");
+    if (note) {
+      note.textContent = data.pool
+        ? `примеры собраны из пула ${data.pool} запросов · обновляются каждую сессию`
+        : "";
+    }
+    grid.querySelectorAll(".agent-prompt").forEach((card, index) => {
+      card.addEventListener("click", () => {
+        const input = document.getElementById("agentQuestion");
+        if (input) input.value = prompts[index] ? prompts[index].text : "";
+        agentAsk(input ? input.value.trim() : "");
+      });
+    });
+  } catch (error) {
+    grid.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function chatRefusalText(answered, evidence) {
+  if (answered.refusalReason === "rate_limited_client") {
+    return "Слишком много вопросов подряд. Попробуйте через несколько минут.";
+  }
+  if (answered.refusalReason === "rate_limited_today") {
+    return "На сегодня лимит ответов исчерпан. Поиск и разделы работают.";
+  }
+  return evidence.length
+    ? "В базе нет подтверждений, на которых можно построить ответ. Ниже — то, что нашлось рядом."
+    : "В базе нет подтверждений, на которых можно построить ответ.";
+}
+
+/** The answer card: clauses with their citation chips, the disclosure button,
+ *  and the evidence under it - each statement the base actually holds, with
+ *  its quote and its source, the same card the Find tab renders. */
+function chatTurnHtml(turn, index) {
+  const answered = turn.answered || {};
+  const evidence = Array.isArray(answered.evidence) ? answered.evidence : [];
+  const clauses = Array.isArray(answered.clauses) ? answered.clauses : [];
+  const chip = number =>
+    `<a class="agent-cite" href="#ev-${index}-${number}">${Number(number) || "?"}</a>`;
+  const body = clauses.length
+    ? clauses.map(clause => `
+        <p class="agent-answer__text">${escapeHtml(clause.text || "")}${
+          Array.isArray(clause.evidence) ? clause.evidence.map(chip).join("") : ""
+        }</p>`).join("")
+    : answered.answer
+      ? `<p class="agent-answer__text">${escapeHtml(answered.answer)}</p>`
+      : `<p class="agent-answer__text agent-answer__text--refused">${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
+  const evidenceId = `ev-${index}`;
+  return `
+    <div class="agent-q">${escapeHtml(turn.question || "")}
+      <span class="agent-q__meta">${escapeHtml(turn.at || "")}</span>
+    </div>
+    <div class="agent-answer__card">
+      <div class="agent-answer__notice">
+        <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
+        <span class="agent-spacer"></span>
+        <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
+      </div>
+      ${body}
+      ${chatToolCardsHtml(answered)}
+      ${evidence.length ? `
+        <div class="agent-answer__levels">
+          <button class="agent-level" type="button" data-toggle="${evidenceId}">Доказательства
+            <span class="agent-level__count">${evidence.length}</span>
+          </button>
+        </div>
+        <div class="agent-evidence" id="${evidenceId}" hidden>
+          ${evidence.map((row, ordinal) =>
+            `<div id="ev-${index}-${ordinal + 1}">${agentStatementCard(row, ordinal + 1)}</div>`
+          ).join("")}
+        </div>` : ""}
+    </div>`;
+}
+
+/** A tool card is data the base holds, not a model claim, so it carries no
+ *  verification and needs none: it is the evidence, shown directly. */
+function chatToolCardsHtml(answered) {
+  const cards = Array.isArray(answered.toolCards) ? answered.toolCards : [];
+  return cards.map(card => chatToolCardHtml(card)).join("");
+}
+
+function chatToolCardHtml(card) {
+  const type = card && card.type ? card.type : "";
+  const data = (card && card.data) || {};
+  if (type === "concept") {
+    const statements = Array.isArray(data.statements) ? data.statements.length : 0;
+    const title = data.title || data.topicKey || "понятие";
+    return `
+      <details class="agent-tool" open>
+        <summary class="agent-tool__head">Карточка понятия: ${escapeHtml(String(title))}
+          <span class="agent-tool__count">${statements} ${plural(statements, "утверждение", "утверждения", "утверждений")}</span>
+        </summary>
+        <div class="agent-tool__body">
+          ${Array.isArray(data.statements)
+            ? data.statements.slice(0, 5).map(statement => agentStatementCard(statement)).join("")
+            : `<pre class="agent-tool__raw">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`}
+        </div>
+      </details>`;
+  }
+  if (type === "contradictions") {
+    const pairs = Array.isArray(data.pairs) ? data.pairs : [];
+    return `
+      <details class="agent-tool" open>
+        <summary class="agent-tool__head">Противоречия по теме запроса
+          <span class="agent-tool__count">${Number(data.total) || pairs.length} пар</span>
+        </summary>
+        <div class="agent-tool__body">${pairs.slice(0, 5).map(pair => `
+          <div class="agent-versus">
+            <div class="agent-versus__side"><p class="agent-versus__claim">${escapeHtml(pair.left_statement || pair.left || "")}</p></div>
+            <div class="agent-versus__side agent-versus__side--contra"><p class="agent-versus__claim">${escapeHtml(pair.right_statement || pair.right || "")}</p></div>
+          </div>`).join("") || `<p class="agent-waiting">Пар не нашлось.</p>`}
+        </div>
+      </details>`;
+  }
+  if (type === "gaps" || type === "observatory") {
+    const label = type === "gaps" ? "Карта пробелов" : "Обсерватория";
+    const rows = Array.isArray(data[type]) || Array.isArray(data.gaps) || Array.isArray(data.observatory)
+      ? (data[type] || data.gaps || data.observatory)
+      : [];
+    return `
+      <details class="agent-tool" open>
+        <summary class="agent-tool__head">${label}<span class="agent-tool__count">${rows.length}</span></summary>
+        <div class="agent-tool__body">
+          ${rows.slice(0, 5).map(row =>
+            `<p class="agent-hit__text">${escapeHtml(typeof row === "string" ? row : row.statement || row.title || JSON.stringify(row))}</p>`
+          ).join("") || `<p class="agent-waiting">Пусто.</p>`}
+        </div>
+      </details>`;
+  }
+  return "";
+}
+
+function chatWorkHtml() {
+  return `
+    <div class="agent-work">
+      ${CHAT_STEPS.map(([step, label], index) => `
+        ${index ? '<span class="agent-work__arrow">→</span>' : ""}
+        <span class="agent-work__step" data-step="${step}"><span class="dot"></span>${label}</span>
+      `).join("")}
+    </div>`;
+}
+
+function chatWorkAdvance(work, stage) {
+  const step = work.querySelector(`[data-step="${stage.step}"]`);
+  if (step && stage.done) {
+    step.classList.add("is-done");
+    const previous = step.previousElementSibling;
+    if (previous && previous.classList.contains("is-now")) previous.classList.remove("is-now");
+  }
+}
+
+/** Read the SSE frames the service sends: `event: name` + `data: json`, one
+ *  blank line between frames. The stream answers or errors; both are frames. */
+async function chatStreamTurn(question, work) {
+  const response = await fetch(`${KB}/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession })
+  });
+  if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = null;
+  let failed = null;
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const eventLine = frame.split("\n").find(line => line.startsWith("event: "));
+      const dataLine = frame.split("\n").find(line => line.startsWith("data: "));
+      if (!eventLine || !dataLine) { boundary = buffer.indexOf("\n\n"); continue; }
+      const event = eventLine.slice(7).trim();
+      const payload = JSON.parse(dataLine.slice(6));
+      if (event === "stage") chatWorkAdvance(work, payload);
+      if (event === "result") result = payload;
+      if (event === "error") failed = payload;
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+  if (failed) throw new Error(failed.error || "поток оборвался");
+  if (!result) throw new Error("поток оборвался без ответа");
+  return result;
+}
+
+/** The plain JSON endpoint with the stages replayed: the same turn when the
+ *  stream cannot be read (an old proxy, a strict corporate network). */
+async function chatJsonTurn(question, work) {
+  const answered = await kbFetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession })
+  });
+  (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));
+  return answered;
+}
+
+async function agentAsk(question) {
+  const thread = document.getElementById("agentThread");
+  if (!thread || agentState.busy || !question) return;
+  agentState.busy = true;
+  chatShowWelcome(false);
+  const now = new Date();
+  const at = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  thread.insertAdjacentHTML("beforeend", `
+    <div class="agent-q">${escapeHtml(question)}<span class="agent-q__meta">${at}</span></div>`);
+  const work = document.createElement("div");
+  work.innerHTML = chatWorkHtml();
+  const workNode = work.firstElementChild;
+  thread.appendChild(workNode);
+  workNode.querySelector('[data-step="search"]')?.classList.add("is-now");
+  workNode.scrollIntoView({ behavior: "smooth", block: "center" });
+  const input = document.getElementById("agentQuestion");
+  if (input) input.value = "";
+  let answered = null;
+  try {
+    answered = await chatStreamTurn(question, workNode);
+  } catch (error) {
+    try {
+      answered = await chatJsonTurn(question, workNode);
+    } catch (fallback) {
+      workNode.remove();
+      thread.insertAdjacentHTML("beforeend",
+        `<p class="agent-waiting">${escapeHtml(fallback.message || error.message)}</p>`);
+      agentState.busy = false;
+      return;
+    }
+  }
+  workNode.remove();
+  const turn = { question, at, answered };
+  chatTurns.push(turn);
+  chatPersist();
+  thread.insertAdjacentHTML("beforeend", chatTurnHtml(turn, chatTurns.length - 1));
+  thread.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "center" });
+  agentState.busy = false;
+}
+
+/** Levels are free: the disclosure button only unhides evidence that arrived
+ *  with the answer, so the thread is delegated here once, not per turn. */
+document.getElementById("agentThread")?.addEventListener("click", event => {
+  const button = event.target.closest(".agent-level[data-toggle]");
+  if (!button) return;
+  const block = document.getElementById(button.dataset.toggle);
+  if (block) block.hidden = !block.hidden;
+  button.classList.toggle("is-open", !block?.hidden);
+});
+
+document.getElementById("morePrompts")?.addEventListener("click", agentLoadPrompts);
+
+document.getElementById("newDialog")?.addEventListener("click", () => {
+  chatTurns = [];
+  chatPersist();
+  const thread = document.getElementById("agentThread");
+  if (thread) thread.innerHTML = "";
+  chatShowWelcome(true);
+  agentLoadPrompts();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+/* The microphone is the browser's own, when it has one: the Web Speech API
+ *  needs no dependency and no server, and where it is absent the button stays
+ *  a button rather than becoming an error. */
+document.getElementById("agentMic")?.addEventListener("click", () => {
+  const recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = document.getElementById("agentMic");
+  if (!recognition || !mic) return;
+  if (mic.classList.contains("is-listening")) { mic.classList.remove("is-listening"); return; }
+  const listener = new recognition();
+  listener.lang = "ru-RU";
+  listener.interimResults = false;
+  listener.onresult = event => {
+    const input = document.getElementById("agentQuestion");
+    if (input && event.results && event.results[0]) input.value = event.results[0][0].transcript;
+  };
+  listener.onend = () => mic.classList.remove("is-listening");
+  listener.onerror = () => mic.classList.remove("is-listening");
+  mic.classList.add("is-listening");
+  listener.start();
+});
 
 function plural(n, one, few, many) {
   const mod10 = n % 10;
@@ -2142,6 +2450,7 @@ function setAgentTab(tab) {
     button.setAttribute("aria-selected", active ? "true" : "false");
   });
   if (tab === "find") agentLoadTopicOptions();
+  if (tab === "ask") agentChatInit();
   if (tab === "observatory") agentLoadObservatory();
   if (tab === "graph") agentLoadGraph();
   if (tab === "contradictions") agentLoadContradictions();

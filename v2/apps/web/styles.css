@@ -1613,3 +1613,257 @@ body.is-agent .agent-view { display: block; }
 
 .agent-graph__key { display: inline-flex; align-items: center; gap: 5px; }
 .agent-graph__key i { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+
+/* ── The conversation: welcome, thread, conveyor ───────────────────────────
+ *
+ * The Ask tab is a dialogue now: prompts sampled by the service, a thread that
+ * survives a reload, and the verification conveyor. Evidence under an answer
+ * reuses the statement cards the Find tab already renders. */
+
+.agent-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 26px 24px 22px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.agent-welcome__title { margin: 0; font-size: 19px; font-weight: 600; line-height: 1.35; }
+.agent-welcome__intro { margin: 0; font-size: 13.5px; color: var(--secondary); max-width: 66ch; }
+
+.agent-welcome__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.agent-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+
+.agent-prompt:hover { border-color: var(--near); background: #fff; }
+
+.agent-prompt__cat {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.agent-prompt__text { margin: 0; font-size: 13.5px; line-height: 1.45; }
+
+.agent-welcome__foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.agent-welcome__more {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.agent-welcome__more:hover { border-color: var(--near); color: var(--near); }
+.agent-welcome__pool { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+
+.agent-prompt__cat--find { background: rgba(43, 74, 117, .10); color: var(--near); }
+.agent-prompt__cat--concept { background: rgba(30, 110, 98, .10); color: var(--mid); }
+.agent-prompt__cat--contra { background: rgba(169, 107, 18, .12); color: var(--accent); }
+.agent-prompt__cat--watch { background: rgba(107, 104, 128, .12); color: var(--far); }
+
+.agent-chat__thread { display: flex; flex-direction: column; gap: 14px; }
+
+.agent-q {
+  align-self: flex-end;
+  max-width: 72%;
+  padding: 9px 14px;
+  border-radius: 12px 12px 3px 12px;
+  background: rgba(31, 36, 41, 0.06);
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.45;
+}
+
+.agent-q__meta { display: block; margin-top: 4px; font-size: 10.5px; color: var(--muted); text-align: right; }
+
+/* The conveyor states facts the code established; the current step breathes. */
+.agent-work {
+  border: 1px dashed var(--line);
+  border-radius: 7px;
+  background: #fff;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.agent-work__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: "PT Mono", ui-monospace, monospace;
+}
+
+.agent-work__step .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.agent-work__step.is-done { color: var(--mid); }
+.agent-work__step.is-done .dot { background: var(--mid); }
+.agent-work__step.is-now { color: var(--near); font-weight: 600; }
+.agent-work__step.is-now .dot { background: var(--near); animation: agentPulse 1.2s ease-in-out infinite; }
+.agent-work__arrow { color: var(--line); font-size: 12px; }
+
+@keyframes agentPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Citation chips: a clause names the quotations it rests on. */
+.agent-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin: 0 1px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(43, 74, 117, 0.10);
+  color: var(--near);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "PT Mono", ui-monospace, monospace;
+  text-decoration: none;
+  vertical-align: 2px;
+}
+
+.agent-cite:hover { background: var(--near); color: #fff; }
+
+.agent-answer__levels {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.agent-level {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--secondary);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-level:hover { border-color: var(--near); color: var(--near); }
+.agent-level.is-open { background: var(--text); border-color: var(--text); color: var(--bg); }
+.agent-level__count { font-family: "PT Mono", ui-monospace, monospace; font-size: 11px; opacity: 0.75; }
+
+.agent-evidence { display: flex; flex-direction: column; gap: 10px; }
+
+/* Tool cards: data the base holds, shown beside the answer. */
+.agent-tool { border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+
+.agent-tool__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: var(--secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.agent-tool__head::-webkit-details-marker { display: none; }
+.agent-tool__count { font-size: 11.5px; color: var(--muted); }
+.agent-tool__body {
+  border-top: 1px solid var(--line-soft);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.agent-tool__raw {
+  margin: 0;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 11.5px;
+  overflow-x: auto;
+}
+
+.agent-versus { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.agent-versus__side {
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--mid);
+  border-radius: 6px;
+  padding: 9px 12px;
+  background: var(--bg);
+}
+
+.agent-versus__side--contra { border-left-color: var(--accent); }
+.agent-versus__claim { margin: 0; font-size: 13px; line-height: 1.5; }
+
+/* The composer sits under the thread and stays reachable. */
+.agent-composer {
+  position: sticky;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 0;
+}
+
+.agent-mic {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--secondary);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.agent-mic:hover { border-color: var(--near); color: var(--near); }
+.agent-mic.is-listening {
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: agentPulse 1.1s ease-in-out infinite;
+}
+
+@media (max-width: 640px) {
+  .agent-q { max-width: 88%; }
+  .agent-welcome__grid { grid-template-columns: 1fr; }
+  .agent-versus { grid-template-columns: 1fr; }
+}

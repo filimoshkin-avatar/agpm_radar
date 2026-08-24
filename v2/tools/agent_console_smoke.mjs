@@ -28,16 +28,36 @@ class FakeElement {
 
   addEventListener(event, handler) { this.handler = handler; }
   append(child) { this.children = [...(this.children || []), child]; }
+  appendChild(child) { this.append(child); }
   closest() { return null; }
   focus() {}
   insertAdjacentHTML(_where, html) { this.innerHTML += html; }
   scrollIntoView() {}
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   toggleAttribute(name, force) { this[name] = Boolean(force); }
+  remove() {}
+  /* The conversation builds its conveyor with document.createElement and then
+     asks the node for its steps; a string of HTML cannot be parsed here, so a
+     step selector hands back a stub with no previous sibling, which is exactly
+     what the first step legitimately has. */
+  querySelector(selector) {
+    if (selector.startsWith("[data-step")) {
+      const stub = new FakeElement();
+      stub.previousElementSibling = null;
+      return stub;
+    }
+    return null;
+  }
+  querySelectorAll() { return []; }
+  get firstElementChild() {
+    if (!this._first) this._first = new FakeElement();
+    return this._first;
+  }
 }
 
 const ids = [
-  "activeFilter", "agentAnswer", "agentAsk", "agentForm", "agentGaps", "agentObservatory",
+  "activeFilter", "agentThread", "agentWelcome", "promptGrid", "poolNote", "morePrompts",
+  "newDialog", "agentMic", "agentAsk", "agentForm", "agentGaps", "agentObservatory",
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
@@ -196,14 +216,63 @@ const ANSWER = {
   machineNotice: "Машинный ответ, не редакция базы.",
   signature: "AgPM Radar, машинная сборка",
   evidence: [ASK_EVIDENCE],
+  clauses: [{ text: "Порог автономии — решение организации.", evidence: [1] }],
+  stages: [
+    { step: "search", done: true, hits: 1, cache: false },
+    { step: "draft", done: true },
+    { step: "verify", done: true, passes: true },
+  ],
+  session: "smoke",
+  tool: "find",
+  toolCards: [],
 };
+
+const PROMPTS = {
+  prompts: [
+    { text: "Чем подтверждённые положения отличаются от наблюдаемых сигналов?", category: "find", hint: "поиск с доказательствами" },
+    { text: "Расскажи про «Пороги автономии»", category: "concept", hint: "карточка понятия" },
+  ],
+  pool: 17,
+  poolCurated: 14,
+};
+
+/* The conversation endpoint streams its conveyor; the stub emits the frames
+   one read, exactly as the wire carries them. */
+const sseBody = payload => {
+  const frames = payload.stages
+    .map(stage => `event: stage\ndata: ${JSON.stringify(stage)}\n\n`)
+    .join("") + `event: result\ndata: ${JSON.stringify(payload)}\n\n`;
+  const encoder = new TextEncoder();
+  return {
+    getReader() {
+      let done = false;
+      return {
+        async read() {
+          if (done) return { done: true, value: undefined };
+          done = true;
+          return { done: false, value: encoder.encode(frames) };
+        },
+      };
+    },
+  };
+};
+
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
+  if (path === "/kb/chat/stream") {
+    return { ok: true, status: 200, body: sseBody(ANSWER) };
+  }
+  if (path === "/kb/chat") {
+    return { ok: true, status: 200, async json() { return ANSWER; } };
+  }
+  if (path === "/kb/prompts") {
+    return { ok: true, status: 200, async json() { return PROMPTS; } };
+  }
   let payload = ISSUE;
-  if (path === "/kb/ask") payload = ANSWER;
-  else if (path.startsWith("/kb/observatory")) payload = { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
+  if (path.startsWith("/kb/observatory")) payload = { observatory: [{ ...STATEMENT, material_kind: "incident" }] };
   else if (path.startsWith("/kb/search")) payload = { hits: [{ ...STATEMENT, valid_until: "2020-01-01T00:00:00+00:00" }] };
   else if (path.startsWith("/kb/contradictions")) payload = CONTRADICTIONS;
   else if (path.startsWith("/kb/graph")) payload = GRAPH;
@@ -250,8 +319,8 @@ elements.get("agentQuestion").value = "что такое порог автоно
 await elements.get("agentForm").handler({ preventDefault() {} });
 await settle();
 
-const answered = elements.get("agentAnswer").innerHTML;
-if (!requests.includes("/kb/ask")) fail("the question never reached the base");
+const answered = elements.get("agentThread").innerHTML;
+if (!requests.includes("/kb/chat/stream")) fail("the question never reached the base");
 if (!answered.includes("Машинный ответ")) fail("an answer rendered without the owner's notice");
 if (!answered.includes("Порог автономии — решение организации")) fail("the answer text is missing");
 if (!answered.includes("Порог автономии определяет границу между классами"))
@@ -294,7 +363,8 @@ if (!clash.includes("Никакого порога автономии")) fail("t
 if (!clash.includes("283")) fail("the reader is not told how many disagreements the base holds");
 
 // UC-01: finding costs the reader nothing, and says which arm found each hit.
-// `/ask` reaches a paid model behind a limit; this must not.
+// `/ask` and the conversation endpoints reach a paid model behind a limit; this
+// must not. One conversation turn has run by now: exactly one model call so far.
 const findQuery = register('[data-find-filter="material_kind"]', new FakeElement("select"));
 findQuery.dataset.findFilter = "material_kind";
 findQuery.value = "fact";
@@ -305,7 +375,7 @@ const found = elements.get("agentFindResults").innerHTML;
 const searched = requests.find(path => path.startsWith("/kb/search"));
 if (!searched) fail("the find tab never reached the base");
 if (!searched.includes("material_kind=fact")) fail("the find tab dropped its filter");
-if (requests.filter(path => path === "/kb/ask").length !== 1)
+if (requests.filter(path => path === "/kb/ask" || path.startsWith("/kb/chat")).length !== 1)
   fail("finding must not spend a model call");
 if (!found.includes("по словам") || !found.includes("по смыслу"))
   fail("a hit rendered without saying which arm found it");
@@ -356,14 +426,14 @@ globalThis.fetch = async raw => {
     ok: true,
     status: 200,
     async json() {
-      return { ...ANSWER, answer: null, refusalReason: "no_evidence", evidence: [] };
+      return { ...ANSWER, answer: null, refusalReason: "no_evidence", evidence: [], clauses: [] };
     },
   };
 };
 elements.get("agentQuestion").value = "вопрос, на который нет ответа";
 await elements.get("agentForm").handler({ preventDefault() {} });
 await settle();
-const refused = elements.get("agentAnswer").innerHTML;
+const refused = elements.get("agentThread").innerHTML;
 if (!refused.includes("Машинный ответ")) fail("a refusal rendered without the notice");
 if (!refused.includes("нет подтверждений")) fail("a refusal did not say what it was");
 
