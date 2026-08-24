@@ -5869,8 +5869,9 @@ class Database:
                         UNION ALL
                         SELECT from_id AS claim_id FROM agent.link WHERE to_id = %(claim_id)s
                     )
-                    SELECT count(*) AS total
+                    SELECT count(DISTINCT claim_id) AS total
                     FROM either_way JOIN agent.statement AS other USING (claim_id)
+                    WHERE claim_id <> %(claim_id)s
                     """,
                     {"claim_id": claim_id},
                 )
@@ -5894,7 +5895,7 @@ class Database:
                     """,
                     {"claim_id": claim_id, "limit": limit},
                 )
-                shown_links = 0
+                shown_neighbours: set[str] = set()
                 for row in cursor.fetchall():
                     other = add(
                         "statement",
@@ -5907,7 +5908,7 @@ class Database:
                         edge(centre, other, str(row["link_type"]))
                     else:
                         edge(other, centre, str(row["link_type"]))
-                    shown_links += 1
+                    shown_neighbours.add(str(row["claim_id"]))
                 cursor.execute(
                     "SELECT topic_key, title FROM agent.statement_topic WHERE claim_id = %s",
                     (claim_id,),
@@ -5962,7 +5963,11 @@ class Database:
                     "meta": graph_meta(
                         total=total_neighbours,
                         returned=len(nodes) - 1,
-                        policy="link-limit" if linked_total > shown_links else "all-neighbours",
+                        policy=(
+                            "link-limit"
+                            if linked_total > len(shown_neighbours)
+                            else "all-neighbours"
+                        ),
                     ),
                 }
 

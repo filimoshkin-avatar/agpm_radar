@@ -2216,7 +2216,7 @@ function agentLinksGraphRender(data, host) {
     agentLoadGraph(agentGraphRoute(event.target.id()));
   });
   linksCanvas.on("tap", "edge", event => {
-    const line = document.getElementById("agentGraphMeta");
+    const line = document.getElementById("agentGraphEdge");
     const spoken = event.target.data("explanation") || event.target.data("relation") || "";
     if (line && spoken) line.textContent = spoken;
   });
@@ -2240,7 +2240,7 @@ function agentLinksListHtml(data) {
             data-graph-node="${escapeHtml(node.kind)}:${escapeHtml(node.key)}">
           <span class="agent-links__rowtext">${escapeHtml(node.label)}</span>${
             node.hiddenNeighborCount
-              ? `<span class="agent-links__more mono" title="сколько ещё держит этот узел">+${Number(node.hiddenNeighborCount)}</span>`
+              ? `<span class="agent-links__more mono" title="всего под этим узлом, вместе с хроникой рынка">+${Number(node.hiddenNeighborCount)}</span>`
               : ""
           }</button></li>`).join("")}
       </ul></div>`;
@@ -2322,10 +2322,12 @@ async function agentLoadGraph(target, options = {}) {
     const meta = data.meta || {};
     const policy = {
       "most-recent": "показаны самые свежие",
-      "most-recent-knowledge": "показаны самые свежие из знания",
+      "most-recent-knowledge": "показаны самые свежие из знания; хроника рынка сюда не входит",
       "link-limit": "показана часть связей",
       "all-neighbours": "показаны все соседи"
     }[meta.selectionPolicy] || "";
+    const edgeLine = document.getElementById("agentGraphEdge");
+    if (edgeLine) edgeLine.textContent = "";
     const metaLine = document.getElementById("agentGraphMeta");
     if (metaLine) {
       metaLine.textContent = meta.truncated

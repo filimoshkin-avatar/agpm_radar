@@ -21,6 +21,9 @@ def test_an_authorial_edge_says_who_proposed_it_and_who_did_not_confirm() -> Non
     assert annotated["method"] == "model"
     assert annotated["reviewStatus"] == "unreviewed"
     assert "поддерживающее" in annotated["explanation"]
+    # The test's own name is the requirement: an explanation that names the
+    # machine but not the missing confirmation only tells half of it.
+    assert "не подтверждал" in annotated["explanation"]
 
 
 def test_a_structural_edge_explains_the_base_not_a_claim() -> None:

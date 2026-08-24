@@ -31,11 +31,22 @@ GRAPH_EDGE_EXPLANATIONS: Final = {
     "mentions": "Сущность названа в утверждении",
 }
 
+#: Every one of them names both halves of the provenance: which machine step
+#: proposed the tie, and that nobody has confirmed it. Saying only the first
+#: half lets a model's suggestion read as an established part of the canon,
+#: which is the one thing an authorial edge must never do.
 _AUTHORIAL_EXPLANATIONS: Final = {
-    "contradicts": "Модель определила утверждения как противоречащие",
-    "qualifies": "Модель определила одно утверждение как уточняющее другое",
-    "related_to": "Модель определила утверждения как связанные",
-    "supports": "Модель определила одно утверждение как поддерживающее другое",
+    "contradicts": (
+        "Модель определила утверждения как противоречащие; владелец базы это не подтверждал"
+    ),
+    "qualifies": (
+        "Модель определила одно утверждение как уточняющее другое; владелец базы это не подтверждал"
+    ),
+    "related_to": ("Модель определила утверждения как связанные; владелец базы это не подтверждал"),
+    "supports": (
+        "Модель определила одно утверждение как поддерживающее другое; "
+        "владелец базы это не подтверждал"
+    ),
 }
 
 

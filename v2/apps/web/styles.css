@@ -1582,26 +1582,12 @@ body.is-agent .agent-view { display: block; }
 
 /* --- Граф ---------------------------------------------------------------- */
 
-.agent-graph__svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  margin-top: 8px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.agent-links__edge {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--secondary);
+  min-height: 1em;
 }
-
-.agent-graph__label {
-  font-family: inherit;
-  font-size: 10.5px;
-  fill: var(--secondary);
-  pointer-events: none;
-}
-
-.agent-graph__node { cursor: pointer; }
-.agent-graph__node:hover circle { stroke-width: 2.4; }
-.agent-graph__node:hover .agent-graph__label { fill: var(--text); font-weight: 600; }
 
 .agent-graph__legend {
   display: inline-flex;

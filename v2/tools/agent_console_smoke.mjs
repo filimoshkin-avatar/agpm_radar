@@ -57,7 +57,7 @@ const ids = [
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
-  "agentGraphCanvas", "agentGraphMeta",
+  "agentGraphCanvas", "agentGraphMeta", "agentGraphEdge",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
   "footerSources", "gazetteView", "heatmap", "included", "includedShare", "issueDate",
@@ -382,6 +382,65 @@ clickGraphNode("entity:e1");
 await settle();
 if (!requests.includes("/kb/graph?entity=e1&limit=40"))
   fail("an entity node did not route through entity=");
+
+// The canvas is the other half of the promise. Without a stub it never runs at
+// all - so «the list is complete» was the only thing this smoke ever proved.
+// With one, the drawing must build from the same neighbourhood the list shows,
+// explain a tapped edge in its own line, walk the same routes, and tear itself
+// down when the reader leaves.
+let drawnWith = null;
+let destroyed = 0;
+const taps = {};
+globalThis.cytoscape = options => {
+  drawnWith = options;
+  return {
+    on(event, selector, handler) { taps[`${event}:${selector}`] = handler; },
+    destroy() { destroyed += 1; },
+  };
+};
+clickGraphNode("statement:c2");
+await settle();
+if (!drawnWith) fail("the canvas never drew even with Cytoscape present");
+const drawnNodes = drawnWith.elements.filter(element => !element.data.source);
+const drawnEdges = drawnWith.elements.filter(element => element.data.source);
+if (drawnNodes.length !== GRAPH.nodes.length)
+  fail("the canvas drew a different set of nodes than the list");
+if (drawnEdges.length !== GRAPH.edges.length)
+  fail("the canvas dropped edges the list shows");
+if (elements.get("agentGraphCanvas").hidden !== false)
+  fail("the canvas drew but stayed hidden");
+
+// An edge explains itself in its own line. The meta line carries how much of
+// the neighbourhood is held back, and a tap must never overwrite that.
+const metaBeforeTap = elements.get("agentGraphMeta").textContent;
+taps["tap:edge"]({
+  target: {
+    data: key => (key === "explanation"
+      ? "Модель определила утверждения как противоречащие; владелец базы это не подтверждал"
+      : "contradicts"),
+  },
+});
+if (!elements.get("agentGraphEdge").textContent.includes("не подтверждал"))
+  fail("a tapped edge did not say the machine proposed it and nobody confirmed it");
+if (elements.get("agentGraphMeta").textContent !== metaBeforeTap)
+  fail("a tapped edge overwrote how much of the neighbourhood is shown");
+
+// A tapped node walks the same route a list button walks.
+const beforeTapRequests = requests.length;
+taps["tap:node"]({ target: { id: () => "entity:e1" } });
+await settle();
+if (!requests.slice(beforeTapRequests).includes("/kb/graph?entity=e1&limit=40"))
+  fail("a canvas node tap did not route through entity=");
+
+// Leaving the tab tears the canvas down: a hidden canvas keeps its listeners.
+// Counted as an increment, not as a total - re-rendering also destroys, and a
+// bare `if (destroyed)` would pass with the tab teardown deleted entirely.
+const destroyedBeforeLeaving = destroyed;
+click({ dataset: { agentTab: "topics" }, classList: { toggle() {} }, setAttribute() {} });
+await settle();
+if (destroyed === destroyedBeforeLeaving)
+  fail("the canvas survived the reader leaving the tab");
+delete globalThis.cytoscape;
 
 // UC-11: a contradiction is a pair, and half of one is not the finding.
 const clash = elements.get("agentContradictions").innerHTML;

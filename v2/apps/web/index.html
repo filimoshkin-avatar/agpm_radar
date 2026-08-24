@@ -167,7 +167,7 @@
         <button class="agent-tab is-active" type="button" data-agent-tab="find" role="tab" aria-selected="true">Найти</button>
         <button class="agent-tab" type="button" data-agent-tab="ask" role="tab" aria-selected="false">Спросить</button>
         <button class="agent-tab" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">Обсерватория</button>
-        <button class="agent-tab" type="button" data-agent-tab="graph" role="tab" aria-selected="false">Связи</button>
+        <button class="agent-tab" type="button" data-agent-tab="graph" role="tab" aria-selected="false">Граф</button>
         <button class="agent-tab" type="button" data-agent-tab="contradictions" role="tab" aria-selected="false">Противоречия</button>
         <button class="agent-tab" type="button" data-agent-tab="topics" role="tab" aria-selected="false">Понятия</button>
         <button class="agent-tab" type="button" data-agent-tab="wiki" role="tab" aria-selected="false">Wiki</button>
@@ -305,6 +305,7 @@
           <span class="agent-graph__legend" id="agentGraphLegend"></span>
         </div>
         <p class="agent-links__meta" id="agentGraphMeta" aria-live="polite"></p>
+        <p class="agent-links__edge" id="agentGraphEdge" aria-live="polite"></p>
         <div id="agentGraphCanvas" class="agent-graph__canvas" hidden></div>
         <div id="agentGraphBody"></div>
       </div>
@@ -342,6 +343,6 @@
   </nav>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260824-agent-chat"></script>
+  <script src="/assets/app.mjs?v=20260824-links"></script>
 </body>
 </html>

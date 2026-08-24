@@ -2,8 +2,7 @@
 
 The web app of Radar V2 is dependency-free by architecture decision; this
 directory is the one exception, and each file here carries its full provenance.
-Nothing in this directory is wired into `index.html` or the production artifact
-yet — Increment 1 of the «Связи» plan does that, after the ADR.
+The exception is argued in `docs/adr/0009-first-vendored-frontend-dependency-cytoscape.md`.
 
 ## cytoscape.3.30.4.min.js
 
@@ -19,7 +18,12 @@ yet — Increment 1 of the «Связи» plan does that, after the ADR.
 
 Checks performed before accepting the file (2026-08-24, Increment 0):
 
-- `eval(` — 0 occurrences; `new Function` — 0 occurrences;
+- `eval(` — 0 occurrences; `new Function` — 0 occurrences. Note what this does
+  **not** say: there is one `Function("return this")()`, the lodash idiom for
+  finding the global object. It is short-circuited in a browser (`freeSelf` is
+  truthy) and never reached, which matters because this site's CSP is
+  `script-src 'self'` with no `'unsafe-eval'` and the call would otherwise
+  throw. The original check grepped `new Function` and missed it;
 - URL literals — 3, all inside the MIT license header
   (`en.wikipedia.org/wiki/MIT_License`, `engelschall.com`,
   `opensource.org/licenses/MIT`); no network endpoints;
@@ -29,10 +33,21 @@ Checks performed before accepting the file (2026-08-24, Increment 0):
   file present: it is valid UTF-8, needs no `ALLOWED_BINARY_ASSETS` entry, and
   the remote-URL check applies to `.html` files only;
 - all three project gates pass with the file in the tree
-  (`kx` verify, `kx` verify_migrations, `v2` verify — the artifact stays at
-  26 runtime files until `packages/deployment/artifacts.py` learns the
-  `vendor/` path, which is Increment 1 work).
+  (`kx` verify, `kx` verify_migrations, `v2` verify).
 
-The ADR naming this the first third-party frontend dependency, and the wiring
-(classic `<script>` before `app.mjs`, no module loader, no CDN), belong to
-Increment 1.
+## How it is wired (Increment 1)
+
+`packages/deployment/artifacts.py` carries the path in `WEB_PATHS`, so the file
+travels inside the production artifact as a runtime file — 27 of them. It loads
+from a classic `<script>` before `app.mjs`: no module loader, no CDN, no build
+step. The version is in the filename, so a future upgrade changes the path and
+the year-long `immutable` cache header cannot serve a stale library.
+
+Caddy must route `/assets/vendor/*` into the assets handler. Until 2026-08-24
+the matcher listed exact paths only and this file fell through to the site's
+`respond "Not Found" 404`.
+
+The drawing is never the interface: the list is primary and complete for every
+centre, and the canvas is gated on this library being present. Where it is
+absent — an old browser, the console smoke — the reader loses the picture and
+nothing else.
