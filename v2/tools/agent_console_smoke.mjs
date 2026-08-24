@@ -267,7 +267,17 @@ const sseBody = payload => {
   };
 };
 
-globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+// A returning reader carries their last view mode in localStorage, and the one
+// this smoke has to reproduce is «agent»: `initViewMode()` runs during module
+// evaluation and, for that mode alone, `setViewMode` reads `agentState`. A stub
+// that always answers null keeps the module on the «radar» short-circuit and
+// never executes the restore at all - which is how a throw that blanked the
+// page in every mode shipped twice past a green gate.
+globalThis.localStorage = {
+  getItem: key => (key === "agpmRadarViewMode" ? "agent" : null),
+  setItem() {},
+  removeItem() {},
+};
 
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
@@ -304,6 +314,12 @@ await import("../apps/web/app.mjs");
 await settle();
 
 const fail = message => { throw new Error(`agent console smoke failed: ${message}`); };
+
+// The module has to finish evaluating. Everything below asserts on behaviour,
+// and behaviour cannot tell «this branch did nothing» from «the module died
+// half-way and no listener past that line exists».
+if (elements.get("agentView").hidden !== false)
+  fail("the stored «agent» mode did not restore - module evaluation aborted");
 // `closest` has to answer per selector, not "yes" to everything. The page asks
 // twice on every click - once for a graph node, once for a button - and a stub
 // that hands the button back both times sends every click down the wrong branch.

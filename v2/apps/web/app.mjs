@@ -285,6 +285,14 @@ function setText(id, value) {
 
 const VIEW_MODES = ["radar", "gazette", "agent"];
 
+// Declared here rather than beside the rest of the agent code, because
+// `setViewMode` reads it and `initViewMode()` calls that during module
+// evaluation. A reader whose stored mode is «agent» reached the read while this
+// was still a lexical declaration further down the file: the throw aborted the
+// module, so nothing after it ever ran and the page came up blank in every
+// mode - not only the one that triggered it.
+const agentState = { tab: "find", admission: "knowledge", busy: false };
+
 function setViewMode(mode) {
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
@@ -1463,7 +1471,6 @@ const AGENT_STATUS_CLASS = {
   hypothesis: "agent-label--far"
 };
 
-const agentState = { tab: "find", admission: "knowledge", busy: false };
 
 async function kbFetch(path, options) {
   const response = await fetch(`${KB}${path}`, options);
