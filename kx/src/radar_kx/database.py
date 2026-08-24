@@ -113,7 +113,7 @@ from radar_kx.wiki_snapshot import WikiSnapshot, compress
 #: observation, and the reading pass is what makes that countable.
 PROMOTION_FLOOR = 2
 
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
