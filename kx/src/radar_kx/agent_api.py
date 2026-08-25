@@ -594,14 +594,40 @@ class AgentService:
             yield "result", self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
             return
 
-        hits = self.database.agent_search(
-            question,
+        # A question that names a subject the base has a place for is answered
+        # from that place. Phrase search cannot find it: «Расскажи про «X»» is
+        # almost entirely a topic title, and the lexical arm matches quotation
+        # text, which rarely repeats the title of the shelf it sits on.
+        #
+        # Measured 2026-08-25 over the whole welcome pool: 29 of the 100 topic
+        # prompts retrieved not one statement of their own topic. «Поперечные
+        # карты классических предметов управления» holds 193 statements and the
+        # search surfaced none of them; the same search filtered by topic_key
+        # reached eight, for all 29. The base knew where the answer was.
+        filters: dict[str, str | None] = {
             # `all` is the absence of the filter, which is what widens it; the
             # view underneath has already dropped what was never admitted.
-            filters={"admission": None if admission == "all" else admission},
-            limit=PACKAGE_SIZE,
-            question_vector=self._vector(question),
-        )
+            "admission": None if admission == "all" else admission
+        }
+        vector = self._vector(question)
+        named = select_tool(question, self.database.agent_topics())
+        hits: list[dict[str, Any]] = []
+        if named.tool == TOOL_CONCEPT and named.topic_key:
+            hits = self.database.agent_search(
+                question,
+                filters={**filters, "topic_key": named.topic_key},
+                limit=PACKAGE_SIZE,
+                question_vector=vector,
+            )
+        # A topic that turns out to hold nothing with an exact quotation must not
+        # answer worse than it did before it was recognised.
+        if not hits:
+            hits = self.database.agent_search(
+                question,
+                filters=filters,
+                limit=PACKAGE_SIZE,
+                question_vector=vector,
+            )
         package = build_package(hits, size=PACKAGE_SIZE)
         yield "stage", {"step": "search", "done": True, "hits": len(package), "cache": False}
         if not package:

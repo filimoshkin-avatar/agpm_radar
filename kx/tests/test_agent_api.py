@@ -84,6 +84,15 @@ class FakeDatabase:
         return self._record("record_answer", **kwargs) or {}
 
 
+def _searches(talking: AgentService) -> list[dict[str, Any]]:
+    """Every `agent_search` the flow ran, in order.
+
+    By name rather than by position: the flow asks the base other things too, and
+    a test that counted calls broke the moment one was added in front of it.
+    """
+    return [kwargs for name, kwargs in talking.database.asked if name == "agent_search"]  # type: ignore[attr-defined]
+
+
 def service(**answers: Any) -> AgentService:
     settings = Settings.from_environment()
     return AgentService(FakeDatabase(**answers), settings)  # type: ignore[arg-type]
@@ -364,16 +373,13 @@ def test_the_reader_chooses_which_half_of_the_base_is_searched() -> None:
     """
     talking = service(cached_answer=None, agent_search=[])
     talking.ask("что случилось на рынке", admission="observatory")
-    name, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
-    assert name == "agent_search"
-    assert kwargs["filters"]["admission"] == "observatory"
+    assert _searches(talking)[0]["filters"]["admission"] == "observatory"
 
 
 def test_an_admission_nobody_named_does_not_widen_the_search() -> None:
     talking = service(cached_answer=None, agent_search=[])
     talking.ask("вопрос", admission="everything")
-    _, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
-    assert kwargs["filters"]["admission"] == "knowledge"
+    assert _searches(talking)[0]["filters"]["admission"] == "knowledge"
 
 
 def test_an_empty_admission_does_not_widen_the_search_either() -> None:
@@ -386,8 +392,7 @@ def test_an_empty_admission_does_not_widen_the_search_either() -> None:
     """
     talking = service(cached_answer=None, agent_search=[])
     talking.ask("вопрос", admission="")
-    _, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
-    assert kwargs["filters"]["admission"] == "knowledge"
+    assert _searches(talking)[0]["filters"]["admission"] == "knowledge"
 
 
 def test_both_shelves_at_once_is_asked_for_by_name() -> None:
@@ -399,9 +404,39 @@ def test_both_shelves_at_once_is_asked_for_by_name() -> None:
     """
     talking = service(cached_answer=None, agent_search=[])
     talking.ask("что известно про пороги", admission="all")
-    name, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
-    assert name == "agent_search"
-    assert kwargs["filters"]["admission"] is None
+    assert _searches(talking)[0]["filters"]["admission"] is None
+
+
+TOPICS = [{"topic_key": "porogi", "title": "Пороги автономии", "statements": 12}]
+
+
+def test_a_question_that_names_a_topic_is_answered_from_that_topic() -> None:
+    """Measured 2026-08-25: 29 of 100 topic prompts found nothing of their own.
+
+    «Расскажи про «X»» is almost all title, and the lexical arm matches quotation
+    text, which rarely repeats the title of the shelf it sits on. «Поперечные
+    карты классических предметов управления» holds 193 statements and phrase
+    search surfaced none of them; the same search filtered by topic_key reached
+    eight, for all 29 of them. The base knew where the answer was and was never
+    asked.
+
+    The empty result here also shows the fallback: a recognised subject that
+    turns out to hold nothing must not answer worse than an unrecognised one.
+    """
+    talking = service(cached_answer=None, agent_topics=TOPICS, agent_search=[])
+    talking.ask("Расскажи про «Пороги автономии»")
+    searches = _searches(talking)
+    assert len(searches) == 2, "the empty topic search did not fall back"
+    assert searches[0]["filters"].get("topic_key") == "porogi"
+    assert "topic_key" not in searches[1]["filters"]
+
+
+def test_a_question_that_names_nothing_searches_the_whole_shelf() -> None:
+    talking = service(cached_answer=None, agent_topics=TOPICS, agent_search=[])
+    talking.ask("что вообще известно про внедрение")
+    searches = _searches(talking)
+    assert len(searches) == 1
+    assert "topic_key" not in searches[0]["filters"]
 
 
 def test_a_cached_refusal_is_not_replayed_as_an_answer() -> None:
