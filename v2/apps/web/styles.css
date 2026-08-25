@@ -2196,6 +2196,14 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
 }
 
 .agent-trail__issue { font-size: 11px; color: var(--accent); }
+button.agent-trail__issue {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+}
+button.agent-trail__issue:hover { text-decoration: underline; }
 .agent-trail__date { font-size: 11px; color: var(--muted); }
 .agent-trail__material { color: var(--text-2); min-width: 0; }
 

@@ -1842,6 +1842,8 @@ document.addEventListener("click", event => {
     state.period = "issue";
     state.issueDate = button.dataset.issueDay;
     document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === "issue"));
+    // Ссылка на выпуск может быть нажата и вне радара: сначала показываем радар.
+    if (state.viewMode !== "radar") setViewMode("radar");
     reload();
     scrollToNode(document.getElementById("columns"));
   }
@@ -2177,7 +2179,7 @@ async function agentToggleTrail(claimId) {
         const issue = step.issue_number ? `выпуск ${step.issue_number}` : "выпуск";
         const perimeter = perimeters[step.perimeter] || step.perimeter || "";
         return `<div class="agent-trail__step">
-          <span class="agent-trail__issue mono">${escapeHtml(issue)}</span>
+          <button class="agent-trail__issue mono" type="button" data-issue-day="${escapeHtml(step.issue_date)}" title="Открыть выпуск в радаре">${escapeHtml(issue)}</button>
           <span class="agent-trail__date mono">${escapeHtml(fmtDate(step.issue_date, true))}</span>
           <span class="agent-trail__material">${escapeHtml(step.material_title || "материал выпуска")}</span>
           <span class="agent-trail__perimeter mono">${escapeHtml(perimeter)}${step.key_material ? " · ключевой" : ""}</span>
