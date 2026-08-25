@@ -60,12 +60,18 @@ find . -type f ! -name MANIFEST.sha256 -print0 | sort -z | xargs -0 sha256sum > 
 chmod -R u=rwX,go=rX "$DST"
 [[ -f "$DST/deploy/radar-kx.env" ]] && chmod 0600 "$DST/deploy/radar-kx.env"
 ln -sfn "releases/$REL" /opt/radar-kx/current.new && mv -T /opt/radar-kx/current.new /opt/radar-kx/current
-# The release id lives in three places and all three must move together.
+# The release id lives in four places and all four must move together. This
+# said "three" and updated two of them: `kb.env` was left out, and on
+# 2026-08-25 the knowledge-base service was stamping its rows with
+# radar_kx_release_20260823 while the workers were two releases ahead. Same
+# hole this script was written to close, one file over.
 sed -i "s#radar_kx_release_[0-9]\{8\}_[0-9a-f]\{12\}#$REL#g" /usr/local/sbin/kxrun
 sed -i "s#^RADAR_KX_RELEASE_ID=.*#RADAR_KX_RELEASE_ID=$REL#" /etc/radar-kx/worker.env
+sed -i "s#^RADAR_KX_RELEASE_ID=.*#RADAR_KX_RELEASE_ID=$REL#" /etc/radar-kx/kb.env
 rm -f "/tmp/$REL.tar.gz"
 echo "current   -> $(readlink /opt/radar-kx/current)"
 echo "kxrun     -> $(grep -o 'radar_kx_release_[0-9a-f_]*' /usr/local/sbin/kxrun | head -1)"
 echo "worker.env-> $(grep '^RADAR_KX_RELEASE_ID=' /etc/radar-kx/worker.env | cut -d= -f2)"
+echo "kb.env    -> $(grep '^RADAR_KX_RELEASE_ID=' /etc/radar-kx/kb.env | cut -d= -f2)"
 REMOTE
 say "deployed"
