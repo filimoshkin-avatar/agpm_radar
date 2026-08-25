@@ -1506,7 +1506,7 @@ function renderTrendStack(rows) {
     .join("");
   const last = rows.at(-1);
   host.innerHTML = `<div class="trend-stack">${columns}</div>
-    <div class="trend-axis">${marks}${last ? `<span class="is-today">выпуск · ${ringTotal(last)}</span>` : ""}</div>`;
+    <div class="trend-axis">${marks}${last && latest?.issue?.issue_number ? `<span class="is-today">выпуск · ${latest.issue.issue_number}</span>` : ""}</div>`;
   setText("trendDaysNote", rows.length ? `${ringRangeLabel(rows)} · Б/С/Д` : "Б/С/Д");
 }
 
