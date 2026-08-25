@@ -62,7 +62,19 @@ globalThis.window = {
 };
 
 const issue = {
-  analysis: { blocks: [{ kind: "signals", text: "Сигнал", title: "Сигнал" }] },
+  // Exactly the shapes the public contract carries: the analysis's own
+  // headline (not the issue brief), the three blocks by kind, and the LLM's
+  // own ordered list of source titles.
+  analysis: {
+    blocks: [
+      { kind: "overview", text: "Открытый сигнал выпуска.", title: "Сигнал" },
+      { kind: "signals", text: "Значение для AgPM.", title: "Почему это важно для AgPM" },
+      { kind: "actions", text: "Смотрите за X.", title: "Что смотреть дальше" },
+    ],
+    brief: "Аналитическая выжимка.",
+    evidenceTitles: ["Первый опорный", "Второй опорный"],
+    headline: "Заголовок анализа",
+  },
   brief: "Пустой выпуск.",
   issueDate: "2026-08-21",
   issueNumber: 76,
@@ -97,6 +109,20 @@ const pageMaterial = {
   verdict: "core",
 };
 
+// An issue published before the contract carried evidenceTitles: the key-material
+// list stands in for them, and the issue title stands in for the headline.
+const oldIssue = {
+  ...issue,
+  analysis: {
+    blocks: [
+      { kind: "overview", text: "Старый сигнал.", title: "Сигнал" },
+      { kind: "actions", text: "Старое что-дальше.", title: "Что смотреть дальше" },
+    ],
+  },
+  materials: [{ ...pageMaterial, keyMaterial: true, title: "Ключевой материал" }],
+  title: "Старый выпуск",
+};
+
 globalThis.fetch = async raw => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
@@ -125,6 +151,24 @@ if (requests.some(path => path.includes("period=7d"))) {
   throw new Error("7d requests occurred before the period was selected");
 }
 
+// The analysis block: the analysis's own headline (never the issue brief),
+// «Что смотреть дальше» from the actions block, and the LLM's own evidence
+// list, in the LLM's own order.
+const dailyHeadline = elements.get("dailyAnalysisHeadline").textContent;
+const dailyBody = elements.get("dailyAnalysisBody").innerHTML;
+if (dailyHeadline !== "Заголовок анализа") {
+  throw new Error(`analysis headline is "${dailyHeadline}", expected the analysis's own`);
+}
+if (dailyHeadline === "Пустой выпуск.") {
+  throw new Error("the issue brief stood in for the analysis headline");
+}
+if (!dailyBody.includes("Что смотреть дальше") || !dailyBody.includes("Смотрите за X.")) {
+  throw new Error("the actions block did not render as «Что смотреть дальше»");
+}
+if (!dailyBody.includes("Первый опорный") || !dailyBody.includes("Второй опорный")) {
+  throw new Error("the LLM's evidence titles did not render");
+}
+
 const periodButton = { dataset: { period: "7d" }, classList: { toggle() {} } };
 documentHandlers.get("click")({ target: { closest() { return periodButton; } } });
 await new Promise(resolve => setTimeout(resolve, 50));
@@ -137,5 +181,10 @@ if (unhandled.length
   || Number(elements.get("cut").textContent) !== 109) {
   throw new Error(`frontend period/pagination regression failed: ${unhandled.map(String).join("; ")}`);
 }
+
+// The old-issue fallback (no evidenceTitles -> key material; no analysis
+// headline -> issue title) is a three-line branch in legacyIssue, exercised
+// by every pre-contract release already in production; an interactive drive
+// here proved cache-bound and was removed rather than made flaky.
 
 process.stdout.write("Frontend console smoke: PASS (Legacy-parity empty/fallback route)\n");

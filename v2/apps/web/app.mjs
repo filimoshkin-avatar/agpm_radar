@@ -36,12 +36,23 @@ function legacyMaterial(item) {
 function legacyIssue(payload) {
   const blocks = payload.analysis?.blocks || [];
   const block = kind => blocks.find(item => item.kind === kind)?.text || "";
+  // The analysis headline is the analysis's own - the issue brief is a
+  // different animal and used to stand in its place. `watch_next` is a
+  // Legacy field name; on the V2 side that text lives in the `actions` block.
+  const explicitTitles = Array.isArray(payload.analysis?.evidenceTitles)
+    ? payload.analysis.evidenceTitles
+    : null;
   const analysis = {
-    headline: payload.brief || payload.title || "",
+    headline: payload.analysis?.headline || payload.title || "",
     signal: block("overview"),
     why_agpm: block("signals"),
-    watch_next: block("watch_next") || block("outlook"),
-    evidence_titles: (payload.materials || []).filter(item => item.keyMaterial).map(item => item.title),
+    watch_next: block("actions"),
+    // The LLM chose these titles, in this order, for its analysis; the
+    // key-material list stands in only for issues published before the
+    // contract carried them.
+    evidence_titles: explicitTitles && explicitTitles.length
+      ? explicitTitles
+      : (payload.materials || []).filter(item => item.keyMaterial).map(item => item.title),
   };
   return {
     site: { title: "Радар агентного проектного управления" },

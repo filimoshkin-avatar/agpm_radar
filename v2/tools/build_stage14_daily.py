@@ -119,17 +119,37 @@ def _reconcile_narrative(text: str, *, legacy_count: int, stats: dict[str, int])
     return text
 
 
+def _evidence_titles(raw: object) -> list[str]:
+    """The LLM's own list of source titles, kept as the LLM chose it.
+
+    Order preserved (it is the analysis's composition), empties dropped,
+    duplicates removed stably - the first mention stands, nothing is reordered.
+    """
+    if not isinstance(raw, list):
+        return []
+    titles: list[str] = []
+    for item in raw:
+        title = item.strip() if isinstance(item, str) else ""
+        if title and title not in titles:
+            titles.append(title)
+    return titles
+
+
 def _analysis(
     document: dict[str, object], *, legacy_count: int, stats: dict[str, int]
 ) -> JsonObject:
     daily = cast(dict[str, object], document["daily_analysis"])
     body = cast(dict[str, object], daily.get("analysis") or {})
+    # The analysis is Legacy's finished LLM work, imported whole: the three
+    # fields Legacy sends are the three blocks V2 shows. No field is searched
+    # for where it never was - `risks` and `actions` were phantom keys, and
+    # Legacy's "what next" field is `watch_next`, which becomes V2's `actions`
+    # block (the block kind, not a Legacy field name).
     blocks: list[JsonObject] = []
     for kind, key, title in (
         ("overview", "signal", "Сигнал"),
         ("signals", "why_agpm", "Почему это важно для AgPM"),
-        ("risks", "risks", "Риски"),
-        ("actions", "actions", "Действия"),
+        ("actions", "watch_next", "Что смотреть дальше"),
     ):
         value = body.get(key)
         if isinstance(value, str) and value.strip():
@@ -163,6 +183,7 @@ def _analysis(
         "brief": _reconcile_narrative(
             str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
         ),
+        "evidenceTitles": _evidence_titles(body.get("evidence_titles")),
         "headline": daily.get("headline"),
         "theses": theses,
     }

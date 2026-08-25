@@ -419,6 +419,20 @@ def test_stats_duplicate_date_and_draft_invariants_fail_closed(tmp_path: Path) -
     with pytest.raises(PublicIssueValidationError, match="duplicate material URL"):
         validate_public_issue_document(duplicate_document)
 
+    # evidenceTitles is the LLM's own ordered list: a non-list is not a list,
+    # and an empty string is not a title.
+    non_list_titles = copy.deepcopy(document)
+    cast(dict[str, object], non_list_titles["analysis"])["evidenceTitles"] = "не список"
+    with pytest.raises(PublicIssueValidationError, match="evidenceTitles"):
+        validate_public_issue_document(non_list_titles)
+
+    empty_title = copy.deepcopy(document)
+    cast(list[object], cast(dict[str, object], empty_title["analysis"])["evidenceTitles"]).append(
+        ""
+    )
+    with pytest.raises(PublicIssueValidationError, match="evidenceTitles"):
+        validate_public_issue_document(empty_title)
+
     duplicate_db = tmp_path / "duplicate.sqlite"
     _seed_database(duplicate_db, document)
     with sqlite3.connect(duplicate_db) as connection:
@@ -597,15 +611,24 @@ def _legacy_public_document(fixture: Mapping[str, object]) -> JsonObject:
     stats = cast(dict[str, object], fixture["stats"])
     daily = cast(dict[str, object], fixture["dailyAnalysis"])
     analysis = cast(dict[str, object], daily["analysis"])
+    # One composition, whichever path an issue arrived by: signal opens as
+    # `overview`, why-it-matters follows as `signals`, what-to-watch closes
+    # as `actions` - the same convention the candidate builder writes.
     blocks = [
         {"kind": kind, "text": analysis[key], "title": title}
         for key, kind, title in (
-            ("signal", "signals", "Сигнал выпуска"),
-            ("why_agpm", "overview", "Значение для AgPM"),
-            ("watch_next", "actions", "Что отслеживать дальше"),
+            ("signal", "overview", "Сигнал"),
+            ("why_agpm", "signals", "Почему это важно для AgPM"),
+            ("watch_next", "actions", "Что смотреть дальше"),
         )
         if isinstance(analysis.get(key), str) and analysis[key]
     ]
+    raw_titles = analysis.get("evidence_titles")
+    evidence_titles: list[str] = []
+    for raw in raw_titles if isinstance(raw_titles, list) else []:
+        title = raw.strip() if isinstance(raw, str) else ""
+        if title and title not in evidence_titles:
+            evidence_titles.append(title)
     materials: list[dict[str, object]] = []
     for raw in cast(list[dict[str, object]], fixture["materials"]):
         rubric_ids = [
@@ -640,6 +663,7 @@ def _legacy_public_document(fixture: Mapping[str, object]) -> JsonObject:
         "analysis": {
             "blocks": blocks,
             "brief": issue["brief"],
+            "evidenceTitles": evidence_titles,
             "headline": daily["headline"],
         },
         "brief": issue["brief"],

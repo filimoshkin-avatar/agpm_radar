@@ -284,10 +284,11 @@ components:
     Analysis:
       type: object
       additionalProperties: false
-      required: [headline, brief, blocks]
+      required: [headline, brief, evidenceTitles, blocks]
       properties:
         headline: {type: [string, "null"], maxLength: 500}
         brief: {type: [string, "null"], maxLength: 4000}
+        evidenceTitles: {type: array, maxItems: 40, items: {type: string, minLength: 1, maxLength: 300}}
         blocks: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/AnalysisBlock"}}
     Stats:
       type: object

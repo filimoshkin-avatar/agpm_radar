@@ -258,9 +258,21 @@ def validate_public_issue_document(value: object) -> JsonObject:
     _llm(issue["llm"], "llm")
     stats = _stats(issue["stats"])
 
-    analysis = _exact(issue["analysis"], {"blocks", "brief", "headline"}, "analysis")
+    analysis = _exact(
+        issue["analysis"], {"blocks", "brief", "evidenceTitles", "headline"}, "analysis"
+    )
     _optional_text(analysis["headline"], "analysis.headline", maximum=500)
     _optional_text(analysis["brief"], "analysis.brief", maximum=4_000)
+    evidence_titles = analysis["evidenceTitles"]
+    if not isinstance(evidence_titles, list) or len(evidence_titles) > 40:
+        raise PublicIssueValidationError("analysis.evidenceTitles must contain at most 40 titles")
+    for index, raw_title in enumerate(evidence_titles):
+        _text(
+            raw_title,
+            f"analysis.evidenceTitles[{index}]",
+            minimum=1,
+            maximum=300,
+        )
     blocks = analysis["blocks"]
     if not isinstance(blocks, list) or not blocks or len(blocks) > 20:
         raise PublicIssueValidationError("analysis.blocks must contain 1..20 items")
@@ -403,10 +415,14 @@ def _analysis_blocks(
     if isinstance(daily, dict):
         daily_object = cast(dict[str, object], daily)
         mapped: list[JsonValue] = []
+        # Same convention as the candidate builder, so a reader sees one
+        # composition whichever path an issue arrived by: signal opens
+        # (`overview`), why it matters follows (`signals`), what to watch
+        # closes (`actions`).
         for key, kind, title in (
-            ("signal", "signals", "Сигнал выпуска"),
-            ("why_agpm", "overview", "Значение для AgPM"),
-            ("watch_next", "actions", "Что отслеживать дальше"),
+            ("signal", "overview", "Сигнал"),
+            ("why_agpm", "signals", "Почему это важно для AgPM"),
+            ("watch_next", "actions", "Что смотреть дальше"),
         ):
             text = daily_object.get(key)
             if isinstance(text, str) and text:
@@ -414,6 +430,21 @@ def _analysis_blocks(
         if mapped:
             return mapped
     return [_fallback_block(material_count, stats, status)]
+
+
+def _evidence_titles(raw: object) -> list[str]:
+    """The LLM's own list of source titles, in its own order.
+
+    Cleaned the same way the candidate builder cleans it, so the public
+    contract is one rule, not two: empties dropped, duplicates removed stably.
+    """
+    value = raw if isinstance(raw, list) else []
+    titles: list[str] = []
+    for item in value:
+        title = item.strip() if isinstance(item, str) else ""
+        if title and title not in titles:
+            titles.append(title)
+    return titles
 
 
 def _verify_database_boundary(connection: sqlite3.Connection) -> None:
@@ -630,6 +661,9 @@ def build_public_issue(
                 cast(str, analysis_row["llm_status"]),
             ),
             "brief": analysis_row["brief"] if analysis_row["brief"] is not None else issue["brief"],
+            "evidenceTitles": _evidence_titles(
+                cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
+            ),
             "headline": analysis_row["headline"],
         },
         "brief": issue["brief"],
@@ -829,6 +863,9 @@ def build_public_issue_from_views(
                 cast(str, analysis_row["llm_status"]),
             ),
             "brief": analysis_row["brief"] if analysis_row["brief"] is not None else issue["brief"],
+            "evidenceTitles": _evidence_titles(
+                cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
+            ),
             "headline": analysis_row["headline"],
         },
         "brief": issue["brief"],

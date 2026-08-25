@@ -23,7 +23,8 @@
           }
         ],
         "brief": "Публикация без LLM-результата.",
-        "headline": null
+        "headline": null,
+        "evidenceTitles": []
       },
       "brief": "Публикация без LLM-результата.",
       "issueDate": "2026-08-21",
@@ -74,7 +75,7 @@
       "theses": [],
       "title": "AgPM daily radar 2026-08-21"
     },
-    "jsonSha256": "8e9baa0d0473f0f8fe6df4b15e58fd2ac8e5862cc3e72724cb910e870a6f1d95"
+    "jsonSha256": "efcba3dc2e336ccc0832cbb353d4ae4695debfd403a462a1731f5cf188f9cf8c"
   },
   "normal": {
     "docxSha256": "e3edb76fba86d651bbb8fdb506bb809524e34708450036abd2f23656bcff3fe2",
@@ -94,7 +95,8 @@
           }
         ],
         "brief": "Управляемая агентность и проверяемые действия.",
-        "headline": "Управляемый агентный процесс"
+        "headline": "Управляемый агентный процесс",
+        "evidenceTitles": []
       },
       "brief": "В выпуске два синтетических материала.",
       "issueDate": "2026-08-20",
@@ -181,6 +183,6 @@
       ],
       "title": "AgPM daily radar 2026-08-20"
     },
-    "jsonSha256": "bc7cca04e543a9e70e8ed85aa80f88ed2870d360c52b860c03c37ed3a482bc54"
+    "jsonSha256": "1d2ffbeaa7ce876c7601e90826c34ded6c073d089d19e477205012b1bcfa3874"
   }
 }

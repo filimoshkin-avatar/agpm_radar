@@ -97,3 +97,66 @@ def test_correction_accepts_imported_and_native_flag_shapes() -> None:
     ]
     with pytest.raises(ValueError, match="accepted material flags are invalid"):
         _flag_names('["security",1]', material_id="mat_1")
+
+
+def _zero_stats() -> dict[str, int]:
+    return {
+        "adjacent": 0,
+        "core": 0,
+        "cut": 0,
+        "far": 0,
+        "included": 1,
+        "mid": 0,
+        "near": 0,
+        "viewed": 1,
+    }
+
+
+def test_analysis_maps_watch_next_to_actions_and_invents_nothing() -> None:
+    """Three Legacy fields, three blocks - and no phantom `risks`/`actions` keys."""
+    document: dict[str, object] = {
+        "daily_analysis": {
+            "headline": "Сигнал",
+            "analysis": {
+                "signal": "Открытый сигнал.",
+                "why_agpm": "Почему это важно.",
+                "watch_next": "Что смотреть дальше.",
+                "risks": "мусор-риски",
+                "actions": "мусор-действия",
+            },
+        },
+        "issue": {"brief": "", "theses": []},
+    }
+    analysis = _analysis(document, legacy_count=1, stats=_zero_stats())
+    blocks = cast(list[dict[str, object]], analysis["blocks"])
+    assert [(block["kind"], block["title"]) for block in blocks] == [
+        ("overview", "Сигнал"),
+        ("signals", "Почему это важно для AgPM"),
+        ("actions", "Что смотреть дальше"),
+    ]
+    assert blocks[2]["text"] == "Что смотреть дальше."
+    assert all("мусор" not in str(block) for block in blocks)
+
+
+def test_analysis_carries_evidence_titles_as_the_llm_chose_them() -> None:
+    """The LLM's own list, in its own order: empties dropped, dupes stable."""
+    document: dict[str, object] = {
+        "daily_analysis": {
+            "headline": "Сигнал",
+            "analysis": {
+                "signal": "Сигнал.",
+                "evidence_titles": [
+                    "Второй источник",
+                    "",
+                    "Первый источник",
+                    "Второй источник",
+                    "  Третий  ",
+                    7,
+                    None,
+                ],
+            },
+        },
+        "issue": {"brief": "", "theses": []},
+    }
+    analysis = _analysis(document, legacy_count=1, stats=_zero_stats())
+    assert analysis["evidenceTitles"] == ["Второй источник", "Первый источник", "Третий"]

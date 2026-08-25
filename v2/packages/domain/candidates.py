@@ -309,9 +309,29 @@ def _validate_base(value: object) -> None:
 
 
 def _validate_analysis(value: object) -> None:
-    analysis = _exact(value, {"headline", "brief", "blocks", "theses"}, "desiredIssue.analysis")
+    # `evidenceTitles` is optional at the candidate door: candidates built
+    # before the field existed remain valid, and the public contract still
+    # always carries the list (normalised to [] where a candidate had none).
+    has_titles = isinstance(value, dict) and "evidenceTitles" in cast(dict[str, object], value)
+    analysis = _exact(
+        value,
+        {"headline", "brief", "blocks", "theses"} | ({"evidenceTitles"} if has_titles else set()),
+        "desiredIssue.analysis",
+    )
     _optional_text(analysis["headline"], "analysis.headline", maximum=500)
     _optional_text(analysis["brief"], "analysis.brief", maximum=4_000)
+    # The LLM's own list of source titles, as it composed them: order is the
+    # analysis's, so nothing here may sort it - only bound it.
+    titles = analysis.get("evidenceTitles", [])
+    if not isinstance(titles, list) or len(titles) > 40:
+        raise CandidateValidationError("analysis.evidenceTitles must contain at most 40 titles")
+    for index, raw_title in enumerate(titles):
+        _text(
+            raw_title,
+            f"analysis.evidenceTitles[{index}]",
+            minimum=1,
+            maximum=300,
+        )
     blocks = analysis["blocks"]
     if not isinstance(blocks, list) or len(blocks) > 20:
         raise CandidateValidationError("analysis.blocks must contain at most 20 blocks")

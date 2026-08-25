@@ -1131,3 +1131,29 @@ def test_cli_correction_and_gazette_playbooks_use_closed_inputs(
         == 0
     )
     assert json.loads(capfd.readouterr().out)["operation"] == "gazette"
+
+
+def test_analysis_evidence_titles_are_part_of_the_candidate_contract() -> None:
+    """The LLM's ordered source list travels with the analysis, bounded not sorted."""
+    from packages.domain.candidates import CandidateValidationError, _validate_analysis
+
+    _validate_analysis(
+        {
+            "headline": "Сигнал",
+            "brief": "Кратко.",
+            "evidenceTitles": ["Первый", "Второй", "Первый"],
+            "blocks": [{"kind": "overview", "title": "Сигнал", "text": "Текст."}],
+            "theses": [],
+        }
+    )
+    for wrong in ("не список", ["Первый", ""], [["вложенный"]]):
+        with pytest.raises(CandidateValidationError, match="evidenceTitles"):
+            _validate_analysis(
+                {
+                    "headline": "Сигнал",
+                    "brief": "Кратко.",
+                    "evidenceTitles": wrong,
+                    "blocks": [{"kind": "overview", "title": "Сигнал", "text": "Текст."}],
+                    "theses": [],
+                }
+            )
