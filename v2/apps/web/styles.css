@@ -3451,21 +3451,25 @@ body:not(.is-chat) .chat-up { display: none; }
     position: static;
     max-height: none;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    padding: 6px 10px;
     border-right: 0;
     border-bottom: 1px solid var(--rule-4);
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
-  .agent-rail__group { flex-direction: row; flex-wrap: wrap; }
-  .agent-rail__item { width: auto; }
+  .agent-rail__top { display: none; }
+  .agent-rail__group { flex-direction: row; flex-wrap: nowrap; }
+  .agent-rail__item { width: auto; white-space: nowrap; }
   .agent-rail__tail { margin-left: 6px; }
   .agent-rail__section { display: none; }
-  .agent-rail__foot { margin-top: 0; border-top: 0; padding: 0; flex-direction: row; align-items: center; }
+  .agent-rail__foot { margin-top: 0; border-top: 0; padding: 0; flex-direction: row; align-items: center; white-space: nowrap; }
   .agent-rail__note { display: none; }
   .agent-rail__collapse { display: none; }
   .agent-rail.is-narrow [data-lbl] { display: inline; }
-  .agent-rail__tip { left: 0; top: calc(100% + 8px); transform: none; }
+  .agent-rail__tip { display: none; }
 }
 
 @media (max-width: 760px) {
