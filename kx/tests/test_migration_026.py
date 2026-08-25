@@ -36,6 +36,10 @@ ALLOWED = {
     # read, and nothing beyond the issue number, date, perimeter and material
     # title leaves through it.
     ("agent", "statement_trail", "SELECT"),
+    # 033: when each step of the daily chain last passed. The base's freshness is
+    # its own state, and the reader is told it the same way they are told its
+    # size. The journal itself - call counts, budgets - stays in `kx`.
+    ("agent", "sync", "SELECT"),
     # The schema-version gate every command runs before it does anything.
     ("kx", "metadata", "SELECT"),
     # The answer cache reads its own rows; decision 9 keeps the chat for analysis.

@@ -68,6 +68,9 @@ class FakeDatabase:
     def agent_counts(self) -> Any:
         return self._record("agent_counts") or {}
 
+    def agent_sync(self) -> Any:
+        return self._record("agent_sync") or []
+
     def agent_trail(self, claim_id: str) -> Any:
         return self._record("agent_trail", claim_id=claim_id) or []
 
@@ -489,13 +492,14 @@ COUNTS = {
 
 
 def test_counts_reach_a_reader_without_a_key() -> None:
-    """Решение владельца: число - не содержание, и оно публично."""
-    assert service(agent_counts=COUNTS).counts() == COUNTS
+    """The owner's decision: a count is not content, and it is public."""
+    served = service(agent_counts=COUNTS).counts()
+    assert {key: served[key] for key in COUNTS} == COUNTS
 
 
 def test_counts_are_counted_once_and_kept() -> None:
-    """Полсекунды по всей поверхности - не та цена, чтобы платить её на каждый
-    запрос: база меняется раз в сутки."""
+    """Half a second over the whole surface is not a price to pay per request:
+    the base changes once a day."""
     api = service(agent_counts=COUNTS)
     api.counts()
     api.counts()
@@ -505,13 +509,14 @@ def test_counts_are_counted_once_and_kept() -> None:
 
 
 def test_the_welcome_screen_carries_the_counts_with_its_examples() -> None:
-    """Диалог и так ходит за примерами: второй круг ради счётчиков был бы лишним."""
+    """The chat fetches the examples anyway: a second round trip for the counts
+    would be one too many."""
     served = service(agent_counts=COUNTS, agent_topics=[]).prompts()
-    assert served["counts"] == COUNTS
+    assert {key: served["counts"][key] for key in COUNTS} == COUNTS
 
 
 def test_a_statement_says_which_issue_carried_its_material() -> None:
-    """Цепочка доверия кончалась первоисточником; последнее звено - выпуск."""
+    """The chain of trust ended at the source; its last link is the issue."""
     trail = [
         {
             "issue_date": "2026-08-24",
@@ -528,7 +533,8 @@ def test_a_statement_says_which_issue_carried_its_material() -> None:
 
 
 def test_a_statement_that_never_came_from_an_issue_says_so_by_being_empty() -> None:
-    """46 % утверждений пришли из канона и wiki. Пустой путь - ответ, не пробел."""
+    """46 % of statements came from the canon and the wiki. An empty path is an
+    answer, not a gap."""
     served = service(agent_statement={"claim_id": "c1"}).statement("c1")
     assert served["trail"] == []
 
@@ -537,3 +543,69 @@ def test_a_missing_statement_is_not_given_a_trail_to_nowhere() -> None:
     served = service().statement("нет-такого")
     assert "trail" not in served
     assert served["error"]
+
+
+# ---------------------------------------------------------------------------
+# Отметка прохода цепочки: когда база последний раз синхронизировалась
+# ---------------------------------------------------------------------------
+
+
+def chain(**passed: str | None) -> list[dict[str, Any]]:
+    return [
+        {
+            "step": step,
+            "succeeded_at": passed.get(step),
+            "attempted_at": passed.get(step),
+            "failures_since": 0,
+        }
+        for step in ("perimeter", "ingest", "knowledge", "embedding")
+    ]
+
+
+def test_the_base_is_as_fresh_as_its_laggiest_step() -> None:
+    """Ingest fires every half hour, knowledge once a day. Freshness follows
+    knowledge, because that is the laggiest step."""
+    served = service(
+        agent_counts=COUNTS,
+        agent_sync=chain(
+            perimeter="2026-08-25T11:30:00+00:00",
+            ingest="2026-08-25T11:45:00+00:00",
+            knowledge="2026-08-25T06:07:00+00:00",
+            embedding="2026-08-25T06:22:00+00:00",
+        ),
+    ).counts()
+    assert served["syncedAt"] == "2026-08-25T06:07:00+00:00"
+
+
+def test_a_step_that_never_passed_leaves_the_answer_empty() -> None:
+    """A minimum over "the steps that did pass" would call the base half an hour
+    fresh while the daily link has been silent for two days. Better no answer."""
+    served = service(
+        agent_counts=COUNTS,
+        agent_sync=chain(
+            perimeter="2026-08-25T11:30:00+00:00",
+            ingest="2026-08-25T11:45:00+00:00",
+        ),
+    ).counts()
+    assert served["syncedAt"] is None
+
+
+def test_a_base_nobody_has_synchronised_says_nothing_rather_than_something() -> None:
+    served = service(agent_counts=COUNTS, agent_sync=[]).counts()
+    assert served["syncedAt"] is None
+    assert served["chain"] == []
+
+
+def test_the_chain_travels_with_the_counts_so_the_reader_can_check() -> None:
+    """The single number is derived from the rows rather than replacing them: a
+    failing step has to be visible as failing."""
+    rows = chain(
+        perimeter="2026-08-25T11:30:00+00:00",
+        ingest="2026-08-25T11:45:00+00:00",
+        knowledge="2026-08-24T06:07:00+00:00",
+        embedding="2026-08-24T06:22:00+00:00",
+    )
+    rows[3]["failures_since"] = 2
+    served = service(agent_counts=COUNTS, agent_sync=rows).counts()
+    assert served["chain"][3]["failures_since"] == 2
+    assert served["syncedAt"] == "2026-08-24T06:07:00+00:00"

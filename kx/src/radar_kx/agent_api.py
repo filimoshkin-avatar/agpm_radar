@@ -312,6 +312,30 @@ class AskBudget:
         return None
 
 
+#: Шаги суточной цепочки, все четыре. База свежа настолько, насколько свеж её
+#: самый отставший шаг, поэтому список полный: шаг, который ни разу не прошёл,
+#: обязан обнулить ответ, а не выпасть из подсчёта минимума.
+CHAIN_STEPS: Final = ("perimeter", "ingest", "knowledge", "embedding")
+
+
+def _synced_at(chain: list[dict[str, Any]]) -> str | None:
+    """Когда база синхронизирована - по самому отставшему шагу цепочки.
+
+    Пусто, пока хотя бы один шаг ни разу не прошёл удачно. Это не осторожность:
+    ingest срабатывает каждые полчаса, и минимум по «тем шагам, что прошли»
+    объявил бы базу свежей на полчаса, пока суточное звено знания молчит вторые
+    сутки. Ровно так однажды пасс писал success при calls: 0.
+    """
+    when = {}
+    for row in chain:
+        step = str(row.get("step") or "")
+        if row.get("succeeded_at"):
+            when[step] = row["succeeded_at"]
+    if any(step not in when for step in CHAIN_STEPS):
+        return None
+    return min(str(when[step]) for step in CHAIN_STEPS)
+
+
 class AgentService:
     """What the agent mode may ask for. Reads; the only writes are its own log."""
 
@@ -329,7 +353,7 @@ class AgentService:
         self.guard = AccessGuard(database)
         #: Числа объектов базы. Считаются по всей поверхности, меняются раз в
         #: сутки - значит, живут в памяти процесса, а не в каждом запросе.
-        self._counts: dict[str, int] | None = None
+        self._counts: dict[str, Any] | None = None
         self._counts_at = 0.0
 
     def access(self, authorization: str | None) -> dict[str, Any]:
@@ -338,8 +362,8 @@ class AgentService:
 
     # -- level 4: the backbone and the shelves ---------------------------------
 
-    def counts(self) -> dict[str, int]:
-        """How much the base holds. Open to everybody - ADR-0011.
+    def counts(self) -> dict[str, Any]:
+        """How much the base holds, and when it was last synchronised. ADR-0011.
 
         The count runs over the whole surface and takes about half a second,
         while the base changes once a day, when the chain passes. So it is kept
@@ -349,7 +373,9 @@ class AgentService:
         now = time.monotonic()
         if self._counts is not None and now - self._counts_at < COUNTS_TTL_SECONDS:
             return self._counts
-        self._counts = self.database.agent_counts()
+        counted = dict(self.database.agent_counts())
+        chain = [dict(row) for row in self.database.agent_sync()]
+        self._counts = {**counted, "chain": chain, "syncedAt": _synced_at(chain)}
         self._counts_at = now
         return self._counts
 

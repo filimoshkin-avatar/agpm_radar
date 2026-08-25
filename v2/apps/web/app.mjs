@@ -498,6 +498,27 @@ function ru(value) {
   return Number(value).toLocaleString("ru-RU").replace(/\u00a0/g, " ");
 }
 
+/** Одно число сведено из четырёх шагов, и по наведению их видно порознь:
+ *  сведение не должно прятать шаг, который падает. */
+function kbSyncTitle(chain) {
+  const names = {
+    perimeter: "материалы радара",
+    ingest: "загрузка и разбор",
+    knowledge: "чтение и связывание",
+    embedding: "векторы",
+  };
+  return (Array.isArray(chain) ? chain : [])
+    .map(step => {
+      const when = step.succeeded_at ? new Date(step.succeeded_at) : null;
+      const at = when && !Number.isNaN(when.getTime())
+        ? when.toISOString().slice(0, 16).replace("T", " ") + " UTC"
+        : "ни разу";
+      const failed = Number(step.failures_since) || 0;
+      return `${names[step.step] || step.step}: ${at}${failed ? ` · падений с тех пор: ${failed}` : ""}`;
+    })
+    .join("\n");
+}
+
 async function kbLoadCounts() {
   if (kbCounts) return kbCounts;
   try {
@@ -512,11 +533,31 @@ async function kbLoadCounts() {
   }
 }
 
+/** «СИНХР. 06:07 UTC» — по самому отставшему шагу цепочки, и служба уже свела
+ *  его в одно поле. Пусто, пока хотя бы один шаг ни разу не прошёл: тогда
+ *  строка молчит, а не называет время, которого не было.
+ *
+ *  Дата появляется, когда проход не сегодняшний: «СИНХР. 06:07 UTC» и «СИНХР.
+ *  24.08 06:07 UTC» — разные новости, и вторую нельзя выдавать за первую. */
+function kbSyncLabel(syncedAt) {
+  if (!syncedAt) return "";
+  const when = new Date(syncedAt);
+  if (Number.isNaN(when.getTime())) return "";
+  const time = `${String(when.getUTCHours()).padStart(2, "0")}:${String(when.getUTCMinutes()).padStart(2, "0")}`;
+  const today = new Date();
+  const sameDay = when.getUTCFullYear() === today.getUTCFullYear()
+    && when.getUTCMonth() === today.getUTCMonth()
+    && when.getUTCDate() === today.getUTCDate();
+  const day = `${String(when.getUTCDate()).padStart(2, "0")}.${String(when.getUTCMonth() + 1).padStart(2, "0")}`;
+  return sameDay ? `СИНХР. ${time} UTC` : `СИНХР. ${day} ${time} UTC`;
+}
+
 function kbApplyCounts(counts) {
   const statements = Number(counts.statements) || 0;
   const topics = Number(counts.topics) || 0;
   const line = `${ru(statements)} ${pluralRu(statements, "УТВЕРЖДЕНИЕ", "УТВЕРЖДЕНИЯ", "УТВЕРЖДЕНИЙ")}`
     + ` · ${ru(topics)} ${pluralRu(topics, "ТЕМА", "ТЕМЫ", "ТЕМ")}`;
+  const synced = kbSyncLabel(counts.syncedAt);
 
   const cell = document.getElementById("tickerBase");
   if (cell) {
@@ -524,7 +565,11 @@ function kbApplyCounts(counts) {
     cell.textContent = `БАЗА ${line}`;
   }
   const status = document.getElementById("agentBaseStatus");
-  if (status) status.innerHTML = `<i aria-hidden="true"></i>БАЗА: ${escapeHtml(line)}`;
+  if (status) {
+    status.innerHTML = `<i aria-hidden="true"></i>БАЗА: ${escapeHtml(line)}`
+      + (synced ? ` · ${escapeHtml(synced)}` : "");
+    if (synced) status.title = kbSyncTitle(counts.chain);
+  }
 
   // Каждому пункту рейки — своё число, включая закрытые: замок должен
   // говорить, чего читатель лишён.

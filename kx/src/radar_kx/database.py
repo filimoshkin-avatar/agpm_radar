@@ -128,7 +128,7 @@ OBSERVATORY_PER_CLASS = 60
 ACCESS_KEY_PREFIX = "radar-"
 ACCESS_KEY_ENTROPY_BYTES = 30
 
-SCHEMA_VERSION = 32
+SCHEMA_VERSION = 33
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -6352,6 +6352,45 @@ class Database:
             cursor.execute(query)
             row = cursor.fetchone()
         return {key: int(value or 0) for key, value in dict(row or {}).items()}
+
+    def agent_sync(self) -> list[dict[str, Any]]:
+        """When each step of the daily chain last passed, and last was tried.
+
+        The base is only as fresh as its laggiest step, so the caller gets every
+        step rather than one number: a chain whose embedding stage has been
+        failing for a week is not "synchronised an hour ago" because the ingest
+        timer keeps firing.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT step, succeeded_at, attempted_at, failures_since"
+                " FROM agent.sync ORDER BY step"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def open_chain_pass(self, *, step: str, command: str, release_id: str) -> str:
+        """Write down that a chain step started. Returns the row to close."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO kx.chain_passes (step, command, release_id)"
+                " VALUES (%s, %s, %s) RETURNING pass_id",
+                (step, command, release_id),
+            )
+            row = cursor.fetchone()
+            connection.commit()
+        return str(dict(row or {}).get("pass_id"))
+
+    def close_chain_pass(self, pass_id: str, *, outcome: str, detail: Any = None) -> None:
+        """Close a pass with how it ended. A pass that is never closed stays
+        `running`, which is exactly what a killed process should look like."""
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE kx.chain_passes"
+                " SET finished_at = clock_timestamp(), outcome = %s, detail = %s"
+                " WHERE pass_id = %s",
+                (outcome, Jsonb(detail if isinstance(detail, dict) else {}), pass_id),
+            )
+            connection.commit()
 
     def agent_trail(self, claim_id: str) -> list[dict[str, Any]]:
         """A statement's path to the radar issue: material, perimeter, number, date.

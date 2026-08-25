@@ -128,7 +128,15 @@ def _question_vector(question: str) -> str:
     return to_pgvector(encode(load_model(), [question], is_query=True)[0])
 
 
+#: The last thing a command printed. A chain pass files it under `detail`: the
+#: report is already assembled, and assembling it a second time would be a second
+#: text of one rule.
+_last_payload: Any = None
+
+
 def _print_json(value: Any) -> None:
+    global _last_payload
+    _last_payload = value
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
 
@@ -516,9 +524,52 @@ CALLS_PER_ITEM = {
 #: admitted.
 CATCH_UP_ORDER = ("extract-claims", "read-claims", "link-claims", "find-entities")
 
+#: What systemd fires by timer, and which step of the chain each one is. The
+#: mark is taken here, in one place for all four, rather than inside each
+#: command: only what stands in a gate or in a timer actually runs, and
+#: forgetting a line in a fifth command would lose a stage exactly the way the
+#: embedding link was once lost.
+#:
+#: The inner steps of `catch-up` are deliberately absent: it calls `main`
+#: recursively, and a pass per stage would turn one pass into five.
+CHAIN_STEPS: dict[str, str] = {
+    "import-perimeter": "perimeter",
+    "run": "ingest",
+    "catch-up": "knowledge",
+    "embed": "embedding",
+}
+
 
 def main(argv: list[str] | None = None) -> None:
+    """Every command, and a written-down pass for the four the timers fire.
+
+    The mark is taken here rather than inside each command so that a step
+    cannot be added without one: the chain already lost its embedding stage
+    once by nobody noticing it was absent.
+    """
     args = _parser().parse_args(argv)
+    step = CHAIN_STEPS.get(args.command)
+    if step is None:
+        _dispatch(args)
+        return
+    settings = Settings.from_environment()
+    database = Database(settings)
+    pass_id = database.open_chain_pass(
+        step=step, command=args.command, release_id=settings.release_id
+    )
+    global _last_payload
+    _last_payload = None
+    try:
+        _dispatch(args)
+    except BaseException:
+        # A pass that ends any other way ended badly, and "synchronised" must
+        # never be allowed to mean "the last time anything was started".
+        database.close_chain_pass(pass_id, outcome="failed", detail=_last_payload)
+        raise
+    database.close_chain_pass(pass_id, outcome="succeeded", detail=_last_payload)
+
+
+def _dispatch(args: Any) -> None:
     settings = Settings.from_environment()
     database = Database(settings)
 

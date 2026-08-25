@@ -60,6 +60,7 @@ MIGRATION_029 = "029_graph_holds_knowledge.sql"
 MIGRATION_030 = "030_agent_sees_entities.sql"
 MIGRATION_031 = "031_access_keys.sql"
 MIGRATION_032 = "032_statement_trail.sql"
+MIGRATION_033 = "033_chain_passes.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
     MIGRATION_004,
@@ -91,6 +92,7 @@ ADOPTED_MIGRATIONS = (
     MIGRATION_030,
     MIGRATION_031,
     MIGRATION_032,
+    MIGRATION_033,
 )
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
