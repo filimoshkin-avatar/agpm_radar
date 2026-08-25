@@ -20,8 +20,11 @@ Every level is a field of the same response rather than four endpoints, so a
 client cannot show level one and quietly fail to fetch level three.
 
 **What the reader is told about the answer.** Decision 6: an agent's answer is
-free text, marked "машинный ответ, не редакция базы", with the quotations under
-it. Decision 9: the chat is a chat - questions and answers are kept for analysis,
+free text, marked "агентный ответ, не редакция базы", with the quotations under
+it. The wording was "машинный" until ADR-0013 - the same promise, in the word the
+rest of the site uses for the thing that made the answer.
+
+Decision 9: the chat is a chat - questions and answers are kept for analysis,
 there is no permanent address for an answer and no public retraction procedure,
 because nothing here is published under the base's name.
 
@@ -210,10 +213,30 @@ class AccessGuard:
 
 
 #: The two sentences that travel with every generated answer. The owner's wording
-#: (decision 6), kept here as a constant rather than in a template, so no client
-#: can render an answer without them.
-MACHINE_NOTICE = "Машинный ответ, не редакция базы."
-SIGNATURE = "AgPM Radar, машинная сборка"
+#: (decision 6, reworded by ADR-0013), kept here as a constant rather than in a
+#: template, so no client can render an answer without them.
+#:
+#: The name of the constant and the `machineNotice` field it fills are unchanged
+#: on purpose: the field is a wire contract the front end reads, and renaming it
+#: would break every client to say the same thing. What the reader sees is the
+#: string, and the string is what the decision is about.
+MACHINE_NOTICE = "Агентный ответ, не редакция базы."
+SIGNATURE = "AgPM Radar, агентная сборка"
+
+#: What a question can be aimed at. Two of these are admissions the reading pass
+#: assigns and decision 3 keeps apart - knowledge, and the market chronicle; the
+#: third is the reader asking both shelves at once (ADR-0012).
+#:
+#: `all` is a *named* value, not an absence, and the difference is the whole
+#: rule: a value nobody named still narrows to knowledge, so a typo, an old
+#: client or a truncated field cannot widen the search by accident. Only a
+#: reader who asked for both gets both.
+#:
+#: And `all` reaches no further than the two shelves. `agent.statement` is built
+#: `WHERE reading.admission <> 'rejected'` (kx/sql/024_agent_surface.sql), so
+#: what the reading pass threw out and what it never read are outside every
+#: search here, whatever this parameter says.
+ADMISSION_SCOPES: Final = ("knowledge", "observatory", "all")
 
 #: The licence line the base carries (decision 10). Attribution for the
 #: reworking and the structure; a quotation stays its rightholder's and always
@@ -510,12 +533,20 @@ class AgentService:
             yield "result", {"error": "пустой вопрос"}
             return
         # Decision 3 keeps knowledge and the market chronicle apart, and the
-        # reader chooses which one the question is aimed at. Anything else is
-        # knowledge: an unknown value must not quietly widen the search.
-        if admission not in ("knowledge", "observatory"):
+        # reader chooses what the question is aimed at: one shelf, or - since
+        # ADR-0012 - both. Anything else is knowledge: an unknown value must not
+        # quietly widen the search, and `all` widens only because it was named.
+        if admission not in ADMISSION_SCOPES:
             admission = "knowledge"
 
-        cached = self.database.cached_answer(question, scope="public")
+        # ADR-0006 §10 keys the cache by scope, because a cache without it moves
+        # content between access levels and does so silently. The shelf the
+        # reader picked is one of those levels: "что нового" aimed at knowledge
+        # and aimed at the chronicle are two questions with two right answers,
+        # and the first one asked must not be served as the second.
+        scope = f"public:{admission}"
+
+        cached = self.database.cached_answer(question, scope=scope)
         if cached is not None:
             yield "stage", {"step": "search", "done": True, "hits": 0, "cache": True}
             yield (
@@ -548,7 +579,9 @@ class AgentService:
 
         hits = self.database.agent_search(
             question,
-            filters={"admission": admission},
+            # `all` is the absence of the filter, which is what widens it; the
+            # view underneath has already dropped what was never admitted.
+            filters={"admission": None if admission == "all" else admission},
             limit=PACKAGE_SIZE,
             question_vector=self._vector(question),
         )
@@ -558,7 +591,7 @@ class AgentService:
             refusal = refuse("no_evidence", "в базе нет подходящих подтверждений")
             self.database.record_answer(
                 question=question,
-                scope="public",
+                scope=scope,
                 mode="strict",
                 package=(),
                 refusal=refusal,
@@ -581,7 +614,7 @@ class AgentService:
             )
             self.database.record_answer(
                 question=question,
-                scope="public",
+                scope=scope,
                 mode="strict",
                 package=package,
                 refusal=refusal,
@@ -603,7 +636,7 @@ class AgentService:
         answer_text = render(clauses)
         self.database.record_answer(
             question=question,
-            scope="public",
+            scope=scope,
             mode="strict",
             package=package,
             answer_text=answer_text,
