@@ -677,6 +677,13 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
+/* Лого — дверь домой: из любого раздела возвращает в радар и наверх. */
+document.querySelector(".brand")?.addEventListener("click", event => {
+  event.preventDefault();
+  setViewMode("radar");
+  window.scrollTo?.(0, 0);
+});
+
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
     document.getElementById("agentSubKey")?.value,
@@ -740,22 +747,17 @@ function setViewMode(mode) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  try {
-    localStorage.setItem("agpmRadarViewMode", state.viewMode);
-  } catch {
-    // Private and embedded browsers may deny storage.
-  }
 }
 
 function initViewMode() {
-  let saved = "radar";
-  try {
-    saved = localStorage.getItem("agpmRadarViewMode") || "radar";
-  } catch {
-    saved = "radar";
-  }
   accessInit();
-  setViewMode(window.location.hash === "#gazette" ? "gazette" : saved);
+  // Перезагрузка всегда открывает радар наверху: прошлый режим не тянется,
+  // а браузеру запрещается восстанавливать старую позицию прокрутки.
+  if (typeof history !== "undefined" && "scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+  window.scrollTo?.(0, 0);
+  setViewMode("radar");
 }
 
 /** Газета — один длинный лист, а не окно со своей полосой прокрутки: рамка
