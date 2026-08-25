@@ -65,6 +65,12 @@ class FakeDatabase:
     def agent_contradictions(self, **kwargs: Any) -> Any:
         return self._record("agent_contradictions", **kwargs) or (0, [])
 
+    def agent_counts(self) -> Any:
+        return self._record("agent_counts") or {}
+
+    def agent_trail(self, claim_id: str) -> Any:
+        return self._record("agent_trail", claim_id=claim_id) or []
+
     def agent_graph(self, **kwargs: Any) -> Any:
         return self._record("agent_graph", **kwargs) or {"centre": None, "nodes": [], "edges": []}
 
@@ -461,3 +467,73 @@ def test_the_contradictions_route_answers_with_both_sides() -> None:
     assert answered["pairs"][0]["first_statement"] == "растёт"
     assert answered["pairs"][0]["second_statement"] == "падает"
     assert answered["signature"] == SIGNATURE
+
+
+# ---------------------------------------------------------------------------
+# ADR-0011: числа объектов базы открыты всем, содержание - нет
+# ---------------------------------------------------------------------------
+
+
+COUNTS = {
+    "statements": 11759,
+    "knowledge": 8086,
+    "observatory": 3673,
+    "topics": 229,
+    "entities": 6288,
+    "links": 45836,
+    "contradictions": 797,
+    "pages": 58,
+    "gaps": 338,
+    "traceable": 6372,
+}
+
+
+def test_counts_reach_a_reader_without_a_key() -> None:
+    """Решение владельца: число - не содержание, и оно публично."""
+    assert service(agent_counts=COUNTS).counts() == COUNTS
+
+
+def test_counts_are_counted_once_and_kept() -> None:
+    """Полсекунды по всей поверхности - не та цена, чтобы платить её на каждый
+    запрос: база меняется раз в сутки."""
+    api = service(agent_counts=COUNTS)
+    api.counts()
+    api.counts()
+    api.counts()
+    asked = [name for name, _ in cast(Any, api.database).asked if name == "agent_counts"]
+    assert len(asked) == 1
+
+
+def test_the_welcome_screen_carries_the_counts_with_its_examples() -> None:
+    """Диалог и так ходит за примерами: второй круг ради счётчиков был бы лишним."""
+    served = service(agent_counts=COUNTS, agent_topics=[]).prompts()
+    assert served["counts"] == COUNTS
+
+
+def test_a_statement_says_which_issue_carried_its_material() -> None:
+    """Цепочка доверия кончалась первоисточником; последнее звено - выпуск."""
+    trail = [
+        {
+            "issue_date": "2026-08-24",
+            "issue_number": 79,
+            "perimeter": "near",
+            "material_title": "Казначейство США вводит правила автономных платежей",
+            "material_url": "https://example.org/a",
+            "key_material": True,
+            "source_count": 1,
+        }
+    ]
+    served = service(agent_statement={"claim_id": "c1"}, agent_trail=trail).statement("c1")
+    assert served["trail"] == trail
+
+
+def test_a_statement_that_never_came_from_an_issue_says_so_by_being_empty() -> None:
+    """46 % утверждений пришли из канона и wiki. Пустой путь - ответ, не пробел."""
+    served = service(agent_statement={"claim_id": "c1"}).statement("c1")
+    assert served["trail"] == []
+
+
+def test_a_missing_statement_is_not_given_a_trail_to_nowhere() -> None:
+    served = service().statement("нет-такого")
+    assert "trail" not in served
+    assert served["error"]

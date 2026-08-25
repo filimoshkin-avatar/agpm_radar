@@ -129,6 +129,10 @@ GATED_PREFIXES: Final = ("/topics/", "/pages/")
 #: A subscriber's conversation window. Higher than the free one by the owner's
 #: call - and still a window, not a budget: it stands between a shared key and
 #: the bill, nothing more.
+#: Сколько живёт запомненный счёт объектов. Цепочка проходит раз в сутки, так
+#: что десять минут не дают устареть ничему, кроме первых минут после прохода.
+COUNTS_TTL_SECONDS: Final = 600.0
+
 SUBSCRIBER_ASKS_PER_CLIENT = 30
 
 #: And a ceiling on the key itself, per day. The window above counts clients, so
@@ -323,12 +327,31 @@ class AgentService:
         #: spend anybody's question allowance - and cannot run unthrottled.
         self.validate_budget = AskBudget(per_client=10, window=300.0, per_day=0)
         self.guard = AccessGuard(database)
+        #: Числа объектов базы. Считаются по всей поверхности, меняются раз в
+        #: сутки - значит, живут в памяти процесса, а не в каждом запросе.
+        self._counts: dict[str, int] | None = None
+        self._counts_at = 0.0
 
     def access(self, authorization: str | None) -> dict[str, Any]:
         """The one door every handler asks through, free paths included."""
         return self.guard.check(authorization)
 
     # -- level 4: the backbone and the shelves ---------------------------------
+
+    def counts(self) -> dict[str, int]:
+        """How much the base holds. Open to everybody - ADR-0011.
+
+        The count runs over the whole surface and takes about half a second,
+        while the base changes once a day, when the chain passes. So it is kept
+        for COUNTS_TTL_SECONDS: the first reader pays for it and the rest do
+        not, and the number is never staler than one pass of the chain.
+        """
+        now = time.monotonic()
+        if self._counts is not None and now - self._counts_at < COUNTS_TTL_SECONDS:
+            return self._counts
+        self._counts = self.database.agent_counts()
+        self._counts_at = now
+        return self._counts
 
     def topics(self) -> dict[str, Any]:
         return {"topics": self.database.agent_topics(), "signature": SIGNATURE}
@@ -591,7 +614,10 @@ class AgentService:
         Free by construction: the pool is assembled from the topic skeleton the
         service already serves, and no model is involved.
         """
-        return welcome_prompts(self.database.agent_topics(), count=count, seed=seed)
+        sampled = welcome_prompts(self.database.agent_topics(), count=count, seed=seed)
+        # Числа едут вместе с примерами, потому что диалог всё равно ходит сюда
+        # при открытии: отдельный запрос ради счётчиков был бы вторым кругом.
+        return {**sampled, "counts": self.counts()}
 
     def chat(
         self,
@@ -760,7 +786,9 @@ class AgentService:
         found = self.database.agent_statement(claim_id)
         if found is None:
             return {"error": "нет такого утверждения", "claimId": claim_id}
-        return {**found, "licence": LICENCE}
+        # Путь до выпуска - последнее звено цепочки доверия, и он такой же
+        # читаемый факт, как цитата: какой выпуск радара выбрал этот материал.
+        return {**found, "trail": self.database.agent_trail(claim_id), "licence": LICENCE}
 
 
 def _query(url: str) -> dict[str, str]:
@@ -816,6 +844,15 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             parameters = _query(self.path)
             if path in ("/", "/health"):
                 self._json(HTTPStatus.OK, {"service": "radar-kb", "status": "ok"})
+                return
+            # Числа объектов базы - до стены подписки, и стоят они здесь, выше
+            # проверки ключа, а не просто вне `GATED_PATHS`. Список гейтирования
+            # за сутки уже качнулся туда и обратно; решение владельца «числа
+            # доступны всем» (ADR-0011) не должно зависеть от его следующей
+            # правки. Число - не содержание: «11 759 утверждений» не выдаёт ни
+            # одного из них, зато говорит читателю, что стоит за замком.
+            if path == "/counts":
+                self._json(HTTPStatus.OK, service.counts())
                 return
             # The subscription wall, before any routing: browsing endpoints answer
             # only with a live key, and the refusal is one machine-readable shape.

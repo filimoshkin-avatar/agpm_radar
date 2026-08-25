@@ -30,6 +30,12 @@ ALLOWED = {
     # have something to draw. Narrowed to entities the reader can already reach.
     ("agent", "entity", "SELECT"),
     ("agent", "statement_entity", "SELECT"),
+    # 032: a statement's path to the radar issue that carried its material - the
+    # last link of the chain of trust (ADR-0011). Narrowed the same way as the
+    # others: the path is visible only for a statement the reader may already
+    # read, and nothing beyond the issue number, date, perimeter and material
+    # title leaves through it.
+    ("agent", "statement_trail", "SELECT"),
     # The schema-version gate every command runs before it does anything.
     ("kx", "metadata", "SELECT"),
     # The answer cache reads its own rows; decision 9 keeps the chat for analysis.

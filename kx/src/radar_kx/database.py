@@ -128,7 +128,7 @@ OBSERVATORY_PER_CLASS = 60
 ACCESS_KEY_PREFIX = "radar-"
 ACCESS_KEY_ENTROPY_BYTES = 30
 
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
@@ -6320,6 +6320,55 @@ class Database:
             )
             cursor.execute(ordered, (limit,))
             return total, [dict(row) for row in cursor.fetchall()]
+
+    def agent_counts(self) -> dict[str, int]:
+        """How much of each thing the base holds - one query, for everybody.
+
+        The owner's decision of 2026-08-25 (ADR-0011): counts of the base's
+        objects are public. A count is not content - "11 759 statements" hands
+        over none of them - and without it a reader knows neither the size of
+        the base nor what stands behind a locked item in the menu.
+
+        One query rather than nine: the counting runs over the whole surface,
+        and nine round trips would pay for the connection nine times.
+        """
+        query = """
+            SELECT (SELECT count(*) FROM agent.statement) AS statements,
+                   (SELECT count(*) FROM agent.statement
+                     WHERE admission = 'knowledge') AS knowledge,
+                   (SELECT count(*) FROM agent.statement
+                     WHERE admission = 'observatory') AS observatory,
+                   (SELECT count(*) FROM agent.topic) AS topics,
+                   (SELECT count(*) FROM agent.entity) AS entities,
+                   (SELECT count(*) FROM agent.link) AS links,
+                   (SELECT count(*) FROM agent.link
+                     WHERE link_type = 'contradicts') AS contradictions,
+                   (SELECT count(*) FROM agent.page) AS pages,
+                   (SELECT count(*) FROM agent.gap) AS gaps,
+                   (SELECT count(DISTINCT claim_id)
+                      FROM agent.statement_trail) AS traceable
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(query)
+            row = cursor.fetchone()
+        return {key: int(value or 0) for key, value in dict(row or {}).items()}
+
+    def agent_trail(self, claim_id: str) -> list[dict[str, Any]]:
+        """A statement's path to the radar issue: material, perimeter, number, date.
+
+        Empty is an answer, not a gap: 46 % of statements did not come through
+        the radar at all, and saying so is more honest than leaving a blank
+        where the neighbouring card carries an issue number.
+        """
+        with self.connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT issue_date, issue_number, perimeter, material_title,"
+                " material_url, key_material, source_count"
+                " FROM agent.statement_trail WHERE claim_id = %s"
+                " ORDER BY issue_date DESC",
+                (claim_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def agent_gaps(self, *, limit: int = 50) -> list[dict[str, Any]]:
         with self.connect() as connection, connection.cursor() as cursor:

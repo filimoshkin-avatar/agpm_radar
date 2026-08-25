@@ -476,26 +476,65 @@ try {
   /* нет хранилища - рейка просто разложена */
 }
 
-/** Счётчик у пункта рейки. Печатается только тем числом, которое раздел уже
- *  прочитал у базы: сочинять «13 876 цитат» в вёрстке — врать читателю. */
+/** Счётчик у пункта рейки. */
 function agentRailCount(tab, value) {
   const node = document.querySelector(`[data-rail-count="${tab}"]`);
   if (node) node.textContent = Number.isFinite(Number(value)) ? String(value) : "";
 }
 
-/** То же правило для строки состояния в шапке: пока скелет тем не прочитан,
- *  строка говорит про правило ответа, а не про размер базы. */
-function agentBaseStatus(topics) {
-  if (!Array.isArray(topics) || !topics.length) return;
-  const themes = `${topics.length} ${pluralRu(topics.length, "ТЕМА", "ТЕМЫ", "ТЕМ")}`;
-  const node = document.getElementById("agentBaseStatus");
-  if (node) node.innerHTML = `<i aria-hidden="true"></i>БАЗА: ${themes}`;
-  // Та же цифра в тикере — она и связывает «Радар» с «Агентом».
+/* ── Числа базы: один запрос без ключа ────────────────────────────────────
+ *
+ * Решение владельца, ADR-0011: счёт объектов базы публичен. Число — не
+ * содержание, и без него закрытый пункт меню не говорит читателю ничего:
+ * замок без числа не сообщает, чего именно он лишает.
+ *
+ * Числа из макета (13 876 цитат) не годятся: на 2026-08-25 в базе 11 759, и
+ * печатать чужую цифру значит соврать о размере. Поэтому — только то, что
+ * ответила служба. Не ответила — строка молчит.
+ */
+let kbCounts = null;
+
+function ru(value) {
+  return Number(value).toLocaleString("ru-RU").replace(/\u00a0/g, " ");
+}
+
+async function kbLoadCounts() {
+  if (kbCounts) return kbCounts;
+  try {
+    const data = await kbFetch("/counts");
+    if (!data || !Number.isFinite(Number(data.statements))) return null;
+    kbCounts = data;
+    kbApplyCounts(data);
+    return data;
+  } catch {
+    // Служба недоступна — числа просто не появятся. Врать вместо них нечем.
+    return null;
+  }
+}
+
+function kbApplyCounts(counts) {
+  const statements = Number(counts.statements) || 0;
+  const topics = Number(counts.topics) || 0;
+  const line = `${ru(statements)} ${pluralRu(statements, "УТВЕРЖДЕНИЕ", "УТВЕРЖДЕНИЯ", "УТВЕРЖДЕНИЙ")}`
+    + ` · ${ru(topics)} ${pluralRu(topics, "ТЕМА", "ТЕМЫ", "ТЕМ")}`;
+
   const cell = document.getElementById("tickerBase");
   if (cell) {
     cell.hidden = false;
-    cell.textContent = `БАЗА ЗНАНИЙ · ${themes}`;
+    cell.textContent = `БАЗА ${line}`;
   }
+  const status = document.getElementById("agentBaseStatus");
+  if (status) status.innerHTML = `<i aria-hidden="true"></i>БАЗА: ${escapeHtml(line)}`;
+
+  // Каждому пункту рейки — своё число, включая закрытые: замок должен
+  // говорить, чего читатель лишён.
+  agentRailCount("find", counts.statements);
+  agentRailCount("observatory", counts.observatory);
+  agentRailCount("graph", counts.links);
+  agentRailCount("topics", counts.topics);
+  agentRailCount("wiki", counts.pages);
+  agentRailCount("contradictions", counts.contradictions);
+  agentRailCount("gaps", counts.gaps);
 }
 
 /* Строка вопроса в шапке: Enter уводит в диалог и спрашивает там же. */
@@ -1690,6 +1729,10 @@ document.addEventListener("click", event => {
     agentToggleLinks(button.dataset.agentLinks);
     return;
   }
+  if (button.dataset.agentTrail) {
+    agentToggleTrail(button.dataset.agentTrail);
+    return;
+  }
   if (button.dataset.agentTopic) {
     agentOpenTopic(button.dataset.agentTopic);
     return;
@@ -1754,6 +1797,11 @@ document.getElementById("search").addEventListener("input", event => {
 });
 
 initViewMode();
+
+// Тикер показывает размер базы в любом режиме, поэтому счёт спрашивается сразу,
+// а не при открытии диалога. Запрос свободен от ключа (ADR-0011) и кэширован
+// службой, так что цена ему — один раз за загрузку страницы.
+kbLoadCounts();
 
 init().catch(error => {
   document.body.insertAdjacentHTML("afterbegin", `<div class="api-error">API недоступен: ${escapeHtml(error.message)}</div>`);
@@ -1943,8 +1991,10 @@ function agentStatementCard(raw, ordinal) {
       ${row.claimId ? `<div class="agent-statement__actions">
         <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что база связала с этим</button>
         <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">Показать в графе</button>
+        <button class="agent-links__toggle" type="button" data-agent-trail="${escapeHtml(row.claimId)}">Путь до выпуска →</button>
       </div>
-      <div class="agent-links" data-agent-links-for="${escapeHtml(row.claimId)}" hidden></div>` : ""}
+      <div class="agent-links" data-agent-links-for="${escapeHtml(row.claimId)}" hidden></div>
+      <div class="agent-trail" data-agent-trail-for="${escapeHtml(row.claimId)}" hidden></div>` : ""}
     </article>`;
 }
 
@@ -1991,6 +2041,48 @@ async function agentToggleLinks(claimId) {
         }).join("")}
       </ul>`;
     box.dataset.loaded = "1";
+  } catch (error) {
+    box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+/** Последнее звено цепочки доверия: ОТВЕТ → УТВЕРЖДЕНИЕ → ЦИТАТА →
+ *  ПЕРВОИСТОЧНИК → **ВЫПУСК**. Материал, который выбрал этот документ, и
+ *  выпуск радара, который его показал.
+ *
+ *  Пусто — это ответ, а не пробел: 46 % утверждений пришли из канона, wiki и
+ *  операторского импорта, и в выпуск радара их материал не входил. Так и
+ *  сказано словами; пустое место сказало бы «данных нет», что неправда. */
+async function agentToggleTrail(claimId) {
+  const box = document.querySelector(`[data-agent-trail-for="${CSS.escape(claimId)}"]`);
+  if (!box) return;
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  if (box.dataset.loaded) return;
+  box.innerHTML = agentLoadingHtml("Ищу путь до выпуска…");
+  try {
+    const data = await kbFetch(`/statement/${encodeURIComponent(claimId)}`);
+    const trail = Array.isArray(data.trail) ? data.trail : [];
+    box.dataset.loaded = "1";
+    if (!trail.length) {
+      box.innerHTML = `<p class="agent-trail__none">Материал этого утверждения не входил
+        в выпуск радара: он пришёл из канона, wiki или операторского импорта.
+        Первоисточник — выше.</p>`;
+      return;
+    }
+    const perimeters = { near: "близкий", mid: "средний", far: "дальний" };
+    box.innerHTML = `
+      <p class="agent-trail__head mono">путь до выпуска</p>
+      ${trail.map(step => {
+        const issue = step.issue_number ? `выпуск ${step.issue_number}` : "выпуск";
+        const perimeter = perimeters[step.perimeter] || step.perimeter || "";
+        return `<div class="agent-trail__step">
+          <span class="agent-trail__issue mono">${escapeHtml(issue)}</span>
+          <span class="agent-trail__date mono">${escapeHtml(fmtDate(step.issue_date, true))}</span>
+          <span class="agent-trail__material">${escapeHtml(step.material_title || "материал выпуска")}</span>
+          <span class="agent-trail__perimeter mono">${escapeHtml(perimeter)}${step.key_material ? " · ключевой" : ""}</span>
+        </div>`;
+      }).join("")}`;
   } catch (error) {
     box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
@@ -3411,7 +3503,6 @@ async function agentLoadTopicOptions() {
   agentSelectLoading(select, true, "загружаю темы…");
   try {
     const data = await kbFetch("/topics");
-    agentBaseStatus(data.topics);
     (data.topics || []).forEach(topic => {
       const option = document.createElement("option");
       option.value = topic.topic_key;
@@ -3755,7 +3846,6 @@ async function agentLoadContradictions() {
   try {
     const data = await kbFetch("/contradictions?limit=40");
     const pairs = Array.isArray(data.pairs) ? data.pairs : [];
-    agentRailCount("contradictions", data.total ?? pairs.length);
     box.innerHTML = `
       <p class="agent-intro">Пары, которые база считает несовместимыми: об одном предмете
       сказано разное. Это находка, а не поломка — и решает её читатель, а не машина.
@@ -3821,7 +3911,6 @@ async function agentLoadObservatory(options) {
       if (!byKind.has(key)) byKind.set(key, []);
       byKind.get(key).push(row);
     });
-    agentRailCount("observatory", rows.length);
     if (!rows.length) {
       box.innerHTML = `<p class="agent-links__empty">За выбранный период в этих классах ничего нет.</p>`;
       box.dataset.loaded = "1";
@@ -3853,8 +3942,6 @@ async function agentLoadTopics() {
   try {
     const data = await kbFetch("/topics");
     const topics = (data.topics || []).filter(topic => topic.statements > 0);
-    agentRailCount("topics", topics.length);
-    agentBaseStatus(data.topics);
     box.innerHTML = `
       <p class="agent-intro">Понятие — это элемент скелета тем, а не страница, где оно описано.
       Карточка собирается из утверждений базы.</p>
@@ -3901,7 +3988,6 @@ async function agentLoadWiki() {
   try {
     const data = await kbFetch("/pages");
     const pages = data.pages || [];
-    agentRailCount("wiki", pages.length);
     box.innerHTML = `
       <p class="agent-intro">Авторские страницы методики — как есть. Жанр по Diátaxis —
       свойство раздела, а не страницы: страницы не режутся, навигация работает по разделам.</p>
@@ -3947,7 +4033,6 @@ async function agentLoadGaps() {
   try {
     const data = await kbFetch("/gaps?limit=60");
     const gaps = data.gaps || [];
-    agentRailCount("gaps", gaps.length);
     box.innerHTML = `
       <p class="agent-intro">Утверждения, которым не нашлось места в скелете тем. Ничего не
       отсеивается и ничего не предлагается автоматически — строка отличает «посмотрели, места нет»
