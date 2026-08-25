@@ -739,7 +739,9 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert 'why_agpm: block("signals")' in script
     assert "Сонар" in html
     assert "Динамика трендов" in html
-    assert "Хронология выпусков" in html
+    assert "Хронология выпусков" not in html
+    assert "Источники выпуска</h2>" not in html
+    assert "ИСТОЧНИКИ ВЫПУСКА" in html
     assert "Рубрикатор" in html
     assert "/gazette-20260803.html" in html
     assert "@media (max-width: 1100px)" in styles

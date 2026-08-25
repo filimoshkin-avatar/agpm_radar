@@ -113,7 +113,6 @@ const state = {
   rubrics: [],
   q: "",
   loading: false,
-  openDay: null,
   issueDate: null,
   materials: [],
   viewMode: "radar",
@@ -1432,28 +1431,6 @@ function renderBars(id, rows, labelKey, valueKey) {
   setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · счёт за 30 дней` : "");
 }
 
-/* Источники — облако доменов макета v3: имя и сколько материалов оно дало. */
-function renderSourcesPanel() {
-  const totalIncluded = sources.reduce((sum, row) => sum + (Number(row.included) || 0), 0);
-  const top = sources[0];
-  const shown = sources.slice(0, 12);
-  const rest = Math.max(0, sources.length - shown.length);
-  setText("sourcesNote", sources.length ? `${sources.length} ${pluralRu(sources.length, "источник", "источника", "источников")}` : "");
-  document.getElementById("sources").innerHTML = `${shown.map(row => {
-    const included = Number(row.included) || 0;
-    const label = sourceLabel(row.name);
-    return `<span class="source-chip" title="${escapeHtml(row.name || "")}: включено ${included}">${escapeHtml(label)} ×${included}</span>`;
-  }).join("")}
-  ${rest ? `<span class="source-chip source-chip--rest">+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}
-  <p class="source-note">${sourceInsight(totalIncluded, top)}</p>`;
-}
-
-function sourceInsight(included, top) {
-  if (!included) return "Источники появятся после следующего выпуска с включёнными материалами.";
-  const leader = top?.name ? ` Главный входящий поток: ${sourceLabel(top.name)}.` : "";
-  return `Показаны источники материалов, вошедших в публичный радар за выбранный период.${leader}`;
-}
-
 function trendRangeLabel(rows) {
   if (!rows.length) return "30 дней · агрегаты радара";
   const firstDate = rows[0].stat_date;
@@ -1532,42 +1509,6 @@ function renderHeatmap(rows) {
   }).join("");
 }
 
-/* Хронология выпусков — строки макета v3: номер, дата, полоса объёма, счёт.
- * Состав дня раскрывается по клику на полосу, как раньше по кнопке. */
-function renderTimeline() {
-  const root = document.getElementById("timeline");
-  const rows = issues.slice(0, 5);
-  const numbers = rows.map(issue => issue.issue_number).filter(Boolean);
-  setText("timelineNote", numbers.length
-    ? `№ ${Math.min(...numbers)} — ${Math.max(...numbers)}`
-    : "");
-  const maxTotal = Math.max(1, ...rows.map(issue => (issue.materials || []).length));
-  root.innerHTML = rows.map((issue, index) => {
-    const isOpen = state.openDay === issue.issue_date;
-    const issueMaterials = issue.materials || [];
-    const shown = issueMaterials.slice(0, isOpen ? issueMaterials.length : 3);
-    const moreCount = Math.max(0, issueMaterials.length - shown.length);
-    const counts = countPerimeters(issueMaterials);
-    const issueSources = Array.from(new Set(issueMaterials.map(item => sourceHost(item.url) || item.source_name).filter(Boolean))).slice(0, 4);
-    const width = Math.max(3, Math.round(issueMaterials.length / maxTotal * 100));
-    return `<article class="timeline-row ${index === 0 ? "is-current" : ""}">
-      <span class="timeline-num">${issue.issue_number ? `№ ${issue.issue_number}` : weekday[weekdayIndex(issue.issue_date)]}</span>
-      <span class="timeline-date">${escapeHtml(fmtDate(issue.issue_date, true))}</span>
-      <button class="timeline-bar timeline-toggle ${isOpen ? "is-open" : ""}" type="button"
-        data-open-day="${issue.issue_date}" aria-expanded="${isOpen ? "true" : "false"}"
-        aria-label="${isOpen ? "Свернуть" : "Показать"} состав выпуска за ${escapeHtml(fmtDate(issue.issue_date))}"
-        title="${counts.near} / ${counts.mid} / ${counts.far} · Б/С/Д"><i style="width:${width}%"></i></button>
-      <span class="timeline-total">${issueMaterials.length}</span>
-      ${isOpen ? `<div class="timeline-detail">
-        <div class="timeline-main"><p>${escapeHtml(issue.brief || "Ежедневный выпуск радара AgPM.")}</p></div>
-        <div class="timeline-materials">${shown.map(item => `<span><i class="${item.perimeter}"></i><b>${escapeHtml(item.title)}</b> <em>${escapeHtml(sourceHost(item.url) || item.source_name || "")} · ${escapeHtml(materialDateLabel(item, true))}</em></span>`).join("")}</div>
-        ${moreCount ? `<div class="timeline-more">И ЕЩЁ ${moreCount} ${pluralRu(moreCount, "МАТЕРИАЛ", "МАТЕРИАЛА", "МАТЕРИАЛОВ")}</div>` : ""}
-        ${issueSources.length ? `<div class="timeline-sources">ИСТОЧНИКИ: ${issueSources.map(escapeHtml).join(" · ")}</div>` : ""}
-      </div>` : ""}
-    </article>`;
-  }).join("");
-}
-
 function countPerimeters(materials) {
   return materials.reduce((acc, item) => {
     acc[item.perimeter] = (acc[item.perimeter] || 0) + 1;
@@ -1609,7 +1550,9 @@ function trendArrow(row) {
 }
 
 function renderFooterSources() {
-  document.getElementById("footerSources").innerHTML = sources.slice(0, 6).map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("");
+  const shown = sources.slice(0, 12);
+  const rest = Math.max(0, sources.length - shown.length);
+  document.getElementById("footerSources").innerHTML = `${shown.map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("")}${rest ? `<span>+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}`;
 }
 
 function toggleRubric(id) {
@@ -1790,9 +1733,7 @@ async function loadSecondaryData() {
   }));
   issues = issueResults.filter(result => result.status === "fulfilled").map(result => result.value);
   renderBars("rubrics", rubrics, "title", "count");
-  renderSourcesPanel();
   renderTrendPanels();
-  renderTimeline();
   renderRubricator();
   renderFooterSources();
   renderTheses(state.materials);
@@ -1882,10 +1823,6 @@ document.addEventListener("click", event => {
   }
   if (button.dataset.rubricBar !== undefined) {
     toggleRubric(button.dataset.rubricBar);
-  }
-  if (button.dataset.openDay) {
-    state.openDay = state.openDay === button.dataset.openDay ? null : button.dataset.openDay;
-    renderTimeline();
   }
   if (button.dataset.issueDay) {
     state.period = "issue";
