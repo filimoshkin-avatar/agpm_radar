@@ -21,9 +21,21 @@
   <meta name="twitter:image" content="https://radar.agpm.space/og-image-20260803.png">
   <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
   <link rel="icon" href="/favicon.svg?v=20260729-1734">
-  <link rel="stylesheet" href="/assets/styles.css?v=20260824-loaders">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260825-v3">
 </head>
 <body>
+  <!-- Тикер: та же сводка выпуска, что раньше жила плиткой, — строкой на графите. -->
+  <div class="ticker" aria-label="Сводка выпуска">
+    <span class="ticker__date mono" id="issueDate">загрузка выпуска</span>
+    <span class="ticker__cell mono">ПРОСМОТРЕНО <b id="viewed">0</b></span>
+    <span class="ticker__cell ticker__cell--strong mono">ВКЛЮЧЕНО <b id="included">0</b> · <span id="includedShare">0%</span></span>
+    <span class="ticker__cell mono">ОТСЕЧЕНО <b id="cut">0</b></span>
+    <span class="ticker__cell mono" id="perimeters">Б 0 · С 0 · Д 0</span>
+    <span class="ticker__cell mono">БЛИЗКИЙ <b id="nearShare">0%</b></span>
+    <span class="ticker__spark" id="sparkline" aria-hidden="true"></span>
+    <span class="ticker__ok mono"><i aria-hidden="true"></i>РАДАР ИСПРАВЕН</span>
+  </div>
+
   <header class="topbar">
     <a class="brand" href="#top" aria-label="Радар AgPM">
       <span class="brand__mark" aria-hidden="true">
@@ -39,27 +51,44 @@
           <circle class="brand__blip b3" data-anim cx="17.9" cy="3.2" r="1.5"></circle>
         </svg>
       </span>
-      <span>
+      <span class="brand__names">
         <span class="brand__title" id="brandTitle">Радар AgPM</span>
-        <span class="brand__subtitle">Агентное управление проектами</span>
+        <span class="brand__subtitle">агентное управление проектами</span>
       </span>
     </a>
-    <div class="topbar__right">
-      <div id="issueDate" class="mono issue-date">загрузка выпуска</div>
-      <div class="segments" role="tablist" aria-label="Период">
-        <button class="segment is-active" data-period="issue">Выпуск</button>
-        <button class="segment" data-period="yesterday">Вчера</button>
-        <button class="segment" data-period="7d">7 дней</button>
-        <button class="segment" data-period="30d">30 дней</button>
+
+    <nav class="segments segments--view" aria-label="Переключение режима просмотра">
+      <button class="segment is-active" type="button" data-view-mode="radar" aria-pressed="true">Радар</button>
+      <button class="segment" type="button" data-view-mode="gazette" aria-pressed="false">Газета</button>
+      <button class="segment segment--dotted" type="button" data-view-mode="agent" aria-pressed="false">Агент<i class="segment__dot" aria-hidden="true"></i></button>
+    </nav>
+
+    <div class="topbar__right topbar__right--radar">
+      <div class="segments segments--period" role="tablist" aria-label="Период">
+        <button class="segment is-active" type="button" data-period="issue">Выпуск</button>
+        <button class="segment" type="button" data-period="yesterday">Вчера</button>
+        <button class="segment" type="button" data-period="7d">7 дн</button>
+        <button class="segment" type="button" data-period="30d">30 дн</button>
       </div>
       <label class="search">
-        <span aria-hidden="true">⌖</span>
-        <input id="search" type="search" placeholder="Поиск по радару">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+        <input id="search" type="search" placeholder="поиск по радару" aria-label="Поиск по радару">
       </label>
-      <button id="agentSubButton" class="agent-sub-toggle" type="button" hidden
-        aria-haspopup="true" aria-expanded="false">
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.5" y="5" width="7" height="5" rx="1"></rect><path d="M4 5V3.5a2 2 0 0 1 4 0V5"></path></svg>
-        <span id="agentSubLabel">Режим подписки</span>
+    </div>
+
+    <div class="topbar__right topbar__right--agent">
+      <span class="topbar__status mono" id="agentBaseStatus"><i aria-hidden="true"></i>БАЗА ЗНАНИЙ AgPM · ОТВЕТ ПОДТВЕРЖДАЕТСЯ ЦИТАТАМИ</span>
+      <label class="search search--ask">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#a96b12" stroke-width="1.4" aria-hidden="true"><path d="M2 3h12v8H6l-3 3v-3H2z"></path></svg>
+        <input id="headerAsk" type="text" autocomplete="off" placeholder="спросить базу — Enter" aria-label="Спросить базу знаний">
+      </label>
+    </div>
+
+    <div class="topbar__right topbar__right--gazette">
+      <span class="topbar__status mono">ТЕКУЩИЙ НОМЕР: № 1 · АВГУСТ 2026 · СЛЕДУЮЩИЙ — СЕНТЯБРЬ</span>
+      <button class="button button--ghost" id="printGazetteTop" type="button">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 6V2h8v4M4 12H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1M4 10h8v4H4z"></path></svg>
+        Печать / PDF
       </button>
     </div>
   </header>
@@ -85,306 +114,430 @@
   <main id="top" class="page">
     <section class="filters" aria-label="Фильтры">
       <div class="filter-row">
-        <span class="filter-label">Периметр</span>
-        <button class="chip is-active" data-perimeter="all">Все периметры</button>
-        <button class="chip chip-near" data-perimeter="near">Близкий <span id="nearChip">0</span></button>
-        <button class="chip chip-mid" data-perimeter="mid">Средний <span id="midChip">0</span></button>
-        <button class="chip chip-far" data-perimeter="far">Дальний <span id="farChip">0</span></button>
-        <button id="resetFilters" class="reset" disabled>Снять все фильтры</button>
+        <span class="filter-label mono">периметр</span>
+        <button class="chip chip-all is-active" type="button" data-perimeter="all"><i aria-hidden="true"></i>Все периметры <b class="mono" id="allChip">0</b></button>
+        <button class="chip chip-near" type="button" data-perimeter="near"><i aria-hidden="true"></i>Близкий <b class="mono" id="nearChip">0</b></button>
+        <button class="chip chip-mid" type="button" data-perimeter="mid"><i aria-hidden="true"></i>Средний <b class="mono" id="midChip">0</b></button>
+        <button class="chip chip-far" type="button" data-perimeter="far"><i aria-hidden="true"></i>Дальний <b class="mono" id="farChip">0</b></button>
+        <button id="resetFilters" class="reset mono" type="button" disabled>СБРОСИТЬ ФИЛЬТРЫ</button>
       </div>
-      <div id="activeFilter" class="active-filter" hidden></div>
+      <div id="activeFilter" class="active-filter mono" hidden></div>
     </section>
 
-    <section class="summary-grid" aria-label="Сводка выпуска">
-      <div><span class="summary-label">Просмотрено</span><strong id="viewed" class="summary-number">0</strong></div>
-      <div><span class="summary-label">Включено в радар</span><strong id="included" class="summary-number">0</strong><small id="includedShare">0% от просмотренного</small></div>
-      <div><span class="summary-label">Отсечено</span><strong id="cut" class="summary-number">0</strong><small>дубли, реклама, agent-washing</small></div>
-      <div><span class="summary-label">Б / С / Д</span><strong id="perimeters" class="summary-number perimeters">0 / 0 / 0</strong></div>
-      <div><span class="summary-label">Доля близкого</span><strong id="nearShare" class="summary-number">0%</strong></div>
-      <div><span class="summary-label">Радар исправен · Статистика</span><div id="sparkline" class="sparkline"></div></div>
-    </section>
-
-    <section class="today">
-      <div>
-        <h1 id="thesesTitle">Что важно для AgPM сегодня</h1>
-        <div id="theses" class="theses"></div>
-      </div>
-      <div class="radar-panel">
-        <h2 id="radarTitle">Сонар</h2>
-        <div id="radarViz" class="radar-viz" aria-hidden="true"></div>
-      </div>
-      <details id="dailyAnalysis" class="daily-analysis" hidden>
-        <summary>
-          <span>Аналитический разбор выпуска</span>
-          <b id="dailyAnalysisHeadline"></b>
-        </summary>
-        <div id="dailyAnalysisBody" class="daily-analysis__body"></div>
-      </details>
-    </section>
-
-    <section id="columns" class="columns loading" aria-label="Материалы по периметрам"></section>
-
-    <section class="trend-section" aria-label="Динамика трендов">
-      <div class="section-heading">
-        <h2>Динамика трендов</h2>
-        <span id="trendRange" class="section-note">30 дней · агрегаты радара</span>
-      </div>
-      <div class="trend-grid">
-      <article class="panel panel-wide trend-panel">
-        <div class="panel-heading">
-          <h2>Материалы в разрезе по дням</h2>
-          <div class="trend-legend" aria-label="Легенда графика">
-            <span><i class="legend-dot near"></i>близкий</span>
-            <span><i class="legend-dot mid"></i>средний</span>
-            <span><i class="legend-dot far"></i>дальний</span>
-            <span class="legend-line">┄ включено, % от просмотренного</span>
+    <div class="shell">
+      <section class="hero" id="rdHero" aria-label="Главное в выпуске">
+        <div class="hero__theses">
+          <div class="hero__head">
+            <h1 id="thesesTitle">Что важно для AgPM сегодня</h1>
+            <span class="hero__note mono" id="thesesNote"></span>
           </div>
+          <div id="theses" class="theses"></div>
+          <details id="dailyAnalysis" class="daily-analysis" hidden>
+            <summary>
+              <span class="mono">АНАЛИТИЧЕСКИЙ РАЗБОР</span>
+              <b id="dailyAnalysisHeadline"></b>
+            </summary>
+            <div id="dailyAnalysisBody" class="daily-analysis__body"></div>
+          </details>
         </div>
-        <div id="trendBars" class="trend-bars"></div>
-      </article>
-      <article class="panel">
-        <h2>Календарь 30 дней</h2>
-        <div id="heatmap" class="heatmap"></div>
-      </article>
-      <article class="panel">
-        <h2>Рубрики за 30 дней</h2>
-        <div id="rubrics" class="bar-list"></div>
-      </article>
-      <article class="panel">
-        <h2>Источники</h2>
-        <div id="sources" class="bar-list"></div>
-      </article>
-      </div>
-    </section>
+        <div class="hero__viz radar-panel">
+          <div class="hero__vizhead">
+            <h2 id="radarTitle">Сонар</h2>
+            <span class="hero__note mono" id="radarNote"></span>
+          </div>
+          <div id="radarViz" class="radar-viz"></div>
+        </div>
+      </section>
 
-    <section class="timeline-section">
-      <h2>Хронология выпусков</h2>
-      <div id="timeline" class="timeline"></div>
-    </section>
+      <section id="columns" class="columns loading" aria-label="Материалы по периметрам"></section>
 
-    <section class="rubricator-section">
-      <h2>Рубрикатор</h2>
-      <div id="rubricator" class="rubricator"></div>
-    </section>
+      <section class="grid grid--trend" aria-label="Динамика трендов">
+        <article class="panel">
+          <div class="panel__head">
+            <h2>Динамика трендов</h2>
+            <span class="panel__note mono" id="trendRange">30 ДНЕЙ · АГРЕГАТЫ РАДАРА</span>
+          </div>
+          <div id="rubrics" class="bar-list"></div>
+        </article>
+        <div class="grid__stack">
+          <article class="panel">
+            <div class="panel__head">
+              <h2>Материалы в разрезе по дням</h2>
+              <span class="panel__note mono" id="trendDaysNote">Б/С/Д</span>
+            </div>
+            <div id="trendBars" class="trend-bars"></div>
+          </article>
+          <article class="panel">
+            <div class="panel__head">
+              <h2>Источники выпуска</h2>
+              <span class="panel__note mono" id="sourcesNote"></span>
+            </div>
+            <div id="sources" class="source-cloud"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="grid grid--calendar" aria-label="Календарь и хронология">
+        <article class="panel">
+          <div class="panel__head">
+            <h2>Календарь 30 дней</h2>
+            <span class="panel__note mono">ВКЛЮЧЕНО, ПО ДНЯМ</span>
+          </div>
+          <div class="heatmap-week mono" aria-hidden="true">
+            <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span>
+          </div>
+          <div id="heatmap" class="heatmap"></div>
+          <div class="heatmap-key mono">
+            <span>МЕНЬШЕ</span>
+            <i class="heatmap-key__box" style="background:rgba(43,74,117,.10)"></i>
+            <i class="heatmap-key__box" style="background:rgba(43,74,117,.35)"></i>
+            <i class="heatmap-key__box" style="background:rgba(43,74,117,.60)"></i>
+            <i class="heatmap-key__box" style="background:rgba(43,74,117,.85)"></i>
+            <span>БОЛЬШЕ</span>
+            <span class="heatmap-key__today"><i class="heatmap-key__box heatmap-key__box--today"></i>ВЫПУСК</span>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel__head">
+            <h2>Хронология выпусков</h2>
+            <span class="panel__note mono" id="timelineNote"></span>
+          </div>
+          <div id="timeline" class="timeline"></div>
+        </article>
+      </section>
+
+      <section class="panel panel--wide" aria-label="Рубрикатор">
+        <div class="panel__head">
+          <h2>Рубрикатор</h2>
+          <span class="panel__note mono" id="rubricatorNote"></span>
+        </div>
+        <div id="rubricator" class="rubricator"></div>
+      </section>
+    </div>
   </main>
 
   <footer class="footer">
     <div class="footer__inner">
-      <section>
-        <h2>Как радар отбирает материалы</h2>
-        <p>Радар проверяет первоисточник, полноту и управленческий контекст материала. Дубли, пересказы без новой фактуры, реклама и agent-washing остаются во внутреннем слое отсечения.</p>
-        <p>В публичный выпуск попадают материалы, полезные для AgPM: governance, ответственность человека, портфельная видимость, ИСУП, риски, ресурсы, workflow и операционная модель агентной работы.</p>
+      <section class="footer__brand">
+        <div class="footer__mark">
+          <svg width="21" height="21" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11.5" fill="none" stroke="#4b5866" stroke-width="1.2"></circle><line x1="14" y1="14" x2="14" y2="2.5" stroke="#d9a253" stroke-width="1"></line><circle cx="17.8" cy="17.2" r="1.5" fill="#8fb0dc"></circle></svg>
+          <span>Радар AgPM</span>
+        </div>
+        <p>Ежедневный отбор материалов об агентном управлении проектами. Три периметра, машинная фильтрация с проверкой первоисточника, дубли и agent-washing остаются во внутреннем слое отсечения.</p>
       </section>
-      <section>
-        <h2>Источники наблюдения</h2>
-        <div id="footerSources" class="footer-sources"></div>
+      <section class="footer__column">
+        <span class="footer__label mono">МЕТОДИКА ОТБОРА</span>
+        <p>Радар проверяет первоисточник, полноту и управленческий контекст материала. В публичный выпуск попадают материалы, полезные для AgPM: governance, ответственность человека, портфельная видимость, ИСУП, риски, ресурсы, workflow и операционная модель агентной работы.</p>
+      </section>
+      <section class="footer__column">
+        <span class="footer__label mono">ИСТОЧНИКИ НАБЛЮДЕНИЯ</span>
+        <div id="footerSources" class="footer-sources mono"></div>
       </section>
     </div>
-    <div class="footer__bottom">© 2026 · radar.agpm.space · обновление ежедневно в 08:00 МСК</div>
+    <div class="footer__bottom mono">© 2026 · RADAR.AGPM.SPACE · ОБНОВЛЕНИЕ ЕЖЕДНЕВНО В 08:00 МСК</div>
   </footer>
 
-
   <section id="agentView" class="agent-view" aria-label="Агент базы знаний" hidden>
-    <div class="agent-view__inner">
-      <div class="agent-tabs" role="tablist" aria-label="Разделы базы знаний">
-        <button class="agent-tab is-active" type="button" data-agent-tab="find" role="tab" aria-selected="true">Найти</button>
-        <button class="agent-tab" type="button" data-agent-tab="ask" role="tab" aria-selected="false">Спросить</button>
-        <button class="agent-tab" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">Обсерватория</button>
-        <button class="agent-tab" type="button" data-agent-tab="graph" role="tab" aria-selected="false">Граф</button>
-        <button class="agent-tab" type="button" data-agent-tab="contradictions" role="tab" aria-selected="false">Противоречия</button>
-        <button class="agent-tab" type="button" data-agent-tab="topics" role="tab" aria-selected="false">Понятия</button>
-        <button class="agent-tab" type="button" data-agent-tab="wiki" role="tab" aria-selected="false">Wiki</button>
-        <button class="agent-tab" type="button" data-agent-tab="gaps" role="tab" aria-selected="false">Пробелы</button>
-      </div>
-
-      <div id="agentFind" class="agent-panel">
-        <form id="agentFindForm" class="agent-ask">
-          <span class="agent-ask__icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
-          </span>
-          <input id="agentFindQuery" class="agent-ask__input" type="search" autocomplete="off"
-                 placeholder="Найти утверждения по словам и по смыслу" aria-label="Поиск по базе знаний">
-          <button class="agent-ask__submit" type="submit">Найти</button>
-        </form>
-        <div class="agent-find__filters" id="agentFindFilters">
-          <label class="agent-select">допуск
-            <select data-find-filter="admission">
-              <option value="">любой</option>
-              <option value="knowledge">знание</option>
-              <option value="observatory">хроника рынка</option>
-            </select>
-          </label>
-          <label class="agent-select">вид
-            <select data-find-filter="material_kind">
-              <option value="">любой</option>
-              <option value="fact">факт</option>
-              <option value="opinion">мнение</option>
-              <option value="case">кейс</option>
-              <option value="forecast">прогноз</option>
-              <option value="product_release">релиз</option>
-              <option value="incident">инцидент</option>
-            </select>
-          </label>
-          <label class="agent-select">статус
-            <select data-find-filter="status">
-              <option value="">любой</option>
-              <option value="canon">канон</option>
-              <option value="operationalization">операционализация</option>
-              <option value="external_reference">внешняя ссылка</option>
-              <option value="observed_signal">наблюдаемый сигнал</option>
-            </select>
-          </label>
-          <label class="agent-select">тема
-            <select data-find-filter="topic_key" id="agentFindTopic">
-              <option value="">любая</option>
-            </select>
-          </label>
-          <label class="agent-check">
-            <input type="checkbox" data-find-filter="fresh" value="1"> только актуальное
-          </label>
-        </div>
-        <div id="agentFindResults" class="agent-answer" aria-live="polite"></div>
-      </div>
-
-      <div id="agentAsk" class="agent-panel" hidden>
-
-        <div id="agentWelcome" class="agent-welcome" hidden>
-          <h2 class="agent-welcome__title">Спросите базу знаний об агентном управлении</h2>
-          <p class="agent-welcome__intro">
-            Агент отвечает только тем, что подтверждено цитатами из базы: каждый пункт
-            ответа раскрывается до точного фрагмента и первоисточника. Начните с готового
-            запроса — или напишите свой ниже.
-          </p>
-          <div class="agent-welcome__grid" id="promptGrid"></div>
-          <div class="agent-welcome__foot">
-            <button class="agent-welcome__more" id="morePrompts" type="button">другие примеры</button>
-            <span class="agent-welcome__pool" id="poolNote"></span>
-          </div>
+    <div class="agent-grid" id="agGrid">
+      <nav class="agent-rail" id="agentRail" aria-label="Разделы базы знаний">
+        <div class="agent-rail__top">
+          <svg class="agent-rail__mark" data-lbl width="20" height="20" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="11.5" fill="none" stroke="#c9c4b4" stroke-width="1.2"></circle><path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(169,107,18,.2)"></path><line x1="14" y1="14" x2="14" y2="2.5" stroke="#a96b12" stroke-width="1"></line><circle cx="17.8" cy="17.2" r="1.5" fill="#2b4a75"></circle></svg>
+          <span class="agent-rail__label mono" data-lbl>агент · база знаний</span>
+          <button class="agent-rail__collapse" id="agentRailToggle" type="button"
+                  title="Свернуть / развернуть меню" aria-label="Свернуть меню" aria-expanded="true">«</button>
         </div>
 
-        <div id="agentThread" class="agent-chat__thread" hidden></div>
+        <div class="agent-rail__group" role="tablist">
+          <button class="agent-rail__item is-active" type="button" data-agent-tab="ask" role="tab" aria-selected="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 3h12v8H6l-3 3v-3H2z"></path></svg>
+            <i data-lbl>Диалог</i>
+          </button>
+          <button class="agent-rail__item" type="button" data-agent-tab="find" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+            <i data-lbl>Найти</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="find"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+        </div>
 
-        <div class="agent-composer">
+        <div class="agent-rail__group" role="tablist">
+          <span class="agent-rail__section mono" data-lbl>знание</span>
+          <button class="agent-rail__item" type="button" data-agent-tab="observatory" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none"></circle></svg>
+            <i data-lbl>Обсерватория</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="observatory"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+          <button class="agent-rail__item" type="button" data-agent-tab="graph" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="4" cy="12" r="2"></circle><circle cx="12" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 10.5 10.5 5.5M6 12h4"></path></svg>
+            <i data-lbl>Граф</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="graph"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+          <button class="agent-rail__item" type="button" data-agent-tab="topics" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 2h7l3 3v9H3z"></path><path d="M10 2v3h3"></path></svg>
+            <i data-lbl>Понятия</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="topics"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+          <button class="agent-rail__item" type="button" data-agent-tab="wiki" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2c-2-1.4-4.5-1.4-6 0v11c1.5-1.4 4-1.4 6 0 2-1.4 4.5-1.4 6 0V2c-1.5-1.4-4-1.4-6 0z"></path><path d="M8 2v11"></path></svg>
+            <i data-lbl>Wiki</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="wiki"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+        </div>
+
+        <div class="agent-rail__group" role="tablist">
+          <span class="agent-rail__section mono" data-lbl>контроль</span>
+          <button class="agent-rail__item" type="button" data-agent-tab="contradictions" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 5h9M9 2l3 3-3 3M14 11H5M7 8l-3 3 3 3"></path></svg>
+            <i data-lbl>Противоречия</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="contradictions"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+          <button class="agent-rail__item" type="button" data-agent-tab="gaps" role="tab" aria-selected="false">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 2" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect></svg>
+            <i data-lbl>Пробелы</i>
+            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="gaps"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
+          </button>
+        </div>
+
+        <div class="agent-rail__foot">
+          <button id="agentSubButton" class="agent-sub-toggle" type="button"
+                  aria-haspopup="true" aria-expanded="false">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg>
+            <i id="agentSubLabel" data-lbl>Режим подписки</i>
+          </button>
+          <span class="agent-rail__note mono" data-lbl>ДИАЛОГ ОТКРЫТ ВСЕМ · РАЗДЕЛЫ — ПО ПОДПИСКЕ</span>
+        </div>
+      </nav>
+
+      <div class="agent-main">
+        <div class="agent-main__head">
+          <span class="agent-main__title">Агент базы знаний AgPM</span>
+          <span class="agent-main__notice mono">машинный ответ, не редакция базы</span>
           <div class="chat-history">
-            <button id="chatHistoryToggle" class="chat-history__toggle" type="button" hidden
+            <button id="chatHistoryToggle" class="chat-history__toggle mono" type="button" hidden
                     aria-expanded="false" aria-controls="chatHistoryList">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 3.5h10M2 7h10M2 10.5h6"></path></svg>
-              вопросы диалога <span id="chatHistoryCount" class="mono"></span>
-              <span id="chatHistoryPos" class="mono" hidden></span>
+              ВОПРОСЫ ДИАЛОГА <span id="chatHistoryCount"></span>
+              <span id="chatHistoryPos" hidden></span>
               <span class="chat-history__caret" aria-hidden="true">▾</span>
             </button>
             <div id="chatHistoryList" class="chat-history__list" hidden role="listbox" aria-label="Вопросы этого диалога"></div>
           </div>
-          <form id="agentForm" class="agent-ask agent-composer__row">
-            <span class="agent-ask__icon" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
-            </span>
-            <textarea id="agentQuestion" class="agent-ask__input" rows="1" autocomplete="off"
-                   placeholder="Спросите базу знаний об агентном управлении — или уточните предыдущий ответ. Enter — спросить, Shift+Enter — новая строка" aria-label="Вопрос к базе знаний"></textarea>
-            <span id="agentChars" class="agent-composer__chars" hidden></span>
+          <button id="newDialog" class="button button--ghost" type="button">＋ новый диалог</button>
+        </div>
+
+        <div class="agent-main__body">
+          <div id="agentAsk" class="agent-panel agent-panel--chat">
+            <div id="agentWelcome" class="agent-welcome" hidden>
+              <div class="agent-welcome__lead">
+                <h2 class="agent-welcome__title">Агент базы знаний AgPM</h2>
+                <p class="agent-welcome__intro">
+                  Отвечает только тем, что подтверждено дословными цитатами базы. Каждое
+                  утверждение раскрывается до точного фрагмента и первоисточника. Если
+                  подтверждений нет, агент честно скажет об этом.
+                </p>
+              </div>
+              <div class="agent-welcome__grid" id="promptGrid"></div>
+              <div class="agent-welcome__foot">
+                <button class="button button--ghost" id="morePrompts" type="button">⟳ Другие примеры</button>
+                <span class="agent-welcome__pool mono" id="poolNote"></span>
+              </div>
+            </div>
+
+            <div id="agentThread" class="agent-chat__thread" hidden></div>
+          </div>
+
+          <div id="agentFind" class="agent-panel" hidden>
+            <form id="agentFindForm" class="agent-ask">
+              <span class="agent-ask__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
+              </span>
+              <input id="agentFindQuery" class="agent-ask__input" type="search" autocomplete="off"
+                     placeholder="Найти утверждения по словам и по смыслу" aria-label="Поиск по базе знаний">
+              <button class="agent-ask__submit" type="submit">Найти</button>
+            </form>
+            <div class="agent-find__filters" id="agentFindFilters">
+              <label class="agent-select">допуск
+                <select data-find-filter="admission">
+                  <option value="">любой</option>
+                  <option value="knowledge">знание</option>
+                  <option value="observatory">хроника рынка</option>
+                </select>
+              </label>
+              <label class="agent-select">вид
+                <select data-find-filter="material_kind">
+                  <option value="">любой</option>
+                  <option value="fact">факт</option>
+                  <option value="opinion">мнение</option>
+                  <option value="case">кейс</option>
+                  <option value="forecast">прогноз</option>
+                  <option value="product_release">релиз</option>
+                  <option value="incident">инцидент</option>
+                </select>
+              </label>
+              <label class="agent-select">статус
+                <select data-find-filter="status">
+                  <option value="">любой</option>
+                  <option value="canon">канон</option>
+                  <option value="operationalization">операционализация</option>
+                  <option value="external_reference">внешняя ссылка</option>
+                  <option value="observed_signal">наблюдаемый сигнал</option>
+                </select>
+              </label>
+              <label class="agent-select">тема
+                <select data-find-filter="topic_key" id="agentFindTopic">
+                  <option value="">любая</option>
+                </select>
+              </label>
+              <label class="agent-check">
+                <input type="checkbox" data-find-filter="fresh" value="1"> только актуальное
+              </label>
+            </div>
+            <div id="agentFindResults" class="agent-answer" aria-live="polite"></div>
+          </div>
+
+          <div id="agentObservatory" class="agent-panel" hidden>
+            <div class="agent-find__filters" id="agentObservatoryFilters">
+              <label class="agent-select">период
+                <select data-observatory="since">
+                  <option value="">всё время</option>
+                  <option value="month">последний месяц</option>
+                  <option value="quarter">последний квартал</option>
+                  <option value="year">последний год</option>
+                </select>
+              </label>
+              <label class="agent-select">класс события
+                <select data-observatory="kind">
+                  <option value="">все шесть</option>
+                  <option value="incident">инцидент</option>
+                  <option value="product_release">релиз</option>
+                  <option value="forecast">прогноз</option>
+                  <option value="case">кейс</option>
+                  <option value="fact">факт</option>
+                  <option value="opinion">мнение</option>
+                </select>
+              </label>
+              <label class="agent-check">
+                <input type="checkbox" data-observatory="fresh" value="1"> только актуальное
+              </label>
+            </div>
+            <div id="agentObservatoryBody"></div>
+          </div>
+
+          <div id="agentGraph" class="agent-panel" hidden>
+            <div class="agent-find__filters">
+              <label class="agent-select">тема
+                <select id="agentGraphTopic">
+                  <option value="">выберите тему</option>
+                </select>
+              </label>
+              <label class="agent-select">или сущность
+                <select id="agentGraphEntity">
+                  <option value="">выберите имя</option>
+                </select>
+              </label>
+              <span class="agent-graph__legend" id="agentGraphLegend"></span>
+            </div>
+            <p class="agent-links__meta" id="agentGraphMeta" aria-live="polite"></p>
+            <p class="agent-links__edge" id="agentGraphEdge" aria-live="polite"></p>
+            <div id="agentGraphCanvas" class="agent-graph__canvas" hidden></div>
+            <div id="agentGraphBody"></div>
+          </div>
+
+          <div id="agentContradictions" class="agent-panel" hidden></div>
+          <div id="agentTopics" class="agent-panel" hidden></div>
+          <div id="agentWiki" class="agent-panel" hidden></div>
+          <div id="agentGaps" class="agent-panel" hidden></div>
+
+          <p class="agent-licence">
+            <span class="mono">AgPM Radar, машинная сборка</span>
+            <span class="agent-licence__sep" aria-hidden="true"></span>
+            Переработка и структура — свободно со ссылкой на AgPM Radar. Цитаты остаются за
+            правообладателями и приводятся со ссылкой на источник.
+          </p>
+        </div>
+
+        <div class="agent-composer" id="agentComposer">
+          <div id="chatMicLive" class="agent-composer__mic" hidden></div>
+          <form id="agentForm" class="agent-composer__row">
+            <div class="agent-composer__field">
+              <textarea id="agentQuestion" class="agent-ask__input" rows="1" autocomplete="off"
+                     placeholder="Спросите базу знаний — или уточните ответ…" aria-label="Вопрос к базе знаний"></textarea>
+            </div>
             <button class="agent-mic" id="agentMic" type="button" aria-label="Спросить голосом" title="Спросить голосом">
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="1.5" width="4" height="8" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14.5"></line></svg>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="6" y="1.5" width="4" height="8" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14.5"></line></svg>
             </button>
             <button class="agent-ask__submit" id="agentSend" type="submit">Спросить</button>
           </form>
-          <div id="chatMicLive" class="agent-composer__mic" hidden></div>
-          <div class="agent-ask__filters chipline" id="agentFilters">
+          <div class="agent-composer__foot">
+            <span class="agent-composer__hint mono">ENTER — СПРОСИТЬ · SHIFT+ENTER — СТРОКА · МИКРОФОН — ДИКТОВКА В СТРОКУ</span>
+            <span id="agentChars" class="agent-composer__chars mono" hidden></span>
             <span class="agent-ask__label">искать в:</span>
-            <button class="chip is-active" type="button" data-agent-admission="knowledge">знании</button>
-            <button class="chip" type="button" data-agent-admission="observatory">хронике рынка</button>
-            <button class="chip" id="newDialog" type="button">＋ новый диалог</button>
+            <div class="chipline" id="agentFilters">
+              <button class="chip chip--flat is-active" type="button" data-agent-admission="knowledge">знании</button>
+              <button class="chip chip--flat" type="button" data-agent-admission="observatory">хронике рынка</button>
+            </div>
           </div>
-          <button id="chatDown" class="chat-down" type="button" hidden>
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 2v9M3 7.5 7 11.5 11 7.5"></path></svg>
-            <span id="chatDownCount">к новым ответам</span>
-          </button>
-          <button id="chatUp" class="chat-up" type="button" hidden aria-label="Наверх к началу диалога">
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 12V3M3 6.5 7 2.5l4 4"></path></svg>
-          </button>
         </div>
 
+        <button id="chatDown" class="chat-down" type="button" hidden>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 2v9M3 7.5 7 11.5 11 7.5"></path></svg>
+          <span id="chatDownCount">к новым ответам</span>
+        </button>
+        <button id="chatUp" class="chat-up" type="button" hidden aria-label="Наверх к началу диалога">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M7 12V3M3 6.5 7 2.5l4 4"></path></svg>
+        </button>
       </div>
-
-      <div id="agentObservatory" class="agent-panel" hidden>
-        <div class="agent-find__filters" id="agentObservatoryFilters">
-          <label class="agent-select">период
-            <select data-observatory="since">
-              <option value="">всё время</option>
-              <option value="month">последний месяц</option>
-              <option value="quarter">последний квартал</option>
-              <option value="year">последний год</option>
-            </select>
-          </label>
-          <label class="agent-select">класс события
-            <select data-observatory="kind">
-              <option value="">все шесть</option>
-              <option value="incident">инцидент</option>
-              <option value="product_release">релиз</option>
-              <option value="forecast">прогноз</option>
-              <option value="case">кейс</option>
-              <option value="fact">факт</option>
-              <option value="opinion">мнение</option>
-            </select>
-          </label>
-          <label class="agent-check">
-            <input type="checkbox" data-observatory="fresh" value="1"> только актуальное
-          </label>
-        </div>
-        <div id="agentObservatoryBody"></div>
-      </div>
-      <div id="agentGraph" class="agent-panel" hidden>
-        <div class="agent-find__filters">
-          <label class="agent-select">тема
-            <select id="agentGraphTopic">
-              <option value="">выберите тему</option>
-            </select>
-          </label>
-          <label class="agent-select">или сущность
-            <select id="agentGraphEntity">
-              <option value="">выберите имя</option>
-            </select>
-          </label>
-          <span class="agent-graph__legend" id="agentGraphLegend"></span>
-        </div>
-        <p class="agent-links__meta" id="agentGraphMeta" aria-live="polite"></p>
-        <p class="agent-links__edge" id="agentGraphEdge" aria-live="polite"></p>
-        <div id="agentGraphCanvas" class="agent-graph__canvas" hidden></div>
-        <div id="agentGraphBody"></div>
-      </div>
-      <div id="agentContradictions" class="agent-panel" hidden></div>
-      <div id="agentTopics" class="agent-panel" hidden></div>
-      <div id="agentWiki" class="agent-panel" hidden></div>
-      <div id="agentGaps" class="agent-panel" hidden></div>
-
-      <p class="agent-licence">
-        <span class="mono">AgPM Radar, машинная сборка</span>
-        <span class="agent-licence__sep" aria-hidden="true"></span>
-        Переработка и структура — свободно со ссылкой на AgPM Radar. Цитаты остаются за
-        правообладателями и приводятся со ссылкой на источник.
-      </p>
     </div>
   </section>
 
   <section id="gazetteView" class="gazette-view" aria-label="Газета AgPM" hidden>
-    <iframe
-      class="gazette-frame"
-      src="/gazette-20260803.html"
-      title="Новости Агентного управления — выпуск от 3 августа 2026"
-      sandbox="allow-same-origin allow-modals">
-    </iframe>
+    <div class="gazette-bar">
+      <span class="gazette-bar__title">Новости Агентного управления</span>
+      <span class="gazette-bar__note mono">ежемесячная газета по материалам радара</span>
+      <div class="gazette-issue">
+        <button class="gazette-issue__button" id="gazetteIssue" type="button" aria-expanded="false" aria-controls="gazetteArchive">
+          <i class="gazette-issue__dot" aria-hidden="true"></i>
+          <b>Август 2026</b>
+          <span class="mono">№ 1</span>
+          <span class="gazette-issue__caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="gazette-archive" id="gazetteArchive" hidden role="listbox" aria-label="Архив выпусков">
+          <div class="gazette-archive__head mono">Архив выпусков</div>
+          <div class="gazette-archive__row is-current" role="option" aria-selected="true">
+            <span class="gazette-archive__names">
+              <span class="gazette-archive__month">Август 2026</span>
+              <span class="gazette-archive__sub mono">3 авг · Том I · пилот</span>
+            </span>
+            <span class="gazette-archive__tag mono">ТЕКУЩИЙ</span>
+          </div>
+          <div class="gazette-archive__foot">Архив пополняется по мере выхода номеров — следующий выпуск в сентябре.</div>
+        </div>
+      </div>
+      <button class="button button--ghost" id="printGazette" type="button">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 6V2h8v4M4 12H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1M4 10h8v4H4z"></path></svg>
+        Печать
+      </button>
+      <button class="button button--solid" id="savePdfGazette" type="button">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"></path></svg>
+        Сохранить PDF
+      </button>
+    </div>
+    <div class="gazette-stage">
+      <iframe
+        class="gazette-frame"
+        src="/gazette-20260803.html"
+        title="Новости Агентного управления — выпуск от 3 августа 2026"
+        sandbox="allow-same-origin allow-modals">
+      </iframe>
+    </div>
   </section>
 
-  <div class="gazette-print-control" aria-label="Действия с газетой">
-    <button id="printGazette" class="gazette-print-control__button" type="button">Печать</button>
-  </div>
-
-  <nav class="view-switcher" aria-label="Переключение режима просмотра">
-    <button class="view-switcher__button is-active" type="button" data-view-mode="radar" aria-pressed="true">Радар</button>
-    <button class="view-switcher__button" type="button" data-view-mode="gazette" aria-pressed="false">Газета</button>
-    <button class="view-switcher__button" type="button" data-view-mode="agent" aria-pressed="false">Агент</button>
-  </nav>
-
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260825-analysis-parity"></script>
+  <script src="/assets/app.mjs?v=20260825-v3"></script>
 </body>
 </html>

@@ -302,7 +302,7 @@ const VIEW_MODES = ["radar", "gazette", "agent"];
 // was still a lexical declaration further down the file: the throw aborted the
 // module, so nothing after it ever ran and the page came up blank in every
 // mode - not only the one that triggered it.
-const agentState = { tab: "find", admission: "knowledge", busy: false };
+const agentState = { tab: "ask", admission: "knowledge", busy: false };
 
 // Declared at the top on purpose: a stored agent mode runs `setAgentTab` at
 // import time, before the graph section below has initialised - a `let` down
@@ -314,6 +314,13 @@ let linksCanvas = null;
  * The dialogue is free; browsing the base is subscribed (owner's decision,
  * 2026-08-24). The interface hides nothing cleverly - without a key the agent
  * mode simply is the conversation, and the server remains the wall either way. */
+
+// Объявлено здесь, а не рядом с остальным кодом базы знаний: `accessInit()`
+// работает во время вычисления модуля и по ссылке вида `#key=…` сразу зовёт
+// `accessEnter`, а тот строит адрес из этой константы. Ниже по файлу она
+// оставалась в мёртвой зоне, ReferenceError глох в catch - и ключ по ссылке
+// не срабатывал ни у кого, молча. Третий раз в этом файле, всё та же ловушка.
+const KB = "/kb";
 
 const ACCESS_STORE = "radarAccess.v1";
 const agentAccess = { key: "", plan: null, expiresAt: null };
@@ -408,11 +415,11 @@ function accessInit() {
 
 /* The button does not switch anything - it explains, and offers the two doors:
  * a request to the owner, or a key the reader already holds. */
-document.getElementById("agentSubButton")?.addEventListener("click", () => {
+function accessPanel(open) {
   const panel = document.getElementById("agentSubPanel");
   const button = document.getElementById("agentSubButton");
   if (!panel) return;
-  const opening = panel.hidden;
+  const opening = open === undefined ? panel.hidden : open;
   panel.toggleAttribute("hidden", !opening);
   button?.setAttribute("aria-expanded", opening ? "true" : "false");
   if (opening && agentAccess.key) {
@@ -424,6 +431,71 @@ document.getElementById("agentSubButton")?.addEventListener("click", () => {
       }.`;
     }
   }
+}
+
+document.getElementById("agentSubButton")?.addEventListener("click", () => accessPanel());
+
+/* Закрытый пункт рейки не уводит из диалога: макет показывает на нём замок и
+ * подсказку, а клик открывает разговор о подписке. Слушатель стоит на самой
+ * рейке в фазе перехвата, поэтому делегирование документа до него не доходит. */
+document.getElementById("agentRail")?.addEventListener("click", event => {
+  const item = event.target?.closest?.("[data-agent-tab]");
+  if (!item || item.dataset.agentTab === "ask") return;
+  if (document.body.classList.contains("is-subscribed")) return;
+  event.stopPropagation();
+  event.preventDefault?.();
+  accessPanel(true);
+}, true);
+
+document.getElementById("agentRailToggle")?.addEventListener("click", () => {
+  const rail = document.getElementById("agentRail");
+  const grid = document.getElementById("agGrid");
+  const toggle = document.getElementById("agentRailToggle");
+  if (!rail) return;
+  const narrow = !rail.classList.contains("is-narrow");
+  rail.classList.toggle("is-narrow", narrow);
+  grid?.classList.toggle("is-narrow", narrow);
+  if (toggle) {
+    toggle.textContent = narrow ? "»" : "«";
+    toggle.setAttribute("aria-expanded", narrow ? "false" : "true");
+    toggle.setAttribute("aria-label", narrow ? "Развернуть меню" : "Свернуть меню");
+  }
+});
+
+/** Счётчик у пункта рейки. Печатается только тем числом, которое раздел уже
+ *  прочитал у базы: сочинять «13 876 цитат» в вёрстке — врать читателю. */
+function agentRailCount(tab, value) {
+  const node = document.querySelector(`[data-rail-count="${tab}"]`);
+  if (node) node.textContent = Number.isFinite(Number(value)) ? String(value) : "";
+}
+
+/** То же правило для строки состояния в шапке: пока скелет тем не прочитан,
+ *  строка говорит про правило ответа, а не про размер базы. */
+function agentBaseStatus(topics) {
+  const node = document.getElementById("agentBaseStatus");
+  if (!node || !Array.isArray(topics) || !topics.length) return;
+  node.innerHTML = `<i aria-hidden="true"></i>БАЗА ЗНАНИЙ AgPM · ${topics.length} ТЕМ · ОТВЕТ ПО ЦИТАТАМ`;
+}
+
+/* Строка вопроса в шапке: Enter уводит в диалог и спрашивает там же. */
+document.getElementById("headerAsk")?.addEventListener("keydown", event => {
+  if (event.key !== "Enter") return;
+  const question = String(event.target?.value || "").trim();
+  if (!question) return;
+  event.preventDefault?.();
+  event.target.value = "";
+  setAgentTab("ask");
+  agentAsk(question);
+});
+
+/* Архив номеров газеты: один номер сегодня, поповер — на вырост. */
+document.getElementById("gazetteIssue")?.addEventListener("click", () => {
+  const archive = document.getElementById("gazetteArchive");
+  const button = document.getElementById("gazetteIssue");
+  if (!archive) return;
+  const opening = archive.hidden;
+  archive.toggleAttribute("hidden", !opening);
+  button?.setAttribute("aria-expanded", opening ? "true" : "false");
 });
 
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
@@ -455,12 +527,8 @@ function setViewMode(mode) {
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
-  // The agent mode has its own name and its own instruments: the issue date,
-  // the period switch and the radar search have nothing to say here.
-  const brand = document.getElementById("brandTitle");
-  if (brand) brand.textContent = state.viewMode === "agent" ? "Агент базы знаний AgPM" : "Радар AgPM";
-  const subButton = document.getElementById("agentSubButton");
-  subButton?.toggleAttribute("hidden", state.viewMode !== "agent");
+  // Шапка макета v3 держит имя радара во всех режимах: имя агента стоит над
+  // его собственной колонкой, а инструменты справа меняются по режиму.
   if (state.viewMode !== "agent") {
     document.getElementById("agentSubPanel")?.toggleAttribute("hidden", true);
   }
@@ -468,14 +536,18 @@ function setViewMode(mode) {
   // Subscribers land there too; their difference is what else they can open.
   // Deferred a microtask: a stored agent mode runs this at import time, and
   // `setAgentTab` reaches declarations the module has not initialised yet.
-  if (state.viewMode === "agent" && !document.body.classList.contains("is-subscribed")) {
-    queueMicrotask(() => setAgentTab("ask"));
+  //
+  // The opening tab is marked active in the markup, so nothing else would run
+  // its loader: the conversation needs its own start, whoever the reader is.
+  if (state.viewMode === "agent") {
+    const opening = document.body.classList.contains("is-subscribed") ? agentState.tab : "ask";
+    queueMicrotask(() => setAgentTab(opening));
   }
   document.getElementById("gazetteView")?.toggleAttribute("hidden", state.viewMode !== "gazette");
   document.getElementById("agentView")?.toggleAttribute("hidden", state.viewMode !== "agent");
-  // The opening tab is marked active in the markup, so no `setAgentTab` runs for
-  // it and nothing would fill its subject list.
-  if (state.viewMode === "agent" && agentState.tab === "find") agentLoadTopicOptions();
+  // Кадр газеты мог загрузиться, пока раздел был скрыт: событие `load` тогда
+  // прошло до подписки, и высоту надо взять сейчас.
+  if (state.viewMode === "gazette") fitGazetteFrame();
   document.querySelectorAll("[data-view-mode]").forEach(button => {
     const active = button.dataset.viewMode === state.viewMode;
     button.classList.toggle("is-active", active);
@@ -498,6 +570,22 @@ function initViewMode() {
   accessInit();
   setViewMode(window.location.hash === "#gazette" ? "gazette" : saved);
 }
+
+/** Газета — один длинный лист, а не окно со своей полосой прокрутки: рамка
+ *  растёт под содержимое, как бумага в макете. Кадр свой (`allow-same-origin`),
+ *  поэтому высоту можно спросить; где нельзя - остаётся высота из таблицы. */
+function fitGazetteFrame() {
+  const frame = document.querySelector(".gazette-frame");
+  if (!frame) return;
+  try {
+    const height = frame.contentDocument?.documentElement?.scrollHeight;
+    if (height) frame.style.height = `${height + 8}px`;
+  } catch {
+    /* чужой origin высоту не отдаёт - пусть работает CSS */
+  }
+}
+
+document.querySelector(".gazette-frame")?.addEventListener("load", fitGazetteFrame);
 
 function printGazette() {
   const frame = document.querySelector(".gazette-frame");
@@ -532,6 +620,27 @@ function printGazette() {
     }
   } catch {
     fallback();
+  }
+}
+
+/** Единственный способ подвинуть страницу: окном, а не узлом.
+ *
+ * Дизайн-система запрещает штатный метод прокрутки к элементу, и не из
+ * вкусовщины: он тянет ближайшего прокручиваемого предка, а в режиме «Агент»
+ * им оказывается колонка, не страница. Здесь считается координата и едет окно.
+ * Где окна нет (консольный смоук) — не едет никуда. */
+function scrollToNode(node, place = "start") {
+  try {
+    const box = node?.getBoundingClientRect?.();
+    if (!box) return;
+    const height = window.innerHeight || 800;
+    const top = box.top + (window.scrollY || 0);
+    const target = place === "end" ? top + box.height - height + 24
+      : place === "center" ? top - height / 2 + box.height / 2
+      : top - 72;
+    window.scrollTo?.({ top: Math.max(0, target), behavior: "smooth" });
+  } catch {
+    /* нет окна — нечего листать */
   }
 }
 
@@ -575,13 +684,17 @@ function periodStart(period) {
   return shiftDate(last, -(period === "7d" ? 6 : 29));
 }
 
+/* Сводка выпуска живёт в тикере: те же числа, что и раньше стояли плиткой,
+ * только строкой на графите — раскладка макета v3. Идентификаторы прежние,
+ * менялось место, а не смысл. */
 function updateSummary(stats, materials) {
   setText("viewed", stats.viewed || 0);
   setText("included", stats.included || 0);
   setText("cut", stats.cut || 0);
-  document.getElementById("perimeters").innerHTML = `<span class="near-text">${stats.near || 0}</span> / <span class="mid-text">${stats.mid || 0}</span> / <span class="far-text">${stats.far || 0}</span>`;
+  document.getElementById("perimeters").innerHTML = `<span class="near-text">Б ${stats.near || 0}</span> · <span class="mid-text">С ${stats.mid || 0}</span> · <span class="far-text">Д ${stats.far || 0}</span>`;
   setText("nearShare", stats.included ? `${Math.round((stats.near || 0) / stats.included * 100)}%` : "0%");
-  setText("includedShare", stats.viewed ? `${Math.round((stats.included || 0) / stats.viewed * 100)}% от просмотренного` : "0% от просмотренного");
+  setText("includedShare", stats.viewed ? `${Math.round((stats.included || 0) / stats.viewed * 100)}%` : "0%");
+  setText("allChip", stats.included || 0);
   setText("nearChip", stats.near || 0);
   setText("midChip", stats.mid || 0);
   setText("farChip", stats.far || 0);
@@ -593,7 +706,7 @@ function renderSparkline() {
   const selected = activeIssueDate();
   document.getElementById("sparkline").innerHTML = timeseries.slice(-30).map((row, index, arr) => {
     const value = Number(row.included) || 0;
-    const height = Math.max(4, Math.round(value / max * 32));
+    const height = Math.max(2, Math.round(value / max * 12));
     const classes = [index === arr.length - 1 ? "is-last" : "", row.stat_date === selected ? "is-selected" : ""].filter(Boolean).join(" ");
     return `<span class="${classes}" style="height:${height}px" title="${fmtDate(row.stat_date, true)} · ${value}"></span>`;
   }).join("");
@@ -612,7 +725,13 @@ function renderTheses(materials) {
     { lead: "Agent-washing остаётся шумом.", rest: "Публично показываем отобранный слой и агрегаты отсечения, полный список шума остаётся внутренним." },
   ];
   setText("thesesTitle", thesesTitle());
-  document.getElementById("theses").innerHTML = generated.slice(0, 4).map((item, index) => {
+  const shown = generated.slice(0, 4);
+  const issueNumber = selectedIssue?.issue_number;
+  setText("thesesNote", [
+    issueNumber ? `выпуск ${issueNumber}` : "",
+    `${shown.length} ${pluralRu(shown.length, "тезис", "тезиса", "тезисов")}`,
+  ].filter(Boolean).join(" · "));
+  document.getElementById("theses").innerHTML = shown.map((item, index) => {
     const lead = item.lead || item[0] || "";
     const rest = item.rest || item[1] || "";
     return `<div class="thesis"><span class="thesis__num">${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(lead)}</strong> ${escapeHtml(rest)}</div></div>`;
@@ -674,37 +793,37 @@ function renderRadarWidget(materials) {
   }
   if (state.period === "7d") {
     document.getElementById("radarTitle").textContent = "Доли периметров";
+    setText("radarNote", `${stats.included || 0} материалов · 3 кольца`);
     root.innerHTML = renderShareWidget(stats);
     return;
   }
   if (state.period === "30d") {
     document.getElementById("radarTitle").textContent = "Кольцо 30 дней";
+    setText("radarNote", "автообход дней · 30 выпусков");
     root.innerHTML = renderRingWidget(stats);
     startRingTicker();
     return;
   }
-  document.getElementById("radarTitle").textContent = "Сонар";
+  document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар";
+  setText("radarNote", `${visible.length} контактов · оборот 8 с`);
   root.innerHTML = renderSonarWidget(visible);
 }
 
+/* Сонар макета v3: три кольца на viewBox 200, перекрестье, луч 8 с и блипы,
+ * вспышка которых догоняет луч отрицательной задержкой. */
 function renderSonarWidget(materials) {
   return `<div class="radar-widget">
-    <svg viewBox="0 0 240 240" class="radar-svg radar-sonar" role="img" aria-label="Сонар: материалы на трёх кольцах">
-      <circle cx="120" cy="120" r="34" fill="none" stroke="#e2e5e4" stroke-width="1"></circle>
-      <circle cx="120" cy="120" r="64" fill="none" stroke="#e2e5e4" stroke-width="1"></circle>
-      <circle cx="120" cy="120" r="94" fill="none" stroke="#dadddc" stroke-width="1"></circle>
-      <line x1="120" y1="26" x2="120" y2="20" stroke="#c7cbce" stroke-width="1"></line>
-      <line x1="214" y1="120" x2="220" y2="120" stroke="#c7cbce" stroke-width="1"></line>
-      <line x1="120" y1="214" x2="120" y2="220" stroke="#c7cbce" stroke-width="1"></line>
-      <line x1="26" y1="120" x2="20" y2="120" stroke="#c7cbce" stroke-width="1"></line>
-      <text x="120" y="82" text-anchor="middle" font-size="9" fill="#8a9199" paint-order="stroke" stroke="#ffffff" stroke-width="3">близкий</text>
-      <text x="120" y="52" text-anchor="middle" font-size="9" fill="#8a9199" paint-order="stroke" stroke="#ffffff" stroke-width="3">средний</text>
-      <text x="120" y="22" text-anchor="middle" font-size="9" fill="#8a9199" paint-order="stroke" stroke="#ffffff" stroke-width="3">дальний</text>
+    <svg viewBox="0 0 200 200" class="radar-svg radar-sonar" role="img" aria-label="Сонар: материалы на трёх кольцах">
+      <circle cx="100" cy="100" r="94" fill="none" stroke="#d9d4c5" stroke-width="1"></circle>
+      <circle cx="100" cy="100" r="63" fill="none" stroke="#e3dfd1" stroke-width=".8"></circle>
+      <circle cx="100" cy="100" r="32" fill="none" stroke="#e3dfd1" stroke-width=".8"></circle>
+      <line x1="6" y1="100" x2="194" y2="100" stroke="#eceadf" stroke-width=".8"></line>
+      <line x1="100" y1="6" x2="100" y2="194" stroke="#eceadf" stroke-width=".8"></line>
       <g class="sonar-sweep" data-anim>
-        <path d="M120 120 L120 26 A94 94 0 0 1 167 38.6 Z" fill="rgba(43,74,117,0.06)"></path>
-        <line x1="120" y1="120" x2="120" y2="26" stroke="rgba(43,74,117,0.45)" stroke-width="1"></line>
+        <path d="M100 100 L100 6 A94 94 0 0 1 160 26 Z"></path>
+        <line x1="100" y1="100" x2="100" y2="6"></line>
       </g>
-      <circle cx="120" cy="120" r="2.6" fill="#1f242a"></circle>
+      <circle cx="100" cy="100" r="2.2" fill="#1f242a"></circle>
       ${sonarBlips(materials).join("")}
     </svg>
     ${sonarLegend(materials)}
@@ -720,7 +839,7 @@ function sonarLegend(materials) {
   ];
   return `<div class="sonar-legend">
     <div class="sonar-legend__items">
-      ${rows.map(([, label, color, count]) => `<span><i style="background:${color}"></i>${label} · <b class="mono">${count}</b></span>`).join("")}
+      ${rows.map(([, label, color, count]) => `<span><i style="background:${color}"></i>${label} <b class="mono">${count}</b></span>`).join("")}
     </div>
     <div class="sonar-note">${sonarPeriodLabel(materials.length)}</div>
   </div>`;
@@ -748,9 +867,9 @@ function sonarBlips(materials) {
 }
 
 function sonarPerimeterMeta(perimeter) {
-  if (perimeter === "near") return { r: 34, dot: 3.4, color: "#2B4A75" };
-  if (perimeter === "mid") return { r: 64, dot: 3, color: "#1E6E62" };
-  return { r: 94, dot: 3, color: "#6B6880" };
+  if (perimeter === "near") return { r: 32, dot: 3, color: "#2B4A75" };
+  if (perimeter === "mid") return { r: 63, dot: 2.7, color: "#1E6E62" };
+  return { r: 94, dot: 2.7, color: "#6B6880" };
 }
 
 function distributeAngles(rows) {
@@ -780,8 +899,8 @@ function angularDistance(a, b) {
 
 function sonarBlip(item, angle, meta) {
   const rad = angle * Math.PI / 180;
-  const x = 120 + meta.r * Math.cos(rad);
-  const y = 120 + meta.r * Math.sin(rad);
+  const x = 100 + meta.r * Math.cos(rad);
+  const y = 100 + meta.r * Math.sin(rad);
   const delay = (((angle + 90) % 360) / 360) * 8 - 8;
   const label = escapeHtml(item.title || "");
   return `<circle class="sonar-blip" data-anim cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${item.key_material ? meta.dot + .4 : meta.dot}" fill="${meta.color}" style="animation-delay:${delay.toFixed(2)}s"><title>${label}</title></circle>`;
@@ -814,7 +933,7 @@ function renderShareWidget(stats) {
     </div>
     </div>
     ${shareLegend(stats, shares)}
-    <div class="share-note">${ringRangeLabel(timeseries.slice(-7))} · серые засечки — предыдущие 7 дней</div>
+    <div class="share-note">${ringRangeLabel(timeseries.slice(-7))} · засечки — предыдущие 7 дней</div>
   </div>`;
 }
 
@@ -858,14 +977,18 @@ function previousSevenDayShares() {
 function renderRingWidget(stats) {
   const rows = timeseries.slice(-30);
   const maxTotal = Math.max(1, ...rows.map(row => ringTotal(row)));
+  // Подписи дат стоят сразу за самым длинным столбиком, а не на постоянном
+  // радиусе: иначе в тихую неделю они уезжают в пустоту, а в шумную - под бар.
+  const labelRadius = Math.min(142, 54 + maxTotal * Math.min(16, 76 / maxTotal) + 14);
   return `<div class="radar-widget radar-widget-ring">
     <div class="ring-stage">
       <svg viewBox="0 0 300 300" class="radar-svg radar-ring" role="img" aria-label="Включено в радар по дням месяца">
-        <circle cx="150" cy="150" r="48" fill="none" stroke="#eef0ef" stroke-width="1"></circle>
-        <g>${rows.map((row, index) => ringBar(row, index, rows.length, maxTotal)).join("")}</g>
+        <circle cx="150" cy="150" r="48" fill="none" stroke="#eeeadd" stroke-width="1"></circle>
         <g id="ringHl" class="ring-highlight" data-anim>
-          <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z" fill="rgba(43,74,117,0.07)"></path>
+          <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z"></path>
         </g>
+        <g>${rows.map((row, index) => ringBar(row, index, rows.length, maxTotal)).join("")}</g>
+        <g>${ringDateLabels(rows, labelRadius)}</g>
       </svg>
       <div class="radar-center">
         <div class="mono" id="ringDate" style="font-size:12.5px"></div>
@@ -880,6 +1003,18 @@ function renderRingWidget(stats) {
     </div>
     <div class="ring-note">включено по дням · ${ringRangeLabel(rows)} · приглушённые — выходные</div>
   </div>`;
+}
+
+/** Даты по кругу, как в макете: пять засечек на радиусе 143. */
+function ringDateLabels(rows, radius) {
+  if (!rows.length) return "";
+  const step = 360 / rows.length;
+  return [0, 7, 14, 21, 28]
+    .filter(index => index < rows.length)
+    .map(index => {
+      const point = ringPoint(radius, index * step);
+      return `<text x="${point.x}" y="${(Number(point.y) + 3).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#a29d8d">${escapeHtml(fmtDate(rows[index].stat_date, true))}</text>`;
+    }).join("");
 }
 
 function ringTotal(row) {
@@ -998,23 +1133,18 @@ function renderColumns(materials) {
   root.innerHTML = visibleKeys.map(key => {
     const meta = perimeters[key];
     const rows = materials.filter(item => item.perimeter === key && materialMatches(item));
-    return `<section class="column column-${key}" style="color:${meta.color}">
+    const keyCount = rows.filter(row => row.key_material).length;
+    return `<section class="column column-${key}">
       <header class="column__head">
-        <div class="perimeter-glyph" aria-hidden="true">${glyph(key)}</div>
-        <div>
-          <div class="column__title"><span>${meta.title}</span><span class="mono">${rows.length}</span></div>
-          <div class="column__desc">${meta.desc}</div>
-        </div>
+        <span class="column__title">${meta.title}</span>
+        <span class="column__count">${rows.length}</span>
       </header>
+      <div class="column__desc">${meta.desc}</div>
       <div class="cards">${rows.length ? rows.map(renderCard).join("") : '<div class="empty">Материалов по этому фильтру нет.</div>'}</div>
-      <footer class="column__foot">${rows.filter(row => row.key_material).length} ключевых из ${rows.length} включённых · полный выпуск</footer>
+      <footer class="column__foot">${keyCount} ${pluralRu(keyCount, "ключевой", "ключевых", "ключевых")} из ${rows.length} ${pluralRu(rows.length, "включённого", "включённых", "включённых")}</footer>
     </section>`;
   }).join("");
   renderActiveFilter();
-}
-
-function glyph(active) {
-  return `<svg viewBox="0 0 42 42"><circle class="${active === "far" ? "is-on" : ""}" cx="21" cy="21" r="17"></circle><circle class="${active === "mid" ? "is-on" : ""}" cx="21" cy="21" r="11"></circle><circle class="${active === "near" ? "is-on" : ""}" cx="21" cy="21" r="5"></circle></svg>`;
 }
 
 function renderCard(item) {
@@ -1030,16 +1160,15 @@ function renderCard(item) {
   }).join("");
   return `<article class="card">
     <div class="card__meta">
-      <span class="dot"></span>
-      <span>${escapeHtml(host)}</span>
-      <span class="mono">${escapeHtml(date)}</span>
       <span class="signal ${signal.className}" title="${escapeHtml(signal.title)}">${signal.mark} ${escapeHtml(signal.label)}</span>
+      <span>${escapeHtml(host)}</span>
+      <span>${escapeHtml(date)}</span>
     </div>
     <h3>${escapeHtml(item.title)}</h3>
     <p>${escapeHtml(description)}</p>
-    <div class="takeaway"><span class="takeaway__label">Вывод для AgPM</span><p>${escapeHtml(takeaway)}</p></div>
-    <div class="tags">${tags}</div>
-    <a class="source-link" href="${escapeHtml(safeExternalUrl(item.url))}" target="_blank" rel="noopener">первоисточник ↗</a>
+    ${takeaway ? `<div class="takeaway"><b class="takeaway__label">ВЫВОД ДЛЯ AgPM · </b>${escapeHtml(takeaway)}</div>` : ""}
+    ${tags ? `<div class="tags">${tags}</div>` : ""}
+    <a class="source-link" href="${escapeHtml(safeExternalUrl(item.url))}" target="_blank" rel="noopener">первоисточник →</a>
   </article>`;
 }
 
@@ -1048,17 +1177,20 @@ function signalMeta(item) {
   const labels = {
     strong: "Сильный сигнал",
     context: "Контекст",
-    watch: "Наблюдать",
+    watch: "Наблюдение",
   };
   const titles = {
     strong: "Материал можно использовать в методической или управленческой повестке почти сразу.",
     context: "Материал важен для понимания среды, но требует перевода в AgPM через интерпретацию.",
     watch: "Ранний или рыночный сигнал: стоит наблюдать, но не делать главным аргументом выпуска.",
   };
+  // Знаки макета v3: заполненный треугольник — сильный сигнал, круг — контекст,
+  // контур — наблюдение. Типографика, а не иконка: тот же ряд, что и стрелки.
+  const marks = { strong: "▲", context: "●", watch: "○" };
   return {
     label: item.signal_label || labels[strength] || labels.strong,
     title: titles[strength] || titles.strong,
-    mark: strength === "watch" ? "◇" : "◆",
+    mark: marks[strength] || marks.strong,
     className: `signal-${strength}`,
   };
 }
@@ -1079,34 +1211,37 @@ function renderActiveFilter() {
 
 function renderBars(id, rows, labelKey, valueKey) {
   const max = Math.max(1, ...rows.map(row => Number(row[valueKey]) || 0));
-  document.getElementById(id).innerHTML = rows.map(row => {
+  const node = document.getElementById(id);
+  if (!node) return;
+  node.innerHTML = rows.map(row => {
     const value = Number(row[valueKey]) || 0;
     const blockClass = rubricBlockClasses[row.id] || "default";
     const isActive = state.rubrics.includes(row.id);
+    const arrow = trendArrow(row);
+    const deltaClass = arrow === "↘" ? "is-down" : arrow === "→" ? "is-flat" : "";
     return `<button class="bar-row bar-row-${blockClass} ${isActive ? "is-active" : ""}" data-rubric-bar="${row.id || ""}" aria-pressed="${isActive ? "true" : "false"}">
       <span>${escapeHtml(row[labelKey] || "")}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${Math.max(3, value / max * 100)}%"></span></span>
-      <span class="mono">${value}</span>
+      <span class="bar-count">${value}</span>
+      <span class="bar-delta ${deltaClass}">${arrow}</span>
     </button>`;
   }).join("");
+  setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · счёт за 30 дней` : "");
 }
 
+/* Источники — облако доменов макета v3: имя и сколько материалов оно дало. */
 function renderSourcesPanel() {
-  const max = Math.max(1, ...sources.map(row => Number(row.included) || 0));
   const totalIncluded = sources.reduce((sum, row) => sum + (Number(row.included) || 0), 0);
   const top = sources[0];
-  document.getElementById("sources").innerHTML = `${sources.slice(0, 8).map(row => {
+  const shown = sources.slice(0, 12);
+  const rest = Math.max(0, sources.length - shown.length);
+  setText("sourcesNote", sources.length ? `${sources.length} ${pluralRu(sources.length, "источник", "источника", "источников")}` : "");
+  document.getElementById("sources").innerHTML = `${shown.map(row => {
     const included = Number(row.included) || 0;
-    const includedWidth = Math.max(3, included / max * 100);
     const label = sourceLabel(row.name);
-    return `<div class="source-row">
-      <span class="source-row__name" title="${escapeHtml(row.name || "")}">${escapeHtml(label)}</span>
-      <span class="source-track" title="${escapeHtml(row.name || "")}: включено ${included}">
-        <span class="source-included" style="width:${includedWidth}%"></span>
-      </span>
-      <span class="mono source-row__count">${included}</span>
-    </div>`;
+    return `<span class="source-chip" title="${escapeHtml(row.name || "")}: включено ${included}">${escapeHtml(label)} ×${included}</span>`;
   }).join("")}
+  ${rest ? `<span class="source-chip source-chip--rest">+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}
   <p class="source-note">${sourceInsight(totalIncluded, top)}</p>`;
 }
 
@@ -1114,21 +1249,6 @@ function sourceInsight(included, top) {
   if (!included) return "Источники появятся после следующего выпуска с включёнными материалами.";
   const leader = top?.name ? ` Главный входящий поток: ${sourceLabel(top.name)}.` : "";
   return `Показаны источники материалов, вошедших в публичный радар за выбранный период.${leader}`;
-}
-
-function niceAxisMax(value, stepBase = 10) {
-  const raw = Math.max(1, Number(value) || 1);
-  if (raw <= stepBase) return stepBase;
-  return Math.ceil(raw / stepBase) * stepBase;
-}
-
-function niceCountAxisMax(value) {
-  const raw = Math.max(1, Number(value) || 1);
-  if (raw <= 4) return 4;
-  if (raw <= 8) return 8;
-  if (raw <= 12) return 12;
-  if (raw <= 20) return 20;
-  return Math.ceil(raw / 10) * 10;
 }
 
 function trendRangeLabel(rows) {
@@ -1144,125 +1264,102 @@ function trendRangeLabel(rows) {
   return `${firstLabel} – ${lastLabel} · агрегаты радара`;
 }
 
-function trendPolyline(points) {
-  const valid = points.filter(point => Number.isFinite(point.y));
-  return valid.map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
-}
-
+/* «Материалы в разрезе по дням» и календарь — макет v3.
+ *
+ * Столбик дня — стопка Б/С/Д снизу вверх, выходные приглушены. Ось внизу
+ * называет четыре даты и сегодняшний счёт; SVG-график с двумя шкалами уступил
+ * место плотной стопке, потому что дизайн-система просит данные, а не рамку. */
 function renderTrendPanels() {
   const rows = timeseries.slice(-30);
-  const countMax = niceCountAxisMax(Math.max(1, ...rows.map(row => Number(row.included) || 0)));
-  const maxShare = Math.max(20, ...rows.map(row => {
-    const viewed = Number(row.viewed) || 0;
-    return viewed ? Math.round((Number(row.included) || 0) / viewed * 100) : 0;
-  }));
-  const shareMax = Math.min(100, niceAxisMax(maxShare));
   const trendRange = document.getElementById("trendRange");
   if (trendRange) trendRange.textContent = trendRangeLabel(rows);
+  renderTrendStack(rows);
+  renderHeatmap(rows);
+}
 
-  const chart = { width: 760, height: 252, left: 42, right: 42, top: 18, bottom: 30 };
-  chart.plotWidth = chart.width - chart.left - chart.right;
-  chart.plotHeight = chart.height - chart.top - chart.bottom;
-  chart.bottomY = chart.top + chart.plotHeight;
-  const slot = chart.plotWidth / Math.max(1, rows.length);
-  const barWidth = Math.min(18, Math.max(8, slot * 0.56));
-  const yForCount = value => chart.bottomY - (Math.max(0, value) / countMax) * chart.plotHeight;
-  const yForShare = value => chart.bottomY - (Math.min(shareMax, Math.max(0, value)) / shareMax) * chart.plotHeight;
-  const xForIndex = index => chart.left + slot * index + slot / 2;
-  const countTicks = [0, .25, .5, .75, 1].map(part => Math.round(countMax * part));
-  const shareTicks = [shareMax, Math.round(shareMax / 2), 0];
-  const grid = countTicks.map(tick => {
-    const y = yForCount(tick);
-    return `<line class="trend-gridline" x1="${chart.left}" x2="${chart.width - chart.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"></line>
-      <text class="trend-axis-label" x="${chart.left - 9}" y="${(y + 3).toFixed(1)}" text-anchor="end">${tick}</text>`;
+function renderTrendStack(rows) {
+  const host = document.getElementById("trendBars");
+  if (!host) return;
+  const maxTotal = Math.max(1, ...rows.map(row => ringTotal(row)));
+  // 64px под самый высокий день: столбик остаётся столбиком и на пике,
+  // и в тихую неделю, когда включено по три материала.
+  const scale = Math.min(2.4, 64 / maxTotal);
+  const bar = (value, name) => value
+    ? `<i class="${name}" style="height:${(value * scale).toFixed(1)}px"></i>`
+    : "";
+  const columns = rows.map(row => {
+    const total = ringTotal(row);
+    const classes = ["trend-day", isWeekend(row.stat_date) ? "is-weekend" : "", total ? "" : "is-empty"]
+      .filter(Boolean).join(" ");
+    const stack = total
+      ? bar(Number(row.near) || 0, "near") + bar(Number(row.mid) || 0, "mid") + bar(Number(row.far) || 0, "far")
+      : `<i style="height:2px"></i>`;
+    return `<span class="${classes}" title="${fmtDate(row.stat_date)} · ${row.near || 0}/${row.mid || 0}/${row.far || 0}">${stack}</span>`;
   }).join("");
-  const rightAxis = shareTicks.map(tick => {
-    const y = yForShare(tick);
-    return `<text class="trend-axis-label" x="${chart.width - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end">${tick}%</text>`;
-  }).join("");
-  const weekendBands = rows.map((row, index) => {
-    if (!isWeekend(row.stat_date)) return "";
-    const x = chart.left + slot * index;
-    return `<rect class="trend-band" x="${x.toFixed(1)}" y="${chart.top}" width="${slot.toFixed(1)}" height="${chart.plotHeight}"></rect>`;
-  }).join("");
-  const labels = rows.map((row, index) => {
-    const day = dayOfMonth(row.stat_date);
-    const isLast = index === rows.length - 1;
-    if (![1, 8, 15, 22].includes(day) && !isLast) return "";
-    const month = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"][monthIndex(row.stat_date)];
-    const label = isLast ? `${day} ${month}` : day;
-    return `<text class="trend-x-label" x="${xForIndex(index).toFixed(1)}" y="${chart.height - 7}" text-anchor="middle">${label}</text>`;
-  }).join("");
-  let lastShare = 0;
-  const points = rows.map((row, index) => {
-    const viewed = Number(row.viewed) || 0;
-    const share = viewed ? (Number(row.included) || 0) / viewed * 100 : lastShare;
-    if (viewed) lastShare = share;
-    const x = xForIndex(index);
-    const y = yForShare(share);
-    return { x, y, share };
-  });
-  const bars = rows.map((row, index) => {
-    const near = Number(row.near) || 0;
-    const mid = Number(row.mid) || 0;
-    const far = Number(row.far) || 0;
-    const total = near + mid + far;
-    const cut = Number(row.cut) || 0;
-    const x = xForIndex(index) - barWidth / 2;
-    let cursor = chart.bottomY;
-    const segment = (value, color) => {
-      if (!value) return "";
-      const height = Math.max(2, value / countMax * chart.plotHeight);
-      cursor -= height;
-      return `<rect x="${x.toFixed(1)}" y="${cursor.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}" fill="${color}"></rect>`;
-    };
-    return `<g class="trend-bar">
-      <title>${fmtDate(row.stat_date)} · включено ${total}, отсечено ${cut}, доля включения ${Math.round(points[index].share)}%</title>
-      ${segment(near, "#2B4A75")}
-      ${segment(mid, "#1E6E62")}
-      ${segment(far, "#6B6880")}
-    </g>`;
-  }).join("");
-  document.getElementById("trendBars").innerHTML = `<svg class="trend-svg" viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="Материалы в радаре по дням">
-    ${weekendBands}
-    ${grid}
-    ${rightAxis}
-    ${bars}
-    <path class="trend-line" d="${trendPolyline(points)}"></path>
-    ${labels}
-  </svg>`;
+  const marks = [0, Math.floor(rows.length / 4), Math.floor(rows.length / 2), Math.floor(rows.length * 3 / 4)]
+    .filter((value, index, all) => all.indexOf(value) === index && rows[value])
+    .map(index => `<span>${escapeHtml(fmtDate(rows[index].stat_date, true))}</span>`)
+    .join("");
+  const last = rows.at(-1);
+  host.innerHTML = `<div class="trend-stack">${columns}</div>
+    <div class="trend-axis">${marks}${last ? `<span class="is-today">выпуск · ${ringTotal(last)}</span>` : ""}</div>`;
+  setText("trendDaysNote", rows.length ? `${ringRangeLabel(rows)} · Б/С/Д` : "Б/С/Д");
+}
+
+function renderHeatmap(rows) {
+  const host = document.getElementById("heatmap");
+  if (!host) return;
   const max = Math.max(1, ...rows.map(row => Number(row.included) || 0));
   const selected = activeIssueDate();
-  document.getElementById("heatmap").innerHTML = timeseries.slice(-30).map(row => {
-    const alpha = Math.min(0.85, 0.12 + (Number(row.included) || 0) / max * 0.7);
+  // Календарь встаёт по неделям: понедельник — первый столбец, пустые клетки
+  // до первого дня держат сетку, иначе шапка ПН…ВС врёт.
+  const lead = rows.length ? (weekdayIndex(rows[0].stat_date) + 6) % 7 : 0;
+  const blanks = Array.from({ length: lead }, () =>
+    `<span class="heatmap-day heatmap-day--blank" aria-hidden="true"></span>`).join("");
+  host.innerHTML = blanks + rows.map(row => {
+    const included = Number(row.included) || 0;
+    const alpha = Math.min(0.85, 0.06 + included / max * 0.75);
     const isSelected = ["issue", "yesterday"].includes(state.period) && row.stat_date === selected;
-    return `<button class="heatmap-day ${isSelected ? "is-active" : ""}" data-issue-day="${row.stat_date}" style="background:rgba(43,74,117,${alpha})" title="${fmtDate(row.stat_date)} · ${row.included || 0}" aria-label="Показать выпуск за ${fmtDate(row.stat_date)}">${dayOfMonth(row.stat_date)}</button>`;
+    const light = !isSelected && alpha > 0.45 ? " is-light" : "";
+    // Выбранный день — янтарный, и его заливку задаёт таблица стилей: инлайновый
+    // фон перебил бы её и оставил выпуск неотличимым.
+    const paint = isSelected ? "" : ` style="background:rgba(43,74,117,${alpha.toFixed(2)})"`;
+    return `<button class="heatmap-day${isSelected ? " is-active" : ""}${light}" data-issue-day="${row.stat_date}"${paint} title="${fmtDate(row.stat_date)} · ${included}" aria-label="Показать выпуск за ${fmtDate(row.stat_date)}">${dayOfMonth(row.stat_date)}</button>`;
   }).join("");
 }
 
+/* Хронология выпусков — строки макета v3: номер, дата, полоса объёма, счёт.
+ * Состав дня раскрывается по клику на полосу, как раньше по кнопке. */
 function renderTimeline() {
   const root = document.getElementById("timeline");
   const rows = issues.slice(0, 5);
-  root.innerHTML = rows.map(issue => {
+  const numbers = rows.map(issue => issue.issue_number).filter(Boolean);
+  setText("timelineNote", numbers.length
+    ? `№ ${Math.min(...numbers)} — ${Math.max(...numbers)}`
+    : "");
+  const maxTotal = Math.max(1, ...rows.map(issue => (issue.materials || []).length));
+  root.innerHTML = rows.map((issue, index) => {
     const isOpen = state.openDay === issue.issue_date;
     const issueMaterials = issue.materials || [];
     const shown = issueMaterials.slice(0, isOpen ? issueMaterials.length : 3);
     const moreCount = Math.max(0, issueMaterials.length - shown.length);
     const counts = countPerimeters(issueMaterials);
     const issueSources = Array.from(new Set(issueMaterials.map(item => sourceHost(item.url) || item.source_name).filter(Boolean))).slice(0, 4);
-    return `<article class="timeline-row">
-      <div class="timeline-date"><span class="mono">${fmtDate(issue.issue_date, true)}</span><small>${weekday[weekdayIndex(issue.issue_date)]}</small></div>
-      <div class="timeline-main">
-        <p>${escapeHtml(issue.brief || "Ежедневный выпуск радара AgPM.")}</p>
-        <div class="timeline-materials">${shown.map(item => `<span><i class="${item.perimeter}"></i>${escapeHtml(item.title)} <em>${escapeHtml(sourceHost(item.url) || item.source_name || "")} · ${escapeHtml(materialDateLabel(item, true))}</em></span>`).join("")}</div>
-        ${moreCount ? `<div class="timeline-more">и ещё ${moreCount} материалов · полный выпуск</div>` : ""}
-        ${issueSources.length ? `<div class="timeline-sources">источники: ${issueSources.map(escapeHtml).join(" · ")}</div>` : ""}
-      </div>
-      <div class="timeline-side">
-        <div class="mini-stack"><i class="near" style="width:${counts.near}px"></i><i class="mid" style="width:${counts.mid}px"></i><i class="far" style="width:${counts.far}px"></i></div>
-        <span class="mono">${counts.near} / ${counts.mid} / ${counts.far}</span>
-        <button class="link-button timeline-toggle ${isOpen ? "is-open" : ""}" data-open-day="${issue.issue_date}"><span aria-hidden="true">⌄</span>${isOpen ? "свернуть" : "состав дня"}</button>
-      </div>
+    const width = Math.max(3, Math.round(issueMaterials.length / maxTotal * 100));
+    return `<article class="timeline-row ${index === 0 ? "is-current" : ""}">
+      <span class="timeline-num">${issue.issue_number ? `№ ${issue.issue_number}` : weekday[weekdayIndex(issue.issue_date)]}</span>
+      <span class="timeline-date">${escapeHtml(fmtDate(issue.issue_date, true))}</span>
+      <button class="timeline-bar timeline-toggle ${isOpen ? "is-open" : ""}" type="button"
+        data-open-day="${issue.issue_date}" aria-expanded="${isOpen ? "true" : "false"}"
+        aria-label="${isOpen ? "Свернуть" : "Показать"} состав выпуска за ${escapeHtml(fmtDate(issue.issue_date))}"
+        title="${counts.near} / ${counts.mid} / ${counts.far} · Б/С/Д"><i style="width:${width}%"></i></button>
+      <span class="timeline-total">${issueMaterials.length}</span>
+      ${isOpen ? `<div class="timeline-detail">
+        <div class="timeline-main"><p>${escapeHtml(issue.brief || "Ежедневный выпуск радара AgPM.")}</p></div>
+        <div class="timeline-materials">${shown.map(item => `<span><i class="${item.perimeter}"></i><b>${escapeHtml(item.title)}</b> <em>${escapeHtml(sourceHost(item.url) || item.source_name || "")} · ${escapeHtml(materialDateLabel(item, true))}</em></span>`).join("")}</div>
+        ${moreCount ? `<div class="timeline-more">И ЕЩЁ ${moreCount} ${pluralRu(moreCount, "МАТЕРИАЛ", "МАТЕРИАЛА", "МАТЕРИАЛОВ")}</div>` : ""}
+        ${issueSources.length ? `<div class="timeline-sources">ИСТОЧНИКИ: ${issueSources.map(escapeHtml).join(" · ")}</div>` : ""}
+      </div>` : ""}
     </article>`;
   }).join("");
 }
@@ -1282,22 +1379,22 @@ function renderRubricator() {
     group.ids.forEach(id => {
       const row = byId.get(id);
       if (!row) return;
-      const isActive = state.rubrics.includes(row.id);
-      cells.push(`<button class="rubric-cell ${isActive ? "is-active" : ""}" data-rubric="${row.id}" aria-pressed="${isActive ? "true" : "false"}">
-      <strong>${escapeHtml(row.title)}</strong>
-      <span><i>${trendArrow(row)}</i><b class="mono">${row.count || 0}</b></span>
-    </button>`);
+      cells.push(rubricCell(row));
     });
   });
   rubrics.filter(row => !rubricGroups.some(group => group.ids.includes(row.id))).forEach(row => {
-    const isActive = state.rubrics.includes(row.id);
-    cells.push(`<button class="rubric-cell ${isActive ? "is-active" : ""}" data-rubric="${row.id}" aria-pressed="${isActive ? "true" : "false"}">
-    <strong>${escapeHtml(row.title)}</strong>
-    <span><i>${trendArrow(row)}</i><b class="mono">${row.count || 0}</b></span>
-  </button>`);
+    cells.push(rubricCell(row));
   });
   cells.push(`<div class="rubric-cell rubric-help"><strong>Множественный выбор</strong><span>Рубрики сужают выдачу по принципу «хотя бы одна из выбранных».</span></div>`);
   document.getElementById("rubricator").innerHTML = cells.join("");
+}
+
+function rubricCell(row) {
+  const isActive = state.rubrics.includes(row.id);
+  return `<button class="rubric-cell ${isActive ? "is-active" : ""}" type="button" data-rubric="${row.id}" aria-pressed="${isActive ? "true" : "false"}">
+    <strong>${escapeHtml(row.title)}</strong>
+    <b class="mono">${row.count || 0}</b>
+  </button>`;
 }
 
 function trendArrow(row) {
@@ -1519,7 +1616,9 @@ document.addEventListener("click", event => {
     agentLoadGraph(button.dataset.forceGraph, { forceCanvas: true });
     return;
   }
-  if (button.id === "printGazette") {
+  if (["printGazette", "printGazetteTop", "savePdfGazette"].includes(button.id)) {
+    // «Сохранить PDF» — та же печать: диалог браузера умеет писать в файл,
+    // а второго пути к PDF у страницы без сборки нет.
     printGazette();
     return;
   }
@@ -1587,7 +1686,7 @@ document.addEventListener("click", event => {
     state.issueDate = button.dataset.issueDay;
     document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === "issue"));
     reload();
-    document.getElementById("columns")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToNode(document.getElementById("columns"));
   }
   if (button.id === "resetFilters") {
     state.perimeter = "all";
@@ -1623,8 +1722,6 @@ init().catch(error => {
  * quotation under it cannot get out of step: what renders below is a view of one
  * object, never four fetches that could half-fail.
  * ------------------------------------------------------------------------- */
-
-const KB = "/kb";
 
 const AGENT_KIND_LABEL = {
   fact: "факт",
@@ -1780,12 +1877,10 @@ function agentStatementCard(raw, ordinal) {
           ${escapeHtml(row.sourceTitle || row.sourceUrl || "источник")}
         </a>
       </div>
-      ${row.claimId ? `<button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">
-        Что база связала с этим
-      </button>
-      <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">
-        Показать в графе
-      </button>
+      ${row.claimId ? `<div class="agent-statement__actions">
+        <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что база связала с этим</button>
+        <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">Показать в графе</button>
+      </div>
       <div class="agent-links" data-agent-links-for="${escapeHtml(row.claimId)}" hidden></div>` : ""}
     </article>`;
 }
@@ -1900,7 +1995,7 @@ function chatNearBottom() {
 
 function chatFollowBottom(node, { counts = true } = {}) {
   if (chatNearBottom()) {
-    node?.scrollIntoView({ behavior: "smooth", block: "end" });
+    scrollToNode(node, "end");
     return;
   }
   // The reader's own question is not news to them: only a finished answer is
@@ -1923,8 +2018,7 @@ function chatDownSync() {
 document.getElementById("chatDown")?.addEventListener("click", () => {
   chatUnread = 0;
   chatDownSync();
-  document.getElementById("agentThread")?.lastElementChild
-    ?.scrollIntoView({ behavior: "smooth", block: "end" });
+  scrollToNode(document.getElementById("agentThread")?.lastElementChild, "end");
 });
 
 /* ── The dialogue's own map: one collapsible control, a list, a position ────
@@ -1981,7 +2075,7 @@ document.getElementById("chatHistoryList")?.addEventListener("click", event => {
   if (!row) return;
   const turn = document.querySelector(`#agentThread [data-turn="${row.dataset.historyTurn}"]`);
   if (!turn) return;
-  turn.scrollIntoView({ behavior: "smooth", block: "center" });
+  scrollToNode(turn, "center");
   turn.classList.add("is-flash");
   setTimeout(() => turn.classList.remove("is-flash"), 1600);
   chatHistoryToggleOpen(false);
@@ -2090,9 +2184,20 @@ function agentChatInit() {
     chatShowWelcome(false);
     return;
   }
+  // Свежая сессия начинается с приветствия: карточки-примеры и есть вход
+  // в диалог. Без этой строки пустая нить показывала пустую страницу.
+  chatShowWelcome(true);
   agentLoadPrompts();
   chatComposerSync();
 }
+
+/** Ярлык категории примера — словами макета, а не ключом сервиса. */
+const AGENT_PROMPT_CATEGORY = {
+  find: "поиск",
+  concept: "понятие",
+  contra: "противоречие",
+  watch: "обсерватория"
+};
 
 async function agentLoadPrompts() {
   const grid = document.getElementById("promptGrid");
@@ -2101,15 +2206,19 @@ async function agentLoadPrompts() {
   try {
     const data = await kbFetch("/prompts");
     const prompts = Array.isArray(data.prompts) ? data.prompts : [];
-    grid.innerHTML = prompts.map(prompt => `
+    grid.innerHTML = prompts.map(prompt => {
+      const category = prompt.category || "find";
+      return `
       <button class="agent-prompt" type="button">
-        <span class="agent-prompt__cat agent-prompt__cat--${escapeHtml(prompt.category || "find")}">${escapeHtml(prompt.hint || "")}</span>
+        <span class="agent-prompt__cat agent-prompt__cat--${escapeHtml(category)}">${escapeHtml(AGENT_PROMPT_CATEGORY[category] || category)}</span>
         <p class="agent-prompt__text">${escapeHtml(prompt.text || "")}</p>
-      </button>`).join("");
+        ${prompt.hint ? `<span class="agent-prompt__hint mono">→ ${escapeHtml(prompt.hint)}</span>` : ""}
+      </button>`;
+    }).join("");
     const note = document.getElementById("poolNote");
     if (note) {
       note.textContent = data.pool
-        ? `примеры собраны из пула ${data.pool} запросов · обновляются каждую сессию`
+        ? `СЭМПЛ ИЗ ПУЛА ${data.pool} ЗАПРОСОВ · КЛИК ПО КАРТОЧКЕ — СРАЗУ СПРОСИТЬ`
         : "";
     }
     grid.querySelectorAll(".agent-prompt").forEach((card, index) => {
@@ -2160,11 +2269,16 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
   const chip = number =>
     `<a class="agent-cite" href="#ev-${index}-${number}">${Number(number) || "?"}</a>`;
   const step = order => fresh ? ` style="--i:${order}"` : "";
+  // Пункты ответа пронумерованы, как в макете: янтарный «01» слева от опоры.
+  // Один пункт номера не получает - нумеровать нечего.
+  const numbered = clauses.length > 1;
   const body = clauses.length
     ? clauses.map((clause, order) => `
-        <p class="agent-answer__text"${step(order)}>${escapeHtml(clause.text || "")}${
+        <p class="agent-answer__text${numbered ? " agent-answer__text--point" : ""}"${step(order)}>${
+          numbered ? `<span class="agent-answer__no">${String(order + 1).padStart(2, "0")}</span>` : ""
+        }<span>${escapeHtml(clause.text || "")}${
           Array.isArray(clause.evidence) ? clause.evidence.map(chip).join("") : ""
-        }</p>`).join("")
+        }</span></p>`).join("")
     : answered.answer
       ? `<p class="agent-answer__text"${step(0)}>${escapeHtml(answered.answer)}</p>`
       : `<p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
@@ -2172,14 +2286,11 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
   return `
     ${daySeparator}
     <div class="chat-turn${fresh ? " is-fresh" : ""}" data-turn="${index}">
-      <div class="agent-q" data-copy-q="${index}" title="нажмите — вопрос скопируется">${escapeHtml(turn.question || "")}
-        <span class="agent-q__meta">${escapeHtml(turn.at || "")}</span>
-      </div>
+      ${chatQuestionHtml(turn.question, turn.at, index)}
       <div class="agent-answer__card">
         <div class="agent-answer__notice">
-          <span class="mono">${escapeHtml(answered.machineNotice || "")}</span>
-          <span class="agent-spacer"></span>
-          <span class="mono agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
+          <span>${escapeHtml(answered.machineNotice || "")}</span>
+          <span class="agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
         </div>
         ${body}
         ${chatTopicsRow(evidence)}
@@ -2187,11 +2298,12 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
         ${evidence.length ? `
           <div class="agent-answer__levels">
             <button class="agent-level" type="button" data-toggle="${evidenceId}">Доказательства
-              <span class="agent-level__count">${evidence.length}</span>
+              <span class="agent-level__count">· ${evidence.length}</span>
             </button>
             ${evidence.length >= 2 ? `
               <button class="agent-level" type="button" data-graph-mini="${index}">В графе</button>` : ""}
             <button class="agent-turn__copy" type="button" data-copy-turn="${index}">копировать ответ</button>
+            <span class="agent-answer__trail">ОТВЕТ → УТВЕРЖДЕНИЕ → ЦИТАТА → ПЕРВОИСТОЧНИК</span>
           </div>
           <div class="chat-mini" id="mini-${index}" hidden></div>
           <div class="agent-evidence" id="${evidenceId}" hidden>
@@ -2200,6 +2312,16 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
             ).join("")}
           </div>` : ""}
       </div>
+    </div>`;
+}
+
+/** Пузырь вопроса макета v3: подпись «ВЫ · 12:41» стоит НАД графитом,
+ *  а не внутри него. Один вид и для сохранённого хода, и для текущего. */
+function chatQuestionHtml(question, at, index) {
+  const copy = Number.isInteger(index) ? ` data-copy-q="${index}" title="нажмите — вопрос скопируется"` : "";
+  return `<div class="agent-q"${copy}>
+      <span class="agent-q__meta">ВЫ · ${escapeHtml(at || "")}</span>
+      <span class="agent-q__bubble">${escapeHtml(question || "")}</span>
     </div>`;
 }
 
@@ -2272,11 +2394,16 @@ function chatToolCardHtml(card) {
 function chatWorkHtml() {
   return `
     <div class="agent-work">
-      ${CHAT_STEPS.map(([step, label], index) => `
-        ${index ? '<span class="agent-work__arrow">→</span>' : ""}
+      <div class="agent-work__top">
+        <span class="agent-work__title">АГЕНТ РАБОТАЕТ</span>
+        <span class="agent-work__timer mono" hidden></span>
+        <button class="agent-work__stop" type="button" data-stop-run>■ Стоп</button>
+      </div>
+      <div class="agent-work__steps">
+        ${CHAT_STEPS.map(([step, label]) => `
         <span class="agent-work__step" data-step="${step}"><span class="dot"></span>${label}<span class="agent-work__dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
       `).join("")}
-      <span class="agent-work__timer mono" hidden></span>
+      </div>
       <span class="agent-work__bar" aria-hidden="true"></span>
     </div>`;
 }
@@ -2382,7 +2509,7 @@ async function chatJsonTurn(question, work, signal) {
 function chatComposerBusy(busy) {
   const send = document.getElementById("agentSend");
   if (!send) return;
-  send.textContent = busy ? "стоп" : "Спросить";
+  send.textContent = busy ? "■ Стоп" : "Спросить";
   send.classList.toggle("is-stop", busy);
   send.disabled = busy ? false : !String(chatInput()?.value || "").trim();
 }
@@ -2440,8 +2567,7 @@ async function agentAsk(question) {
   const wrapper = document.createElement("div");
   wrapper.className = "chat-turn is-fresh";
   wrapper.dataset.turn = "run";
-  wrapper.innerHTML = `
-    <div class="agent-q">${escapeHtml(question)}<span class="agent-q__meta">${at}</span></div>`;
+  wrapper.innerHTML = chatQuestionHtml(question, at);
   thread.appendChild(wrapper);
   const work = document.createElement("div");
   work.innerHTML = chatWorkHtml();
@@ -2474,10 +2600,11 @@ async function agentAsk(question) {
   workNode.remove();
   if (stopped) {
     wrapper.insertAdjacentHTML("beforeend", `
-      <div class="agent-answer__card"><div class="agent-answer__notice">Машинный ответ, не редакция базы</div>
+      <div class="agent-answer__card agent-answer__card--quiet">
+        <div class="agent-answer__notice agent-answer__notice--quiet">Машинный ответ, не редакция базы · ответ остановлен</div>
         <p class="agent-answer__text agent-answer__text--refused">Ответ остановлен.</p>
         <div class="agent-answer__levels">
-          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">спросить снова</button>
+          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">↻ спросить снова</button>
         </div>
       </div>`);
     chatFollowBottom(wrapper);
@@ -2488,10 +2615,11 @@ async function agentAsk(question) {
   }
   if (!answered) {
     wrapper.insertAdjacentHTML("beforeend", `
-      <div class="agent-answer__card"><div class="agent-answer__notice">Машинный ответ, не редакция базы</div>
+      <div class="agent-answer__card agent-answer__card--quiet">
+        <div class="agent-answer__notice agent-answer__notice--quiet">Машинный ответ, не редакция базы</div>
         <p class="agent-answer__text agent-answer__text--refused">${escapeHtml(failure || "поток оборвался")}</p>
         <div class="agent-answer__levels">
-          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">спросить снова</button>
+          <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">↻ спросить снова</button>
         </div>
       </div>`);
     chatFollowBottom(wrapper);
@@ -2532,6 +2660,12 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
   const retry = event.target.closest("[data-retry]");
   if (retry) {
     agentAsk(retry.dataset.retry || "");
+    return;
+  }
+  // «Стоп» стоит и на конвейере, и на кнопке отправки: одна и та же отмена,
+  // просто под рукой у того, кто смотрит на ход, а не на строку ввода.
+  if (event.target.closest("[data-stop-run]")) {
+    chatAbort?.abort();
     return;
   }
   const mini = event.target.closest("[data-graph-mini]");
@@ -2983,6 +3117,7 @@ async function agentLoadTopicOptions() {
   agentSelectLoading(select, true, "загружаю темы…");
   try {
     const data = await kbFetch("/topics");
+    agentBaseStatus(data.topics);
     (data.topics || []).forEach(topic => {
       const option = document.createElement("option");
       option.value = topic.topic_key;
@@ -3326,6 +3461,7 @@ async function agentLoadContradictions() {
   try {
     const data = await kbFetch("/contradictions?limit=40");
     const pairs = Array.isArray(data.pairs) ? data.pairs : [];
+    agentRailCount("contradictions", data.total ?? pairs.length);
     box.innerHTML = `
       <p class="agent-intro">Пары, которые база считает несовместимыми: об одном предмете
       сказано разное. Это находка, а не поломка — и решает её читатель, а не машина.
@@ -3391,6 +3527,7 @@ async function agentLoadObservatory(options) {
       if (!byKind.has(key)) byKind.set(key, []);
       byKind.get(key).push(row);
     });
+    agentRailCount("observatory", rows.length);
     if (!rows.length) {
       box.innerHTML = `<p class="agent-links__empty">За выбранный период в этих классах ничего нет.</p>`;
       box.dataset.loaded = "1";
@@ -3422,6 +3559,8 @@ async function agentLoadTopics() {
   try {
     const data = await kbFetch("/topics");
     const topics = (data.topics || []).filter(topic => topic.statements > 0);
+    agentRailCount("topics", topics.length);
+    agentBaseStatus(data.topics);
     box.innerHTML = `
       <p class="agent-intro">Понятие — это элемент скелета тем, а не страница, где оно описано.
       Карточка собирается из утверждений базы.</p>
@@ -3455,7 +3594,7 @@ async function agentOpenTopic(key) {
       <h3 class="agent-section">${escapeHtml(data.title || key)}</h3>
       <p class="agent-intro mono">${escapeHtml(data.path || "")} · ${statements.length} ${plural(statements.length, "утверждение", "утверждения", "утверждений")}</p>
       ${statements.map(row => agentStatementCard(row)).join("")}`;
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToNode(card);
   } catch (error) {
     card.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
@@ -3468,6 +3607,7 @@ async function agentLoadWiki() {
   try {
     const data = await kbFetch("/pages");
     const pages = data.pages || [];
+    agentRailCount("wiki", pages.length);
     box.innerHTML = `
       <p class="agent-intro">Авторские страницы методики — как есть. Жанр по Diátaxis —
       свойство раздела, а не страницы: страницы не режутся, навигация работает по разделам.</p>
@@ -3500,7 +3640,7 @@ async function agentOpenPage(path) {
       <h3 class="agent-section">${escapeHtml(data.title || path)}</h3>
       <p class="agent-intro mono">${escapeHtml(data.signature || "")}</p>
       <article class="card agent-page">${escapeHtml(data.body || "")}</article>`;
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToNode(card);
   } catch (error) {
     card.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
@@ -3513,6 +3653,7 @@ async function agentLoadGaps() {
   try {
     const data = await kbFetch("/gaps?limit=60");
     const gaps = data.gaps || [];
+    agentRailCount("gaps", gaps.length);
     box.innerHTML = `
       <p class="agent-intro">Утверждения, которым не нашлось места в скелете тем. Ничего не
       отсеивается и ничего не предлагается автоматически — строка отличает «посмотрели, места нет»
@@ -3550,6 +3691,9 @@ function setAgentTab(tab) {
   });
   // Leaving the Links tab tears its canvas down: a hidden canvas keeps its
   // listeners and its memory for nothing.
+  // Композер принадлежит диалогу: на вкладке «Понятия» строка вопроса — шум.
+  document.getElementById("agentComposer")?.toggleAttribute("hidden", tab !== "ask");
+  document.body.classList.toggle("is-chat", tab === "ask");
   if (tab !== "graph") agentGraphDestroy();
   if (tab === "find") agentLoadTopicOptions();
   if (tab === "ask") agentChatInit();

@@ -26,9 +26,15 @@ WEB: Final = Path(__file__).resolve().parents[1] / "apps" / "web"
 
 #: What the current front-end owes the design system. Lower these as the
 #: redesign removes them; the gate insists you do.
+#:
+#: 2026-08-25: the v3 redesign rewrote `styles.css` and `index.html` and took
+#: both numbers to zero. The hatched paper behind the gazette is the one place
+#: the mockup itself uses a gradient - it is drawn flat here, because the
+#: anti-rule outranks the mockup's own slip. Scrolling moved to `scrollToNode`,
+#: which walks the window rather than whichever ancestor happens to scroll.
 DEBT: Final = {
-    "gradients": 6,
-    "scrollIntoView": 6,
+    "gradients": 0,
+    "scrollIntoView": 0,
     "banned-fonts": 0,
     "emoji": 0,
 }
