@@ -677,10 +677,9 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
-/* Лого — дверь домой: из любого раздела возвращает в радар и наверх. */
+/* Лого — наверх текущего раздела: раздел не меняем, только прокрутку. */
 document.querySelector(".brand")?.addEventListener("click", event => {
   event.preventDefault();
-  setViewMode("radar");
   window.scrollTo?.(0, 0);
 });
 
