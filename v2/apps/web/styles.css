@@ -614,23 +614,44 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .radar-viz { width: 100%; display: flex; justify-content: center; }
 
 /* ── Виджеты радара ─────────────────────────────────────────────────────── */
+/*
+ * Геометрия и поведение — те, что работали до редизайна: сонар на 240,
+ * доли на 212, кольцо на 288, легенды в столбик под виджетом. Из дизайн-системы
+ * взяты только цвета: линейки, засечки и подписи переведены на токены палитры.
+ */
 
-.radar-widget {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+.radar-viz {
   width: 100%;
+  min-height: 228px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
 }
 
-.radar-svg { display: block; overflow: visible; }
-.radar-svg text { font-family: "PT Mono", ui-monospace, monospace; }
-.radar-sonar { width: 232px; height: 232px; }
-.share-stage, .ring-stage { position: relative; width: 100%; max-width: 250px; }
-.radar-share, .radar-ring { width: 100%; }
+.radar-widget {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.radar-widget-ring { gap: 10px; }
+.radar-widget-share { align-items: center; }
+
+.radar-svg {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.radar-svg text { font-family: "Golos Text", system-ui, sans-serif; fill: var(--meta); }
+.radar-sonar { max-width: 240px; }
+.radar-share { max-width: 212px; }
+.radar-ring { max-width: 288px; }
+.share-stage { position: relative; width: 212px; }
+.ring-stage { position: relative; width: min(288px, 100%); }
+
 .sonar-sweep { transform-origin: 120px 120px; animation: rdSweep 8s linear infinite; }
-.sonar-sweep path { fill: rgba(43, 74, 117, .10); }
-.sonar-sweep line { stroke: rgba(43, 74, 117, .5); stroke-width: 1; }
 
 .sonar-blip {
   opacity: .8;
@@ -640,8 +661,17 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 }
 
 .share-track { fill: none; stroke: var(--rule-2); stroke-width: 10; }
-.share-mark { stroke: var(--grey-bar); stroke-width: 1.4; }
-.share-arc { fill: none; stroke-width: 10; stroke-linecap: round; }
+.share-mark { stroke: var(--grey-bar); stroke-width: 1.5; }
+
+.share-arc {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: var(--arc) var(--gap);
+  stroke-dashoffset: 0;
+  will-change: stroke-dashoffset;
+}
+
 .share-arc-near { animation: rdArc1 1s ease-out .1s backwards; }
 .share-arc-mid { animation: rdArc2 1s ease-out .25s backwards; }
 .share-arc-far { animation: rdArc3 1s ease-out .4s backwards; }
@@ -657,35 +687,67 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   text-align: center;
 }
 
-.radar-num { font-family: "PT Mono", ui-monospace, monospace; font-size: 22px; }
-.radar-caption { font-size: 10px; color: var(--muted); }
+.radar-num { font-family: "PT Mono", ui-monospace, monospace; }
+.radar-center .radar-num { font-size: 21px; line-height: 1.1; }
+.radar-center .radar-caption { color: var(--muted); font-size: 9.5px; }
 
 .radar-center__split {
   display: flex;
   gap: 6px;
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 10px;
   margin-top: 2px;
+  font-size: 10px;
 }
 
-.ring-highlight { transform-origin: 150px 150px; transition: transform .55s cubic-bezier(.4, 0, .2, 1); }
-.ring-highlight path { fill: rgba(169, 107, 18, .10); }
-.ring-empty { stroke: var(--track); stroke-width: 7; }
+.ring-highlight {
+  transform-origin: 150px 150px;
+  transition: transform .55s cubic-bezier(.4, 0, .2, 1);
+}
 
-.sonar-legend,
-.share-legend,
+.ring-empty {
+  stroke: var(--line-2);
+  stroke-width: 5;
+  opacity: .42;
+}
+
+.sonar-legend {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin-top: -2px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.sonar-legend__items {
+  display: flex;
+  justify-content: center;
+  gap: 9px 12px;
+  flex-wrap: wrap;
+  max-width: 286px;
+}
+
+.share-legend {
+  display: flex;
+  justify-content: center;
+  gap: 9px 12px;
+  flex-wrap: wrap;
+  max-width: 286px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
 .ring-legend {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 11px;
+  gap: 14px;
+  flex-wrap: wrap;
+  max-width: 300px;
   color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.35;
 }
-
-.sonar-legend { flex-direction: column; align-items: center; gap: 6px; }
-.sonar-legend__items { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 
 .sonar-legend__items span,
 .share-legend span,
@@ -693,29 +755,41 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
 }
 
 .sonar-legend__items i,
 .share-legend i,
 .legend-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  flex-shrink: 0;
+  display: inline-block;
+  flex: 0 0 auto;
 }
 
 .legend-dot.near { background: var(--near); }
 .legend-dot.mid { background: var(--mid); }
 .legend-dot.far { background: var(--far); }
-.sonar-legend__items b, .share-legend b, .ring-legend b { font-weight: 400; }
+
+.sonar-legend__items b,
+.share-legend b,
+.ring-legend b { font-weight: 600; }
 
 .sonar-note,
-.share-note,
-.ring-note {
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: .03em;
+.share-note {
+  max-width: 274px;
   color: var(--meta);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.ring-note {
+  max-width: 290px;
+  color: var(--meta);
+  font-size: 11px;
+  line-height: 1.45;
   text-align: center;
 }
 
@@ -2912,14 +2986,16 @@ body:not(.is-chat) .chat-up { display: none; }
 }
 
 @keyframes rdLogoBlip {
-  0%, 100% { opacity: .55; transform: scale(1); }
-  5% { opacity: 1; transform: scale(1.5); }
-  12% { opacity: .55; transform: scale(1); }
+  0%, 100% { opacity: 0; }
+  5% { opacity: 1; }
+  12% { opacity: 0; }
 }
 
-@keyframes rdArc1 { from { stroke-dashoffset: var(--arc, 64.4); } }
-@keyframes rdArc2 { from { stroke-dashoffset: var(--arc, 204.1); } }
-@keyframes rdArc3 { from { stroke-dashoffset: var(--arc, 200.8); } }
+/* Дуга «Долей» разворачивается из ничего: длина дуги приходит переменной,
+   которую ставит `shareArc`, а конечный ноль — это уже нарисованная доля. */
+@keyframes rdArc1 { from { stroke-dashoffset: var(--arc, 0); } to { stroke-dashoffset: 0; } }
+@keyframes rdArc2 { from { stroke-dashoffset: var(--arc, 0); } to { stroke-dashoffset: 0; } }
+@keyframes rdArc3 { from { stroke-dashoffset: var(--arc, 0); } to { stroke-dashoffset: 0; } }
 @keyframes agIn { from { opacity: 0; transform: translateY(8px); } }
 
 @keyframes agFlash {

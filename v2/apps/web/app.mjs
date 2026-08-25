@@ -819,13 +819,13 @@ function renderRadarWidget(materials) {
   }
   if (state.period === "7d") {
     document.getElementById("radarTitle").textContent = "Доли периметров";
-    setText("radarNote", `${stats.included || 0} материалов · 3 кольца`);
+    setText("radarNote", "доли за 7 дней");
     root.innerHTML = renderShareWidget(stats);
     return;
   }
   if (state.period === "30d") {
     document.getElementById("radarTitle").textContent = "Кольцо 30 дней";
-    setText("radarNote", "автообход дней · 30 выпусков");
+    setText("radarNote", "автообход дней");
     root.innerHTML = renderRingWidget(stats);
     startRingTicker();
     return;
@@ -835,21 +835,27 @@ function renderRadarWidget(materials) {
   root.innerHTML = renderSonarWidget(visible);
 }
 
-/* Сонар макета v3: три кольца на viewBox 200, перекрестье, луч 8 с и блипы,
- * вспышка которых догоняет луч отрицательной задержкой. */
+/* Сонар: три кольца, засечки по сторонам света, подписи периметров, луч 8 с и
+ * блипы, вспышка которых догоняет луч отрицательной задержкой. Геометрия — та,
+ * что работала до редизайна; из палитры дизайн-системы взяты только цвета. */
 function renderSonarWidget(materials) {
   return `<div class="radar-widget">
-    <svg viewBox="0 0 200 200" class="radar-svg radar-sonar" role="img" aria-label="Сонар: материалы на трёх кольцах">
-      <circle cx="100" cy="100" r="94" fill="none" stroke="#d9d4c5" stroke-width="1"></circle>
-      <circle cx="100" cy="100" r="63" fill="none" stroke="#e3dfd1" stroke-width=".8"></circle>
-      <circle cx="100" cy="100" r="32" fill="none" stroke="#e3dfd1" stroke-width=".8"></circle>
-      <line x1="6" y1="100" x2="194" y2="100" stroke="#eceadf" stroke-width=".8"></line>
-      <line x1="100" y1="6" x2="100" y2="194" stroke="#eceadf" stroke-width=".8"></line>
+    <svg viewBox="0 0 240 240" class="radar-svg radar-sonar" role="img" aria-label="Сонар: материалы на трёх кольцах">
+      <circle cx="120" cy="120" r="34" fill="none" stroke="#e6e2d4" stroke-width="1"></circle>
+      <circle cx="120" cy="120" r="64" fill="none" stroke="#e6e2d4" stroke-width="1"></circle>
+      <circle cx="120" cy="120" r="94" fill="none" stroke="#d9d4c5" stroke-width="1"></circle>
+      <line x1="120" y1="26" x2="120" y2="20" stroke="#c9c4b4" stroke-width="1"></line>
+      <line x1="214" y1="120" x2="220" y2="120" stroke="#c9c4b4" stroke-width="1"></line>
+      <line x1="120" y1="214" x2="120" y2="220" stroke="#c9c4b4" stroke-width="1"></line>
+      <line x1="26" y1="120" x2="20" y2="120" stroke="#c9c4b4" stroke-width="1"></line>
+      <text x="120" y="82" text-anchor="middle" font-size="9" paint-order="stroke" stroke="#fdfcf9" stroke-width="3">близкий</text>
+      <text x="120" y="52" text-anchor="middle" font-size="9" paint-order="stroke" stroke="#fdfcf9" stroke-width="3">средний</text>
+      <text x="120" y="22" text-anchor="middle" font-size="9" paint-order="stroke" stroke="#fdfcf9" stroke-width="3">дальний</text>
       <g class="sonar-sweep" data-anim>
-        <path d="M100 100 L100 6 A94 94 0 0 1 160 26 Z"></path>
-        <line x1="100" y1="100" x2="100" y2="6"></line>
+        <path d="M120 120 L120 26 A94 94 0 0 1 167 38.6 Z" fill="rgba(43,74,117,0.06)"></path>
+        <line x1="120" y1="120" x2="120" y2="26" stroke="rgba(43,74,117,0.45)" stroke-width="1"></line>
       </g>
-      <circle cx="100" cy="100" r="2.2" fill="#1f242a"></circle>
+      <circle cx="120" cy="120" r="2.6" fill="#1f242a"></circle>
       ${sonarBlips(materials).join("")}
     </svg>
     ${sonarLegend(materials)}
@@ -865,7 +871,7 @@ function sonarLegend(materials) {
   ];
   return `<div class="sonar-legend">
     <div class="sonar-legend__items">
-      ${rows.map(([, label, color, count]) => `<span><i style="background:${color}"></i>${label} <b class="mono">${count}</b></span>`).join("")}
+      ${rows.map(([, label, color, count]) => `<span><i style="background:${color}"></i>${label} · <b class="mono">${count}</b></span>`).join("")}
     </div>
     <div class="sonar-note">${sonarPeriodLabel(materials.length)}</div>
   </div>`;
@@ -893,9 +899,9 @@ function sonarBlips(materials) {
 }
 
 function sonarPerimeterMeta(perimeter) {
-  if (perimeter === "near") return { r: 32, dot: 3, color: "#2B4A75" };
-  if (perimeter === "mid") return { r: 63, dot: 2.7, color: "#1E6E62" };
-  return { r: 94, dot: 2.7, color: "#6B6880" };
+  if (perimeter === "near") return { r: 34, dot: 3.4, color: "#2B4A75" };
+  if (perimeter === "mid") return { r: 64, dot: 3, color: "#1E6E62" };
+  return { r: 94, dot: 3, color: "#6B6880" };
 }
 
 function distributeAngles(rows) {
@@ -925,8 +931,8 @@ function angularDistance(a, b) {
 
 function sonarBlip(item, angle, meta) {
   const rad = angle * Math.PI / 180;
-  const x = 100 + meta.r * Math.cos(rad);
-  const y = 100 + meta.r * Math.sin(rad);
+  const x = 120 + meta.r * Math.cos(rad);
+  const y = 120 + meta.r * Math.sin(rad);
   const delay = (((angle + 90) % 360) / 360) * 8 - 8;
   const label = escapeHtml(item.title || "");
   return `<circle class="sonar-blip" data-anim cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${item.key_material ? meta.dot + .4 : meta.dot}" fill="${meta.color}" style="animation-delay:${delay.toFixed(2)}s"><title>${label}</title></circle>`;
@@ -959,7 +965,7 @@ function renderShareWidget(stats) {
     </div>
     </div>
     ${shareLegend(stats, shares)}
-    <div class="share-note">${ringRangeLabel(timeseries.slice(-7))} · засечки — предыдущие 7 дней</div>
+    <div class="share-note">${ringRangeLabel(timeseries.slice(-7))} · серые засечки — предыдущие 7 дней</div>
   </div>`;
 }
 
@@ -1003,18 +1009,14 @@ function previousSevenDayShares() {
 function renderRingWidget(stats) {
   const rows = timeseries.slice(-30);
   const maxTotal = Math.max(1, ...rows.map(row => ringTotal(row)));
-  // Подписи дат стоят сразу за самым длинным столбиком, а не на постоянном
-  // радиусе: иначе в тихую неделю они уезжают в пустоту, а в шумную - под бар.
-  const labelRadius = Math.min(142, 54 + maxTotal * Math.min(16, 76 / maxTotal) + 14);
   return `<div class="radar-widget radar-widget-ring">
     <div class="ring-stage">
       <svg viewBox="0 0 300 300" class="radar-svg radar-ring" role="img" aria-label="Включено в радар по дням месяца">
         <circle cx="150" cy="150" r="48" fill="none" stroke="#eeeadd" stroke-width="1"></circle>
-        <g id="ringHl" class="ring-highlight" data-anim>
-          <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z"></path>
-        </g>
         <g>${rows.map((row, index) => ringBar(row, index, rows.length, maxTotal)).join("")}</g>
-        <g>${ringDateLabels(rows, labelRadius)}</g>
+        <g id="ringHl" class="ring-highlight" data-anim>
+          <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z" fill="rgba(169,107,18,0.10)"></path>
+        </g>
       </svg>
       <div class="radar-center">
         <div class="mono" id="ringDate" style="font-size:12.5px"></div>
@@ -1029,18 +1031,6 @@ function renderRingWidget(stats) {
     </div>
     <div class="ring-note">включено по дням · ${ringRangeLabel(rows)} · приглушённые — выходные</div>
   </div>`;
-}
-
-/** Даты по кругу, как в макете: пять засечек на радиусе 143. */
-function ringDateLabels(rows, radius) {
-  if (!rows.length) return "";
-  const step = 360 / rows.length;
-  return [0, 7, 14, 21, 28]
-    .filter(index => index < rows.length)
-    .map(index => {
-      const point = ringPoint(radius, index * step);
-      return `<text x="${point.x}" y="${(Number(point.y) + 3).toFixed(1)}" text-anchor="middle" font-size="8.5" fill="#a29d8d">${escapeHtml(fmtDate(rows[index].stat_date, true))}</text>`;
-    }).join("");
 }
 
 function ringTotal(row) {
