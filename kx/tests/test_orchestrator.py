@@ -272,3 +272,34 @@ def test_every_attempt_is_audited_even_the_ones_that_failed(migrated_dsn: str) -
         rows = [(str(row["model"]), str(row["outcome"])) for row in cursor.fetchall()]
     assert (FALLBACK_ORDER[0], "failed") in rows, "the refusal left no record"
     assert (FALLBACK_ORDER[1], "succeeded") in rows, "the answer is not attributed"
+
+
+def test_the_passes_leave_room_under_the_gateway_ceiling() -> None:
+    """Hermes refuses an eleventh concurrent run, and refusals are not free.
+
+    A refusal writes a row in `egress_audit` - the unit the catch-up budget is
+    counted in - and costs a backoff before the retry. Measured on production
+    2026-08-25 with eight workers per stage: 113 refusals in 839 calls, 13.5 %
+    of the ceiling spent on being told to wait.
+
+    The reserve matters as much as the cap: the public agent answers readers
+    through the same gateway, and a batch pass that takes all ten has starved
+    the thing the base exists for.
+    """
+    from radar_kx.cli import (
+        HERMES_MAX_CONCURRENT,
+        HERMES_RESERVED_FOR_READERS,
+        MODEL_WORKERS,
+        _parser,
+    )
+
+    assert MODEL_WORKERS + HERMES_RESERVED_FOR_READERS <= HERMES_MAX_CONCURRENT
+    assert HERMES_RESERVED_FOR_READERS >= 1, "the reader must always have a lane"
+
+    # Every stage that calls the model takes its default from the one number.
+    # `catch-up` passes only `--limit`, so a stage's default *is* what runs in
+    # production - a default left behind here is a defect nobody sees until the
+    # journal fills with 429s.
+    for command in ("read-claims", "link-claims", "find-entities"):
+        parsed = _parser().parse_args([command])
+        assert parsed.workers == MODEL_WORKERS, command

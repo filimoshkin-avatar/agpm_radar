@@ -132,6 +132,21 @@ def _print_json(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
 
+#: Hermes refuses an eleventh concurrent run outright - «Too many concurrent runs
+#: (max 10)» - and the refusal is not free: it writes a row in `egress_audit`,
+#: which is what the budget is counted in, and costs a backoff wait before the
+#: retry succeeds. Measured on production 2026-08-25 with eight workers: 113
+#: refusals in 839 calls, 13.5 % of a run's ceiling spent on being told to wait.
+#:
+#: The passes are not the gateway's only caller. The public agent answers
+#: questions through the same Hermes, so the workers below take a share of the
+#: ceiling and leave the rest for readers - a batch pass that starves the thing
+#: people actually use has won nothing.
+HERMES_MAX_CONCURRENT = 10
+HERMES_RESERVED_FOR_READERS = 4
+MODEL_WORKERS = HERMES_MAX_CONCURRENT - HERMES_RESERVED_FOR_READERS
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="radar-kx")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -344,7 +359,7 @@ def _parser() -> argparse.ArgumentParser:
     read_claims_parser = subparsers.add_parser("read-claims")
     read_claims_parser.add_argument("--limit", type=int, default=100000)
     read_claims_parser.add_argument("--batch", type=int, default=READING_BATCH)
-    read_claims_parser.add_argument("--workers", type=int, default=8)
+    read_claims_parser.add_argument("--workers", type=int, default=MODEL_WORKERS)
 
     subparsers.add_parser("reading-report")
 
@@ -352,7 +367,7 @@ def _parser() -> argparse.ArgumentParser:
     entities_parser = subparsers.add_parser("find-entities")
     entities_parser.add_argument("--limit", type=int, default=100000)
     entities_parser.add_argument("--batch", type=int, default=ENTITY_BATCH)
-    entities_parser.add_argument("--workers", type=int, default=6)
+    entities_parser.add_argument("--workers", type=int, default=MODEL_WORKERS)
 
     subparsers.add_parser("entity-report")
 
@@ -366,7 +381,7 @@ def _parser() -> argparse.ArgumentParser:
     link_parser = subparsers.add_parser("link-claims")
     link_parser.add_argument("--limit", type=int, default=4000)
     link_parser.add_argument("--batch", type=int, default=LINKING_BATCH)
-    link_parser.add_argument("--workers", type=int, default=8)
+    link_parser.add_argument("--workers", type=int, default=MODEL_WORKERS)
     link_parser.add_argument("--dry-run", action="store_true")
 
     subparsers.add_parser("linking-report")
@@ -448,7 +463,7 @@ def _parser() -> argparse.ArgumentParser:
     probe_parser.add_argument("--tools", action="store_true")
 
     run_parser = subparsers.add_parser("run")
-    run_parser.add_argument("--workers", type=int, default=8)
+    run_parser.add_argument("--workers", type=int, default=MODEL_WORKERS)
 
     subparsers.add_parser("status")
 
