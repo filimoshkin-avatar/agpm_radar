@@ -88,6 +88,35 @@ _CONNECTIVE = re.compile(
 _QUOTED = re.compile(r"[«\"“]([^»\"”]{8,})[»\"”]")
 _LINK = re.compile(r"https?://[^\s<>\")]+")
 
+#: At most this many words in guillemets is a term being named, not a quotation
+#: being claimed.
+#:
+#: Russian writes terminology in «», and so does this base: «паспорт агента»,
+#: «Окно отмены», «Подпись под решением» - the last one lifted straight from the
+#: reader's own question. Measured on production 2026-08-25: of the four drafts
+#: this check had ever rejected, three were rejected for a term the model had put
+#: in guillemets and one for an evidence index. None was a fabricated quotation.
+#:
+#: Words rather than characters, because length is not what separates the two.
+#: «Подпись под решением» is twenty characters and a name; "adoption has already
+#: peaked" is twenty-seven and a sentence somebody is being said to have uttered.
+#: A term is a noun phrase, and three words is where naming a thing stops and
+#: asserting something about it begins.
+#:
+#: What this gives up is an invented three-word phrase carrying no figure and no
+#: link, because figures and links are checked at any length. What it buys is
+#: that naming a concept stops reading as citing one.
+_TERM_WORDS = 3
+
+#: «Согласно свидетельству 6» points into the package, not at a figure in a
+#: source. Stripped before the figures are counted, so the reference does not
+#: have to appear in the text it refers to; every other number in the clause is
+#: checked exactly as before.
+_EVIDENCE_REFERENCE = re.compile(
+    r"(?:свидетельств\w*|источник\w*|цитат\w*|evidence)\s*(?:№\s*)?\d+",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Labels:
@@ -333,14 +362,25 @@ def parse_answer(answer: str) -> tuple[Clause, ...]:
 
 
 def _tokens_agree(clause: Clause, cited: Sequence[EvidenceElement]) -> tuple[bool, list[str]]:
-    """Numbers, quoted fragments and links must be in the span they cite."""
+    """Numbers, quoted fragments and links must be in the span they cite.
+
+    Two things are deliberately not checked, because measuring what this rejected
+    in production showed both were catching writing rather than invention: an
+    index into the evidence package (`_EVIDENCE_REFERENCE`), and a fragment in
+    guillemets short enough to be a term rather than an utterance (`_TERM_WORDS`).
+    Figures and links are still checked at any length, so what a loosened
+    quotation rule can let through carries no number and no source of its own.
+    """
     problems: list[str] = []
     haystack = " ".join(element.quote_text for element in cited)
-    for number in numbers_in(clause.text):
+    for number in numbers_in(_EVIDENCE_REFERENCE.sub(" ", clause.text)):
         if number not in numbers_in(haystack):
             problems.append(f"the figure {number} is not in the cited evidence")
     for quoted in _QUOTED.findall(clause.text):
-        if quoted.strip() not in haystack:
+        fragment = quoted.strip()
+        if len(fragment.split()) <= _TERM_WORDS:
+            continue
+        if fragment not in haystack:
             problems.append(f"the quotation {quoted[:40]!r} is not in the cited evidence")
     for link in _LINK.findall(clause.text):
         if link not in haystack and not any(link == element.source_url for element in cited):

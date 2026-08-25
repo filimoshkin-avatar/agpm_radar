@@ -151,6 +151,69 @@ def test_a_quotation_the_evidence_does_not_contain_fails() -> None:
     assert any("quotation" in problem for problem in result.verdicts[0].problems)
 
 
+# Every case below is a draft this check rejected on production before
+# 2026-08-25, read back out of `kx.research_answers`. Four rejections in the
+# service's whole life, and not one of them was a fabricated quotation.
+
+
+def test_a_term_in_guillemets_is_named_not_quoted() -> None:
+    """«паспорт агента» — reader's vocabulary, and the base's own.
+
+    Rejected in production on the question «что бы ты порекомендовал включить в
+    новую редакцию концепции агентного УП?». Russian puts terms in guillemets,
+    and a check that reads every one of them as a claimed utterance rejects the
+    draft for naming the thing it was asked about.
+    """
+    result = verify(
+        [Clause("Слияние «паспорта агента» со сборочной карточкой сохраняет один owner.", (2,))],
+        PACKAGE,
+    )
+    assert result.passes, result.verdicts[0].problems
+
+
+def test_a_named_concept_from_the_question_is_not_a_quotation() -> None:
+    """«Подпись под решением» — rejected on «Что такое подпись под решением?»."""
+    result = verify(
+        [Clause("«Подпись под решением» означает, что у прогона есть named human owner.", (2,))],
+        PACKAGE,
+    )
+    assert result.passes, result.verdicts[0].problems
+
+
+def test_an_index_into_the_package_is_not_a_figure_from_a_source() -> None:
+    """«Согласно свидетельству 2» points at the package, not at the text.
+
+    Rejected in production on «Что противоречиво в подходах к human-in-the-loop?»
+    for «the figure 6 is not in the cited evidence» - where 6 was the number of
+    the quotation the clause was resting on.
+    """
+    result = verify(
+        [Clause("Согласно свидетельству 2, у каждого прогона один named human owner.", (2,))],
+        PACKAGE,
+    )
+    assert result.passes, result.verdicts[0].problems
+
+
+def test_a_figure_beside_an_index_is_still_checked() -> None:
+    """Stripping the reference must not strip the claim standing next to it."""
+    result = verify(
+        [Clause("Согласно свидетельству 1, внедрение достигло 62% в 2026 году.", (1,))],
+        PACKAGE,
+    )
+    assert not result.passes
+    assert any("the figure 62" in problem for problem in result.verdicts[0].problems)
+
+
+def test_a_sentence_in_guillemets_is_still_a_quotation() -> None:
+    """The loosening stops at three words; an utterance is still an utterance."""
+    result = verify(
+        [Clause("Отчёт сообщает: «внедрение в этом году уже прошло свой пик».", (1,))],
+        PACKAGE,
+    )
+    assert not result.passes
+    assert any("quotation" in problem for problem in result.verdicts[0].problems)
+
+
 @pytest.mark.parametrize("hedge", ["probably", "it appears", "скорее всего"])
 def test_a_hedge_fails_the_whole_answer(hedge: str) -> None:
     # ADR-0004 §9: hedges are how an unsupported claim gets published while
