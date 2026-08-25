@@ -58,13 +58,13 @@ const ids = [
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
-  "agentGraphCanvas", "agentGraphMeta", "agentGraphEdge",
+  "agentGraphCanvas", "agentGraphMeta", "agentGraphEdge", "agentGraphEntity",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
   "footerSources", "gazetteView", "heatmap", "included", "includedShare", "issueDate",
-  "midChip", "nearChip", "nearShare", "perimeters", "printGazette", "radarTitle", "radarViz",
-  "resetFilters", "rubricator", "rubrics", "search", "sources", "sparkline", "theses",
-  "thesesTitle", "timeline", "trendBars", "trendRange", "viewed",
+  "midChip", "nearChip", "nearShare", "perimeters", "printGazetteTop", "radarTitle", "radarViz",
+  "resetFilters", "rubricator", "rubrics", "search", "sparkline", "theses",
+  "thesesTitle", "trendBars", "trendRange", "viewed",
 ];
 const elements = new Map(ids.map(id => [id, new FakeElement()]));
 const unhandled = [];
@@ -101,7 +101,18 @@ globalThis.document = {
     return matches;
   },
 };
-globalThis.localStorage = { getItem() { return null; }, setItem() {} };
+// Answers nothing, on purpose. This used to answer «agent» to `agpmRadarViewMode`
+// further down the file, because `initViewMode()` restored the stored mode during
+// module evaluation and, for that mode alone, `setViewMode` reached `agentState` -
+// a throw there blanked the page in every mode and shipped twice past a green
+// gate. A reload now always opens «Радар»: the stored mode is gone, and the
+// import-time hazard that key guarded has no code path left to guard. A stub that
+// forces a branch nobody can reach reads as coverage and is not.
+//
+// Still stubbed, because three other things read it: the access key, the rail
+// width, the saved conversation. The branch none of this covers is a *live*
+// access key at import - answering null keeps the module on the unsubscribed path.
+globalThis.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
 globalThis.window = {
   location: { hash: "", hostname: "radar.test", origin: "https://radar.test", port: "" },
   matchMedia() { return { matches: true }; },
@@ -224,8 +235,8 @@ const ANSWER = {
   question: "что такое порог автономии",
   answer: "Порог автономии — решение организации.",
   refusalReason: null,
-  machineNotice: "Машинный ответ, не редакция базы.",
-  signature: "AgPM Radar, машинная сборка",
+  machineNotice: "Агентный ответ, не редакция базы.",
+  signature: "AgPM Radar, агентная сборка",
   evidence: [
     ASK_EVIDENCE,
     { ...ASK_EVIDENCE, n: 2, claimId: "c2", quote: "Никакого порога автономии в практике не наблюдается.",
@@ -273,18 +284,6 @@ const sseBody = payload => {
   };
 };
 
-// A returning reader carries their last view mode in localStorage, and the one
-// this smoke has to reproduce is «agent»: `initViewMode()` runs during module
-// evaluation and, for that mode alone, `setViewMode` reads `agentState`. A stub
-// that always answers null keeps the module on the «radar» short-circuit and
-// never executes the restore at all - which is how a throw that blanked the
-// page in every mode shipped twice past a green gate.
-globalThis.localStorage = {
-  getItem: key => (key === "agpmRadarViewMode" ? "agent" : null),
-  setItem() {},
-  removeItem() {},
-};
-
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
@@ -324,8 +323,19 @@ const fail = message => { throw new Error(`agent console smoke failed: ${message
 // The module has to finish evaluating. Everything below asserts on behaviour,
 // and behaviour cannot tell «this branch did nothing» from «the module died
 // half-way and no listener past that line exists».
-if (elements.get("agentView").hidden !== false)
-  fail("the stored «agent» mode did not restore - module evaluation aborted");
+//
+// The proof used to be the restored «agent» mode, and it proved less than it
+// looked: `initViewMode()` runs near the top of the file, so a module that died
+// anywhere below it still passed. A reload now always opens «Радар» and that
+// proof is gone, so the check moved to the end - the change listener below is
+// the last statement in `app.mjs`, and a handler on it means evaluation reached
+// the final line.
+if (typeof elements.get("agentGraphEntity").handler !== "function")
+  fail("module evaluation aborted - the last listener in app.mjs never registered");
+// And the mode a reload lands in is the contract now, not a leftover of whatever
+// the reader had open last.
+if (elements.get("agentView").hidden !== true)
+  fail("a reload did not start on «Радар»");
 // `closest` has to answer per selector, not "yes" to everything. The page asks
 // twice on every click - once for a graph node, once for a button - and a stub
 // that hands the button back both times sends every click down the wrong branch.
@@ -353,7 +363,7 @@ await settle();
 
 const answered = elements.get("agentThread").innerHTML;
 if (!requests.includes("/kb/chat/stream")) fail("the question never reached the base");
-if (!answered.includes("Машинный ответ")) fail("an answer rendered without the owner's notice");
+if (!answered.includes("Агентный ответ")) fail("an answer rendered without the owner's notice");
 if (!answered.includes("Порог автономии — решение организации")) fail("the answer text is missing");
 if (!answered.includes("Порог автономии определяет границу между классами"))
   fail("an answer rendered without the quotation under it");
@@ -573,7 +583,7 @@ elements.get("agentQuestion").value = "вопрос, на который нет 
 await elements.get("agentForm").handler({ preventDefault() {} });
 await settle();
 const refused = elements.get("agentThread").innerHTML;
-if (!refused.includes("Машинный ответ")) fail("a refusal rendered without the notice");
+if (!refused.includes("Агентный ответ")) fail("a refusal rendered without the notice");
 if (!refused.includes("нет подтверждений")) fail("a refusal did not say what it was");
 
 if (unhandled.length) fail(unhandled.map(String).join("; "));
