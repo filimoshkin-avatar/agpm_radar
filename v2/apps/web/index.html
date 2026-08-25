@@ -31,7 +31,7 @@
     <span class="ticker__cell ticker__cell--strong mono">ВКЛЮЧЕНО <b id="included">0</b> · <span id="includedShare">0%</span></span>
     <span class="ticker__cell mono">ОТСЕЧЕНО <b id="cut">0</b></span>
     <span class="ticker__cell mono" id="perimeters">Б 0 · С 0 · Д 0</span>
-    <span class="ticker__cell mono">БЛИЗКИЙ <b id="nearShare">0%</b></span>
+    <span class="ticker__cell mono" id="tickerBase" hidden></span>
     <span class="ticker__spark" id="sparkline" aria-hidden="true"></span>
     <span class="ticker__ok mono"><i aria-hidden="true"></i>РАДАР ИСПРАВЕН</span>
   </div>
@@ -484,7 +484,7 @@
             <button class="agent-ask__submit" id="agentSend" type="submit">Спросить</button>
           </form>
           <div class="agent-composer__foot">
-            <span class="agent-composer__hint mono">ENTER — СПРОСИТЬ · SHIFT+ENTER — СТРОКА · МИКРОФОН — ДИКТОВКА В СТРОКУ</span>
+            <span class="agent-composer__hint mono">ENTER — СПРОСИТЬ · SHIFT+ENTER — СТРОКА · МИКРОФОН: КЛИК — ДИКТОВКА, УДЕРЖАНИЕ — ГОЛОСОВОЙ РЕЖИМ</span>
             <span id="agentChars" class="agent-composer__chars mono" hidden></span>
             <span class="agent-ask__label">искать в:</span>
             <div class="chipline" id="agentFilters">
@@ -546,6 +546,16 @@
       </iframe>
     </div>
   </section>
+
+
+  <div id="voiceOverlay" class="voice-overlay" hidden role="dialog" aria-live="polite" aria-label="Голосовой режим">
+    <div class="voice-overlay__card">
+      <span class="voice-overlay__status mono"><i aria-hidden="true"></i><span id="voiceClock">СЛУШАЮ · 00:00</span></span>
+      <div class="voice-overlay__bars" aria-hidden="true"><i data-anim style="height:30px;animation-duration:1s;animation-delay:0.1s"></i><i data-anim style="height:22px;animation-duration:0.8s;animation-delay:0.3s"></i><i data-anim style="height:34px;animation-duration:1.1s;animation-delay:0s"></i><i data-anim style="height:18px;animation-duration:0.7s;animation-delay:0.2s"></i><i data-anim style="height:28px;animation-duration:0.9s;animation-delay:0.4s"></i><i data-anim style="height:14px;animation-duration:0.75s;animation-delay:0.15s"></i><i data-anim style="height:32px;animation-duration:1.05s;animation-delay:0.25s"></i><i data-anim style="height:20px;animation-duration:0.85s;animation-delay:0.05s"></i><i data-anim style="height:26px;animation-duration:0.95s;animation-delay:0.35s"></i><i data-anim style="height:16px;animation-duration:0.7s;animation-delay:0.45s"></i><i data-anim style="height:24px;animation-duration:0.9s;animation-delay:0.2s"></i><i data-anim style="height:12px;animation-duration:0.8s;animation-delay:0.5s"></i></div>
+      <span class="voice-overlay__heard" id="voiceHeard"></span>
+      <span class="voice-overlay__hint mono">ОТПУСТИТЕ — ТЕКСТ ПОПАДЁТ В СТРОКУ ВОПРОСА</span>
+    </div>
+  </div>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
   <script src="/assets/app.mjs?v=20260825-v3"></script>

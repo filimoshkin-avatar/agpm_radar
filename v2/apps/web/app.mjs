@@ -447,12 +447,13 @@ document.getElementById("agentRail")?.addEventListener("click", event => {
   accessPanel(true);
 }, true);
 
-document.getElementById("agentRailToggle")?.addEventListener("click", () => {
+const RAIL_STORE = "radarAgentRail.v1";
+
+function agentRailNarrow(narrow) {
   const rail = document.getElementById("agentRail");
   const grid = document.getElementById("agGrid");
   const toggle = document.getElementById("agentRailToggle");
   if (!rail) return;
-  const narrow = !rail.classList.contains("is-narrow");
   rail.classList.toggle("is-narrow", narrow);
   grid?.classList.toggle("is-narrow", narrow);
   if (toggle) {
@@ -460,7 +461,20 @@ document.getElementById("agentRailToggle")?.addEventListener("click", () => {
     toggle.setAttribute("aria-expanded", narrow ? "false" : "true");
     toggle.setAttribute("aria-label", narrow ? "Развернуть меню" : "Свернуть меню");
   }
+}
+
+document.getElementById("agentRailToggle")?.addEventListener("click", () => {
+  const narrow = !document.getElementById("agentRail")?.classList.contains("is-narrow");
+  agentRailNarrow(narrow);
+  // Ширина рейки — привычка читателя, а не состояние сессии.
+  try { localStorage.setItem(RAIL_STORE, narrow ? "1" : "0"); } catch { /* приватное окно */ }
 });
+
+try {
+  if (localStorage.getItem(RAIL_STORE) === "1") agentRailNarrow(true);
+} catch {
+  /* нет хранилища - рейка просто разложена */
+}
 
 /** Счётчик у пункта рейки. Печатается только тем числом, которое раздел уже
  *  прочитал у базы: сочинять «13 876 цитат» в вёрстке — врать читателю. */
@@ -472,9 +486,16 @@ function agentRailCount(tab, value) {
 /** То же правило для строки состояния в шапке: пока скелет тем не прочитан,
  *  строка говорит про правило ответа, а не про размер базы. */
 function agentBaseStatus(topics) {
+  if (!Array.isArray(topics) || !topics.length) return;
+  const themes = `${topics.length} ${pluralRu(topics.length, "ТЕМА", "ТЕМЫ", "ТЕМ")}`;
   const node = document.getElementById("agentBaseStatus");
-  if (!node || !Array.isArray(topics) || !topics.length) return;
-  node.innerHTML = `<i aria-hidden="true"></i>БАЗА ЗНАНИЙ AgPM · ${topics.length} ТЕМ · ОТВЕТ ПО ЦИТАТАМ`;
+  if (node) node.innerHTML = `<i aria-hidden="true"></i>БАЗА: ${themes}`;
+  // Та же цифра в тикере — она и связывает «Радар» с «Агентом».
+  const cell = document.getElementById("tickerBase");
+  if (cell) {
+    cell.hidden = false;
+    cell.textContent = `БАЗА ЗНАНИЙ · ${themes}`;
+  }
 }
 
 /* Строка вопроса в шапке: Enter уводит в диалог и спрашивает там же. */
@@ -527,6 +548,14 @@ function setViewMode(mode) {
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
+  // Кольцо обходит дни только на «Радаре»: в других режимах его никто не
+  // видит, а таймер продолжал идти.
+  if (state.viewMode !== "radar" && ringTimer) {
+    clearInterval(ringTimer);
+    ringTimer = null;
+  } else if (state.viewMode === "radar" && !ringTimer && state.period === "30d") {
+    startRingTicker();
+  }
   // Шапка макета v3 держит имя радара во всех режимах: имя агента стоит над
   // его собственной колонкой, а инструменты справа меняются по режиму.
   if (state.viewMode !== "agent") {
@@ -1141,6 +1170,8 @@ function materialMatches(item) {
 function renderColumns(materials) {
   const root = document.getElementById("columns");
   root.classList.toggle("loading", state.loading);
+  // Виджет гаснет вместе с колонками: числа в нём те же самые.
+  document.getElementById("radarViz")?.classList.toggle("is-loading", state.loading);
   if (state.loading) {
     root.innerHTML = Object.keys(perimeters).map(key => `<section class="column column-${key}"><div class="skeleton"></div><div class="skeleton small"></div><div class="skeleton card-skel"></div><div class="skeleton card-skel"></div></section>`).join("");
     return;
@@ -1816,7 +1847,8 @@ function agentRow(row) {
     shownOn: pick("shown_on", "shownOn"),
     shownKind: pick("shown_kind", "shownKind"),
     validUntil: pick("valid_until", "validUntil"),
-    matchedBy: pick("matched_by", "matchedBy") || []
+    matchedBy: pick("matched_by", "matchedBy") || [],
+    relevance: pick("relevance")
   };
 }
 
@@ -1869,6 +1901,19 @@ function agentMatchedBy(matched) {
     .join("");
 }
 
+/** «Почему найдено» — строка эталона, собранная из того, что база прислала:
+ *  какая рука нашла (по словам, по смыслу или обеими) и с каким рангом. Где
+ *  ранга нет - его нет и в строке; выдумывать 0,92 этому экрану нельзя. */
+function agentWhyFound(row) {
+  const arms = Array.isArray(row.matchedBy) ? row.matchedBy : [];
+  const how = arms.length ? agentMatchedBy(arms) : "";
+  const rank = Number.isFinite(Number(row.relevance))
+    ? `<span class="agent-rank">ранг ${Number(row.relevance).toFixed(2).replace(".", ",")}</span>`
+    : "";
+  if (!how && !rank) return "";
+  return `<div class="agent-why"><span class="agent-why__label">почему найдено:</span>${how}${rank}</div>`;
+}
+
 /** One statement at levels 2, 3 and 4 - labels, quotation with its range, source. */
 function agentStatementCard(raw, ordinal) {
   const row = agentRow(raw);
@@ -1886,8 +1931,9 @@ function agentStatementCard(raw, ordinal) {
       ${row.statement ? `<p class="agent-statement__text">${escapeHtml(row.statement)}</p>` : ""}
       <blockquote class="agent-quote">
         <p>${escapeHtml(row.quote || "")}</p>
-        <div class="agent-quote__meta">${range}${agentMatchedBy(row.matchedBy)}</div>
+        <div class="agent-quote__meta">${range}<span class="agent-verbatim">цитата дословна, проверяется при каждой записи</span></div>
       </blockquote>
+      ${agentWhyFound(row)}
       <div class="agent-statement__source">
         <span class="agent-statement__sourcelabel">Источник:</span>
         <a href="${escapeHtml(safeExternalUrl(row.sourceUrl))}" target="_blank" rel="noopener noreferrer">
@@ -1960,9 +2006,12 @@ async function agentToggleLinks(claimId) {
  */
 
 const CHAT_STEPS = [
-  ["search", "поиск по базе"],
-  ["draft", "черновик пунктов"],
-  ["verify", "проверка по цитатам"]
+  ["search", "Поиск по базе"],
+  ["draft", "Черновик пунктов"],
+  ["verify", "Проверка по цитатам"],
+  // Служба присылает три стадии; четвёртая — то, ради чего они шли. Она
+  // гаснет вместе с конвейером, когда карточка ответа встаёт на его место.
+  ["answer", "Ответ"]
 ];
 const CHAT_STORE = "radarAgentChat.v1";
 // The server cuts a question at 500 characters (MAX_QUESTION_CHARS); the
@@ -2046,6 +2095,7 @@ document.getElementById("chatDown")?.addEventListener("click", () => {
  * by a scroll-spy, and the toggle itself says «вопрос N из M» while the reader
  * is up in the thread, so the way back is always one glance away. */
 let chatCurrentTurn = -1;
+let chatCiteFlash = null;
 
 function chatShort(text, max) {
   const value = String(text || "");
@@ -2300,6 +2350,37 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
       ? `<p class="agent-answer__text"${step(0)}>${escapeHtml(answered.answer)}</p>`
       : `<p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>`;
   const evidenceId = `ev-${index}`;
+  // Отказ — не бледный ответ, а другой жанр: серо-фиолетовая кромка вместо
+  // янтарной, счёт проверенного вместо счёта утверждений, и «ближайшее, что
+  // есть» вместо пунктов. Правило работы, а не ошибка.
+  const refused = !clauses.length && !answered.answer;
+  if (refused) {
+    return `
+    ${daySeparator}
+    <div class="chat-turn${fresh ? " is-fresh" : ""}" data-turn="${index}">
+      ${chatQuestionHtml(turn.question, turn.at, index)}
+      <div class="agent-answer__card agent-answer__card--refusal">
+        <div class="agent-answer__notice agent-answer__notice--refusal">
+          <span>В базе нет подтверждений</span>
+          <span class="agent-when">${escapeHtml(answered.machineNotice || "")}</span>
+        </div>
+        <p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>
+        <p class="agent-answer__text agent-answer__text--rule"${step(1)}>Агент не достраивает ответ догадками — это правило работы, а не ошибка.</p>
+        ${evidence.length ? `
+          <div class="agent-answer__near">
+            <span class="agent-answer__nearlabel mono">ближайшее, что есть</span>
+            <div class="agent-evidence" id="${evidenceId}">
+              ${evidence.map((row, ordinal) =>
+                `<div id="ev-${index}-${ordinal + 1}"${fresh ? ` style="--j:${ordinal}"` : ""}>${agentStatementCard(row, ordinal + 1)}</div>`
+              ).join("")}
+            </div>
+          </div>` : ""}
+        <div class="agent-answer__levels">
+          <button class="agent-turn__copy" type="button" data-copy-turn="${index}">копировать ответ</button>
+        </div>
+      </div>
+    </div>`;
+  }
   return `
     ${daySeparator}
     <div class="chat-turn${fresh ? " is-fresh" : ""}" data-turn="${index}">
@@ -2418,10 +2499,10 @@ function chatWorkHtml() {
       </div>
       <div class="agent-work__steps">
         ${CHAT_STEPS.map(([step, label]) => `
-        <span class="agent-work__step" data-step="${step}"><span class="dot"></span>${label}<span class="agent-work__dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
+        <span class="agent-work__step" data-step="${step}"><span class="agent-work__mark" aria-hidden="true"><i></i><i></i><i></i></span>${label}</span>
       `).join("")}
       </div>
-      <span class="agent-work__bar" aria-hidden="true"></span>
+      <span class="agent-work__bar" aria-hidden="true"><i style="width:10%"></i></span>
     </div>`;
 }
 
@@ -2467,6 +2548,9 @@ function chatWorkAdvance(work, stage) {
   const steps = Array.from(work.querySelectorAll("[data-step]"));
   const next = steps[steps.indexOf(step) + 1];
   if (next) next.classList.add("is-now");
+  const done = steps.filter(node => node.classList.contains("is-done")).length;
+  const bar = work.querySelector(".agent-work__bar i");
+  if (bar) bar.style.width = `${Math.min(100, done / CHAT_STEPS.length * 100 + 10)}%`;
 }
 
 /** Read the SSE frames the service sends: `event: name` + `data: json`, one
@@ -2528,7 +2612,8 @@ function chatComposerBusy(busy) {
   if (!send) return;
   send.textContent = busy ? "■ Стоп" : "Спросить";
   send.classList.toggle("is-stop", busy);
-  send.disabled = busy ? false : !String(chatInput()?.value || "").trim();
+  const typed = String(chatInput()?.value || "");
+  send.disabled = busy ? false : (!typed.trim() || typed.length > CHAT_MAX_QUESTION);
 }
 
 function chatInput() {
@@ -2553,7 +2638,7 @@ function chatComposerSync() {
   }
   if (!agentState.busy) {
     const send = document.getElementById("agentSend");
-    if (send) send.disabled = !length;
+    if (send) send.disabled = !length || length > CHAT_MAX_QUESTION;
   }
 }
 
@@ -2564,7 +2649,10 @@ function chatSubmit() {
     chatAbort?.abort();
     return;
   }
-  if (question) agentAsk(question);
+  // Служба режет вопрос на пятистах знаках. Счётчик об этом говорит с
+  // четырёхсот; отправлять то, что заведомо приедет обрезанным, — не надо.
+  if (!question || question.length > CHAT_MAX_QUESTION) return;
+  agentAsk(question);
 }
 
 async function agentAsk(question) {
@@ -2613,12 +2701,15 @@ async function agentAsk(question) {
       }
     }
   }
+  // Часы конвейера — единственное место, где эта цифра живёт; забрать её
+  // надо до того, как узел уедет.
+  const spent = workNode.querySelector?.(".agent-work__timer")?.textContent || "";
   stopTimer();
   workNode.remove();
   if (stopped) {
     wrapper.insertAdjacentHTML("beforeend", `
       <div class="agent-answer__card agent-answer__card--quiet">
-        <div class="agent-answer__notice agent-answer__notice--quiet">Машинный ответ, не редакция базы · ответ остановлен</div>
+        <div class="agent-answer__notice agent-answer__notice--quiet">Ответ остановлен${spent ? ` · ${escapeHtml(spent)}` : ""}</div>
         <p class="agent-answer__text agent-answer__text--refused">Ответ остановлен.</p>
         <div class="agent-answer__levels">
           <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">↻ спросить снова</button>
@@ -2671,7 +2762,9 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
   const copyQuestion = event.target.closest("[data-copy-q]");
   if (copyQuestion) {
     const turn = chatTurns[Number(copyQuestion.dataset.copyQ)];
-    chatCopyText(String(turn?.question || ""), copyQuestion);
+    // Подпись над пузырём, а не сам пузырь: «СКОПИРОВАНО ✓» вместо «ВЫ · 12:41».
+    // Раньше сюда передавалась обёртка, и копирование стирало вопрос.
+    chatCopyText(String(turn?.question || ""), copyQuestion.querySelector(".agent-q__meta"));
     return;
   }
   const retry = event.target.closest("[data-retry]");
@@ -2733,6 +2826,15 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
       block.hidden = false;
       card.querySelector(".agent-level[data-toggle]")?.classList.add("is-open");
     }
+    // Раскрыть блок мало: в нём может быть восемь карточек, а сноска вела в
+    // одну. Вспышка говорит, в какую именно.
+    const target = document.getElementById(String(cite.getAttribute("href") || "").slice(1));
+    if (target) {
+      target.classList.add("is-flash");
+      clearTimeout(chatCiteFlash);
+      chatCiteFlash = setTimeout(() => target.classList.remove("is-flash"), 1700);
+      scrollToNode(target, "center");
+    }
     return;
   }
   const button = event.target.closest(".agent-level[data-toggle]");
@@ -2750,11 +2852,18 @@ function chatCopyText(text, button) {
     setTimeout(() => { button.textContent = was; }, 1600);
   };
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).then(done, () => {});
+    // Отказ буфера — не повод молчать: браузер может запретить запись без
+    // жеста, и тогда читатель нажимал кнопку, а не происходило ничего.
+    // Второй путь ниже работает и в этом случае.
+    navigator.clipboard.writeText(text).then(done, () => chatCopyFallback(text, done));
     return;
   }
-  // The old road: a transient textarea. Executor-based copy is deprecated but
-  // not gone, and a no-op promise is worse than a second-best copy.
+  chatCopyFallback(text, done);
+}
+
+/** The old road: a transient textarea. Executor-based copy is deprecated but
+ *  not gone, and a no-op promise is worse than a second-best copy. */
+function chatCopyFallback(text, done) {
   const scratch = document.createElement("textarea");
   scratch.value = text;
   document.body?.appendChild?.(scratch);
@@ -2878,10 +2987,29 @@ function chatMiniGraph(index, host) {
       <div class="chat-mini__foot">${openButton(chatTopClaim(evidence))}</div>`;
     return;
   }
-  host.innerHTML = `<div class="chat-mini__host"></div>
+  const ranked = chatTopicsRanked(evidence);
+  const shown = ranked.slice(0, CHAT_TOPICS_SHOWN);
+  host.innerHTML = `
+    <div class="chat-mini__head">
+      <span class="chat-mini__title">Связи ответа в графе</span>
+      <span class="chat-mini__note mono">узлы из данных ответа · без запроса к базе</span>
+    </div>
+    <div class="chat-mini__grid">
+      <div class="chat-mini__host"></div>
+      <div class="chat-mini__neighbours">
+        <span class="chat-mini__label mono">соседи узла</span>
+        ${evidence.slice(0, CHAT_TOPICS_SHOWN).map(row => {
+          const one = agentRow(row);
+          const status = AGENT_STATUS_LABEL[one.status] || one.status || "утверждение";
+          return `<span class="chat-mini__row"><i class="chat-mini__dot chat-mini__dot--${escapeHtml(AGENT_STATUS_CLASS[one.status] || "agent-label--far")}"></i><b>${escapeHtml(chatShort(one.statement || one.quote || "", 34))}</b><em>${escapeHtml(status)}</em></span>`;
+        }).join("")}
+        ${shown.map(topic =>
+          `<span class="chat-mini__row"><i class="chat-mini__dot chat-mini__dot--topic"></i><b>${escapeHtml(chatShort(topic, 34))}</b><em>тема</em></span>`).join("")}
+      </div>
+    </div>
     <div class="chat-mini__foot">${
       openButton(chatTopClaim(evidence))
-    } один шаг от центра; узел-утверждение уводит в «Связи»</div>`;
+    } показано ${shown.length + Math.min(evidence.length, CHAT_TOPICS_SHOWN)} из ${ranked.length + evidence.length} соседей — самые свежие · связи предложила машина, владелец не подтверждал · полный граф — по подписке</div>`;
   const statements = evidence.map((row, order) => ({
     data: {
       id: `s${order}`,
@@ -2889,8 +3017,7 @@ function chatMiniGraph(index, host) {
       claim: row.claim_id || row.claimId || ""
     }
   }));
-  const ranked = chatTopicsRanked(evidence).slice(0, CHAT_TOPICS_SHOWN);
-  const topics = ranked.map((label, order) => ({
+  const topics = shown.map((label, order) => ({
     data: { id: `t${order}`, label: chatShort(label, 24), topic: label }
   }));
   const edges = [];
@@ -2900,7 +3027,7 @@ function chatMiniGraph(index, host) {
       if (target !== -1) edges.push({ data: { id: `e${order}-${target}`, source: `s${order}`, target: `t${target}` } });
     });
   });
-  const canvas = host.firstElementChild;
+  const canvas = host.querySelector(".chat-mini__host");
   const mini = cytoscape({
     container: canvas,
     elements: [...statements, ...topics, ...edges],
@@ -2918,7 +3045,7 @@ function chatMiniGraph(index, host) {
         "line-color": "#c9cdcf", width: 1.2, "curve-style": "haystack", opacity: 0.7
       } }
     ],
-    layout: { name: "grid", nodeDimensionsIncludeLabels: true, animate: false, padding: 20 }
+    layout: { name: "cose", nodeDimensionsIncludeLabels: true, animate: false, padding: 24 }
   });
   mini.on("tap", "node", event => {
     const claim = event.target.data("claim");
@@ -3009,33 +3136,118 @@ document.getElementById("newDialog")?.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-/* The microphone is the browser's own, when it has one: the Web Speech API
- *  needs no dependency and no server. Where the site's own Permissions-Policy
- *  forbids it, the reader is told that plainly - a dead button that pretends
- *  to listen is the one dishonesty this view must not allow. */
-document.getElementById("agentMic")?.addEventListener("click", () => {
-  const recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const mic = document.getElementById("agentMic");
+/* ── Голос: два уровня, как в эталоне ────────────────────────────────────
+ *
+ * Клик — диктовка в строку: узкая полоса над композером, живой транскрипт,
+ * текст дописывается в поле вопроса. Удержание от 450 мс — голосовой режим:
+ * оверлей на всё окно, и на отпускании распознанное падает в ту же строку.
+ * Отправку не делает ни один из них: решение спросить остаётся за читателем.
+ *
+ * Микрофон — браузерный, Web Speech API, без зависимостей и без сервера. Где
+ * его нет (Firefox), кнопка остаётся на месте и говорит об этом словами:
+ * мёртвая кнопка, притворяющаяся слушающей, — единственная ложь, которой
+ * этому экрану нельзя. */
+
+const VOICE_HOLD_MS = 450;
+const voice = {
+  mode: null,           // "inline" | "overlay"
+  session: null,        // экземпляр распознавателя
+  base: "",             // что было в строке до начала
+  final: "",
+  interim: "",
+  startedAt: 0,
+  tick: null,
+  hold: null,
+  suppressClick: false,
+};
+
+function voiceEngine() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function voiceTranscript() {
+  return `${voice.final}${voice.interim}`.trim();
+}
+
+function voiceElapsed() {
+  const seconds = Math.max(0, Math.round((Date.now() - voice.startedAt) / 1000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/** Полоса над композером: четыре дышащие палочки, транскрипт с курсором, СТОП. */
+function voiceRenderInline() {
   const live = document.getElementById("chatMicLive");
-  if (!recognition || !mic) {
-    if (live) {
-      live.hidden = false;
-      live.textContent = "Браузер не поддерживает распознавание речи.";
-      setTimeout(() => { live.hidden = true; }, 3500);
-    }
+  if (!live) return;
+  live.hidden = voice.mode !== "inline";
+  if (voice.mode !== "inline") return;
+  const heard = escapeHtml(voiceTranscript()) || "…";
+  live.innerHTML = `
+    <span class="agent-composer__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <span class="agent-composer__heard">слушаю: <i>${heard}</i><span class="agent-composer__caret" aria-hidden="true">▊</span></span>
+    <button class="agent-composer__stop mono" type="button" data-voice-stop>СТОП</button>`;
+}
+
+/** Оверлей голосового режима: графитовая карточка, эквалайзер, транскрипт. */
+function voiceRenderOverlay() {
+  const overlay = document.getElementById("voiceOverlay");
+  if (!overlay) return;
+  overlay.hidden = voice.mode !== "overlay";
+  if (voice.mode !== "overlay") return;
+  const clock = document.getElementById("voiceClock");
+  if (clock) clock.textContent = `СЛУШАЮ · ${voiceElapsed()}`;
+  const said = document.getElementById("voiceHeard");
+  if (said) {
+    const heard = voiceTranscript();
+    said.innerHTML = heard
+      ? `«${escapeHtml(heard)}»<span class="voice-overlay__caret" aria-hidden="true">▊</span>`
+      : `<span class="voice-overlay__caret" aria-hidden="true">▊</span>`;
+  }
+}
+
+function voiceRender() {
+  voiceRenderInline();
+  voiceRenderOverlay();
+}
+
+function voiceNotice(text) {
+  const live = document.getElementById("chatMicLive");
+  if (!live) return;
+  live.hidden = false;
+  live.textContent = text;
+  clearTimeout(voice.notice);
+  voice.notice = setTimeout(() => {
+    if (voice.mode !== "inline") live.hidden = true;
+  }, 4000);
+}
+
+function voiceStart(mode) {
+  const Engine = voiceEngine();
+  const mic = document.getElementById("agentMic");
+  if (!Engine) {
+    voiceNotice("Голосовой ввод не поддерживается этим браузером.");
     return;
   }
-  if (mic.classList.contains("is-listening")) {
-    try { chatListener?.stop(); } catch (error) { /* already stopped */ }
-    return;
-  }
-  const startedWith = String(chatInput()?.value || "");
-  chatListener = new recognition();
-  chatListener.lang = "ru-RU";
-  chatListener.interimResults = true;
-  chatListener.continuous = false;
-  chatListener.maxAlternatives = 1;
-  chatListener.onresult = event => {
+  if (voice.mode) voiceStop({ commit: false });
+  voice.mode = mode;
+  voice.base = String(chatInput()?.value || "");
+  voice.final = "";
+  voice.interim = "";
+  voice.startedAt = Date.now();
+  mic?.classList.add("is-listening");
+  voiceRender();
+  // Часы оверлея идут сами: распознаватель молчит между фразами.
+  clearInterval(voice.tick);
+  voice.tick = setInterval(voiceRenderOverlay, 250);
+
+  const session = new Engine();
+  voice.session = session;
+  session.lang = "ru-RU";
+  session.interimResults = true;
+  // В голосовом режиме читатель держит кнопку и говорит фразами; в диктовке
+  // хватает одной.
+  session.continuous = mode === "overlay";
+  session.maxAlternatives = 1;
+  session.onresult = event => {
     let final = "";
     let interim = "";
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -3043,44 +3255,109 @@ document.getElementById("agentMic")?.addEventListener("click", () => {
       if (result.isFinal) final += result[0].transcript;
       else interim += result[0].transcript;
     }
-    const input = chatInput();
-    if (input && final) {
-      input.value = startedWith ? `${startedWith} ${final}` : final;
-      chatComposerSync();
-    }
-    if (live && interim) {
-      live.hidden = false;
-      live.innerHTML = `<span class="agent-composer__bars" aria-hidden="true"><i></i><i></i><i></i></span> слышу: ${escapeHtml(interim)}`;
-    }
+    if (final) voice.final += final;
+    voice.interim = interim;
+    // Диктовка пишет в строку по ходу дела; голосовой режим — на отпускании,
+    // чтобы читатель видел в оверлее ровно то, что попадёт в вопрос.
+    if (voice.mode === "inline") voiceCommit();
+    voiceRender();
   };
-  chatListener.onend = () => {
-    mic.classList.remove("is-listening");
-    if (live) live.hidden = true;
-    chatComposerSync();
-  };
-  chatListener.onerror = event => {
-    mic.classList.remove("is-listening");
+  session.onerror = event => {
     const reason = event.error === "not-allowed" || event.error === "service-not-allowed"
       ? "Микрофон запрещён: сайт или браузер блокирует запись (Permissions-Policy)."
       : event.error === "no-speech" ? ""
       : `Микрофон недоступен: ${event.error || "неизвестная причина"}.`;
-    if (reason && live) {
-      live.hidden = false;
-      live.textContent = reason;
-      setTimeout(() => { live.hidden = true; }, 4500);
-    }
+    voiceStop({ commit: false });
+    if (reason) voiceNotice(reason);
   };
-  mic.classList.add("is-listening");
-  if (live) {
-    live.hidden = false;
-    live.innerHTML = `<span class="agent-composer__bars" aria-hidden="true"><i></i><i></i><i></i></span> слушаю…`;
-  }
+  session.onend = () => {
+    // Голосовой режим живёт, пока держат кнопку: браузер обрывает сессию по
+    // паузе, и её надо поднять заново, иначе оверлей слушает пустоту.
+    if (voice.mode === "overlay" && voice.session === session) {
+      try { session.start(); return; } catch (error) { /* поднять не вышло */ }
+    }
+    if (voice.mode === "inline") voiceStop({ commit: true });
+  };
   try {
-    chatListener.start();
+    session.start();
   } catch (error) {
-    mic.classList.remove("is-listening");
-    if (live) live.hidden = true;
+    voiceStop({ commit: false });
   }
+}
+
+/** Распознанное — в строку вопроса, к тому, что там уже было. */
+function voiceCommit() {
+  const input = chatInput();
+  const heard = voiceTranscript();
+  if (!input || !heard) return;
+  const before = voice.base ? `${voice.base.trimEnd()} ` : "";
+  input.value = before + heard;
+  chatComposerSync();
+}
+
+function voiceStop({ commit = true } = {}) {
+  const session = voice.session;
+  voice.session = null;
+  const wasMode = voice.mode;
+  voice.mode = null;
+  clearInterval(voice.tick);
+  if (session) {
+    session.onend = null;
+    session.onresult = null;
+    session.onerror = null;
+    try { session.stop(); } catch (error) { /* уже остановлен */ }
+  }
+  if (commit && wasMode) voiceCommit();
+  voice.final = "";
+  voice.interim = "";
+  document.getElementById("agentMic")?.classList.remove("is-listening");
+  voiceRender();
+}
+
+function voiceInit() {
+  const mic = document.getElementById("agentMic");
+  if (!mic) return;
+  if (!voiceEngine()) {
+    // Кнопка остаётся, но говорит правду: и наведением, и по клику.
+    mic.classList.add("is-mute");
+    mic.setAttribute("title", "Голосовой ввод не поддерживается этим браузером");
+    mic.setAttribute("aria-label", "Голосовой ввод не поддерживается этим браузером");
+    mic.addEventListener("click", () => voiceNotice("Голосовой ввод не поддерживается этим браузером."));
+    return;
+  }
+  mic.setAttribute("title", "Клик — диктовка в строку · удержание — голосовой режим");
+
+  const hold = event => {
+    if (event.button !== undefined && event.button !== 0) return;
+    clearTimeout(voice.hold);
+    voice.hold = setTimeout(() => {
+      // Клик прилетит следом за отпусканием — он здесь уже лишний.
+      voice.suppressClick = true;
+      voiceStart("overlay");
+    }, VOICE_HOLD_MS);
+  };
+  mic.addEventListener("mousedown", hold);
+  mic.addEventListener("touchstart", hold, { passive: true });
+
+  mic.addEventListener("click", () => {
+    if (voice.suppressClick) { voice.suppressClick = false; return; }
+    if (voice.mode) voiceStop({ commit: true });
+    else voiceStart("inline");
+  });
+
+  const release = () => {
+    clearTimeout(voice.hold);
+    if (voice.mode === "overlay") voiceStop({ commit: true });
+  };
+  document.addEventListener("mouseup", release);
+  document.addEventListener("touchend", release);
+}
+
+voiceInit();
+
+/* СТОП на полосе диктовки — та же остановка, что и повторный клик по кнопке. */
+document.getElementById("chatMicLive")?.addEventListener("click", event => {
+  if (event.target?.closest?.("[data-voice-stop]")) voiceStop({ commit: true });
 });
 
 function plural(n, one, few, many) {
