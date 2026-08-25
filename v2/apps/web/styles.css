@@ -1346,11 +1346,48 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .skeleton.card-skel { height: 74px; }
 
 .api-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   padding: 10px 24px;
   background: rgba(181, 67, 46, .1);
   color: var(--stop);
   font-family: "PT Mono", ui-monospace, monospace;
   font-size: 11.5px;
+}
+
+.api-error__text { min-width: 0; }
+.api-error__wait { color: var(--muted); }
+
+.api-error__retry {
+  border: 1px solid var(--stop);
+  border-radius: 5px;
+  background: none;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--stop);
+  cursor: pointer;
+}
+
+.api-error__close {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--stop);
+  cursor: pointer;
+}
+
+/* Отказ виден там, куда ткнули, а не только в панели сбоку. */
+.agent-rail__item.is-denied .agent-rail__lock { animation: lockDenied .7s ease; }
+
+@keyframes lockDenied {
+  0%, 100% { color: var(--lock); transform: none; }
+  20% { color: var(--stop); transform: translateX(-2px); }
+  45% { color: var(--stop); transform: translateX(2px); }
+  70% { color: var(--stop); transform: translateX(-1px); }
 }
 
 /* ── Газета ─────────────────────────────────────────────────────────────── */
@@ -1506,9 +1543,15 @@ body.is-agent .footer { display: none; }
   border-right: 1px solid var(--rule);
 }
 
+/* `position: sticky` заводит стекинг-контекст сам по себе, и всё, что внутри,
+   сравнивается только внутри. Колонка `.agent-main` идёт в DOM позже, поэтому
+   без собственного слоя рейка уходила под её содержимое вместе с тултипом
+   замка (z-60 внутри контекста с z-index: auto ничего не значит). 35 — ниже
+   шапки (40) и выше колонки. */
 .agent-rail {
   position: sticky;
   top: 53px;
+  z-index: 35;
   align-self: start;
   display: flex;
   flex-direction: column;
@@ -1633,7 +1676,14 @@ body:not(.is-subscribed) .agent-rail__item:focus-visible .agent-rail__tip {
   visibility: visible;
 }
 
-body.is-subscribed .agent-rail__tip { display: none; }
+body.is-subscribed .agent-rail__tip:not(.agent-rail__tip--sub) { display: none; }
+
+/* Свёрнутая рейка оставляет от кнопки подписки один замок: без подсказки он
+   не говорит ничего. Эта подсказка показывается независимо от подписки. */
+.agent-sub-toggle { position: relative; }
+.agent-sub-toggle:hover .agent-rail__tip--sub,
+.agent-sub-toggle:focus-visible .agent-rail__tip--sub { opacity: 1; visibility: visible; }
+.agent-rail__tip--sub { bottom: calc(100% + 8px); top: auto; left: 0; transform: none; }
 
 .agent-rail__foot {
   margin-top: auto;
@@ -3103,6 +3153,88 @@ body:not(.is-chat) .chat-up { display: none; }
 .agent-graph__key i { width: 12px; height: 2px; border-radius: 1px; display: inline-block; }
 .agent-graph__key--structural { color: var(--meta); }
 
+/* Ключ читается двумя частями: чем нарисован узел и чем — связь. */
+.agent-graph__part {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-graph__partname {
+  font-family: "PT Mono", ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--meta);
+}
+
+.agent-graph__node {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.agent-graph__node--statement {
+  border-radius: 50%;
+  background: var(--field);
+  border: 1.5px solid var(--text);
+}
+
+.agent-graph__node--topic { background: var(--near); }
+
+.agent-graph__node--entity {
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+
+.chat-mini__key { padding-bottom: 4px; border-bottom: 1px solid var(--rule-2); }
+
+/* Выбранный узел: сначала имя, потом уход. */
+.graph-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--rule-2);
+  background: var(--sub);
+  font-size: 12.5px;
+}
+
+.graph-pick[hidden] { display: none; }
+
+.graph-pick__kind {
+  font-size: 9.5px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--meta);
+}
+
+.graph-pick__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.graph-pick__go {
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--field);
+  font-size: 12px;
+  color: var(--near);
+  cursor: pointer;
+}
+
+.graph-pick__go:hover { border-color: var(--near); }
+
 .agent-links__meta,
 .agent-links__edge,
 .agent-links__notice {
@@ -3204,6 +3336,22 @@ body:not(.is-chat) .chat-up { display: none; }
 }
 
 .agent-sub-panel[hidden] { display: none; }
+
+.agent-sub-panel__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  padding: 4px;
+  line-height: 1;
+  font-size: 13px;
+  color: var(--meta);
+  cursor: pointer;
+}
+
+.agent-sub-panel__close:hover { color: var(--text); }
+.agent-sub-panel__title { padding-right: 22px; }
 .agent-sub-panel__title { font-size: 13.5px; }
 .agent-sub-panel__text { margin: 0; font-size: 12px; color: var(--text-3); line-height: 1.5; }
 
@@ -3388,6 +3536,7 @@ body:not(.is-chat) .chat-up { display: none; }
   .chat-turn.is-fresh .agent-tool,
   .chat-turn.is-fresh .agent-evidence > div,
   .chat-turn.is-flash,
+  .agent-rail__item.is-denied .agent-rail__lock,
   .skeleton {
     animation: none !important;
   }

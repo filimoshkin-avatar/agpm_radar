@@ -93,7 +93,8 @@
     </div>
   </header>
 
-  <div id="agentSubPanel" class="agent-sub-panel" hidden role="dialog" aria-label="Подписка на базу знаний">
+  <div id="agentSubPanel" class="agent-sub-panel" hidden role="dialog" aria-modal="false" aria-label="Подписка на базу знаний">
+    <button id="agentSubClose" class="agent-sub-panel__close" type="button" aria-label="Закрыть">✕</button>
     <h3 class="agent-sub-panel__title">Режим подписки</h3>
     <p class="agent-sub-panel__text">
       По подписке — самостоятельная работа с базой: поиск по утверждениям,
@@ -319,6 +320,7 @@
                   aria-haspopup="true" aria-expanded="false">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg>
             <i id="agentSubLabel" data-lbl>Режим подписки</i>
+            <span class="agent-rail__tip agent-rail__tip--sub">Режим подписки: вход по ключу или запрос доступа</span>
           </button>
           <span class="agent-rail__note mono" data-lbl>ДИАЛОГ ОТКРЫТ ВСЕМ · РАЗДЕЛЫ — ПО ПОДПИСКЕ</span>
         </div>

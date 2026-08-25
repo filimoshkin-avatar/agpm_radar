@@ -413,6 +413,62 @@ function accessInit() {
   }
 }
 
+/* ── Слои, которые обязаны закрываться ────────────────────────────────────
+ *
+ * Панель подписки, архив газеты, история вопросов — три поповера, и до сих пор
+ * каждый закрывался только повторным кликом по своей же кнопке. Читатель,
+ * открывший панель случайным кликом по замку, не имел выхода: ни ✕, ни Escape,
+ * ни клика мимо. У панели при этом стоит `role="dialog"`, а он обещает и
+ * закрытие, и фокус.
+ *
+ * Один список на все три, а не три обработчика: правило одно — «слой
+ * закрывается снаружи», и написанное трижды оно разойдётся. Открытие любого
+ * слоя закрывает остальные: два поповера одновременно — это уже не поповеры.
+ */
+const LAYERS = [
+  { node: "agentSubPanel", opener: "agentSubButton", close: () => accessPanel(false) },
+  { node: "gazetteArchive", opener: "gazetteIssue", close: () => gazetteArchive(false) },
+  { node: "chatHistoryList", opener: "chatHistoryToggle", close: () => chatHistoryToggleOpen(false) },
+];
+
+function layerOpen(node) {
+  return Boolean(node) && !node.hidden;
+}
+
+/** Закрыть все слои, кроме названного. */
+function closeLayers(except) {
+  LAYERS.forEach(layer => {
+    if (layer.node === except) return;
+    if (layerOpen(document.getElementById(layer.node))) layer.close();
+  });
+}
+
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  // Голосовой режим — тоже слой, и Escape его отменяет БЕЗ переноса текста:
+  // отпускание кнопки означает «беру сказанное», Escape — «передумал».
+  if (voice.mode) {
+    voiceStop({ commit: false });
+    return;
+  }
+  const open = LAYERS.filter(layer => layerOpen(document.getElementById(layer.node)));
+  if (!open.length) return;
+  event.preventDefault();
+  open.forEach(layer => layer.close());
+});
+
+document.addEventListener("pointerdown", event => {
+  LAYERS.forEach(layer => {
+    const node = document.getElementById(layer.node);
+    if (!layerOpen(node)) return;
+    const target = event.target;
+    // Клик по самому слою или по кнопке, которая его открыла, — не «мимо».
+    if (node.contains?.(target)) return;
+    if (document.getElementById(layer.opener)?.contains?.(target)) return;
+    layer.close();
+  });
+});
+
 /* The button does not switch anything - it explains, and offers the two doors:
  * a request to the owner, or a key the reader already holds. */
 function accessPanel(open) {
@@ -420,8 +476,13 @@ function accessPanel(open) {
   const button = document.getElementById("agentSubButton");
   if (!panel) return;
   const opening = open === undefined ? panel.hidden : open;
+  if (opening) closeLayers("agentSubPanel");
   panel.toggleAttribute("hidden", !opening);
   button?.setAttribute("aria-expanded", opening ? "true" : "false");
+  // `role="dialog"` обещает фокус: в открытую панель, обратно на кнопку при
+  // закрытии. Без этого клавиатура остаётся там, где её застали.
+  if (opening) document.getElementById("agentSubKey")?.focus?.();
+  else if (document.activeElement && panel.contains?.(document.activeElement)) button?.focus?.();
   if (opening && agentAccess.key) {
     const message = document.getElementById("agentSubMessage");
     if (message) {
@@ -434,6 +495,7 @@ function accessPanel(open) {
 }
 
 document.getElementById("agentSubButton")?.addEventListener("click", () => accessPanel());
+document.getElementById("agentSubClose")?.addEventListener("click", () => accessPanel(false));
 
 /* Закрытый пункт рейки не уводит из диалога: макет показывает на нём замок и
  * подсказку, а клик открывает разговор о подписке. Слушатель стоит на самой
@@ -444,6 +506,10 @@ document.getElementById("agentRail")?.addEventListener("click", event => {
   if (document.body.classList.contains("is-subscribed")) return;
   event.stopPropagation();
   event.preventDefault?.();
+  // Панель открывается сбоку, и связь с тем, куда человек ткнул, теряется.
+  // Короткая вспышка замка связывает причину со следствием.
+  item.classList.add("is-denied");
+  setTimeout(() => item.classList.remove("is-denied"), 700);
   accessPanel(true);
 }, true);
 
@@ -594,14 +660,17 @@ document.getElementById("headerAsk")?.addEventListener("keydown", event => {
 });
 
 /* Архив номеров газеты: один номер сегодня, поповер — на вырост. */
-document.getElementById("gazetteIssue")?.addEventListener("click", () => {
+function gazetteArchive(open) {
   const archive = document.getElementById("gazetteArchive");
   const button = document.getElementById("gazetteIssue");
   if (!archive) return;
-  const opening = archive.hidden;
+  const opening = open === undefined ? archive.hidden : open;
+  if (opening) closeLayers("gazetteArchive");
   archive.toggleAttribute("hidden", !opening);
   button?.setAttribute("aria-expanded", opening ? "true" : "false");
-});
+}
+
+document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
@@ -1848,9 +1917,43 @@ initViewMode();
 // службой, так что цена ему — один раз за загрузку страницы.
 kbLoadCounts();
 
-init().catch(error => {
-  document.body.insertAdjacentHTML("afterbegin", `<div class="api-error">API недоступен: ${escapeHtml(error.message)}</div>`);
-});
+/* Баннер отказа висел до перезагрузки страницы. Между тем API возвращается сам,
+ * и читателю нечего было делать с этой строкой, кроме как перезагрузиться
+ * вручную. Теперь он считает вслух и пробует снова, а закрыть его можно. */
+const API_RETRY_SECONDS = 15;
+
+function apiError(message) {
+  document.querySelector(".api-error")?.remove();
+  const banner = document.createElement("div");
+  banner.className = "api-error";
+  banner.innerHTML = `<span class="api-error__text">API недоступен: ${escapeHtml(message)}</span>
+    <span class="api-error__wait mono"></span>
+    <button class="api-error__retry" type="button" data-api-retry>повторить сейчас</button>
+    <button class="api-error__close" type="button" data-api-close aria-label="Закрыть">✕</button>`;
+  document.body.insertAdjacentElement?.("afterbegin", banner);
+  let left = API_RETRY_SECONDS;
+  const wait = banner.querySelector(".api-error__wait");
+  const retry = () => {
+    clearInterval(timer);
+    banner.remove();
+    init().catch(again => apiError(again.message));
+  };
+  const timer = setInterval(() => {
+    left -= 1;
+    if (wait) wait.textContent = `повтор через ${left} с`;
+    if (left <= 0) retry();
+  }, 1000);
+  if (wait) wait.textContent = `повтор через ${left} с`;
+  banner.addEventListener("click", event => {
+    if (event.target?.closest?.("[data-api-retry]")) retry();
+    if (event.target?.closest?.("[data-api-close]")) {
+      clearInterval(timer);
+      banner.remove();
+    }
+  });
+}
+
+init().catch(error => apiError(error.message));
 
 /* ---------------------------------------------------------------------------
  * Agent mode (stage 3). The third position of the switcher.
@@ -2196,8 +2299,11 @@ function chatNearBottom() {
   }
 }
 
-function chatFollowBottom(node, { counts = true } = {}) {
-  if (chatNearBottom()) {
+let chatDownLabel = "";
+
+function chatFollowBottom(node, { counts = true, move = true, label = "" } = {}) {
+  if (label) chatDownLabel = label;
+  if (move && chatNearBottom()) {
     scrollToNode(node, "end");
     return;
   }
@@ -2214,8 +2320,11 @@ function chatDownSync() {
   pill.hidden = chatUnread === 0;
   const label = document.getElementById("chatDownCount");
   if (label && chatUnread > 0) {
-    label.textContent = chatUnread > 1 ? `${chatUnread} новых ответа внизу` : "новый ответ внизу";
+    label.textContent = chatUnread > 1
+      ? `${chatUnread} новых внизу`
+      : (chatDownLabel || "новый ответ внизу");
   }
+  if (chatUnread === 0) chatDownLabel = "";
 }
 
 document.getElementById("chatDown")?.addEventListener("click", () => {
@@ -2264,6 +2373,7 @@ function chatHistoryToggleOpen(open) {
   const list = document.getElementById("chatHistoryList");
   const toggle = document.getElementById("chatHistoryToggle");
   if (!list || !toggle) return;
+  if (open) closeLayers("chatHistoryList");
   list.hidden = !open;
   toggle.setAttribute("aria-expanded", open ? "true" : "false");
   if (open) list.innerHTML = chatHistoryRows();
@@ -3033,7 +3143,7 @@ function chatCopyTurn(index, button) {
  *  in the thread, the way the answer did. Nothing in the chat switches a free
  *  reader to a tab - the chat is their whole interface, so the graph comes to
  *  the chat. Subscribers get the same card; their tab remains for browsing. */
-async function chatGraphTurn(query) {
+async function chatGraphTurn(query, { follow = true } = {}) {
   const thread = document.getElementById("agentThread");
   if (!thread || !query) return;
   const card = document.createElement("div");
@@ -3049,7 +3159,10 @@ async function chatGraphTurn(query) {
     <div class="agent-graph__canvas" hidden></div>
     <div class="chat-graph__list"></div>`;
   thread.appendChild(card);
-  chatFollowBottom(card);
+  // Ход из композера читатель ждёт внизу; карточку, рождённую тапом по узлу, -
+  // нет. Тащить ленту за ней значит увести человека с того места, где он читал.
+  if (follow) chatFollowBottom(card);
+  else chatFollowBottom(card, { counts: true, move: false, label: "карточка связей ниже" });
   const meta = card.querySelector(".agent-links__meta");
   try {
     const data = await kbFetch(`/graph?${query}&limit=40`);
@@ -3060,7 +3173,7 @@ async function chatGraphTurn(query) {
     agentGraphDestroy();
     card.querySelector(".agent-graph__legend")?.replaceChildren();
     const legend = card.querySelector(".agent-graph__legend");
-    if (legend) legend.innerHTML = agentGraphLegend(data.edges);
+    if (legend) legend.innerHTML = agentGraphKey(data.edges);
     const info = data.meta || {};
     const policy = {
       "most-recent": "показаны самые свежие",
@@ -3102,6 +3215,68 @@ async function chatGraphTurn(query) {
   }
 }
 
+/* ── Тап по узлу графа: сначала выделение, потом действие ─────────────────
+ *
+ * Одиночный тап уводил читателя немедленно: рождал карточку связей и
+ * прокручивал к ней ленту. На таче панорамирование канвы регулярно
+ * заканчивается тапом, и читатель терял место чтения ни за что.
+ *
+ * Теперь первый тап только называет узел — плашка под графом говорит, что это
+ * и чем оно окажется, — а уводит второй тап по тому же узлу или кнопка. Двойной
+ * клик и долгое нажатие работают сразу, для тех, кто уже знает дорогу.
+ */
+function graphSelection(host, act) {
+  let chosen = null;
+  let bar = host.parentElement?.querySelector?.(".graph-pick");
+  if (!bar) {
+    bar = document.createElement?.("div");
+    if (bar && host.insertAdjacentElement) {
+      bar.className = "graph-pick";
+      bar.hidden = true;
+      host.insertAdjacentElement("afterend", bar);
+    } else {
+      bar = null;
+    }
+  }
+  // Где плашку показать негде - просить второй тап нечестно: читатель не увидит,
+  // что выбрал. Тогда тап работает как раньше, сразу.
+  if (!bar) return { tap: node => act(node.id()), clear: () => {} };
+  const KIND = { topic: "тема", entity: "имя", statement: "утверждение" };
+  const clear = () => {
+    chosen = null;
+    bar.hidden = true;
+    bar.innerHTML = "";
+  };
+  bar.addEventListener("click", event => {
+    if (!event.target?.closest?.("[data-graph-go]")) return;
+    const going = chosen;
+    clear();
+    if (going) act(going);
+  });
+  return {
+    tap(node, { now = false } = {}) {
+      const id = node.id();
+      if (now || chosen === id) {
+        clear();
+        act(id);
+        return;
+      }
+      chosen = id;
+      // Идентификаторы у двух графов разные: в «Связях» это `kind:key`, в
+      // наброске ответа — `s0`/`t0`. Род узла надёжнее спросить у данных.
+      const kind = node.data("topic") !== undefined ? "topic"
+        : node.data("claim") !== undefined ? "statement"
+        : String(id).split(":")[0];
+      bar.hidden = false;
+      bar.innerHTML = `
+        <span class="graph-pick__kind mono">${escapeHtml(KIND[kind] || kind)}</span>
+        <span class="graph-pick__name">${escapeHtml(node.data("label") || "")}</span>
+        <button class="graph-pick__go" type="button" data-graph-go>Показать связи</button>`;
+    },
+    clear,
+  };
+}
+
 function chatMinisDestroy() {
   chatMinis.forEach(instance => {
     try {
@@ -3135,6 +3310,7 @@ function chatMiniGraph(index, host) {
       <div class="chat-mini__host"></div>
       <div class="chat-mini__neighbours">
         <span class="chat-mini__label mono">соседи узла</span>
+        <span class="agent-graph__legend chat-mini__key">${agentGraphKey([])}</span>
         ${evidence.slice(0, CHAT_TOPICS_SHOWN).map(row => {
           const one = agentRow(row);
           const status = AGENT_STATUS_LABEL[one.status] || one.status || "утверждение";
@@ -3184,9 +3360,15 @@ function chatMiniGraph(index, host) {
     ],
     layout: { name: "cose", nodeDimensionsIncludeLabels: true, animate: false, padding: 24 }
   });
+  const pick = graphSelection(canvas, id => {
+    const claim = mini.getElementById(id)?.data?.("claim");
+    if (claim) chatGraphTurn(`claim=${encodeURIComponent(claim)}`, { follow: false });
+  });
   mini.on("tap", "node", event => {
-    const claim = event.target.data("claim");
-    if (claim) chatGraphTurn(`claim=${encodeURIComponent(claim)}`);
+    if (event.target.data("claim")) pick.tap(event.target);
+  });
+  mini.on("dbltap", "node", event => {
+    if (event.target.data("claim")) pick.tap(event.target, { now: true });
   });
   chatMinis.set(index, mini);
 }
@@ -3726,13 +3908,16 @@ function agentLinksGraphRender(data, host) {
       padding: 30
     }
   });
-  linksCanvas.on("tap", "node", event => {
-    // Where a node tap goes depends on whose graph this is: the tab's canvas
-    // walks the tab, a card inside the conversation walks the conversation -
-    // a free reader's only surface is the chat, and it must never bounce them
-    // into a tab they cannot read.
-    (host.__chatWalk ? chatGraphTurn : agentLoadGraph)(agentGraphRoute(event.target.id()));
-  });
+  // Where a node tap goes depends on whose graph this is: the tab's canvas walks
+  // the tab, a card inside the conversation walks the conversation - a free
+  // reader's only surface is the chat, and it must never bounce them into a tab
+  // they cannot read.
+  const walk = id => (host.__chatWalk
+    ? chatGraphTurn(agentGraphRoute(id), { follow: false })
+    : agentLoadGraph(agentGraphRoute(id)));
+  const picked = graphSelection(host, walk);
+  linksCanvas.on("tap", "node", event => picked.tap(event.target));
+  linksCanvas.on("dbltap", "node", event => picked.tap(event.target, { now: true }));
   linksCanvas.on("tap", "edge", event => {
     const line = document.getElementById("agentGraphEdge");
     const spoken = event.target.data("explanation") || event.target.data("relation") || "";
@@ -3766,6 +3951,29 @@ function agentLinksListHtml(data) {
   return `
     <div class="agent-links__head">${centre ? escapeHtml(centre.label) : ""}</div>
     ${groups || `<p class="agent-links__empty">Соседей у этого узла нет.</p>`}`;
+}
+
+/** Двухчастный ключ к любой графовой поверхности.
+ *
+ *  Прежняя легенда строилась только из типов рёбер, которые оказались в
+ *  данных: узлы не расшифровывались нигде, а объяснение серой и цветной линии
+ *  появлялось лишь тогда, когда в ответе был машинный слой. Читатель видел
+ *  синий квадрат и белый круг и не имел способа узнать, что это.
+ *
+ *  Часть про узлы постоянна - она описывает язык картинки, а не её содержимое. */
+function agentGraphKey(edges) {
+  return `<span class="agent-graph__part">
+      <span class="agent-graph__partname">узлы</span>
+      <span class="agent-graph__key"><i class="agent-graph__node agent-graph__node--statement"></i>утверждение</span>
+      <span class="agent-graph__key"><i class="agent-graph__node agent-graph__node--topic"></i>тема</span>
+      <span class="agent-graph__key"><i class="agent-graph__node agent-graph__node--entity"></i>имя</span>
+    </span>
+    <span class="agent-graph__part">
+      <span class="agent-graph__partname">связи</span>
+      <span class="agent-graph__key agent-graph__key--structural"><i style="background:#c9cdcf"></i>устройство базы</span>
+      <span class="agent-graph__key"><i style="background:${AGENT_RELATION_COLOUR.qualifies}"></i>предложила машина</span>
+      ${agentGraphLegend(edges)}
+    </span>`;
 }
 
 function agentGraphLegend(edges) {
@@ -3840,7 +4048,7 @@ async function agentLoadGraph(target, options = {}) {
     }
     agentGraphDestroy();
     const legend = document.getElementById("agentGraphLegend");
-    if (legend) legend.innerHTML = agentGraphLegend(data.edges);
+    if (legend) legend.innerHTML = agentGraphKey(data.edges);
     // How much of the neighbourhood this is, said out loud: a thousand-statement
     // subject drawn as thirty nodes must never read as the whole subject.
     const meta = data.meta || {};
