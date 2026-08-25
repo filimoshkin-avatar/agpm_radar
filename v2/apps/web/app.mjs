@@ -379,7 +379,7 @@ async function accessEnter(key, message) {
       accessApply(true);
       if (message) {
         message.hidden = false;
-        message.textContent = "Ключ принят. Вкладки базы — в вашем распоряжении.";
+        message.textContent = "Ключ принят. Вкладки агента — в вашем распоряжении.";
       }
       document.getElementById("agentSubPanel")?.toggleAttribute("hidden", true);
       return;
@@ -2075,7 +2075,7 @@ function agentStatementCard(raw, ordinal) {
         </a>
       </div>
       ${row.claimId ? `<div class="agent-statement__actions">
-        <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что база связала с этим</button>
+        <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что агент связал с этим</button>
         <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">Показать в графе</button>
         <button class="agent-links__toggle" type="button" data-agent-trail="${escapeHtml(row.claimId)}">Путь до выпуска →</button>
       </div>
@@ -3972,9 +3972,9 @@ async function agentLoadGraph(target, options = {}) {
     || (picked?.value ? `entity=${encodeURIComponent(picked.value)}` : "")
     || (select?.value ? `topic=${encodeURIComponent(select.value)}` : "");
   if (!query) {
-    box.innerHTML = `<p class="agent-intro">Выберите тему — и база покажет, что под ней стоит
+    box.innerHTML = `<p class="agent-intro">Выберите тему — и агент покажет, что под ней стоит
     и чем эти утверждения связаны между собой. Из карточки любого утверждения сюда же
-    ведёт кнопка «Что база связала с этим».</p>`;
+    ведёт кнопка «Что агент связал с этим».</p>`;
     return;
   }
   box.innerHTML = agentLoadingHtml("Собираю связи…");
@@ -4038,7 +4038,7 @@ async function agentLoadContradictions() {
     const data = await kbFetch("/contradictions?limit=40");
     const pairs = Array.isArray(data.pairs) ? data.pairs : [];
     box.innerHTML = `
-      <p class="agent-intro">Пары, которые база считает несовместимыми: об одном предмете
+      <p class="agent-intro">Пары, которые агент считает несовместимыми: об одном предмете
       сказано разное. Это находка, а не поломка — и решает её читатель, а не машина.
       Всего таких пар ${data.total}, ниже ${pairs.length} самых свежих.</p>
       ${pairs.map(pair => `
