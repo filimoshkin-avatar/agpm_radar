@@ -1016,7 +1016,13 @@ function renderRadarWidget(materials) {
     startRingTicker();
     return;
   }
-  document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар · сегодня";
+  // Заголовок называет день, который реально показан: сегодня, вчера — или дата выбранного выпуска.
+  const sonarDay = state.period === "yesterday"
+    ? "вчера"
+    : state.issueDate && state.issueDate !== latest?.issue?.issue_date
+      ? fmtDate(state.issueDate, true)
+      : "сегодня";
+  document.getElementById("radarTitle").textContent = `Сонар · ${sonarDay}`;
   root.innerHTML = renderSonarWidget(visible);
 }
 
