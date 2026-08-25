@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Final, cast
 from urllib.parse import urlsplit, urlunsplit
 
+from packages.contracts.analysis import clean_evidence_titles
 from packages.contracts.json_types import JsonObject, JsonValue
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE, assert_sqlite_runtime
 
@@ -432,21 +433,6 @@ def _analysis_blocks(
     return [_fallback_block(material_count, stats, status)]
 
 
-def _evidence_titles(raw: object) -> list[str]:
-    """The LLM's own list of source titles, in its own order.
-
-    Cleaned the same way the candidate builder cleans it, so the public
-    contract is one rule, not two: empties dropped, duplicates removed stably.
-    """
-    value = raw if isinstance(raw, list) else []
-    titles: list[str] = []
-    for item in value:
-        title = item.strip() if isinstance(item, str) else ""
-        if title and title not in titles:
-            titles.append(title)
-    return titles
-
-
 def _verify_database_boundary(connection: sqlite3.Connection) -> None:
     assert_sqlite_runtime()
     if int(connection.execute("PRAGMA application_id").fetchone()[0]) != (
@@ -661,7 +647,7 @@ def build_public_issue(
                 cast(str, analysis_row["llm_status"]),
             ),
             "brief": analysis_row["brief"] if analysis_row["brief"] is not None else issue["brief"],
-            "evidenceTitles": _evidence_titles(
+            "evidenceTitles": clean_evidence_titles(
                 cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
             ),
             "headline": analysis_row["headline"],
@@ -863,7 +849,7 @@ def build_public_issue_from_views(
                 cast(str, analysis_row["llm_status"]),
             ),
             "brief": analysis_row["brief"] if analysis_row["brief"] is not None else issue["brief"],
-            "evidenceTitles": _evidence_titles(
+            "evidenceTitles": clean_evidence_titles(
                 cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
             ),
             "headline": analysis_row["headline"],

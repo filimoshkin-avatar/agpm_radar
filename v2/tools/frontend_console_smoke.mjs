@@ -111,6 +111,13 @@ const pageMaterial = {
 
 // An issue published before the contract carried evidenceTitles: the key-material
 // list stands in for them, and the issue title stands in for the headline.
+//
+// Driven by running this smoke a second time with `--pre-contract` rather than
+// by re-driving the loaded module: `app.mjs` caches the issue it has, so a
+// second payload in one process is a race. A second process has no module
+// cache and no race - and the branch is live code, serving every issue
+// published before the contract, so it is not optional to cover.
+const preContract = process.argv.includes("--pre-contract");
 const oldIssue = {
   ...issue,
   analysis: {
@@ -126,7 +133,7 @@ const oldIssue = {
 globalThis.fetch = async raw => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
-  let payload = issue;
+  let payload = preContract ? oldIssue : issue;
   if (path.startsWith("/api/timeseries")) payload = { items: [{ ...issue.stats, date: issue.issueDate }] };
   else if (path.startsWith("/api/rubrics") || path.startsWith("/api/sources")) payload = [];
   else if (path.startsWith("/api/issues?") || path === "/api/issues") payload = { items: [], nextCursor: null };
@@ -156,6 +163,25 @@ if (requests.some(path => path.includes("period=7d"))) {
 // list, in the LLM's own order.
 const dailyHeadline = elements.get("dailyAnalysisHeadline").textContent;
 const dailyBody = elements.get("dailyAnalysisBody").innerHTML;
+if (preContract) {
+  // No analysis headline: the issue title stands in, and the issue brief still
+  // must not - that substitution was the defect this branch removed.
+  if (dailyHeadline !== "Старый выпуск") {
+    throw new Error(`pre-contract headline is "${dailyHeadline}", expected the issue title`);
+  }
+  if (dailyHeadline === "Пустой выпуск.") {
+    throw new Error("the issue brief stood in for the analysis headline");
+  }
+  // No evidenceTitles: the key-material list stands in.
+  if (!dailyBody.includes("Ключевой материал")) {
+    throw new Error("the key-material fallback did not render for a pre-contract issue");
+  }
+  if (!dailyBody.includes("Старое что-дальше.")) {
+    throw new Error("the actions block did not render for a pre-contract issue");
+  }
+  process.stdout.write("Frontend console smoke: PASS (pre-contract fallback)\n");
+  process.exit(0);
+}
 if (dailyHeadline !== "Заголовок анализа") {
   throw new Error(`analysis headline is "${dailyHeadline}", expected the analysis's own`);
 }
@@ -181,10 +207,5 @@ if (unhandled.length
   || Number(elements.get("cut").textContent) !== 109) {
   throw new Error(`frontend period/pagination regression failed: ${unhandled.map(String).join("; ")}`);
 }
-
-// The old-issue fallback (no evidenceTitles -> key material; no analysis
-// headline -> issue title) is a three-line branch in legacyIssue, exercised
-// by every pre-contract release already in production; an interactive drive
-// here proved cache-bound and was removed rather than made flaky.
 
 process.stdout.write("Frontend console smoke: PASS (Legacy-parity empty/fallback route)\n");

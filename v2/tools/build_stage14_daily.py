@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import cast
 
+from packages.contracts.analysis import clean_evidence_titles
 from packages.delta.engine import inspect_release_database
 from packages.domain.candidate_package import build_candidate_package
 from packages.domain.dual_run import consume_snapshot_for_branch
@@ -119,22 +120,6 @@ def _reconcile_narrative(text: str, *, legacy_count: int, stats: dict[str, int])
     return text
 
 
-def _evidence_titles(raw: object) -> list[str]:
-    """The LLM's own list of source titles, kept as the LLM chose it.
-
-    Order preserved (it is the analysis's composition), empties dropped,
-    duplicates removed stably - the first mention stands, nothing is reordered.
-    """
-    if not isinstance(raw, list):
-        return []
-    titles: list[str] = []
-    for item in raw:
-        title = item.strip() if isinstance(item, str) else ""
-        if title and title not in titles:
-            titles.append(title)
-    return titles
-
-
 def _analysis(
     document: dict[str, object], *, legacy_count: int, stats: dict[str, int]
 ) -> JsonObject:
@@ -183,7 +168,7 @@ def _analysis(
         "brief": _reconcile_narrative(
             str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
         ),
-        "evidenceTitles": _evidence_titles(body.get("evidence_titles")),
+        "evidenceTitles": clean_evidence_titles(body.get("evidence_titles")),
         "headline": daily.get("headline"),
         "theses": theses,
     }

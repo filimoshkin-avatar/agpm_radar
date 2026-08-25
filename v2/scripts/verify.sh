@@ -44,6 +44,10 @@ printf 'Legacy JavaScript syntax: PASS\n'
 
 step "frontend console smoke"
 node tools/frontend_console_smoke.mjs
+# The same smoke against a pre-contract issue, in a second process:
+# `app.mjs` caches the issue it holds, so a second payload in one process
+# is a race rather than a test.
+node tools/frontend_console_smoke.mjs --pre-contract
 
 step "agent view console smoke"
 node tools/agent_console_smoke.mjs
