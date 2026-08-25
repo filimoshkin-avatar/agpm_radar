@@ -1016,7 +1016,7 @@ function renderRadarWidget(materials) {
     startRingTicker();
     return;
   }
-  document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар";
+  document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар · сегодня";
   root.innerHTML = renderSonarWidget(visible);
 }
 
