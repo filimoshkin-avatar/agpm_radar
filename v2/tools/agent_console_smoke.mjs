@@ -69,6 +69,7 @@ const ids = [
 const elements = new Map(ids.map(id => [id, new FakeElement()]));
 const unhandled = [];
 const requests = [];
+const sentBodies = new Map();
 const documentHandlers = new Map();
 process.on("unhandledRejection", error => unhandled.push(error));
 
@@ -287,6 +288,9 @@ const sseBody = payload => {
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
+  // The path alone cannot show a filter that was silently dropped: the shelf the
+  // reader picked travels in the body, and that is where it went wrong before.
+  if (options?.body) sentBodies.set(path, JSON.parse(options.body));
   if (path === "/kb/chat/stream") {
     return { ok: true, status: 200, body: sseBody(ANSWER) };
   }
@@ -379,6 +383,43 @@ if (!answered.includes("https://example.org/a")) fail("the source link is missin
 if (!answered.includes("data-graph-mini")) fail("an answer with evidence offers no graph sketch");
 if (!answered.includes("доступна по подписке")) fail("the subscribe teaser does not say what it costs");
 if (!answered.includes("Пороги автономии")) fail("the answer's topics row is missing");
+
+// ── The «искать в:» chips ───────────────────────────────────────────────────
+//
+// Both are lit on load, and both being lit has to reach the base as «all»
+// (ADR-0012). This is the assertion the bug needed: the front end sent `""`,
+// `_answer_flow` turned anything unnamed into knowledge - quietly and correctly -
+// and the lit «хронике рынка» chip did nothing at all. The answer came back
+// looking exactly like an answer, so nothing above this line could have noticed.
+const askedWith = sentBodies.get("/kb/chat/stream");
+if (askedWith?.admission !== "all")
+  fail(`both chips lit went to the base as «${askedWith?.admission}», not «all»`);
+
+const chips = {
+  knowledge: register('[data-agent-admission="knowledge"]', new FakeElement("button")),
+  observatory: register('[data-agent-admission="observatory"]', new FakeElement("button")),
+};
+for (const [name, chip] of Object.entries(chips)) chip.dataset.agentAdmission = name;
+const pressed = name => chips[name].attributes.get("aria-pressed");
+
+// One shelf off: the other is what the question is aimed at, and the chip says
+// so out loud as well as in colour.
+click({ dataset: { agentAdmission: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("observatory") !== "false") fail("an unset chip still reads as pressed");
+if (pressed("knowledge") !== "true") fail("the remaining chip stopped reading as pressed");
+elements.get("agentQuestion").value = "второй вопрос, одна полка";
+await elements.get("agentForm").handler({ preventDefault() {} });
+await settle();
+if (sentBodies.get("/kb/chat/stream")?.admission !== "knowledge")
+  fail("one lit chip did not reach the base as its own name");
+
+// The last one does not come off: «искать нигде» is not a question.
+click({ dataset: { agentAdmission: "knowledge" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("knowledge") !== "true") fail("the last chip came off and left an empty search");
+
+// Back to both, so everything below runs against the state a reader loads into.
+click({ dataset: { agentAdmission: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("observatory") !== "true") fail("a chip switched back on did not say so");
 
 // The graph opens on whichever subject the picker holds.
 elements.get("agentGraphTopic").value = "porogi";
@@ -487,7 +528,14 @@ if (!clash.includes("283")) fail("the reader is not told how many disagreements 
 
 // UC-01: finding costs the reader nothing, and says which arm found each hit.
 // `/ask` and the conversation endpoints reach a paid model behind a limit; this
-// must not. One conversation turn has run by now: exactly one model call so far.
+// must not.
+//
+// Counted as a difference across the search, not as a running total. The total
+// was "exactly one so far", which is a fact about every line above this one:
+// asking one more question anywhere earlier turned this into a failure about
+// finding, which is not what it is about.
+const modelCall = path => path === "/kb/ask" || path.startsWith("/kb/chat");
+const paidBefore = requests.filter(modelCall).length;
 const findQuery = register('[data-find-filter="material_kind"]', new FakeElement("select"));
 findQuery.dataset.findFilter = "material_kind";
 findQuery.value = "fact";
@@ -498,7 +546,7 @@ const found = elements.get("agentFindResults").innerHTML;
 const searched = requests.find(path => path.startsWith("/kb/search"));
 if (!searched) fail("the find tab never reached the base");
 if (!searched.includes("material_kind=fact")) fail("the find tab dropped its filter");
-if (requests.filter(path => path === "/kb/ask" || path.startsWith("/kb/chat")).length !== 1)
+if (requests.filter(modelCall).length !== paidBefore)
   fail("finding must not spend a model call");
 if (!found.includes("по словам") || !found.includes("по смыслу"))
   fail("a hit rendered without saying which arm found it");
