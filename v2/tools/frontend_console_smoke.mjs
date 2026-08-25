@@ -30,8 +30,8 @@ const ids = [
   "activeFilter", "columns", "cut", "dailyAnalysis", "dailyAnalysisBody",
   "dailyAnalysisHeadline", "farChip", "footerSources", "heatmap", "included",
   "includedShare", "issueDate", "midChip", "nearChip", "nearShare", "perimeters",
-  "printGazette", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
-  "search", "sources", "sparkline", "theses", "thesesTitle", "timeline", "trendBars",
+  "printGazetteTop", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
+  "search", "sparkline", "theses", "thesesTitle", "trendBars",
   "trendRange", "viewed",
 ];
 const elements = new Map(ids.map(id => [id, new FakeElement()]));

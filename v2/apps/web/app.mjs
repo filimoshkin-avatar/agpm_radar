@@ -113,7 +113,6 @@ const state = {
   rubrics: [],
   q: "",
   loading: false,
-  openDay: null,
   issueDate: null,
   materials: [],
   viewMode: "radar",
@@ -302,7 +301,7 @@ const VIEW_MODES = ["radar", "gazette", "agent"];
 // was still a lexical declaration further down the file: the throw aborted the
 // module, so nothing after it ever ran and the page came up blank in every
 // mode - not only the one that triggered it.
-const agentState = { tab: "ask", admission: "knowledge", busy: false };
+const agentState = { tab: "ask", admission: ["knowledge", "observatory"], busy: false };
 
 // Declared at the top on purpose: a stored agent mode runs `setAgentTab` at
 // import time, before the graph section below has initialised - a `let` down
@@ -380,7 +379,7 @@ async function accessEnter(key, message) {
       accessApply(true);
       if (message) {
         message.hidden = false;
-        message.textContent = "Ключ принят. Вкладки базы — в вашем распоряжении.";
+        message.textContent = "Ключ принят. Вкладки агента — в вашем распоряжении.";
       }
       document.getElementById("agentSubPanel")?.toggleAttribute("hidden", true);
       return;
@@ -678,6 +677,12 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
+/* Лого — наверх текущего раздела: раздел не меняем, только прокрутку. */
+document.querySelector(".brand")?.addEventListener("click", event => {
+  event.preventDefault();
+  window.scrollTo?.(0, 0);
+});
+
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
     document.getElementById("agentSubKey")?.value,
@@ -741,22 +746,17 @@ function setViewMode(mode) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  try {
-    localStorage.setItem("agpmRadarViewMode", state.viewMode);
-  } catch {
-    // Private and embedded browsers may deny storage.
-  }
 }
 
 function initViewMode() {
-  let saved = "radar";
-  try {
-    saved = localStorage.getItem("agpmRadarViewMode") || "radar";
-  } catch {
-    saved = "radar";
-  }
   accessInit();
-  setViewMode(window.location.hash === "#gazette" ? "gazette" : saved);
+  // Перезагрузка всегда открывает радар наверху: прошлый режим не тянется,
+  // а браузеру запрещается восстанавливать старую позицию прокрутки.
+  if (typeof history !== "undefined" && "scrollRestoration" in history) {
+    history.scrollRestoration = "manual";
+  }
+  window.scrollTo?.(0, 0);
+  setViewMode("radar");
 }
 
 /** Газета — один длинный лист, а не окно со своей полосой прокрутки: рамка
@@ -1007,19 +1007,22 @@ function renderRadarWidget(materials) {
   }
   if (state.period === "7d") {
     document.getElementById("radarTitle").textContent = "Доли периметров";
-    setText("radarNote", "доли за 7 дней");
     root.innerHTML = renderShareWidget(stats);
     return;
   }
   if (state.period === "30d") {
     document.getElementById("radarTitle").textContent = "Кольцо 30 дней";
-    setText("radarNote", "автообход дней");
     root.innerHTML = renderRingWidget(stats);
     startRingTicker();
     return;
   }
-  document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар";
-  setText("radarNote", `${visible.length} контактов · оборот 8 с`);
+  // Заголовок называет день, который реально показан: сегодня, вчера — или дата выбранного выпуска.
+  const sonarDay = state.period === "yesterday"
+    ? "вчера"
+    : state.issueDate && state.issueDate !== latest?.issue?.issue_date
+      ? fmtDate(state.issueDate, true)
+      : "сегодня";
+  document.getElementById("radarTitle").textContent = `Сонар · ${sonarDay}`;
   root.innerHTML = renderSonarWidget(visible);
 }
 
@@ -1435,28 +1438,6 @@ function renderBars(id, rows, labelKey, valueKey) {
   setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · счёт за 30 дней` : "");
 }
 
-/* Источники — облако доменов макета v3: имя и сколько материалов оно дало. */
-function renderSourcesPanel() {
-  const totalIncluded = sources.reduce((sum, row) => sum + (Number(row.included) || 0), 0);
-  const top = sources[0];
-  const shown = sources.slice(0, 12);
-  const rest = Math.max(0, sources.length - shown.length);
-  setText("sourcesNote", sources.length ? `${sources.length} ${pluralRu(sources.length, "источник", "источника", "источников")}` : "");
-  document.getElementById("sources").innerHTML = `${shown.map(row => {
-    const included = Number(row.included) || 0;
-    const label = sourceLabel(row.name);
-    return `<span class="source-chip" title="${escapeHtml(row.name || "")}: включено ${included}">${escapeHtml(label)} ×${included}</span>`;
-  }).join("")}
-  ${rest ? `<span class="source-chip source-chip--rest">+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}
-  <p class="source-note">${sourceInsight(totalIncluded, top)}</p>`;
-}
-
-function sourceInsight(included, top) {
-  if (!included) return "Источники появятся после следующего выпуска с включёнными материалами.";
-  const leader = top?.name ? ` Главный входящий поток: ${sourceLabel(top.name)}.` : "";
-  return `Показаны источники материалов, вошедших в публичный радар за выбранный период.${leader}`;
-}
-
 function trendRangeLabel(rows) {
   if (!rows.length) return "30 дней · агрегаты радара";
   const firstDate = rows[0].stat_date;
@@ -1509,7 +1490,7 @@ function renderTrendStack(rows) {
     .join("");
   const last = rows.at(-1);
   host.innerHTML = `<div class="trend-stack">${columns}</div>
-    <div class="trend-axis">${marks}${last ? `<span class="is-today">выпуск · ${ringTotal(last)}</span>` : ""}</div>`;
+    <div class="trend-axis">${marks}${last && latest?.issue?.issue_number ? `<span class="is-today">выпуск · ${latest.issue.issue_number}</span>` : ""}</div>`;
   setText("trendDaysNote", rows.length ? `${ringRangeLabel(rows)} · Б/С/Д` : "Б/С/Д");
 }
 
@@ -1532,42 +1513,6 @@ function renderHeatmap(rows) {
     // фон перебил бы её и оставил выпуск неотличимым.
     const paint = isSelected ? "" : ` style="background:rgba(43,74,117,${alpha.toFixed(2)})"`;
     return `<button class="heatmap-day${isSelected ? " is-active" : ""}${light}" data-issue-day="${row.stat_date}"${paint} title="${fmtDate(row.stat_date)} · ${included}" aria-label="Показать выпуск за ${fmtDate(row.stat_date)}">${dayOfMonth(row.stat_date)}</button>`;
-  }).join("");
-}
-
-/* Хронология выпусков — строки макета v3: номер, дата, полоса объёма, счёт.
- * Состав дня раскрывается по клику на полосу, как раньше по кнопке. */
-function renderTimeline() {
-  const root = document.getElementById("timeline");
-  const rows = issues.slice(0, 5);
-  const numbers = rows.map(issue => issue.issue_number).filter(Boolean);
-  setText("timelineNote", numbers.length
-    ? `№ ${Math.min(...numbers)} — ${Math.max(...numbers)}`
-    : "");
-  const maxTotal = Math.max(1, ...rows.map(issue => (issue.materials || []).length));
-  root.innerHTML = rows.map((issue, index) => {
-    const isOpen = state.openDay === issue.issue_date;
-    const issueMaterials = issue.materials || [];
-    const shown = issueMaterials.slice(0, isOpen ? issueMaterials.length : 3);
-    const moreCount = Math.max(0, issueMaterials.length - shown.length);
-    const counts = countPerimeters(issueMaterials);
-    const issueSources = Array.from(new Set(issueMaterials.map(item => sourceHost(item.url) || item.source_name).filter(Boolean))).slice(0, 4);
-    const width = Math.max(3, Math.round(issueMaterials.length / maxTotal * 100));
-    return `<article class="timeline-row ${index === 0 ? "is-current" : ""}">
-      <span class="timeline-num">${issue.issue_number ? `№ ${issue.issue_number}` : weekday[weekdayIndex(issue.issue_date)]}</span>
-      <span class="timeline-date">${escapeHtml(fmtDate(issue.issue_date, true))}</span>
-      <button class="timeline-bar timeline-toggle ${isOpen ? "is-open" : ""}" type="button"
-        data-open-day="${issue.issue_date}" aria-expanded="${isOpen ? "true" : "false"}"
-        aria-label="${isOpen ? "Свернуть" : "Показать"} состав выпуска за ${escapeHtml(fmtDate(issue.issue_date))}"
-        title="${counts.near} / ${counts.mid} / ${counts.far} · Б/С/Д"><i style="width:${width}%"></i></button>
-      <span class="timeline-total">${issueMaterials.length}</span>
-      ${isOpen ? `<div class="timeline-detail">
-        <div class="timeline-main"><p>${escapeHtml(issue.brief || "Ежедневный выпуск радара AgPM.")}</p></div>
-        <div class="timeline-materials">${shown.map(item => `<span><i class="${item.perimeter}"></i><b>${escapeHtml(item.title)}</b> <em>${escapeHtml(sourceHost(item.url) || item.source_name || "")} · ${escapeHtml(materialDateLabel(item, true))}</em></span>`).join("")}</div>
-        ${moreCount ? `<div class="timeline-more">И ЕЩЁ ${moreCount} ${pluralRu(moreCount, "МАТЕРИАЛ", "МАТЕРИАЛА", "МАТЕРИАЛОВ")}</div>` : ""}
-        ${issueSources.length ? `<div class="timeline-sources">ИСТОЧНИКИ: ${issueSources.map(escapeHtml).join(" · ")}</div>` : ""}
-      </div>` : ""}
-    </article>`;
   }).join("");
 }
 
@@ -1612,7 +1557,9 @@ function trendArrow(row) {
 }
 
 function renderFooterSources() {
-  document.getElementById("footerSources").innerHTML = sources.slice(0, 6).map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("");
+  const shown = sources.slice(0, 12);
+  const rest = Math.max(0, sources.length - shown.length);
+  document.getElementById("footerSources").innerHTML = `${shown.map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("")}${rest ? `<span>+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}`;
 }
 
 function toggleRubric(id) {
@@ -1793,9 +1740,7 @@ async function loadSecondaryData() {
   }));
   issues = issueResults.filter(result => result.status === "fulfilled").map(result => result.value);
   renderBars("rubrics", rubrics, "title", "count");
-  renderSourcesPanel();
   renderTrendPanels();
-  renderTimeline();
   renderRubricator();
   renderFooterSources();
   renderTheses(state.materials);
@@ -1823,9 +1768,7 @@ document.addEventListener("click", event => {
     agentLoadGraph(button.dataset.forceGraph, { forceCanvas: true });
     return;
   }
-  if (["printGazette", "printGazetteTop", "savePdfGazette"].includes(button.id)) {
-    // «Сохранить PDF» — та же печать: диалог браузера умеет писать в файл,
-    // а второго пути к PDF у страницы без сборки нет.
+  if (button.id === "printGazetteTop") {
     printGazette();
     return;
   }
@@ -1862,14 +1805,24 @@ document.addEventListener("click", event => {
     return;
   }
   if (button.dataset.agentAdmission) {
-    agentState.admission = button.dataset.agentAdmission;
+    const value = button.dataset.agentAdmission;
+    const next = agentState.admission.includes(value)
+      ? agentState.admission.filter(item => item !== value)
+      : [...agentState.admission, value];
+    // Хотя бы один источник всегда выбран: последний чип не снимается.
+    if (next.length) agentState.admission = next;
     document.querySelectorAll("[data-agent-admission]").forEach(chip => {
-      chip.classList.toggle("is-active", chip.dataset.agentAdmission === agentState.admission);
+      const on = agentState.admission.includes(chip.dataset.agentAdmission);
+      chip.classList.toggle("is-active", on);
+      // Подсветка — только для глаза; состояние переключателя говорят вслух.
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
     });
     return;
   }
   if (button.dataset.viewMode) {
+    // Нажатие снизу страницы должно быть заметным: раздел меняется — и виден.
     setViewMode(button.dataset.viewMode);
+    window.scrollTo?.(0, 0);
   }
   if (button.dataset.period) {
     state.period = button.dataset.period;
@@ -1888,14 +1841,12 @@ document.addEventListener("click", event => {
   if (button.dataset.rubricBar !== undefined) {
     toggleRubric(button.dataset.rubricBar);
   }
-  if (button.dataset.openDay) {
-    state.openDay = state.openDay === button.dataset.openDay ? null : button.dataset.openDay;
-    renderTimeline();
-  }
   if (button.dataset.issueDay) {
     state.period = "issue";
     state.issueDate = button.dataset.issueDay;
     document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === "issue"));
+    // Ссылка на выпуск может быть нажата и вне радара: сначала показываем радар.
+    if (state.viewMode !== "radar") setViewMode("radar");
     reload();
     scrollToNode(document.getElementById("columns"));
   }
@@ -2143,7 +2094,7 @@ function agentStatementCard(raw, ordinal) {
         </a>
       </div>
       ${row.claimId ? `<div class="agent-statement__actions">
-        <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что база связала с этим</button>
+        <button class="agent-links__toggle" type="button" data-agent-links="${escapeHtml(row.claimId)}">Что агент связал с этим</button>
         <button class="agent-links__toggle" type="button" data-agent-graph="${escapeHtml(row.claimId)}">Показать в графе</button>
         <button class="agent-links__toggle" type="button" data-agent-trail="${escapeHtml(row.claimId)}">Путь до выпуска →</button>
       </div>
@@ -2231,7 +2182,7 @@ async function agentToggleTrail(claimId) {
         const issue = step.issue_number ? `выпуск ${step.issue_number}` : "выпуск";
         const perimeter = perimeters[step.perimeter] || step.perimeter || "";
         return `<div class="agent-trail__step">
-          <span class="agent-trail__issue mono">${escapeHtml(issue)}</span>
+          <button class="agent-trail__issue mono" type="button" data-issue-day="${escapeHtml(step.issue_date)}" title="Открыть выпуск в радаре">${escapeHtml(issue)}</button>
           <span class="agent-trail__date mono">${escapeHtml(fmtDate(step.issue_date, true))}</span>
           <span class="agent-trail__material">${escapeHtml(step.material_title || "материал выпуска")}</span>
           <span class="agent-trail__perimeter mono">${escapeHtml(perimeter)}${step.key_material ? " · ключевой" : ""}</span>
@@ -2808,11 +2759,20 @@ function chatWorkAdvance(work, stage) {
 
 /** Read the SSE frames the service sends: `event: name` + `data: json`, one
  *  blank line between frames. The stream answers or errors; both are frames. */
+/* Что уходит в службу за выбором чипов. Одна полка — её имя, обе — «all»
+ * (ADR-0012): значение, которое расширяет поиск, потому что его назвали.
+ * Пустая строка здесь стояла до 25.08.2026 и означала «неизвестно» —
+ * `agent_api._answer_flow` сужал такое до знания, молча и правильно, а горящий
+ * чип «хронике рынка» при этом не делал ничего. */
+function admissionScope() {
+  return agentState.admission.length === 1 ? agentState.admission[0] : "all";
+}
+
 async function chatStreamTurn(question, work, signal) {
   const response = await fetch(`${KB}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
     signal
   });
   if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
@@ -2851,7 +2811,7 @@ async function chatJsonTurn(question, work, signal) {
   const answered = await kbFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
     signal
   });
   (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));
@@ -2977,7 +2937,7 @@ async function agentAsk(question) {
   if (!answered) {
     wrapper.insertAdjacentHTML("beforeend", `
       <div class="agent-answer__card agent-answer__card--quiet">
-        <div class="agent-answer__notice agent-answer__notice--quiet">Машинный ответ, не редакция базы</div>
+        <div class="agent-answer__notice agent-answer__notice--quiet">Агентный ответ, не редакция базы</div>
         <p class="agent-answer__text agent-answer__text--refused">${escapeHtml(failure || "поток оборвался")}</p>
         <div class="agent-answer__levels">
           <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">↻ спросить снова</button>
@@ -4040,9 +4000,9 @@ async function agentLoadGraph(target, options = {}) {
     || (picked?.value ? `entity=${encodeURIComponent(picked.value)}` : "")
     || (select?.value ? `topic=${encodeURIComponent(select.value)}` : "");
   if (!query) {
-    box.innerHTML = `<p class="agent-intro">Выберите тему — и база покажет, что под ней стоит
+    box.innerHTML = `<p class="agent-intro">Выберите тему — и агент покажет, что под ней стоит
     и чем эти утверждения связаны между собой. Из карточки любого утверждения сюда же
-    ведёт кнопка «Что база связала с этим».</p>`;
+    ведёт кнопка «Что агент связал с этим».</p>`;
     return;
   }
   box.innerHTML = agentLoadingHtml("Собираю связи…");
@@ -4106,7 +4066,7 @@ async function agentLoadContradictions() {
     const data = await kbFetch("/contradictions?limit=40");
     const pairs = Array.isArray(data.pairs) ? data.pairs : [];
     box.innerHTML = `
-      <p class="agent-intro">Пары, которые база считает несовместимыми: об одном предмете
+      <p class="agent-intro">Пары, которые агент считает несовместимыми: об одном предмете
       сказано разное. Это находка, а не поломка — и решает её читатель, а не машина.
       Всего таких пар ${data.total}, ниже ${pairs.length} самых свежих.</p>
       ${pairs.map(pair => `

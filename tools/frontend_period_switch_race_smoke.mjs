@@ -79,7 +79,7 @@ function makeStats(included) {
   };
 }
 
-async function runCase({ name, relativeScript, v2 }) {
+async function runCase({ name, relativeScript, v2, sonarTitle }) {
   class FakeElement {
     constructor(tag = "div") {
       this.tagName = tag.toUpperCase();
@@ -237,7 +237,7 @@ async function runCase({ name, relativeScript, v2 }) {
   const cards = countOccurrences(elements.get("columns").innerHTML, '<article class="card');
   const included = Number(elements.get("included").textContent);
   const title = elements.get("radarTitle").textContent;
-  if (title !== "Сонар" || included !== 1 || blips !== 1 || cards !== 1) {
+  if (title !== sonarTitle || included !== 1 || blips !== 1 || cards !== 1) {
     throw new Error(
       `${name}: stale 30-day response committed after issue reload `
       + `(title=${title}, included=${included}, blips=${blips}, cards=${cards})`,
@@ -245,15 +245,21 @@ async function runCase({ name, relativeScript, v2 }) {
   }
 }
 
+// The title is what says which period actually won the race, so it is named per
+// front end rather than assumed shared. V2 began saying which day the sonar is
+// showing on 2026-08-25; Legacy did not, and this smoke is the only place that
+// noticed the two had stopped agreeing.
 await runCase({
   name: "Legacy",
   relativeScript: "work/radar-app/app.js",
   v2: false,
+  sonarTitle: "Сонар",
 });
 await runCase({
   name: "V2",
   relativeScript: "v2/apps/web/app.mjs",
   v2: true,
+  sonarTitle: "Сонар · сегодня",
 });
 
 process.stdout.write("Frontend period-switch race smoke: PASS (Legacy + V2)\n");

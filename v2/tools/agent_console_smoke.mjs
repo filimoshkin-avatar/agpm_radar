@@ -58,17 +58,18 @@ const ids = [
   "agentObservatoryBody", "agentObservatoryFilters", "agentContradictions", "agentFind",
   "agentGraph", "agentGraphBody", "agentGraphTopic", "agentGraphLegend",
   "agentFindForm", "agentFindQuery", "agentFindResults", "agentFindFilters", "agentFindTopic",
-  "agentGraphCanvas", "agentGraphMeta", "agentGraphEdge",
+  "agentGraphCanvas", "agentGraphMeta", "agentGraphEdge", "agentGraphEntity",
   "agentPage", "agentQuestion", "agentTopicCard", "agentTopics", "agentView", "agentWiki",
   "columns", "cut", "dailyAnalysis", "dailyAnalysisBody", "dailyAnalysisHeadline", "farChip",
   "footerSources", "gazetteView", "heatmap", "included", "includedShare", "issueDate",
-  "midChip", "nearChip", "nearShare", "perimeters", "printGazette", "radarTitle", "radarViz",
-  "resetFilters", "rubricator", "rubrics", "search", "sources", "sparkline", "theses",
-  "thesesTitle", "timeline", "trendBars", "trendRange", "viewed",
+  "midChip", "nearChip", "nearShare", "perimeters", "printGazetteTop", "radarTitle", "radarViz",
+  "resetFilters", "rubricator", "rubrics", "search", "sparkline", "theses",
+  "thesesTitle", "trendBars", "trendRange", "viewed",
 ];
 const elements = new Map(ids.map(id => [id, new FakeElement()]));
 const unhandled = [];
 const requests = [];
+const sentBodies = new Map();
 const documentHandlers = new Map();
 process.on("unhandledRejection", error => unhandled.push(error));
 
@@ -101,7 +102,18 @@ globalThis.document = {
     return matches;
   },
 };
-globalThis.localStorage = { getItem() { return null; }, setItem() {} };
+// Answers nothing, on purpose. This used to answer «agent» to `agpmRadarViewMode`
+// further down the file, because `initViewMode()` restored the stored mode during
+// module evaluation and, for that mode alone, `setViewMode` reached `agentState` -
+// a throw there blanked the page in every mode and shipped twice past a green
+// gate. A reload now always opens «Радар»: the stored mode is gone, and the
+// import-time hazard that key guarded has no code path left to guard. A stub that
+// forces a branch nobody can reach reads as coverage and is not.
+//
+// Still stubbed, because three other things read it: the access key, the rail
+// width, the saved conversation. The branch none of this covers is a *live*
+// access key at import - answering null keeps the module on the unsubscribed path.
+globalThis.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
 globalThis.window = {
   location: { hash: "", hostname: "radar.test", origin: "https://radar.test", port: "" },
   matchMedia() { return { matches: true }; },
@@ -224,8 +236,8 @@ const ANSWER = {
   question: "что такое порог автономии",
   answer: "Порог автономии — решение организации.",
   refusalReason: null,
-  machineNotice: "Машинный ответ, не редакция базы.",
-  signature: "AgPM Radar, машинная сборка",
+  machineNotice: "Агентный ответ, не редакция базы.",
+  signature: "AgPM Radar, агентная сборка",
   evidence: [
     ASK_EVIDENCE,
     { ...ASK_EVIDENCE, n: 2, claimId: "c2", quote: "Никакого порога автономии в практике не наблюдается.",
@@ -273,21 +285,12 @@ const sseBody = payload => {
   };
 };
 
-// A returning reader carries their last view mode in localStorage, and the one
-// this smoke has to reproduce is «agent»: `initViewMode()` runs during module
-// evaluation and, for that mode alone, `setViewMode` reads `agentState`. A stub
-// that always answers null keeps the module on the «radar» short-circuit and
-// never executes the restore at all - which is how a throw that blanked the
-// page in every mode shipped twice past a green gate.
-globalThis.localStorage = {
-  getItem: key => (key === "agpmRadarViewMode" ? "agent" : null),
-  setItem() {},
-  removeItem() {},
-};
-
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
+  // The path alone cannot show a filter that was silently dropped: the shelf the
+  // reader picked travels in the body, and that is where it went wrong before.
+  if (options?.body) sentBodies.set(path, JSON.parse(options.body));
   if (path === "/kb/chat/stream") {
     return { ok: true, status: 200, body: sseBody(ANSWER) };
   }
@@ -324,8 +327,19 @@ const fail = message => { throw new Error(`agent console smoke failed: ${message
 // The module has to finish evaluating. Everything below asserts on behaviour,
 // and behaviour cannot tell «this branch did nothing» from «the module died
 // half-way and no listener past that line exists».
-if (elements.get("agentView").hidden !== false)
-  fail("the stored «agent» mode did not restore - module evaluation aborted");
+//
+// The proof used to be the restored «agent» mode, and it proved less than it
+// looked: `initViewMode()` runs near the top of the file, so a module that died
+// anywhere below it still passed. A reload now always opens «Радар» and that
+// proof is gone, so the check moved to the end - the change listener below is
+// the last statement in `app.mjs`, and a handler on it means evaluation reached
+// the final line.
+if (typeof elements.get("agentGraphEntity").handler !== "function")
+  fail("module evaluation aborted - the last listener in app.mjs never registered");
+// And the mode a reload lands in is the contract now, not a leftover of whatever
+// the reader had open last.
+if (elements.get("agentView").hidden !== true)
+  fail("a reload did not start on «Радар»");
 // `closest` has to answer per selector, not "yes" to everything. The page asks
 // twice on every click - once for a graph node, once for a button - and a stub
 // that hands the button back both times sends every click down the wrong branch.
@@ -353,7 +367,7 @@ await settle();
 
 const answered = elements.get("agentThread").innerHTML;
 if (!requests.includes("/kb/chat/stream")) fail("the question never reached the base");
-if (!answered.includes("Машинный ответ")) fail("an answer rendered without the owner's notice");
+if (!answered.includes("Агентный ответ")) fail("an answer rendered without the owner's notice");
 if (!answered.includes("Порог автономии — решение организации")) fail("the answer text is missing");
 if (!answered.includes("Порог автономии определяет границу между классами"))
   fail("an answer rendered without the quotation under it");
@@ -369,6 +383,43 @@ if (!answered.includes("https://example.org/a")) fail("the source link is missin
 if (!answered.includes("data-graph-mini")) fail("an answer with evidence offers no graph sketch");
 if (!answered.includes("доступна по подписке")) fail("the subscribe teaser does not say what it costs");
 if (!answered.includes("Пороги автономии")) fail("the answer's topics row is missing");
+
+// ── The «искать в:» chips ───────────────────────────────────────────────────
+//
+// Both are lit on load, and both being lit has to reach the base as «all»
+// (ADR-0012). This is the assertion the bug needed: the front end sent `""`,
+// `_answer_flow` turned anything unnamed into knowledge - quietly and correctly -
+// and the lit «хронике рынка» chip did nothing at all. The answer came back
+// looking exactly like an answer, so nothing above this line could have noticed.
+const askedWith = sentBodies.get("/kb/chat/stream");
+if (askedWith?.admission !== "all")
+  fail(`both chips lit went to the base as «${askedWith?.admission}», not «all»`);
+
+const chips = {
+  knowledge: register('[data-agent-admission="knowledge"]', new FakeElement("button")),
+  observatory: register('[data-agent-admission="observatory"]', new FakeElement("button")),
+};
+for (const [name, chip] of Object.entries(chips)) chip.dataset.agentAdmission = name;
+const pressed = name => chips[name].attributes.get("aria-pressed");
+
+// One shelf off: the other is what the question is aimed at, and the chip says
+// so out loud as well as in colour.
+click({ dataset: { agentAdmission: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("observatory") !== "false") fail("an unset chip still reads as pressed");
+if (pressed("knowledge") !== "true") fail("the remaining chip stopped reading as pressed");
+elements.get("agentQuestion").value = "второй вопрос, одна полка";
+await elements.get("agentForm").handler({ preventDefault() {} });
+await settle();
+if (sentBodies.get("/kb/chat/stream")?.admission !== "knowledge")
+  fail("one lit chip did not reach the base as its own name");
+
+// The last one does not come off: «искать нигде» is not a question.
+click({ dataset: { agentAdmission: "knowledge" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("knowledge") !== "true") fail("the last chip came off and left an empty search");
+
+// Back to both, so everything below runs against the state a reader loads into.
+click({ dataset: { agentAdmission: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
+if (pressed("observatory") !== "true") fail("a chip switched back on did not say so");
 
 // The graph opens on whichever subject the picker holds.
 elements.get("agentGraphTopic").value = "porogi";
@@ -477,7 +528,14 @@ if (!clash.includes("283")) fail("the reader is not told how many disagreements 
 
 // UC-01: finding costs the reader nothing, and says which arm found each hit.
 // `/ask` and the conversation endpoints reach a paid model behind a limit; this
-// must not. One conversation turn has run by now: exactly one model call so far.
+// must not.
+//
+// Counted as a difference across the search, not as a running total. The total
+// was "exactly one so far", which is a fact about every line above this one:
+// asking one more question anywhere earlier turned this into a failure about
+// finding, which is not what it is about.
+const modelCall = path => path === "/kb/ask" || path.startsWith("/kb/chat");
+const paidBefore = requests.filter(modelCall).length;
 const findQuery = register('[data-find-filter="material_kind"]', new FakeElement("select"));
 findQuery.dataset.findFilter = "material_kind";
 findQuery.value = "fact";
@@ -488,7 +546,7 @@ const found = elements.get("agentFindResults").innerHTML;
 const searched = requests.find(path => path.startsWith("/kb/search"));
 if (!searched) fail("the find tab never reached the base");
 if (!searched.includes("material_kind=fact")) fail("the find tab dropped its filter");
-if (requests.filter(path => path === "/kb/ask" || path.startsWith("/kb/chat")).length !== 1)
+if (requests.filter(modelCall).length !== paidBefore)
   fail("finding must not spend a model call");
 if (!found.includes("по словам") || !found.includes("по смыслу"))
   fail("a hit rendered without saying which arm found it");
@@ -573,7 +631,7 @@ elements.get("agentQuestion").value = "вопрос, на который нет 
 await elements.get("agentForm").handler({ preventDefault() {} });
 await settle();
 const refused = elements.get("agentThread").innerHTML;
-if (!refused.includes("Машинный ответ")) fail("a refusal rendered without the notice");
+if (!refused.includes("Агентный ответ")) fail("a refusal rendered without the notice");
 if (!refused.includes("нет подтверждений")) fail("a refusal did not say what it was");
 
 if (unhandled.length) fail(unhandled.map(String).join("; "));

@@ -1027,37 +1027,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .trend-axis .is-today { color: var(--accent); }
 
-/* ── Источники выпуска ──────────────────────────────────────────────────── */
-
-.source-cloud {
-  padding: 12px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 11px;
-}
-
-.source-chip {
-  padding: 4px 9px;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--field);
-  color: var(--text-2);
-  white-space: nowrap;
-}
-
-.source-chip--rest { color: var(--muted); }
-
-.source-note {
-  flex-basis: 100%;
-  margin: 4px 0 0;
-  font-family: "Golos Text", system-ui, sans-serif;
-  font-size: 11.5px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
 /* ── Календарь ──────────────────────────────────────────────────────────── */
 
 .heatmap-week,
@@ -1107,94 +1076,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .heatmap-key__box { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .heatmap-key__box--today { background: var(--accent); }
 .heatmap-key__today { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
-
-/* ── Хронология ─────────────────────────────────────────────────────────── */
-
-.timeline {
-  padding: 11px 14px 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.timeline-row {
-  display: grid;
-  grid-template-columns: 44px 48px 1fr 30px;
-  gap: 10px;
-  align-items: center;
-}
-
-.timeline-num { font-family: "PT Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); }
-.timeline-row.is-current .timeline-num { color: var(--accent); }
-.timeline-date { font-family: "PT Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); }
-
-.timeline-bar {
-  height: 7px;
-  background: var(--track);
-  border-radius: 2px;
-  overflow: hidden;
-  display: block;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  width: 100%;
-}
-
-.timeline-bar i { display: block; height: 100%; background: var(--grey-bar); }
-.timeline-row.is-current .timeline-bar i { background: var(--accent); }
-.timeline-total { font-family: "PT Mono", ui-monospace, monospace; font-size: 11px; text-align: right; }
-
-.timeline-detail {
-  grid-column: 1 / -1;
-  padding: 8px 0 10px;
-  border-top: 1px solid var(--rule-2);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.timeline-main p { margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
-
-.timeline-materials {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 12px;
-}
-
-.timeline-materials span { display: flex; align-items: baseline; gap: 7px; }
-
-.timeline-materials i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transform: translateY(-1px);
-}
-
-.timeline-materials i.near { background: var(--near); }
-.timeline-materials i.mid { background: var(--mid); }
-.timeline-materials i.far { background: var(--far); }
-
-.timeline-materials b { font-weight: 600; }
-
-.timeline-materials em {
-  font-style: normal;
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 10px;
-  color: var(--meta);
-}
-
-.timeline-more,
-.timeline-sources {
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: .03em;
-  color: var(--meta);
-}
-
-.timeline-toggle span { display: inline-block; transition: transform .2s; }
-.timeline-toggle.is-open span { transform: rotate(180deg); }
 
 /* ── Рубрикатор ─────────────────────────────────────────────────────────── */
 
@@ -2196,6 +2077,14 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
 }
 
 .agent-trail__issue { font-size: 11px; color: var(--accent); }
+button.agent-trail__issue {
+  border: 0;
+  background: none;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+}
+button.agent-trail__issue:hover { text-decoration: underline; }
 .agent-trail__date { font-size: 11px; color: var(--muted); }
 .agent-trail__material { color: var(--text-2); min-width: 0; }
 
@@ -3451,21 +3340,25 @@ body:not(.is-chat) .chat-up { display: none; }
     position: static;
     max-height: none;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    padding: 6px 10px;
     border-right: 0;
     border-bottom: 1px solid var(--rule-4);
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
-  .agent-rail__group { flex-direction: row; flex-wrap: wrap; }
-  .agent-rail__item { width: auto; }
+  .agent-rail__top { display: none; }
+  .agent-rail__group { flex-direction: row; flex-wrap: nowrap; }
+  .agent-rail__item { width: auto; white-space: nowrap; }
   .agent-rail__tail { margin-left: 6px; }
   .agent-rail__section { display: none; }
-  .agent-rail__foot { margin-top: 0; border-top: 0; padding: 0; flex-direction: row; align-items: center; }
+  .agent-rail__foot { margin-top: 0; border-top: 0; padding: 0; flex-direction: row; align-items: center; white-space: nowrap; }
   .agent-rail__note { display: none; }
   .agent-rail__collapse { display: none; }
   .agent-rail.is-narrow [data-lbl] { display: inline; }
-  .agent-rail__tip { left: 0; top: calc(100% + 8px); transform: none; }
+  .agent-rail__tip { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -3488,7 +3381,6 @@ body:not(.is-chat) .chat-up { display: none; }
   .agent-clash__mark { text-align: left; }
   .bar-row { grid-template-columns: 1fr 34px 40px; }
   .bar-row .bar-track { grid-column: 1 / -1; grid-row: 2; }
-  .timeline-row { grid-template-columns: 40px 44px 1fr 28px; }
 
   /* Палец толще курсора: на узком экране всё нажимаемое дорастает до 40px. */
   .chip, .rubric-cell, .agent-topic, .agent-links__row, .button { min-height: 40px; }
