@@ -1007,19 +1007,16 @@ function renderRadarWidget(materials) {
   }
   if (state.period === "7d") {
     document.getElementById("radarTitle").textContent = "Доли периметров";
-    setText("radarNote", "доли за 7 дней");
     root.innerHTML = renderShareWidget(stats);
     return;
   }
   if (state.period === "30d") {
     document.getElementById("radarTitle").textContent = "Кольцо 30 дней";
-    setText("radarNote", "автообход дней");
     root.innerHTML = renderRingWidget(stats);
     startRingTicker();
     return;
   }
   document.getElementById("radarTitle").textContent = state.period === "yesterday" ? "Сонар · вчера" : "Сонар";
-  setText("radarNote", `${visible.length} контактов · оборот 8 с`);
   root.innerHTML = renderSonarWidget(visible);
 }
 
