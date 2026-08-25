@@ -9,10 +9,17 @@ regression hides inside the slack.
 
 The redesign rewrites both files, so these should reach zero and stay there.
 
-Not checked here, deliberately: colours outside the palette. Forty-two of the
-ninety-three hex values in `styles.css` are outside it today, and most are the
-old scheme the redesign replaces wholesale - a number that large teaches
-nothing until it is small. Add it when the redesign lands.
+Colour joined the count on 2026-08-25, on the condition this docstring set for
+itself: when the number gets small enough to teach something. It did. The rule
+is not "is this hex in the palette" - a list of allowed values is a second copy
+of `:root` and would drift from it - but "does this colour go through a token".
+Every hex outside the `:root` block is one hard-coded colour; eight remain, all
+of them one-offs the mockup carries and the palette has no name for.
+
+Scoped to `styles.css` on purpose. `app.mjs` writes perimeter colours straight
+into SVG attributes and Cytoscape styles, where a CSS variable does not reach;
+counting those would produce a number nobody can lower, which is the failure
+this docstring warned about the first time.
 """
 
 from __future__ import annotations
@@ -37,6 +44,7 @@ DEBT: Final = {
     "scrollIntoView": 0,
     "banned-fonts": 0,
     "emoji": 0,
+    "untokenised-colours": 8,
 }
 
 #: `Inter` also lives inside `setInterval`, which is why this looks at
@@ -54,6 +62,18 @@ _SCROLL_INTO_VIEW: Final = re.compile(r"\bscrollIntoView\b")
 #: in the design system sits beside gradients and Arial and means decoration,
 #: not every non-Latin glyph.
 _EMOJI: Final = re.compile("[\U0001f300-\U0001faff]|\ufe0f")
+#: The palette lives in one `:root` block. A hex anywhere else is a colour that
+#: skipped it - the thing section 3 of the design system exists to prevent.
+_ROOT_BLOCK: Final = re.compile(r":root\s*\{(.*?)\n\}", re.S)
+_HEX: Final = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+
+
+def _untokenised_colours(css: str) -> int:
+    """Count hex literals in `styles.css` that stand outside the token block."""
+    outside = css
+    for block in _ROOT_BLOCK.findall(css):
+        outside = outside.replace(block, "")
+    return len(_HEX.findall(outside))
 
 
 def _read(name: str) -> str:
@@ -69,6 +89,7 @@ def count() -> dict[str, int]:
         "scrollIntoView": len(_SCROLL_INTO_VIEW.findall(js)),
         "banned-fonts": sum(1 for family in families if _BANNED_FONT.search(family)),
         "emoji": len(_EMOJI.findall(css + js + html)),
+        "untokenised-colours": _untokenised_colours(css),
     }
 
 

@@ -634,11 +634,22 @@ function scrollToNode(node, place = "start") {
     const box = node?.getBoundingClientRect?.();
     if (!box) return;
     const height = window.innerHeight || 800;
+    // §5 гасит анимацию везде, и прокрутка не исключение: явный `behavior`
+    // в JS сильнее, чем `scroll-behavior` в таблице стилей, поэтому спрашивать
+    // приходится здесь.
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    // Композер прилипает к нижней кромке окна. «В конец» — это конец узла над
+    // ним, а не под ним: иначе свежий ответ уезжает под строку вопроса ровно
+    // настолько, насколько она высока.
+    const composer = document.getElementById("agentComposer");
+    const inset = place === "end" && composer && !composer.hidden
+      ? (composer.getBoundingClientRect?.().height || 0)
+      : 0;
     const top = box.top + (window.scrollY || 0);
-    const target = place === "end" ? top + box.height - height + 24
+    const target = place === "end" ? top + box.height - height + inset + 16
       : place === "center" ? top - height / 2 + box.height / 2
       : top - 72;
-    window.scrollTo?.({ top: Math.max(0, target), behavior: "smooth" });
+    window.scrollTo?.({ top: Math.max(0, target), behavior: still ? "auto" : "smooth" });
   } catch {
     /* нет окна — нечего листать */
   }
@@ -698,7 +709,22 @@ function updateSummary(stats, materials) {
   setText("nearChip", stats.near || 0);
   setText("midChip", stats.mid || 0);
   setText("farChip", stats.far || 0);
+  renderFooterMethod(stats);
   renderSparkline();
+}
+
+/** Методика в подвале — числами выпуска, как в макете: сколько посмотрели,
+ *  сколько включили, сколько отсекли. Те же данные, что и в тикере. */
+function renderFooterMethod(stats) {
+  const issueNumber = latest?.issue?.issue_number;
+  setText("footerMethodLabel", issueNumber ? `МЕТОДИКА ВЫПУСКА ${issueNumber}` : "МЕТОДИКА ОТБОРА");
+  const node = document.getElementById("footerMethod");
+  if (!node) return;
+  node.innerHTML = [
+    `<span>ПРОСМОТРЕНО ${stats.viewed || 0} → ВКЛЮЧЕНО ${stats.included || 0}</span>`,
+    `<span>ОТСЕЧЕНО ${stats.cut || 0} · ДУБЛИ, РЕКЛАМА, AGENT-WASHING</span>`,
+    `<span>ПЕРИМЕТРЫ: Б ${stats.near || 0} · С ${stats.mid || 0} · Д ${stats.far || 0}</span>`,
+  ].join("");
 }
 
 function renderSparkline() {
@@ -1281,9 +1307,10 @@ function renderTrendStack(rows) {
   const host = document.getElementById("trendBars");
   if (!host) return;
   const maxTotal = Math.max(1, ...rows.map(row => ringTotal(row)));
-  // 64px под самый высокий день: столбик остаётся столбиком и на пике,
-  // и в тихую неделю, когда включено по три материала.
-  const scale = Math.min(2.4, 64 / maxTotal);
+  // Самый высокий день занимает 64px из 74 — плотность макета. Потолок в
+  // 4px на материал держит тихую неделю: три материала не должны выглядеть
+  // как тридцать только потому, что больше не с чем сравнивать.
+  const scale = Math.min(4, 64 / maxTotal);
   const bar = (value, name) => value
     ? `<i class="${name}" style="height:${(value * scale).toFixed(1)}px"></i>`
     : "";

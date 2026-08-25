@@ -43,7 +43,6 @@
   --line-2: #d9d4c5;
   --rule: #e6e2d4;
   --rule-2: #eeeadd;
-  --rule-3: #f0ece0;
   --rule-4: #e2ddd0;
 
   /* Текст */
@@ -74,6 +73,8 @@
   --ok: #4f9e6e;
   --ok-dark: #7ec699;
   --stop: #b5432e;
+  /* Подложка любой полосы данных: трек шкалы, линейка тренда, разделитель
+     под цитатой. Один цвет — одно имя; раньше он же жил как --rule-3. */
   --track: #f0ece0;
   --grey-bar: #c9c4b4;
 
@@ -81,7 +82,6 @@
   --shadow-tip: 0 10px 26px rgba(0, 0, 0, .25);
   --shadow-pop: 0 16px 40px rgba(31, 36, 41, .16);
   --shadow-pill: 0 10px 26px rgba(0, 0, 0, .22);
-  --shadow-lift: 0 6px 18px rgba(31, 36, 41, .07);
 
   --page: 1440px;
 }
@@ -146,7 +146,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
 .ticker__spark span {
   width: 3px;
   min-height: 2px;
-  background: #3a4854;
+  background: rgba(242, 239, 230, .22);
   border-radius: 1px;
 }
 
@@ -670,7 +670,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .ring-highlight { transform-origin: 150px 150px; transition: transform .55s cubic-bezier(.4, 0, .2, 1); }
 .ring-highlight path { fill: rgba(169, 107, 18, .10); }
-.ring-empty { stroke: var(--rule-3); stroke-width: 7; }
+.ring-empty { stroke: var(--track); stroke-width: 7; }
 
 .sonar-legend,
 .share-legend,
@@ -852,8 +852,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .empty { padding: 14px 13px; font-size: 12.5px; color: var(--muted); }
 
-.perimeter-glyph { display: none; }
-
 /* ── Полосы: рубрики и тренд ────────────────────────────────────────────── */
 
 .bar-list {
@@ -939,7 +937,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .trend-day .near { background: var(--near); border-radius: 0 0 1px 1px; }
 .trend-day .mid { background: var(--mid); }
 .trend-day .far { background: var(--far); border-radius: 1px 1px 0 0; }
-.trend-day.is-empty i { background: var(--rule-3); }
+.trend-day.is-empty i { background: var(--track); }
 
 .trend-axis {
   display: flex;
@@ -1118,20 +1116,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   color: var(--meta);
 }
 
-.mini-stack { display: none; }
-
-.link-button {
-  border: 0;
-  background: none;
-  padding: 0;
-  font-family: "PT Mono", ui-monospace, monospace;
-  font-size: 10.5px;
-  letter-spacing: .04em;
-  color: var(--near);
-  cursor: pointer;
-}
-
-.link-button:hover { color: var(--text); }
 .timeline-toggle span { display: inline-block; transition: transform .2s; }
 .timeline-toggle.is-open span { transform: rotate(180deg); }
 
@@ -1215,12 +1199,47 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   color: var(--on-dark-4);
 }
 
-.footer-sources {
+.footer-sources,
+.footer-lines,
+.footer-nav {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 11px;
   color: var(--on-dark-3);
+}
+
+.footer__fine { font-size: 11.5px; }
+
+.footer-nav button {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-family: "PT Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--on-dark-5);
+  cursor: pointer;
+}
+
+.footer-nav button:hover { color: var(--on-dark); }
+
+.footer-nav__ok {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.5;
+  color: var(--ok-dark);
+}
+
+.footer-nav__ok i {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .footer-sources span { display: flex; align-items: baseline; gap: 8px; }
@@ -1374,7 +1393,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .gazette-stage {
   flex-grow: 1;
   padding: 26px 30px;
-  background: #f2efe7;
+  background: var(--rule-2);
   display: flex;
   justify-content: center;
 }
@@ -1650,7 +1669,10 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
   text-align: left;
 }
 
-.agent-prompt:hover { border-color: var(--accent); box-shadow: var(--shadow-lift); }
+/* Макет поднимает карточку тенью; §7 запрещает тени на статичных карточках,
+   и это правило старше макета — как и с градиентом за газетой. Наведение
+   говорит бордером. */
+.agent-prompt:hover { border-color: var(--accent); }
 
 .agent-prompt__cat {
   align-self: flex-start;
@@ -1919,6 +1941,9 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
   color: var(--text);
 }
 
+/* Янтарная кромка — знак машинного ответа и его анатомии: карточка ответа,
+   конвейер, который ею станет, и цитата под утверждением. §7 запрещает такие
+   кромки где угодно ещё; §4 называет эти три места поимённо. */
 .agent-quote {
   margin: 0;
   border-left: 2px solid var(--accent-light);
@@ -1962,7 +1987,7 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
   align-items: center;
   gap: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--rule-3);
+  border-top: 1px solid var(--track);
   font-size: 12px;
 }
 
@@ -1994,7 +2019,7 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
 .agent-links__toggle:hover { border-color: var(--near); }
 
 .agent-links {
-  border-top: 1px solid var(--rule-3);
+  border-top: 1px solid var(--track);
   padding-top: 8px;
   display: flex;
   flex-direction: column;
@@ -2068,6 +2093,7 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
 .agent-sub__note { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
 
 /* Конвейер: агент работает */
+/* Конвейер — ответ, которого ещё нет: та же кромка, светлее на один шаг. */
 .agent-work {
   border: 1px solid var(--rule-4);
   border-left: 2px solid var(--accent-light);
@@ -2129,7 +2155,6 @@ body.is-subscribed .agent-sub-toggle { border-style: solid; border-color: var(--
 .agent-work__step.is-done .dot { background: var(--ok); }
 .agent-work__step.is-now { color: var(--text); }
 .agent-work__step.is-now .dot { background: var(--accent); animation: agentPulse 1.1s ease-in-out infinite; }
-.agent-work__arrow { color: var(--rule-2); font-size: 11px; }
 
 .agent-work__detail {
   margin-left: auto;
@@ -2368,7 +2393,7 @@ body:not(.is-chat) .chat-up { display: none; }
   user-select: none;
 }
 
-#agentSend:disabled { background: #e3ded0; color: var(--meta); cursor: not-allowed; }
+#agentSend:disabled { background: var(--rule-4); color: var(--meta); cursor: not-allowed; }
 #agentSend.is-stop { background: var(--stop); color: var(--field); }
 
 .agent-composer__foot {
@@ -2512,7 +2537,7 @@ body:not(.is-chat) .chat-up { display: none; }
 }
 
 .chat-down[hidden], .chat-up[hidden] { display: none; }
-.chat-down:hover { background: #0f1a24; }
+.chat-down:hover { background: var(--graphite-btn); }
 
 .chat-up {
   position: fixed;

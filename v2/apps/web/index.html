@@ -52,7 +52,7 @@
         </svg>
       </span>
       <span class="brand__names">
-        <span class="brand__title" id="brandTitle">Радар AgPM</span>
+        <span class="brand__title">Радар AgPM</span>
         <span class="brand__subtitle">агентное управление проектами</span>
       </span>
     </a>
@@ -125,7 +125,7 @@
     </section>
 
     <div class="shell">
-      <section class="hero" id="rdHero" aria-label="Главное в выпуске">
+      <section class="hero" aria-label="Главное в выпуске">
         <div class="hero__theses">
           <div class="hero__head">
             <h1 id="thesesTitle">Что важно для AgPM сегодня</h1>
@@ -226,12 +226,22 @@
         <p>Ежедневный отбор материалов об агентном управлении проектами. Три периметра, машинная фильтрация с проверкой первоисточника, дубли и agent-washing остаются во внутреннем слое отсечения.</p>
       </section>
       <section class="footer__column">
-        <span class="footer__label mono">МЕТОДИКА ОТБОРА</span>
-        <p>Радар проверяет первоисточник, полноту и управленческий контекст материала. В публичный выпуск попадают материалы, полезные для AgPM: governance, ответственность человека, портфельная видимость, ИСУП, риски, ресурсы, workflow и операционная модель агентной работы.</p>
+        <span class="footer__label mono" id="footerMethodLabel">МЕТОДИКА ОТБОРА</span>
+        <div id="footerMethod" class="footer-lines mono"></div>
+        <p class="footer__fine">В публичный выпуск попадают материалы, полезные для AgPM: governance, ответственность человека, портфельная видимость, ИСУП, риски, ресурсы, workflow и операционная модель агентной работы.</p>
       </section>
       <section class="footer__column">
         <span class="footer__label mono">ИСТОЧНИКИ НАБЛЮДЕНИЯ</span>
         <div id="footerSources" class="footer-sources mono"></div>
+      </section>
+      <section class="footer__column">
+        <span class="footer__label mono">НАВИГАЦИЯ</span>
+        <div class="footer-nav mono">
+          <button type="button" data-view-mode="radar">АРХИВ ВЫПУСКОВ</button>
+          <button type="button" data-view-mode="gazette">ГАЗЕТА</button>
+          <button type="button" data-view-mode="agent">АГЕНТ · БАЗА ЗНАНИЙ</button>
+          <span class="footer-nav__ok"><i aria-hidden="true"></i>РАДАР ИСПРАВЕН · ВЫПУСК ЕЖЕДНЕВНО В 08:00 МСК</span>
+        </div>
       </section>
     </div>
     <div class="footer__bottom mono">© 2026 · RADAR.AGPM.SPACE · ОБНОВЛЕНИЕ ЕЖЕДНЕВНО В 08:00 МСК</div>
@@ -255,7 +265,7 @@
           <button class="agent-rail__item" type="button" data-agent-tab="find" role="tab" aria-selected="false">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.6"></circle><line x1="10.4" y1="10.4" x2="14" y2="14"></line></svg>
             <i data-lbl>Найти</i>
-            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="find"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tail" data-lbl><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
             <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
           </button>
         </div>
@@ -271,7 +281,7 @@
           <button class="agent-rail__item" type="button" data-agent-tab="graph" role="tab" aria-selected="false">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="4" cy="12" r="2"></circle><circle cx="12" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 10.5 10.5 5.5M6 12h4"></path></svg>
             <i data-lbl>Граф</i>
-            <span class="agent-rail__tail" data-lbl><span class="agent-rail__count mono" data-rail-count="graph"></span><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
+            <span class="agent-rail__tail" data-lbl><svg class="agent-rail__lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"></path></svg></span>
             <span class="agent-rail__tip">Доступно по подписке экспертного сообщества AgPM</span>
           </button>
           <button class="agent-rail__item" type="button" data-agent-tab="topics" role="tab" aria-selected="false">
