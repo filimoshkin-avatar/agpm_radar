@@ -55,6 +55,9 @@ node tools/agent_console_smoke.mjs
 step "Legacy and V2 out-of-order reload regression"
 node "${repository_root}/tools/frontend_period_switch_race_smoke.mjs"
 
+step "design-system debt"
+python3 tools/check_design_rules.py
+
 step "secret and Legacy-isolation scan"
 uv run --no-sync python tools/check_isolation.py
 
