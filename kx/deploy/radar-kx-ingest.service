@@ -13,6 +13,14 @@ EnvironmentFile=/etc/radar-kx/worker.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONPATH=/opt/radar-kx/current/src
 Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+# The ladder only climbs when somebody moves it. `plan-acquisition` reads the
+# host profiles, decides which rung a stuck document should try next, and writes
+# `current_rung` - and until 2026-08-25 it sat in no timer at all, so profiles
+# were written and never consulted: three perimeter documents held `rungs_tried`
+# empty while their hosts had rungs waiting. Placed here rather than in a timer
+# of its own because planning without fetching changes nothing: the two are one
+# act, and a fetch that has not been planned climbs no further than last time.
+ExecStartPre=/opt/radar-kx/runtime/current/bin/python -m radar_kx plan-acquisition
 ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx run --workers 32
 UMask=0077
 Nice=10
