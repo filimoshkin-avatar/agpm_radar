@@ -309,8 +309,14 @@ Rules, and the answer is rejected if any is broken:
   evidence does not contain, do not estimate, do not generalise.
 - Copy numbers, dates and quoted fragments exactly as the evidence has them.
 - Never write "probably", "it appears", "sources suggest" or anything like them.
-  If the evidence does not answer the question, return {"clauses": []} and say
-  nothing else.
+- Answer as far as the evidence reaches. If it supports part of the question,
+  write that part and stop. A partial answer that rests on the evidence is worth
+  more than silence, and completeness is not what you are being asked for.
+- Do not write about what the evidence lacks. Every clause has to rest on a
+  numbered quotation, so a sentence about a gap has nothing to rest on and fails
+  the check. Say what is there; the reader is shown the quotations too.
+- Return {"clauses": []} only when the evidence is about a different subject
+  altogether, and then say nothing else.
 - Write in the language of the question.
 
 Question:

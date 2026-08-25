@@ -404,6 +404,42 @@ def test_both_shelves_at_once_is_asked_for_by_name() -> None:
     assert kwargs["filters"]["admission"] is None
 
 
+def test_a_cached_refusal_is_not_replayed_as_an_answer() -> None:
+    """A refusal is not an answer, and a frozen failure is not a cache hit.
+
+    Measured on production 2026-08-25: 24 of 49 cached public rows were refusals.
+    Serving them meant a reader who asked once before the prompt changed would go
+    on being refused through every later prompt, model and base.
+    """
+    talking = service(
+        cached_answer={
+            "answer_text": None,
+            "refusal_reason": "no_evidence",
+            "evidence_package": [],
+        },
+        agent_search=[],
+    )
+    talking.ask("вопрос, на который однажды не ответили")
+    names = [name for name, _ in talking.database.asked]  # type: ignore[attr-defined]
+    assert "agent_search" in names, "a cached refusal short-circuited the search"
+
+
+def test_a_cached_answer_is_still_served() -> None:
+    """The cache still exists; only refusals stopped counting as hits."""
+    talking = service(
+        cached_answer={
+            "answer_text": "Порог задаёт границу.",
+            "refusal_reason": None,
+            "evidence_package": [HIT],
+            "verification": {"passes": True},
+        }
+    )
+    answered = talking.ask("что такое порог автономии")
+    names = [name for name, _ in talking.database.asked]  # type: ignore[attr-defined]
+    assert "agent_search" not in names, "a cached answer was re-searched"
+    assert answered["answer"] == "Порог задаёт границу."
+
+
 def test_the_answer_cache_writes_a_scope_the_database_will_accept() -> None:
     """The shape of the bug this test exists because of.
 

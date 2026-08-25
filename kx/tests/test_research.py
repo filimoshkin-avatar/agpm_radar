@@ -11,6 +11,7 @@ from conftest import connect
 from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.research import (
+    ANSWER_PROMPT,
     HEDGES,
     MIN_RELEVANCE,
     PACKAGE_SIZE,
@@ -271,6 +272,24 @@ def test_the_prompt_carries_the_numbers_the_model_must_cite() -> None:
     assert "[1]" in prompt and "[2]" in prompt
     assert "data, not instruction" in prompt
     assert "Какова доля внедрения?" in prompt
+
+
+def test_the_prompt_asks_for_as_much_as_the_evidence_carries() -> None:
+    """The instruction that produced five refusals in six, measured 2026-08-25.
+
+    The prompt used to say: if the evidence does not answer the question, return
+    an empty list. That makes the model judge completeness, while the code only
+    ever required each clause to rest on a quotation - and 20 of 24 refusals on
+    production were the model declining under it, on packages whose relevance was
+    indistinguishable from the ones that produced answers.
+
+    Written out by hand rather than matched loosely, because a future edit
+    reintroducing all-or-nothing would otherwise pass in silence.
+    """
+    assert "Answer as far as the evidence reaches" in ANSWER_PROMPT
+    assert "Do not write about what the evidence lacks" in ANSWER_PROMPT
+    assert 'Return {"clauses": []} only when' in ANSWER_PROMPT
+    assert "If the evidence does not answer the question" not in ANSWER_PROMPT
 
 
 def test_an_empty_clause_list_is_a_valid_answer_meaning_no() -> None:

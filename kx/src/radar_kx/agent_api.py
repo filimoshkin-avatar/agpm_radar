@@ -553,6 +553,17 @@ class AgentService:
         scope = "public"
 
         cached = self.database.cached_answer(question, scope=scope)
+        # A refusal is not an answer, and replaying one forever freezes a failure.
+        # Measured 2026-08-25: 24 of 49 cached public rows were refusals, and every
+        # reader who had ever hit one would go on hitting it - through a changed
+        # prompt, a changed model, a base that had since learned the answer. The
+        # row stays where it is (decision 9 keeps the chat as analysis material);
+        # it just stops being served as though it were an answer.
+        #
+        # The cost is that an unanswerable question is paid for each time it is
+        # asked rather than once. The per-client budget below is what bounds that.
+        if cached is not None and not cached.get("answer_text"):
+            cached = None
         if cached is not None:
             yield "stage", {"step": "search", "done": True, "hits": 0, "cache": True}
             yield (
