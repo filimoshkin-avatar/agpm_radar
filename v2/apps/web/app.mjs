@@ -1807,7 +1807,9 @@ document.addEventListener("click", event => {
     return;
   }
   if (button.dataset.viewMode) {
+    // Нажатие снизу страницы должно быть заметным: раздел меняется — и виден.
     setViewMode(button.dataset.viewMode);
+    window.scrollTo?.(0, 0);
   }
   if (button.dataset.period) {
     state.period = button.dataset.period;
