@@ -30,7 +30,7 @@ const ids = [
   "activeFilter", "columns", "cut", "dailyAnalysis", "dailyAnalysisBody",
   "dailyAnalysisHeadline", "farChip", "footerSources", "heatmap", "included",
   "includedShare", "issueDate", "midChip", "nearChip", "nearShare", "perimeters",
-  "printGazette", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
+  "printGazetteTop", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
   "search", "sources", "sparkline", "theses", "thesesTitle", "timeline", "trendBars",
   "trendRange", "viewed",
 ];

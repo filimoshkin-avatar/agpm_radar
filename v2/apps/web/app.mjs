@@ -1823,9 +1823,7 @@ document.addEventListener("click", event => {
     agentLoadGraph(button.dataset.forceGraph, { forceCanvas: true });
     return;
   }
-  if (["printGazette", "printGazetteTop", "savePdfGazette"].includes(button.id)) {
-    // «Сохранить PDF» — та же печать: диалог браузера умеет писать в файл,
-    // а второго пути к PDF у страницы без сборки нет.
+  if (button.id === "printGazetteTop") {
     printGazette();
     return;
   }
