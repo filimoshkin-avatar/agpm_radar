@@ -457,6 +457,12 @@ document.addEventListener("keydown", event => {
   open.forEach(layer => layer.close());
 });
 
+// Клик по газете уходит внутрь рамки, и `document` его не видит: iframe глотает
+// событие целиком. Наружу пробивается только одно — окно теряет фокус.
+window.addEventListener?.("blur", () => {
+  if (document.activeElement?.tagName === "IFRAME") closeLayers();
+});
+
 document.addEventListener("pointerdown", event => {
   LAYERS.forEach(layer => {
     const node = document.getElementById(layer.node);
