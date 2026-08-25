@@ -301,7 +301,7 @@ const VIEW_MODES = ["radar", "gazette", "agent"];
 // was still a lexical declaration further down the file: the throw aborted the
 // module, so nothing after it ever ran and the page came up blank in every
 // mode - not only the one that triggered it.
-const agentState = { tab: "ask", admission: "knowledge", busy: false };
+const agentState = { tab: "ask", admission: ["knowledge", "observatory"], busy: false };
 
 // Declared at the top on purpose: a stored agent mode runs `setAgentTab` at
 // import time, before the graph section below has initialised - a `let` down
@@ -1799,9 +1799,14 @@ document.addEventListener("click", event => {
     return;
   }
   if (button.dataset.agentAdmission) {
-    agentState.admission = button.dataset.agentAdmission;
+    const value = button.dataset.agentAdmission;
+    const next = agentState.admission.includes(value)
+      ? agentState.admission.filter(item => item !== value)
+      : [...agentState.admission, value];
+    // Хотя бы один источник всегда выбран: последний чип не снимается.
+    if (next.length) agentState.admission = next;
     document.querySelectorAll("[data-agent-admission]").forEach(chip => {
-      chip.classList.toggle("is-active", chip.dataset.agentAdmission === agentState.admission);
+      chip.classList.toggle("is-active", agentState.admission.includes(chip.dataset.agentAdmission));
     });
     return;
   }
@@ -2747,7 +2752,7 @@ async function chatStreamTurn(question, work, signal) {
   const response = await fetch(`${KB}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    body: JSON.stringify({ question, admission: agentState.admission.length === 1 ? agentState.admission[0] : "", session: chatSession }),
     signal
   });
   if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
@@ -2786,7 +2791,7 @@ async function chatJsonTurn(question, work, signal) {
   const answered = await kbFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: agentState.admission, session: chatSession }),
+    body: JSON.stringify({ question, admission: agentState.admission.length === 1 ? agentState.admission[0] : "", session: chatSession }),
     signal
   });
   (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));
