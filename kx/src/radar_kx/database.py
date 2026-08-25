@@ -291,18 +291,6 @@ WITH knowledge AS (
                         JOIN knowledge AS other ON other.claim_id = shared.claim_id
                         WHERE source.claim_id < other.claim_id
                           AND source.embedding <=> other.embedding <= %(max_distance)s
-                          AND NOT EXISTS (
-                              SELECT 1 FROM kx.knowledge_links AS existing
-                              WHERE existing.from_kind = 'claim'
-                                AND existing.from_id = source.claim_id
-                                AND existing.to_kind = 'claim'
-                                AND existing.to_id = other.claim_id
-                          )
-                          AND NOT EXISTS (
-                              SELECT 1 FROM kx.link_judgements AS looked
-                              WHERE looked.from_id = source.claim_id
-                                AND looked.to_id = other.claim_id
-                          )
                     )
 """
 
@@ -5378,7 +5366,8 @@ class Database:
         neighbours: int = LINK_NEIGHBOURS,
         max_distance: float = LINK_MAX_DISTANCE,
     ) -> list[Pair]:
-        """Pairs worth a judgement: near in meaning, sharing a subject, both knowledge.
+        """A statement's three nearest neighbours, once: near in meaning, sharing
+        a subject, both knowledge.
 
         Both methods are in this one query rather than two. The subject is the
         lexical side's job - it came from a model reading the words - and the
@@ -5386,7 +5375,20 @@ class Database:
         shortlisted, which is what keeps a few thousand judgements out of ninety-six
         million pairs.
 
-        Ordered `from` before `to` by id so a pair is offered once, not twice.
+        **The rank is computed over every neighbour, and the already-judged are
+        dropped afterwards.** Filtering first looked equivalent and was not: rank
+        was then a position among the *unjudged*, so judging a statement's three
+        nearest promoted the next three into the window, and the window refilled
+        for as long as anybody kept running the pass. Measured 2026-08-25: twenty
+        thousand pairs judged moved the queue from 21 867 to 21 614, and the real
+        floor underneath it was 1 870 737 pairs - about 104 000 model calls, a
+        month of daily runs. The owner's decision that day was that three nearest
+        neighbours is the policy, not a cursor: once a statement's three are
+        judged it is finished, and the pass has an end.
+
+        Ordered `from` before `to` by id so a pair is offered once, not twice -
+        which also means a statement ranks the neighbours whose id sorts after
+        its own, not all of them.
         """
         with self.connect() as connection:
             self.require_schema(connection)
@@ -5398,6 +5400,15 @@ class Database:
                from_id, from_text, to_id, to_text, distance, shared_topic
         FROM nearest
         WHERE rank <= %(neighbours)s
+          AND NOT EXISTS (
+              SELECT 1 FROM kx.knowledge_links AS existing
+              WHERE existing.from_kind = 'claim' AND existing.from_id = nearest.from_id
+                AND existing.to_kind = 'claim' AND existing.to_id = nearest.to_id
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM kx.link_judgements AS looked
+              WHERE looked.from_id = nearest.from_id AND looked.to_id = nearest.to_id
+          )
         ORDER BY from_id, to_id, distance
         LIMIT %(limit)s
                     """,
@@ -5910,7 +5921,19 @@ class Database:
                 _LINK_SHORTLIST_SQL  # noqa: S608 -- both halves are literals here
                 + """
         SELECT count(*) AS to_link
-        FROM (SELECT DISTINCT from_id, to_id FROM nearest WHERE rank <= %(neighbours)s) AS shortlist
+        FROM (
+            SELECT DISTINCT from_id, to_id FROM nearest
+            WHERE rank <= %(neighbours)s
+              AND NOT EXISTS (
+                  SELECT 1 FROM kx.knowledge_links AS existing
+                  WHERE existing.from_kind = 'claim' AND existing.from_id = nearest.from_id
+                    AND existing.to_kind = 'claim' AND existing.to_id = nearest.to_id
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM kx.link_judgements AS looked
+                  WHERE looked.from_id = nearest.from_id AND looked.to_id = nearest.to_id
+              )
+        ) AS shortlist
                 """,
                 {
                     "model": DEFAULT_MODEL,
