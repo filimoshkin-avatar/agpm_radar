@@ -2912,7 +2912,7 @@ async function agentAsk(question) {
   if (!answered) {
     wrapper.insertAdjacentHTML("beforeend", `
       <div class="agent-answer__card agent-answer__card--quiet">
-        <div class="agent-answer__notice agent-answer__notice--quiet">Машинный ответ, не редакция базы</div>
+        <div class="agent-answer__notice agent-answer__notice--quiet">Агентный ответ, не редакция базы</div>
         <p class="agent-answer__text agent-answer__text--refused">${escapeHtml(failure || "поток оборвался")}</p>
         <div class="agent-answer__levels">
           <button class="agent-turn__copy" type="button" data-retry="${escapeHtml(question)}">↻ спросить снова</button>
