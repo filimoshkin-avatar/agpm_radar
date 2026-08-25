@@ -404,21 +404,26 @@ def test_both_shelves_at_once_is_asked_for_by_name() -> None:
     assert kwargs["filters"]["admission"] is None
 
 
-def test_the_answer_cache_is_keyed_by_the_shelf_that_was_asked() -> None:
-    """ADR-0012, on ADR-0006 §10's own reasoning.
+def test_the_answer_cache_writes_a_scope_the_database_will_accept() -> None:
+    """The shape of the bug this test exists because of.
 
-    Without this the widening would be half dead: the same question aimed at
-    knowledge and aimed at both shelves would share one cached answer, and the
-    second reader would be served the first one's narrower search.
+    The first version of ADR-0012 keyed the cache by shelf - `public:knowledge`
+    and so on - which is what ADR-0006 §10's reasoning asks for. It reached
+    production and every question 503'd: `kx.research_answers` carries
+    CHECK (scope IN ('public','research','editor')), and the fake database in
+    this file accepts any string at all, so nothing here could have said so.
+
+    Until that check is widened by a migration - the owner's call - the scope
+    stays `public`, and the read and the writes stay under the same key, which
+    is the part that was always load-bearing.
     """
-    scopes = []
+    allowed = {"public", "research", "editor"}  # kx.research_answers_scope_check
     for admission in ("knowledge", "observatory", "all"):
         talking = service(cached_answer=None, agent_search=[])
         talking.ask("один и тот же вопрос", admission=admission)
         asked = dict(talking.database.asked)  # type: ignore[attr-defined]
-        assert asked["cached_answer"]["scope"] == asked["record_answer"]["scope"]
-        scopes.append(asked["cached_answer"]["scope"])
-    assert len(set(scopes)) == 3, f"three shelves shared a cache key: {scopes}"
+        assert asked["cached_answer"]["scope"] in allowed
+        assert asked["record_answer"]["scope"] == asked["cached_answer"]["scope"]
 
 
 def test_the_notice_and_the_signature_name_the_agent_not_the_machine() -> None:

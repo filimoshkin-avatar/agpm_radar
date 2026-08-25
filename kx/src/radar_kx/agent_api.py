@@ -539,12 +539,18 @@ class AgentService:
         if admission not in ADMISSION_SCOPES:
             admission = "knowledge"
 
-        # ADR-0006 §10 keys the cache by scope, because a cache without it moves
-        # content between access levels and does so silently. The shelf the
-        # reader picked is one of those levels: "что нового" aimed at knowledge
-        # and aimed at the chronicle are two questions with two right answers,
-        # and the first one asked must not be served as the second.
-        scope = f"public:{admission}"
+        # The shelf the reader picked SHOULD be part of the cache key, by ADR-0006
+        # §10's own reasoning: a cache without scope in the key moves content
+        # between access levels silently, and "что нового" aimed at knowledge and
+        # aimed at the chronicle are two questions with two right answers.
+        #
+        # It is not, and cannot be from here. `kx.research_answers` carries
+        # CHECK (scope IN ('public','research','editor')), so "public:knowledge"
+        # is rejected by the database, not by policy - and widening that check is
+        # a migration against production, which is the owner's call. ADR-0012
+        # records the debt: until then, the first shelf asked wins the cache for
+        # a given question, which is the behaviour that was already here.
+        scope = "public"
 
         cached = self.database.cached_answer(question, scope=scope)
         if cached is not None:
