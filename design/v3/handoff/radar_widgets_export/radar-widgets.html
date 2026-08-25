@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Радар AgPM — анимированные виджеты (эталон для встройки)</title>
+<!--
+  САМОДОСТАТОЧНЫЙ ЭТАЛОН. Никаких зависимостей: ни React, ни support.js, ни шрифтов.
+  Открой файл в браузере — всё должно двигаться. Каждый виджет = <svg> + CSS-keyframes (+ ванильный JS там, где отмечено).
+  Подробные правила встройки — в README-widgets.md рядом.
+-->
+<style>
+  body{margin:0;background:#FAFAF8;color:#1F242A;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;padding:36px}
+  h1{font-size:18px;font-weight:600;margin:0 0 4px}
+  h2{font-size:14px;font-weight:600;margin:0}
+  .hint{font-size:12px;color:#5B636B;line-height:1.5;max-width:720px}
+  .row{display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;align-items:stretch}
+  .card{background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .mono{font-family:'PT Mono',ui-monospace,monospace}
+  .cap{font-size:11px;color:#8A9199}
+
+  /* ===== ЕДИНСТВЕННЫЙ БЛОК KEYFRAMES. Скопируйте его целиком в ГЛОБАЛЬНЫЙ css страницы. =====
+     Ошибка №1 у интеграторов: keyframes попадают в scoped-стили (CSS-modules, styled-components
+     с другим именем) — анимация «не работает». Имена rd* должны совпадать со значениями animation. */
+  @keyframes rdSweep{to{transform:rotate(360deg)}}
+  @keyframes rdBlip{0%,100%{opacity:.8;transform:scale(1)}2.5%{opacity:1;transform:scale(1.65)}9%{opacity:.8;transform:scale(1)}}
+  @keyframes rdArc1{from{stroke-dashoffset:68}}
+  @keyframes rdArc2{from{stroke-dashoffset:216}}
+  @keyframes rdArc3{from{stroke-dashoffset:177}}
+  @keyframes rdLogoBlip{0%,100%{opacity:0}5%{opacity:1}12%{opacity:0}}
+  /* Доступность: всё движение выключается одним правилом. Ставьте data-anim на каждый анимируемый узел. */
+  @media (prefers-reduced-motion: reduce){[data-anim]{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<h1>Анимированные виджеты «Радара AgPM» — эталон</h1>
+<div class="hint">Это не макет, а рабочий код для переноса. Правила: (1) keyframes — глобально; (2) у svg <b>overflow:visible</b> и <b>display:block</b>; (3) transform-origin задаётся в px координатах viewBox; (4) у пульсирующих точек — <b>transform-box:fill-box</b>. Полный чек-лист — README-widgets.md.</div>
+
+<div class="row">
+
+  <!-- ======================================================================
+       ВИДЖЕТ 1 · «СОНАР» (период = День)
+       Луч: CSS rotate вокруг центра 120,120 (origin в px, НЕ в %!).
+       Блипы генерирует JS ниже — чтобы вспышка совпадала с проходом луча,
+       delay считается из угла точки (формула в buildSonar).
+       ====================================================================== -->
+  <div class="card" style="width:300px">
+    <h2>1 · Сонар — период «День»</h2>
+    <!-- Обёртке нужна явная ширина; svg тянется на 100%. Не кладите в контейнер с overflow:hidden впритык:
+         блипы при вспышке масштабируются 1.65× и подрезаются. Либо overflow:visible, либо запас ≥6px. -->
+    <div style="width:240px;margin:6px auto 0">
+      <svg viewBox="0 0 240 240" style="width:100%;display:block;overflow:visible" role="img" aria-label="Сонар: материалы выпуска на трёх кольцах">
+        <circle cx="120" cy="120" r="34" fill="none" stroke="#E2E5E4" stroke-width="1"/>
+        <circle cx="120" cy="120" r="64" fill="none" stroke="#E2E5E4" stroke-width="1"/>
+        <circle cx="120" cy="120" r="94" fill="none" stroke="#DADDDC" stroke-width="1"/>
+        <line x1="120" y1="26" x2="120" y2="20" stroke="#C7CBCE" stroke-width="1"/>
+        <line x1="214" y1="120" x2="220" y2="120" stroke="#C7CBCE" stroke-width="1"/>
+        <line x1="120" y1="214" x2="120" y2="220" stroke="#C7CBCE" stroke-width="1"/>
+        <line x1="26" y1="120" x2="20" y2="120" stroke="#C7CBCE" stroke-width="1"/>
+        <text x="120" y="82" text-anchor="middle" font-size="9" fill="#8A9199" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">близкий</text>
+        <text x="120" y="52" text-anchor="middle" font-size="9" fill="#8A9199" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">средний</text>
+        <text x="120" y="22" text-anchor="middle" font-size="9" fill="#8A9199" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">дальний</text>
+        <!-- ЛУЧ. transform-origin:120px 120px = центр viewBox. Если поменяете viewBox — пересчитайте.
+             Ошибка №2: origin в % или отсутствует → луч вращается вокруг угла svg. -->
+        <g data-anim style="transform-origin:120px 120px;animation:rdSweep 8s linear infinite">
+          <path d="M120 120 L120 26 A94 94 0 0 1 167 38.6 Z" fill="rgba(43,74,117,0.06)"/>
+          <line x1="120" y1="120" x2="120" y2="26" stroke="rgba(43,74,117,0.45)" stroke-width="1"/>
+        </g>
+        <circle cx="120" cy="120" r="2.6" fill="#1F242A"/>
+        <g id="sonarBlips"></g><!-- заполняет buildSonar() -->
+      </svg>
+    </div>
+    <div class="cap">Оборот луча = 8s. Число точек = материалам дня (здесь 9/17/11). Данные и углы — в JS.</div>
+  </div>
+
+  <!-- ======================================================================
+       ВИДЖЕТ 2 · «ДОЛИ ПЕРИМЕТРОВ» (период = 7 дней)
+       Чистый CSS. Дуга = окружность со stroke-dasharray "видимая_часть остаток";
+       сумма пары = длине окружности 2πr. Анимация — stroke-dashoffset от полной
+       длины дуги к 0 (rdArc1..3). rotate(-90) начинает дугу сверху (иначе — с «3 часов»).
+       ====================================================================== -->
+  <div class="card" style="width:300px">
+    <h2>2 · Доли — период «7 дней»</h2>
+    <div style="position:relative;width:212px;margin:6px auto 0"><!-- position:relative обязателен: центр — HTML-оверлей -->
+      <svg viewBox="0 0 240 240" style="width:100%;display:block;overflow:visible" role="img" aria-label="Доли периметров за 7 дней">
+        <circle cx="120" cy="120" r="46" fill="none" stroke="#E9EBEA" stroke-width="10"/>
+        <circle cx="120" cy="120" r="72" fill="none" stroke="#E9EBEA" stroke-width="10"/>
+        <circle cx="120" cy="120" r="98" fill="none" stroke="#E9EBEA" stroke-width="10"/>
+        <!-- серые засечки = доли предыдущих 7 дней; координаты = точка на треке под углом доли -->
+        <line x1="158.7" y1="114.8" x2="172.5" y2="113" stroke="#B3B9BE" stroke-width="1.5"/>
+        <line x1="121.2" y1="185" x2="121.5" y2="199" stroke="#B3B9BE" stroke-width="1.5"/>
+        <line x1="210" y1="133.6" x2="223.8" y2="135.7" stroke="#B3B9BE" stroke-width="1.5"/>
+        <!-- r=46: C=289 → 68+221; r=72: C=452 → 216+236; r=98: C=616 → 177+439.
+             Меняя данные, пересчитайте и dasharray, и стартовый dashoffset в keyframes rdArc1..3. -->
+        <circle data-anim cx="120" cy="120" r="46" fill="none" stroke="#2B4A75" stroke-width="10" stroke-linecap="round" stroke-dasharray="68 221" transform="rotate(-90 120 120)" style="animation:rdArc1 1s ease-out .1s backwards"/>
+        <circle data-anim cx="120" cy="120" r="72" fill="none" stroke="#1E6E62" stroke-width="10" stroke-linecap="round" stroke-dasharray="216 236" transform="rotate(-90 120 120)" style="animation:rdArc2 1s ease-out .25s backwards"/>
+        <circle data-anim cx="120" cy="120" r="98" fill="none" stroke="#6B6880" stroke-width="10" stroke-linecap="round" stroke-dasharray="177 439" transform="rotate(-90 120 120)" style="animation:rdArc3 1s ease-out .4s backwards"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+        <div class="mono" style="font-size:21px">184</div>
+        <div class="cap" style="font-size:9.5px">материала · 7 дней</div>
+      </div>
+    </div>
+    <div class="cap">Однократная анимация при появлении (1s). «backwards» держит дугу пустой до старта.</div>
+  </div>
+
+  <!-- ======================================================================
+       ВИДЖЕТ 3 · «КОЛЬЦО 30 ДНЕЙ» (период = 30 дней)
+       Столбики строит JS из массива данных. Подсветка дня — сектор, который
+       JS-интервал (1400мс) поворачивает transform:rotate; плавность даёт
+       CSS transition на самом элементе. Сводка дня — HTML-оверлей в центре.
+       ====================================================================== -->
+  <div class="card" style="width:330px">
+    <h2>3 · Кольцо — период «30 дней»</h2>
+    <div style="position:relative;width:260px;margin:6px auto 0">
+      <svg viewBox="0 0 300 300" style="width:100%;display:block;overflow:visible" role="img" aria-label="Включено в радар по дням месяца">
+        <circle cx="150" cy="150" r="48" fill="none" stroke="#EEF0EF" stroke-width="1"/>
+        <g id="ringBars"></g><!-- заполняет buildRing() -->
+        <!-- сектор-подсветка: НЕ переносится по дням через атрибут transform —
+             вращаем style.transform, чтобы работал CSS transition -->
+        <g id="ringHl" data-anim style="transform-origin:150px 150px;transition:transform .55s cubic-bezier(.4,0,.2,1)">
+          <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z" fill="rgba(43,74,117,0.07)"/>
+        </g>
+        <g id="ringLabels"></g>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center">
+        <div class="mono" id="ringDate" style="font-size:12.5px"></div>
+        <div class="cap" style="font-size:9.5px;margin-top:1px">включено <span id="ringTot"></span></div>
+        <div class="mono" style="display:flex;gap:6px;font-size:10px;margin-top:2px"><span style="color:#2B4A75">Б <span id="ringN"></span></span><span style="color:#1E6E62">С <span id="ringM"></span></span><span style="color:#6B6880">Д <span id="ringF"></span></span></div>
+      </div>
+    </div>
+    <div class="cap">Слои столбика изнутри наружу: близкий → средний → дальний. Выходные — opacity .45.</div>
+  </div>
+
+  <!-- ======================================================================
+       ВИДЖЕТ 4 · ЛОГОТИП «Классическая развёртка» (шапка, 27px)
+       Чистый CSS. Оборот 4s; каждый блип вспыхивает под лучом за счёт
+       ОТРИЦАТЕЛЬНОГО animation-delay: delay = (угол_точки+90)/360*4 − 4.
+       ====================================================================== -->
+  <div class="card" style="width:300px">
+    <h2>4 · Логотип в шапке</h2>
+    <div style="display:flex;align-items:center;gap:11px;margin-top:6px">
+      <svg width="27" height="27" viewBox="0 0 28 28" style="overflow:visible" aria-hidden="true">
+        <circle cx="14" cy="14" r="11.5" fill="none" stroke="#C9CDCF" stroke-width="1"/>
+        <circle cx="14" cy="14" r="6" fill="none" stroke="#E2E5E4" stroke-width="0.8"/>
+        <g data-anim style="transform-origin:14px 14px;animation:rdSweep 4s linear infinite">
+          <path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(43,74,117,0.12)"/>
+          <line x1="14" y1="14" x2="14" y2="2.5" stroke="rgba(43,74,117,0.55)" stroke-width="1"/>
+        </g>
+        <circle cx="14" cy="14" r="1.8" fill="#1F242A"/>
+        <circle data-anim cx="17.8" cy="17.2" r="1.5" fill="#2B4A75" opacity="0" style="animation:rdLogoBlip 4s linear -2.56s infinite"/>
+        <circle data-anim cx="6" cy="16.9" r="1.5" fill="#1E6E62" opacity="0" style="animation:rdLogoBlip 4s linear -1.22s infinite"/>
+        <circle data-anim cx="17.9" cy="3.2" r="1.5" fill="#6B6880" opacity="0" style="animation:rdLogoBlip 4s linear -3.78s infinite"/>
+      </svg>
+      <div>
+        <div style="font-size:16.5px;font-weight:600;line-height:1.1">Радар AgPM</div>
+        <div class="cap" style="font-size:10.5px;margin-top:2px">агентное проектное управление</div>
+      </div>
+    </div>
+    <div class="cap" style="margin-top:auto">Тот же код в масштабе 27px. Фавиконки рядом: favicon.svg (статичная), favicon-animated.svg (SMIL).</div>
+  </div>
+
+</div>
+
+<script>
+/* ===================== ДАННЫЕ (заменяются бэкендом) ===================== */
+/* Сонар: углы в градусах (0° = «3 часа», по часовой), кольцо, радиус точки, цвет периметра */
+var SONAR_SETS = [
+  { angles:[10,50,95,140,190,240,292,310,350], r:34, dot:3.4, color:'#2B4A75' },                                       /* близкий */
+  { angles:[5,28,47,68,90,113,132,155,176,198,220,240,252,290,310,332,350], r:64, dot:3, color:'#1E6E62' },            /* средний */
+  { angles:[15,52,80,118,150,182,214,248,295,315,342], r:94, dot:3, color:'#6B6880' }                                   /* дальний */
+];
+var SONAR_PERIOD = 8; /* сек; = длительности rdSweep у луча этого виджета */
+
+/* Кольцо: по дню [дальний, средний, близкий]; последний элемент = сегодня */
+var RING_DAYS = [[4,8,3],[5,9,4],[3,7,4],[2,3,1],[1,3,2],[5,10,4],[6,11,5],[7,12,4],[5,13,6],[6,10,5],[2,4,1],[2,3,2],[7,12,5],[8,14,6],[9,15,5],[7,13,7],[6,12,6],[3,4,2],[2,4,2],[8,14,6],[9,16,7],[8,15,6],[10,17,7],[9,14,8],[3,5,2],[2,4,2],[8,15,7],[10,16,8],[11,17,9]];
+var RING_WEEKENDS = [3,4,10,11,17,18,24,25]; /* индексы дней-выходных */
+var RING_MONTH = 'июля';
+
+/* ===================== КОД ВИДЖЕТОВ ===================== */
+var NS = 'http://www.w3.org/2000/svg';
+var motionOK = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* --- Сонар: блипы, синхронизированные с лучом --- */
+function buildSonar(){
+  var g = document.getElementById('sonarBlips');
+  SONAR_SETS.forEach(function(s){
+    s.angles.forEach(function(a){
+      var rad = a * Math.PI / 180;
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', (120 + s.r * Math.cos(rad)).toFixed(1));
+      c.setAttribute('cy', (120 + s.r * Math.sin(rad)).toFixed(1));
+      c.setAttribute('r', s.dot);
+      c.setAttribute('fill', s.color);
+      c.setAttribute('data-anim', '');
+      /* СИНХРОНИЗАЦИЯ: луч стартует с «12 часов» (= −90° в системе углов точек), поэтому +90.
+         Отрицательный delay сдвигает цикл так, что вспышка (первые 9% keyframe) приходится
+         ровно на момент прохода луча. transform-box:fill-box — иначе scale растёт от угла svg. */
+      var delay = (((a + 90) % 360) / 360) * SONAR_PERIOD - SONAR_PERIOD;
+      c.style.cssText = 'opacity:.8;transform-box:fill-box;transform-origin:center;animation:rdBlip ' + SONAR_PERIOD + 's linear ' + delay.toFixed(2) + 's infinite';
+      g.appendChild(c);
+    });
+  });
+}
+
+/* --- Кольцо 30 дней: столбики + обход дней --- */
+function buildRing(){
+  var step = 360 / RING_DAYS.length, r0 = 52, C = 150;
+  function px(r, deg){ return (C + r * Math.sin(deg * Math.PI / 180)).toFixed(1); }
+  function py(r, deg){ return (C - r * Math.cos(deg * Math.PI / 180)).toFixed(1); }
+  var bars = document.getElementById('ringBars');
+  RING_DAYS.forEach(function(d, i){
+    var th = i * step, acc = r0, op = RING_WEEKENDS.indexOf(i) > -1 ? .45 : 1;
+    [[d[2],'#2B4A75'],[d[1],'#1E6E62'],[d[0],'#6B6880']].forEach(function(seg){
+      var len = seg[0] * 2.2; /* масштаб: 1 материал = 2.2px радиуса */
+      var l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', px(acc, th)); l.setAttribute('y1', py(acc, th));
+      l.setAttribute('x2', px(acc + len, th)); l.setAttribute('y2', py(acc + len, th));
+      l.setAttribute('stroke', seg[1]); l.setAttribute('stroke-width', 7); l.setAttribute('opacity', op);
+      bars.appendChild(l);
+      acc += len;
+    });
+  });
+  var labels = document.getElementById('ringLabels');
+  [0, 7, 14, 21, 28].forEach(function(i){
+    if (i >= RING_DAYS.length) return;
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', px(143, i * step)); t.setAttribute('y', +py(143, i * step) + 3);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('font-size', 9); t.setAttribute('fill', '#9AA1A8');
+    t.style.fontFamily = "'PT Mono',ui-monospace,monospace";
+    t.textContent = String(i + 1);
+    labels.appendChild(t);
+  });
+  var hl = document.getElementById('ringHl');
+  function show(i){
+    var d = RING_DAYS[i];
+    hl.style.transform = 'rotate(' + (i * step).toFixed(1) + 'deg)';
+    document.getElementById('ringDate').textContent = (i + 1) + ' ' + RING_MONTH;
+    document.getElementById('ringTot').textContent = d[0] + d[1] + d[2];
+    document.getElementById('ringN').textContent = d[2];
+    document.getElementById('ringM').textContent = d[1];
+    document.getElementById('ringF').textContent = d[0];
+  }
+  var cur = RING_DAYS.length - 1;
+  show(cur); /* без движения показываем «сегодня» */
+  if (motionOK) setInterval(function(){ cur = (cur + 1) % RING_DAYS.length; show(cur); }, 1400);
+}
+
+buildSonar();
+buildRing();
+</script>
+</body>
+</html>

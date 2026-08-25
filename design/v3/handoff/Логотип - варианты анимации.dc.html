@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Радар AgPM — варианты анимированного логотипа</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FAFAF8;color:#1F242A;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#2B4A75;text-decoration:none}
+a:hover{color:#1B3355;text-decoration:underline}
+@keyframes lgSpin{to{transform:rotate(360deg)}}
+@keyframes lgPing{0%,100%{transform:rotate(0deg)}50%{transform:rotate(88deg)}}
+@keyframes lgWave{0%,30%,100%{opacity:1}8%{opacity:0.3}}
+@keyframes lgBlip{0%,100%{opacity:0}5%{opacity:1}12%{opacity:0}}
+@keyframes lgEcho{0%{transform:scale(0.2);opacity:0.75}100%{transform:scale(1);opacity:0}}
+@keyframes lgD1{0%{stroke-dashoffset:10.3}28%,100%{stroke-dashoffset:0}}
+@keyframes lgD2{0%{stroke-dashoffset:18.1}34%,100%{stroke-dashoffset:0}}
+@keyframes lgD3{0%{stroke-dashoffset:26}40%,100%{stroke-dashoffset:0}}
+@keyframes lgDot{0%,100%{transform:scale(1)}50%{transform:scale(1.4)}}
+@keyframes lgTravel{0%{offset-distance:0%}50%{offset-distance:100%}100%{offset-distance:0%}}
+@media (prefers-reduced-motion: reduce){[data-anim]{animation:none !important}}
+</style>
+</helmet>
+<section data-screen-label="Варианты логотипа · тур 1" style="max-width:1460px;margin:0 auto;padding:34px 32px 60px">
+  <div style="display:flex;align-items:baseline;gap:12px">
+    <h2 style="font-size:18px;font-weight:600;margin:0">Анимированный логотип-радар — десять вариантов</h2>
+    <span style="flex:1"></span>
+    <span style="font-size:11.5px;color:#8A9199">движение медленное, для шапки · уважает reduced-motion</span>
+  </div>
+  <div style="font-size:12.5px;color:#5B636B;margin-top:6px;max-width:760px;line-height:1.5">Сверху — знак крупно, ниже — как он сидит в шапке рядом с названием. Ссылайтесь на номер варианта.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;align-items:stretch">
+
+    <div id="1a" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1a</span><span style="font-size:13px;font-weight:600">Луч в секторе</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round"></path><path d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round"></path><path d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></path><g data-anim="1" style="transform-origin:5.5px 22.5px;animation:lgPing 3.4s ease-in-out infinite"><line x1="5.5" y1="22.5" x2="5.5" y2="6.2" stroke="rgba(43,74,117,0.45)" stroke-width="1.2" stroke-linecap="round"></line></g></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round"></path><path d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round"></path><path d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></path><g data-anim="1" style="transform-origin:5.5px 22.5px;animation:lgPing 3.4s ease-in-out infinite"><line x1="5.5" y1="22.5" x2="5.5" y2="6.2" stroke="rgba(43,74,117,0.45)" stroke-width="1.2" stroke-linecap="round"></line></g></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Луч качается по квадранту дуг, как развёртка; сами дуги статичны. Текущий знак без изменений геометрии.</div>
+    </div>
+
+    <div id="1b" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1b</span><span style="font-size:13px;font-weight:600">Волна эха</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path data-anim="1" d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out infinite"></path><path data-anim="1" d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out 0.3s infinite"></path><path data-anim="1" d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out 0.6s infinite"></path></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path data-anim="1" d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out infinite"></path><path data-anim="1" d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out 0.3s infinite"></path><path data-anim="1" d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round" style="animation:lgWave 2.6s ease-in-out 0.6s infinite"></path></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Импульс уходит от точки: дуги коротко притухают по очереди изнутри наружу. Самый деликатный вариант.</div>
+    </div>
+
+    <div id="1c" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1c</span><span style="font-size:13px;font-weight:600">Классическая развёртка</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11.5" fill="none" stroke="#C9CDCF" stroke-width="1"></circle><circle cx="14" cy="14" r="6" fill="none" stroke="#E2E5E4" stroke-width="0.8"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 4s linear infinite"><path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(43,74,117,0.12)"></path><line x1="14" y1="14" x2="14" y2="2.5" stroke="rgba(43,74,117,0.55)" stroke-width="1"></line></g><circle cx="14" cy="14" r="1.8" fill="#1F242A"></circle><circle data-anim="1" cx="17.8" cy="17.2" r="1.5" fill="#2B4A75" opacity="0" style="animation:lgBlip 4s linear -2.56s infinite"></circle><circle data-anim="1" cx="6" cy="16.9" r="1.5" fill="#1E6E62" opacity="0" style="animation:lgBlip 4s linear -1.22s infinite"></circle><circle data-anim="1" cx="17.9" cy="3.2" r="1.5" fill="#6B6880" opacity="0" style="animation:lgBlip 4s linear -3.78s infinite"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11.5" fill="none" stroke="#C9CDCF" stroke-width="1"></circle><circle cx="14" cy="14" r="6" fill="none" stroke="#E2E5E4" stroke-width="0.8"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 4s linear infinite"><path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(43,74,117,0.12)"></path><line x1="14" y1="14" x2="14" y2="2.5" stroke="rgba(43,74,117,0.55)" stroke-width="1"></line></g><circle cx="14" cy="14" r="1.8" fill="#1F242A"></circle><circle data-anim="1" cx="17.8" cy="17.2" r="1.5" fill="#2B4A75" opacity="0" style="animation:lgBlip 4s linear -2.56s infinite"></circle><circle data-anim="1" cx="6" cy="16.9" r="1.5" fill="#1E6E62" opacity="0" style="animation:lgBlip 4s linear -1.22s infinite"></circle><circle data-anim="1" cx="17.9" cy="3.2" r="1.5" fill="#6B6880" opacity="0" style="animation:lgBlip 4s linear -3.78s infinite"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Круговой радар: сектор обходит циферблат, три контакта вспыхивают ровно под лучом. Связка с виджетом «Сонар».</div>
+    </div>
+
+    <div id="1d" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1d</span><span style="font-size:13px;font-weight:600">Эхо-кольца</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="14" cy="14" r="3.5" fill="none" stroke="#2B4A75" stroke-width="1.4"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#2B4A75" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear infinite"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#1E6E62" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear 1s infinite"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#6B6880" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear 2s infinite"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="14" cy="14" r="3.5" fill="none" stroke="#2B4A75" stroke-width="1.4"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#2B4A75" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear infinite"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#1E6E62" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear 1s infinite"></circle><circle data-anim="1" cx="14" cy="14" r="12.5" fill="none" stroke="#6B6880" stroke-width="1.2" opacity="0" style="transform-box:fill-box;transform-origin:center;animation:lgEcho 3s linear 2s infinite"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">От точки расходятся кольца трёх периметров и растворяются. Без движения остаётся спокойный знак «точка в кольце».</div>
+    </div>
+
+    <div id="1e" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1e</span><span style="font-size:13px;font-weight:600">Обход контура</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round"></path><path d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round"></path><path d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></path><circle data-anim="1" r="1.8" fill="#1F242A" style="offset-path:path('M5.5 6 A16.5 16.5 0 0 1 22 22.5');animation:lgTravel 5s ease-in-out infinite"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round"></path><path d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round"></path><path d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></path><circle data-anim="1" r="1.8" fill="#1F242A" style="offset-path:path('M5.5 6 A16.5 16.5 0 0 1 22 22.5');animation:lgTravel 5s ease-in-out infinite"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Точка-зонд скользит по внешней дуге туда и обратно — «дозор» по дальнему периметру.</div>
+    </div>
+
+    <div id="1f" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1f</span><span style="font-size:13px;font-weight:600">Найден контакт</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="14" cy="14" r="4.5" fill="none" stroke="rgba(43,74,117,0.4)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="8" fill="none" stroke="rgba(30,110,98,0.35)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="11.5" fill="none" stroke="rgba(107,104,128,0.4)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><circle data-anim="1" cx="11.8" cy="17.9" r="1.6" fill="#2B4A75" opacity="0" style="animation:lgBlip 6s linear infinite"></circle><circle data-anim="1" cx="21.7" cy="11.9" r="1.6" fill="#1E6E62" opacity="0" style="animation:lgBlip 6s linear 2s infinite"></circle><circle data-anim="1" cx="6.6" cy="5.2" r="1.6" fill="#6B6880" opacity="0" style="animation:lgBlip 6s linear 4s infinite"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="14" cy="14" r="4.5" fill="none" stroke="rgba(43,74,117,0.4)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="8" fill="none" stroke="rgba(30,110,98,0.35)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="11.5" fill="none" stroke="rgba(107,104,128,0.4)" stroke-width="1.1"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><circle data-anim="1" cx="11.8" cy="17.9" r="1.6" fill="#2B4A75" opacity="0" style="animation:lgBlip 6s linear infinite"></circle><circle data-anim="1" cx="21.7" cy="11.9" r="1.6" fill="#1E6E62" opacity="0" style="animation:lgBlip 6s linear 2s infinite"></circle><circle data-anim="1" cx="6.6" cy="5.2" r="1.6" fill="#6B6880" opacity="0" style="animation:lgBlip 6s linear 4s infinite"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">На тихих тонированных кольцах поочерёдно вспыхивают блипы трёх периметров: радар находит материалы.</div>
+    </div>
+
+    <div id="1g" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1g</span><span style="font-size:13px;font-weight:600">Отрисовка развёртки</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path data-anim="1" d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round" stroke-dasharray="10.3" style="animation:lgD1 3.6s linear infinite"></path><path data-anim="1" d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="18.1" style="animation:lgD2 3.6s linear infinite"></path><path data-anim="1" d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="26" style="animation:lgD3 3.6s linear infinite"></path></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="5.5" cy="22.5" r="2.3" fill="#1F242A"></circle><path data-anim="1" d="M5.5 16 A6.5 6.5 0 0 1 12 22.5" fill="none" stroke="#2B4A75" stroke-width="2" stroke-linecap="round" stroke-dasharray="10.3" style="animation:lgD1 3.6s linear infinite"></path><path data-anim="1" d="M5.5 11 A11.5 11.5 0 0 1 17 22.5" fill="none" stroke="#1E6E62" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="18.1" style="animation:lgD2 3.6s linear infinite"></path><path data-anim="1" d="M5.5 6 A16.5 16.5 0 0 1 22 22.5" fill="none" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="26" style="animation:lgD3 3.6s linear infinite"></path></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Дуги прорисовываются от точки изнутри наружу и держатся до следующего цикла — знак «собирается» заново.</div>
+    </div>
+
+    <div id="1h" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1h</span><span style="font-size:13px;font-weight:600">Сектор-метроном</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#2B4A75" stroke-width="1.6"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 6s linear infinite"><path d="M14 14 L14 2 A12 12 0 0 1 26 14 Z" fill="rgba(43,74,117,0.22)"></path></g><circle cx="14" cy="14" r="2" fill="#1F242A"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="#2B4A75" stroke-width="1.6"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 6s linear infinite"><path d="M14 14 L14 2 A12 12 0 0 1 26 14 Z" fill="rgba(43,74,117,0.22)"></path></g><circle cx="14" cy="14" r="2" fill="#1F242A"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Минимальный одноцветный знак: сектор вращается в тонком кольце. Хорошо масштабируется до фавиконки.</div>
+    </div>
+
+    <div id="1i" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1i</span><span style="font-size:13px;font-weight:600">Прицел</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28" style="overflow:visible"><circle cx="14" cy="14" r="10.5" fill="none" stroke="#1F242A" stroke-width="1.3"></circle><circle cx="14" cy="14" r="5" fill="none" stroke="#E2E5E4" stroke-width="1"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 16s linear infinite"><line x1="14" y1="3.5" x2="14" y2="0.5" stroke="#2B4A75" stroke-width="1.6" stroke-linecap="round"></line><line x1="24.5" y1="14" x2="27.5" y2="14" stroke="#1E6E62" stroke-width="1.6" stroke-linecap="round"></line><line x1="14" y1="24.5" x2="14" y2="27.5" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></line><line x1="3.5" y1="14" x2="0.5" y2="14" stroke="#2B4A75" stroke-width="1.6" stroke-linecap="round"></line></g><circle data-anim="1" cx="14" cy="14" r="2.2" fill="#2B4A75" style="transform-box:fill-box;transform-origin:center;animation:lgDot 2.6s ease-in-out infinite"></circle></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28" style="overflow:visible"><circle cx="14" cy="14" r="10.5" fill="none" stroke="#1F242A" stroke-width="1.3"></circle><circle cx="14" cy="14" r="5" fill="none" stroke="#E2E5E4" stroke-width="1"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 16s linear infinite"><line x1="14" y1="3.5" x2="14" y2="0.5" stroke="#2B4A75" stroke-width="1.6" stroke-linecap="round"></line><line x1="24.5" y1="14" x2="27.5" y2="14" stroke="#1E6E62" stroke-width="1.6" stroke-linecap="round"></line><line x1="14" y1="24.5" x2="14" y2="27.5" stroke="#6B6880" stroke-width="1.6" stroke-linecap="round"></line><line x1="3.5" y1="14" x2="0.5" y2="14" stroke="#2B4A75" stroke-width="1.6" stroke-linecap="round"></line></g><circle data-anim="1" cx="14" cy="14" r="2.2" fill="#2B4A75" style="transform-box:fill-box;transform-origin:center;animation:lgDot 2.6s ease-in-out infinite"></circle></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Инструментальный характер: кольцо с цветными тиками медленно вращается, центр спокойно пульсирует.</div>
+    </div>
+
+    <div id="1j" style="width:252px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-family:'PT Mono',monospace;font-size:10.5px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:1px 6px">1j</span><span style="font-size:13px;font-weight:600">Орбиты периметров</span></div>
+      <div style="height:88px;display:flex;align-items:center;justify-content:center;background:#FAFAF8;border:1px solid #EEF0EF;border-radius:6px">
+        <svg width="64" height="64" viewBox="0 0 28 28" style="overflow:visible"><circle cx="14" cy="14" r="5" fill="none" stroke="#E0E3E2" stroke-width="1"></circle><circle cx="14" cy="14" r="9" fill="none" stroke="#E0E3E2" stroke-width="1"></circle><circle cx="14" cy="14" r="13" fill="none" stroke="#D8DBDA" stroke-width="1"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 5s linear infinite"><circle cx="14" cy="9" r="1.7" fill="#2B4A75"></circle></g><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 8s linear infinite"><circle cx="14" cy="5" r="1.6" fill="#1E6E62"></circle></g><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 12s linear infinite"><circle cx="14" cy="1" r="1.5" fill="#6B6880"></circle></g></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <svg width="24" height="24" viewBox="0 0 28 28" style="overflow:visible"><circle cx="14" cy="14" r="5" fill="none" stroke="#E0E3E2" stroke-width="1"></circle><circle cx="14" cy="14" r="9" fill="none" stroke="#E0E3E2" stroke-width="1"></circle><circle cx="14" cy="14" r="13" fill="none" stroke="#D8DBDA" stroke-width="1"></circle><circle cx="14" cy="14" r="1.7" fill="#1F242A"></circle><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 5s linear infinite"><circle cx="14" cy="9" r="1.7" fill="#2B4A75"></circle></g><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 8s linear infinite"><circle cx="14" cy="5" r="1.6" fill="#1E6E62"></circle></g><g data-anim="1" style="transform-origin:14px 14px;animation:lgSpin 12s linear infinite"><circle cx="14" cy="1" r="1.5" fill="#6B6880"></circle></g></svg>
+        <div><div style="font-size:13px;font-weight:600;line-height:1.1">Радар AgPM</div><div style="font-size:9px;color:#8A9199;margin-top:1px">агентное проектное управление</div></div>
+      </div>
+      <div style="font-size:11px;color:#5B636B;line-height:1.45">Три спутника на кольцах: ближний периметр обращается быстрее, дальний — медленнее. Живёт даже в 16 px.</div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

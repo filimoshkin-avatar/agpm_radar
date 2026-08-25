@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>Радар AgPM — варианты анимированного радара</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=PT+Mono&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FAFAF8;color:#1F242A;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#2B4A75;text-decoration:none}
+a:hover{color:#1B3355;text-decoration:underline}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes blipK{0%,100%{opacity:.8;transform:scale(1)}2.5%{opacity:1;transform:scale(1.65)}9%{opacity:.8;transform:scale(1)}}
+@keyframes arcA{from{stroke-dashoffset:65}}
+@keyframes arcB{from{stroke-dashoffset:225}}
+@keyframes arcC{from{stroke-dashoffset:171}}
+@media (prefers-reduced-motion: reduce){[data-anim]{animation:none !important}}
+</style>
+</helmet>
+<section data-screen-label="Варианты радара · тур 1" style="max-width:1460px;margin:0 auto;padding:34px 32px 60px">
+  <div style="display:flex;align-items:baseline;gap:12px">
+    <h2 style="font-size:18px;font-weight:600;margin:0">Анимированный радар — четыре варианта</h2>
+    <span style="flex:1"></span>
+    <span style="font-size:11.5px;color:#8A9199">все варианты построены на реальной статистике радара · июль 2026</span>
+  </div>
+  <div style="font-size:12.5px;color:#5B636B;margin-top:6px;max-width:760px;line-height:1.5">Кандидаты на место радар-диаграммы в блоке «Что важно». Ссылайтесь на номер варианта в чате.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:20px;margin-top:20px;align-items:stretch">
+
+    <div id="1a" style="flex:1;min-width:430px;max-width:520px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:18px 20px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'PT Mono',monospace;font-size:11px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:2px 7px">1a</span>
+        <span style="font-size:14px;font-weight:600">Годовое кольцо</span>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#8A9199">12 месяцев · всплески по периметрам</span>
+      </div>
+      <div style="position:relative;width:340px;margin:14px auto 0">
+        {{ chart1a }}
+        <svg viewBox="0 0 250 250" style="position:absolute;inset:0;pointer-events:none" aria-hidden="true">
+          <g style="{{ sweep1a }}">
+            <path d="M125 125 L97.6 22.6 A106 106 0 0 1 152.4 22.6 Z" fill="rgba(43,74,117,0.07)"></path>
+          </g>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+          <div style="background:rgba(250,250,248,0.93);border:1px solid #E6E8E7;border-radius:6px;padding:6px 12px;text-align:center">
+            <div style="font-family:'PT Mono',monospace;font-size:14px;color:#1F242A">{{ m1aLbl }}</div>
+            <div style="font-size:10px;color:#8A9199;margin-top:1px">включено {{ m1aTot }}</div>
+            <div style="display:flex;gap:8px;font-family:'PT Mono',monospace;font-size:10.5px;margin-top:2px;justify-content:center"><span style="color:#2B4A75">Б {{ m1aN }}</span><span style="color:#1E6E62">С {{ m1aM }}</span><span style="color:#6B6880">Д {{ m1aF }}</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:11.5px;color:#5B636B;line-height:1.5;margin-top:12px;border-top:1px solid #EEF0EF;padding-top:10px">Показывает: объём материалов каждого периметра по месяцам за год. Луч обходит месяцы, сводка месяца — в центре. Видно, как средний периметр растёт быстрее рынка, а близкий ускорился с весны.</div>
+    </div>
+
+    <div id="1b" style="flex:1;min-width:430px;max-width:520px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:18px 20px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'PT Mono',monospace;font-size:11px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:2px 7px">1b</span>
+        <span style="font-size:14px;font-weight:600">Сонар выпуска</span>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#8A9199">материалы дня · блики под лучом</span>
+      </div>
+      <div style="width:330px;margin:14px auto 0">{{ chart1b }}</div>
+      <div style="display:flex;gap:13px;font-size:11px;color:#5B636B;justify-content:center;margin-top:8px">
+        <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#2B4A75;display:inline-block"></span>близкий · 9</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#1E6E62;display:inline-block"></span>средний · 17</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#6B6880;display:inline-block"></span>дальний · 11</span>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:11.5px;color:#5B636B;line-height:1.5;margin-top:12px;border-top:1px solid #EEF0EF;padding-top:10px">Показывает: 37 материалов сегодняшнего выпуска на трёх кольцах. Каждый блик вспыхивает ровно в момент прохода луча — радар «находит» материалы в реальном времени. Эволюция текущей диаграммы, минимум изменений.</div>
+    </div>
+
+    <div id="1c" style="flex:1;min-width:430px;max-width:520px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:18px 20px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'PT Mono',monospace;font-size:11px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:2px 7px">1c</span>
+        <span style="font-size:14px;font-weight:600">Кольцо 30 дней</span>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#8A9199">радиальная гистограмма · июль</span>
+      </div>
+      <div style="position:relative;width:340px;margin:14px auto 0">
+        {{ chart1c }}
+        <svg viewBox="0 0 300 300" style="position:absolute;inset:0;pointer-events:none" aria-hidden="true">
+          <g style="{{ hl1c }}">
+            <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z" fill="rgba(43,74,117,0.07)"></path>
+          </g>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+          <div style="text-align:center">
+            <div style="font-family:'PT Mono',monospace;font-size:13px;color:#1F242A">{{ d1cLbl }}</div>
+            <div style="font-size:10px;color:#8A9199;margin-top:1px">включено {{ d1cTot }}</div>
+            <div style="display:flex;gap:7px;font-family:'PT Mono',monospace;font-size:10.5px;margin-top:2px;justify-content:center"><span style="color:#2B4A75">Б {{ d1cN }}</span><span style="color:#1E6E62">С {{ d1cM }}</span><span style="color:#6B6880">Д {{ d1cF }}</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:11.5px;color:#5B636B;line-height:1.5;margin-top:12px;border-top:1px solid #EEF0EF;padding-top:10px">Показывает: включённые материалы по каждому дню июля, столбик = день, слои = периметры. Приглушённые сектора — выходные. Подсветка обходит дни, сводка дня — в центре. Хорошо видны недельный ритм и рост к концу месяца.</div>
+    </div>
+
+    <div id="1d" style="flex:1;min-width:430px;max-width:520px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:18px 20px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:'PT Mono',monospace;font-size:11px;color:#2B4A75;border:1px solid rgba(43,74,117,0.35);border-radius:5px;padding:2px 7px">1d</span>
+        <span style="font-size:14px;font-weight:600">Доли периметров</span>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#8A9199">структура за 30 дней · сравнение с июнем</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:18px;margin-top:14px">
+        <div style="position:relative;width:250px;flex:none">
+          <svg viewBox="0 0 240 240" style="width:100%;display:block" role="img" aria-label="Доли периметров за 30 дней">
+            <circle cx="120" cy="120" r="46" fill="none" stroke="#EEF0EF" stroke-width="10"></circle>
+            <circle cx="120" cy="120" r="72" fill="none" stroke="#EEF0EF" stroke-width="10"></circle>
+            <circle cx="120" cy="120" r="98" fill="none" stroke="#EEF0EF" stroke-width="10"></circle>
+            <line x1="157.8" y1="110.3" x2="171.3" y2="106.8" stroke="#B3B9BE" stroke-width="1.5"></line>
+            <line x1="115.9" y1="184.9" x2="115" y2="198.8" stroke="#B3B9BE" stroke-width="1.5"></line>
+            <line x1="209.4" y1="137.1" x2="223.1" y2="139.7" stroke="#B3B9BE" stroke-width="1.5"></line>
+            <circle data-anim="1" cx="120" cy="120" r="46" fill="none" stroke="#2B4A75" stroke-width="10" stroke-linecap="round" stroke-dasharray="65 224" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcA 1s ease-out 0.15s backwards"></circle>
+            <circle data-anim="1" cx="120" cy="120" r="72" fill="none" stroke="#1E6E62" stroke-width="10" stroke-linecap="round" stroke-dasharray="225 228" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcB 1s ease-out 0.3s backwards"></circle>
+            <circle data-anim="1" cx="120" cy="120" r="98" fill="none" stroke="#6B6880" stroke-width="10" stroke-linecap="round" stroke-dasharray="171 445" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcC 1s ease-out 0.45s backwards"></circle>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+            <div style="font-family:'PT Mono',monospace;font-size:23px;color:#1F242A">604</div>
+            <div style="font-size:10px;color:#8A9199">материала · 30 дней</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#2B4A75;flex:none;transform:translateY(-1px)"></span><span style="font-size:12.5px;color:#3A4148">близкий</span><span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#2B4A75">23% · 136</span></div>
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#1E6E62;flex:none;transform:translateY(-1px)"></span><span style="font-size:12.5px;color:#3A4148">средний</span><span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#1E6E62">50% · 300</span></div>
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:#6B6880;flex:none;transform:translateY(-1px)"></span><span style="font-size:12.5px;color:#3A4148">дальний</span><span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#6B6880">28% · 168</span></div>
+          <div style="font-size:11px;color:#8A9199;line-height:1.5;border-top:1px solid #EEF0EF;padding-top:8px;margin-top:2px">Серые засечки — доли в июне: близкий 21%, средний 51%, дальний 28%.</div>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="font-size:11.5px;color:#5B636B;line-height:1.5;margin-top:12px;border-top:1px solid #EEF0EF;padding-top:10px">Показывает: структуру включённого за период — дуга каждого кольца заполняется до своей доли, засечка отмечает прошлый месяц. Самый спокойный вариант: одна анимация при загрузке, дальше статика.</div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { tick: 0 };
+
+  MONTHS = [['авг 25',22,31,9],['сен 25',28,39,12],['окт 25',35,52,16],['ноя 25',41,66,22],['дек 25',30,48,18],['янв 26',52,88,31],['фев 26',61,104,38],['мар 26',74,131,47],['апр 26',88,152,58],['май 26',102,178,71],['июн 26',131,229,96],['июл 26',168,300,136]];
+  TS = [[4,8,3,152],[5,9,4,161],[3,7,4,148],[2,3,1,64],[1,3,2,58],[5,10,4,170],[6,11,5,176],[7,12,4,181],[5,13,6,188],[6,10,5,174],[2,4,1,71],[2,3,2,66],[7,12,5,183],[8,14,6,196],[9,15,5,204],[7,13,7,192],[6,12,6,187],[3,4,2,74],[2,4,2,69],[8,14,6,198],[9,16,7,209],[8,15,6,201],[10,17,7,214],[9,14,8,206],[3,5,2,78],[2,4,2,70],[8,15,7,197],[10,16,8,212],[11,17,9,214]];
+  WKND = new Set([3,4,10,11,17,18,24,25]);
+
+  componentDidMount() { this._iv = setInterval(() => this.setState(s => ({ tick: s.tick + 1 })), 1400); }
+  componentWillUnmount() { clearInterval(this._iv); }
+
+  renderVals() {
+    const t = this.state.tick;
+    const mi = (11 + t) % 12, mo = this.MONTHS[mi];
+    const di = (28 + t) % 29, dr = this.TS[di];
+    this._c1a = this._c1a || this.b1a();
+    this._c1b = this._c1b || this.b1b();
+    this._c1c = this._c1c || this.b1c();
+    return {
+      chart1a: this._c1a, chart1b: this._c1b, chart1c: this._c1c,
+      sweep1a: { transform: 'rotate(' + ((11 + t) * 30) + 'deg)', transformOrigin: '125px 125px', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' },
+      m1aLbl: mo[0], m1aF: mo[1], m1aM: mo[2], m1aN: mo[3], m1aTot: mo[1] + mo[2] + mo[3],
+      hl1c: { transform: 'rotate(' + ((28 + t) * 12.4138).toFixed(1) + 'deg)', transformOrigin: '150px 150px', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' },
+      d1cLbl: (di + 1) + ' июля', d1cF: dr[0], d1cM: dr[1], d1cN: dr[2], d1cTot: dr[0] + dr[1] + dr[2]
+    };
+  }
+
+  b1a() {
+    const e = React.createElement, C = 125, RAD = Math.PI / 180;
+    const px = (r, deg) => (C + r * Math.sin(deg * RAD)).toFixed(1);
+    const py = (r, deg) => (C - r * Math.cos(deg * RAD)).toFixed(1);
+    const kids = [];
+    for (let i = 0; i < 12; i++) kids.push(e('line', { key: 'sp' + i, x1: C, y1: C, x2: px(88, i * 30), y2: py(88, i * 30), stroke: '#F0F2F1', strokeWidth: 1 }));
+    [[100, 29.3], [200, 58.7], [300, 88]].forEach(([v, r]) => {
+      kids.push(e('circle', { key: 'r' + v, cx: C, cy: C, r, fill: 'none', stroke: v === 300 ? '#DADDDC' : '#E7E9E8', strokeWidth: 1 }));
+      kids.push(e('text', { key: 'rl' + v, x: C + 3, y: C - r - 2, fontSize: 7.5, fill: '#B3B9BE', fontFamily: "'PT Mono',monospace" }, String(v)));
+    });
+    const NAMES = ['авг', 'сен', 'окт', 'ноя', 'дек', 'янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл'];
+    NAMES.forEach((nm, i) => kids.push(e('text', { key: 'm' + i, x: px(112, i * 30), y: +py(112, i * 30) + 3, textAnchor: 'middle', fontSize: 8.5, fill: '#8A9199' }, nm)));
+    const series = [[1, '#6B6880', 'rgba(107,104,128,0.07)'], [2, '#1E6E62', 'rgba(30,110,98,0.07)'], [3, '#2B4A75', 'rgba(43,74,117,0.08)']];
+    series.forEach(([idx, col, fill]) => {
+      const pts = this.MONTHS.map((m, i) => px(m[idx] / 300 * 88, i * 30) + ',' + py(m[idx] / 300 * 88, i * 30)).join(' ');
+      kids.push(e('polygon', { key: 'pg' + idx, points: pts, fill, stroke: col, strokeWidth: 1.6, strokeLinejoin: 'round' }));
+      this.MONTHS.forEach((m, i) => kids.push(e('circle', { key: 'd' + idx + '-' + i, cx: px(m[idx] / 300 * 88, i * 30), cy: py(m[idx] / 300 * 88, i * 30), r: 1.9, fill: col })));
+    });
+    return e('svg', { viewBox: '0 0 250 250', style: { width: '100%', display: 'block' } }, kids);
+  }
+
+  b1b() {
+    const e = React.createElement, C = 120, RAD = Math.PI / 180, T = 8;
+    const kids = [];
+    [34, 64, 94].forEach((r, i) => kids.push(e('circle', { key: 'r' + r, cx: C, cy: C, r, fill: 'none', stroke: i === 2 ? '#DADDDC' : '#E2E5E4', strokeWidth: 1 })));
+    [[120, 26, 120, 20], [214, 120, 220, 120], [120, 214, 120, 220], [26, 120, 20, 120]].forEach((c, i) => kids.push(e('line', { key: 't' + i, x1: c[0], y1: c[1], x2: c[2], y2: c[3], stroke: '#C7CBCE', strokeWidth: 1 })));
+    ['близкий,82,34', 'средний,52,64', 'дальний,22,94'].forEach(s => {
+      const [lb, y] = s.split(',');
+      kids.push(e('text', { key: 'l' + lb, x: C, y: +y, textAnchor: 'middle', fontSize: 9, fill: '#8A9199', paintOrder: 'stroke', stroke: '#FFFFFF', strokeWidth: 3 }, lb));
+    });
+    kids.push(e('g', { key: 'sw', 'data-anim': '1', style: { transformOrigin: '120px 120px', animation: 'sweep 8s linear infinite' } },
+      e('path', { d: 'M120 120 L120 26 A94 94 0 0 1 167 38.6 Z', fill: 'rgba(43,74,117,0.06)' }),
+      e('line', { x1: 120, y1: 120, x2: 120, y2: 26, stroke: 'rgba(43,74,117,0.45)', strokeWidth: 1 })
+    ));
+    kids.push(e('circle', { key: 'c0', cx: C, cy: C, r: 2.6, fill: '#1F242A' }));
+    const sets = [[[10, 50, 95, 140, 190, 240, 292, 310, 350], 34, 3.4, '#2B4A75'], [[5, 28, 47, 68, 90, 113, 132, 155, 176, 198, 220, 240, 252, 290, 310, 332, 350], 64, 3, '#1E6E62'], [[15, 52, 80, 118, 150, 182, 214, 248, 295, 315, 342], 94, 3, '#6B6880']];
+    sets.forEach(([angs, r, rr, col], si) => angs.forEach((a, i) => {
+      const d = (((a + 90) % 360 + 360) % 360) / 360 * T;
+      kids.push(e('circle', {
+        key: 'b' + si + '-' + i, cx: (C + r * Math.cos(a * RAD)).toFixed(1), cy: (C + r * Math.sin(a * RAD)).toFixed(1), r: rr, fill: col, 'data-anim': '1',
+        style: { opacity: 0.8, transformBox: 'fill-box', transformOrigin: 'center', animation: 'blipK 8s linear infinite', animationDelay: (d - T).toFixed(2) + 's' }
+      }));
+    }));
+    return e('svg', { viewBox: '0 0 240 240', style: { width: '100%', display: 'block' } }, kids);
+  }
+
+  b1c() {
+    const e = React.createElement, C = 150, RAD = Math.PI / 180, step = 360 / 29, r0 = 52;
+    const px = (r, deg) => (C + r * Math.sin(deg * RAD)).toFixed(1);
+    const py = (r, deg) => (C - r * Math.cos(deg * RAD)).toFixed(1);
+    const kids = [e('circle', { key: 'in', cx: C, cy: C, r: 48, fill: 'none', stroke: '#EEF0EF', strokeWidth: 1 })];
+    this.TS.forEach((d, i) => {
+      const th = i * step, op = this.WKND.has(i) ? 0.45 : 1;
+      let acc = r0;
+      const segs = [[d[2], '#2B4A75'], [d[1], '#1E6E62'], [d[0], '#6B6880']];
+      const g = [e('title', { key: 'tt' }, (i + 1) + ' июля · включено ' + (d[0] + d[1] + d[2]) + ' · Б ' + d[2] + ' · С ' + d[1] + ' · Д ' + d[0])];
+      segs.forEach(([v, col], si) => {
+        const len = v * 2.2;
+        g.push(e('line', { key: 's' + si, x1: px(acc, th), y1: py(acc, th), x2: px(acc + len, th), y2: py(acc + len, th), stroke: col, strokeWidth: 7, opacity: op }));
+        acc += len;
+      });
+      kids.push(e('g', { key: 'd' + i }, g));
+    });
+    [0, 7, 14, 21, 28].forEach(i => kids.push(e('text', { key: 'x' + i, x: px(143, i * step), y: +py(143, i * step) + 3, textAnchor: 'middle', fontSize: 9, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, String(i + 1))));
+    return e('svg', { viewBox: '0 0 300 300', style: { width: '100%', display: 'block' } }, kids);
+  }
+}
+</script>
+</body>
+</html>

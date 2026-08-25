@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Радар AgPM — агентное проектное управление</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&amp;family=PT+Mono&amp;display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+body{margin:0;background:#FAFAF8;color:#1F242A;font-family:'Golos Text','Segoe UI',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:#2B4A75;text-decoration:none}
+a:hover{color:#1B3355;text-decoration:underline}
+button{font:inherit;cursor:pointer;background:none;border:none;padding:0;margin:0;color:inherit}
+input,select{font:inherit;color:inherit}
+input::placeholder{color:#9AA1A8}
+:focus-visible{outline:2px solid rgba(43,74,117,0.45);outline-offset:2px}
+::selection{background:rgba(43,74,117,0.16)}
+@keyframes sweep{to{transform:rotate(360deg)}}
+@keyframes lgBlip{0%,100%{opacity:0}5%{opacity:1}12%{opacity:0}}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:.25}}
+@keyframes blipK{0%,100%{opacity:.8;transform:scale(1)}2.5%{opacity:1;transform:scale(1.65)}9%{opacity:.8;transform:scale(1)}}
+@keyframes arcA{from{stroke-dashoffset:68}}
+@keyframes arcB{from{stroke-dashoffset:216}}
+@keyframes arcC{from{stroke-dashoffset:177}}
+@media (prefers-reduced-motion: reduce){[data-anim]{animation:none !important}}
+</style>
+</helmet>
+<div style="min-width:1180px">
+  <header data-screen-label="Верхняя панель" style="position:sticky;top:0;z-index:60;background:rgba(250,250,248,0.95);backdrop-filter:blur(7px);border-bottom:1px solid #E6E8E7">
+    <div style="max-width:1400px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;gap:18px">
+      <div style="display:flex;align-items:center;gap:11px">
+        <svg width="27" height="27" viewBox="0 0 28 28" aria-hidden="true">
+          <circle cx="14" cy="14" r="11.5" fill="none" stroke="#C9CDCF" stroke-width="1"></circle>
+          <circle cx="14" cy="14" r="6" fill="none" stroke="#E2E5E4" stroke-width="0.8"></circle>
+          <g data-anim="1" style="transform-origin:14px 14px;animation:sweep 4s linear infinite">
+            <path d="M14 14 L14 2.5 A11.5 11.5 0 0 1 21.4 5.2 Z" fill="rgba(43,74,117,0.12)"></path>
+            <line x1="14" y1="14" x2="14" y2="2.5" stroke="rgba(43,74,117,0.55)" stroke-width="1"></line>
+          </g>
+          <circle cx="14" cy="14" r="1.8" fill="#1F242A"></circle>
+          <circle data-anim="1" cx="17.8" cy="17.2" r="1.5" fill="#2B4A75" opacity="0" style="animation:lgBlip 4s linear -2.56s infinite"></circle>
+          <circle data-anim="1" cx="6" cy="16.9" r="1.5" fill="#1E6E62" opacity="0" style="animation:lgBlip 4s linear -1.22s infinite"></circle>
+          <circle data-anim="1" cx="17.9" cy="3.2" r="1.5" fill="#6B6880" opacity="0" style="animation:lgBlip 4s linear -3.78s infinite"></circle>
+        </svg>
+        <div>
+          <div style="font-size:16.5px;font-weight:600;letter-spacing:-0.01em;line-height:1.1">Радар AgPM</div>
+          <div style="font-size:10.5px;color:#8A9199;margin-top:2px">Агентное управление проектами</div>
+        </div>
+      </div>
+      <span style="flex:1"></span>
+      <span style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B">вт · 29 июля 2026 · выпуск 151</span>
+      <div style="display:flex;border:1px solid #E3E6E5;border-radius:6px;overflow:hidden;background:#FFFFFF">
+        <sc-for list="{{ periodBtns }}" as="b" hint-placeholder-count="3">
+          <button onClick="{{ b.on }}" style="{{ b.style }}">{{ b.label }}</button>
+        </sc-for>
+      </div>
+      <div style="position:relative;display:flex;align-items:center">
+        <svg width="13" height="13" viewBox="0 0 14 14" style="position:absolute;left:10px;pointer-events:none" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.2" fill="none" stroke="#9AA1A8" stroke-width="1.3"></circle>
+          <line x1="7" y1="0.8" x2="7" y2="2.8" stroke="#9AA1A8" stroke-width="1.3" stroke-linecap="round"></line>
+          <line x1="7" y1="11.2" x2="7" y2="13.2" stroke="#9AA1A8" stroke-width="1.3" stroke-linecap="round"></line>
+          <line x1="0.8" y1="7" x2="2.8" y2="7" stroke="#9AA1A8" stroke-width="1.3" stroke-linecap="round"></line>
+          <line x1="11.2" y1="7" x2="13.2" y2="7" stroke="#9AA1A8" stroke-width="1.3" stroke-linecap="round"></line>
+        </svg>
+        <input placeholder="Поиск по радару" value="{{ q }}" onChange="{{ onSearch }}" style="height:32px;width:198px;padding:0 12px 0 30px;border:1px solid #E3E6E5;border-radius:6px;background:#FFFFFF;font-size:12.5px;color:#1F242A" style-focus="border-color:#2B4A75">
+      </div>
+    </div>
+  </header>
+  <div data-screen-label="Фильтры" style="background:#FAFAF8;border-bottom:1px solid #EEF0EF">
+    <div style="max-width:1400px;margin:0 auto;padding:10px 28px 11px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-size:11px;color:#8A9199;min-width:62px">Периметр</span>
+        <sc-for list="{{ perimChips }}" as="p" hint-placeholder-count="4">
+          <button onClick="{{ p.on }}" style="{{ p.style }}">{{ p.label }} <span style="font-family:'PT Mono',monospace;font-size:11px;opacity:0.75">{{ p.count }}</span></button>
+        </sc-for>
+        <span style="width:1px;height:18px;background:#E3E6E5;margin:0 4px;border-radius:1px"></span>
+        <div style="display:flex;border:1px solid #E3E6E5;border-radius:6px;overflow:hidden;background:#FFFFFF">
+          <sc-for list="{{ coreBtns }}" as="c" hint-placeholder-count="3">
+            <button onClick="{{ c.on }}" style="{{ c.style }}" title="{{ c.tip }}">{{ c.label }}</button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ anyFilter }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onReset }}" style="font-size:12px;color:#2B4A75;text-decoration:underline;margin-left:4px">сбросить фильтры</button>
+        </sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-size:11px;color:#8A9199;min-width:62px">Рубрика</span>
+        <sc-for list="{{ rubChips }}" as="r" hint-placeholder-count="6">
+          <button onClick="{{ r.on }}" style="{{ r.style }}">{{ r.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  <main style="max-width:1400px;margin:0 auto;padding:0 28px">
+    <section data-screen-label="Сводка выпуска" style="margin-top:22px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;display:grid;grid-template-columns:0.9fr 0.9fr 1.05fr 1.5fr 0.85fr 252px">
+      <div style="padding:15px 18px">
+        <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#1F242A">{{ statViewed }}</div>
+        <div style="font-size:11px;color:#8A9199;margin-top:4px">просмотрено · {{ periodSub }}</div>
+      </div>
+      <div style="padding:15px 18px;border-left:1px solid #EEF0EF">
+        <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#1F242A">{{ statInc }}</div>
+        <div style="font-size:11px;color:#8A9199;margin-top:4px">включено в радар · {{ statIncSub }}</div>
+      </div>
+      <div style="padding:15px 18px;border-left:1px solid #EEF0EF">
+        <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#9AA1A8">{{ statCut }}</div>
+        <div style="font-size:11px;color:#8A9199;margin-top:4px">отсечено</div>
+        <div style="font-size:10px;color:#B3B9BE;margin-top:1px">дубли, реклама, agent-washing</div>
+      </div>
+      <div style="padding:15px 18px;border-left:1px solid #EEF0EF;display:flex;gap:18px">
+        <div>
+          <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#2B4A75">{{ statNear }}</div>
+          <div style="font-size:11px;color:#8A9199;margin-top:4px">близкий</div>
+        </div>
+        <div>
+          <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#1E6E62">{{ statMid }}</div>
+          <div style="font-size:11px;color:#8A9199;margin-top:4px">средний</div>
+        </div>
+        <div>
+          <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#6B6880">{{ statFar }}</div>
+          <div style="font-size:11px;color:#8A9199;margin-top:4px">дальний</div>
+        </div>
+      </div>
+      <div style="padding:15px 18px;border-left:1px solid #EEF0EF">
+        <div style="font-family:'PT Mono',monospace;font-size:25px;line-height:1.15;color:#1F242A">{{ statShare }}%</div>
+        <div style="font-size:11px;color:#8A9199;margin-top:4px">доля близкого периметра</div>
+      </div>
+      <div style="padding:15px 18px 12px;border-left:1px solid #EEF0EF">
+        <svg width="216" height="56" viewBox="0 0 216 56" aria-label="Динамика включённых материалов за 30 дней">
+          <rect x="0" y="37" width="5" height="19" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="7.5" y="33" width="5" height="23" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="15" y="38" width="5" height="18" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="22.5" y="48" width="5" height="8" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="30" y="48" width="5" height="8" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="37.5" y="31" width="5" height="25" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="45" y="27" width="5" height="29" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="52.5" y="26" width="5" height="30" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="60" y="25" width="5" height="31" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="67.5" y="29" width="5" height="27" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="75" y="47" width="5" height="9" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="82.5" y="47" width="5" height="9" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="90" y="25" width="5" height="31" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="97.5" y="20" width="5" height="36" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="105" y="18" width="5" height="38" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="112.5" y="21" width="5" height="35" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="120" y="25" width="5" height="31" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="127.5" y="44" width="5" height="12" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="135" y="46" width="5" height="10" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="142.5" y="20" width="5" height="36" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="150" y="14" width="5" height="42" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="157.5" y="18" width="5" height="38" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="165" y="12" width="5" height="44" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="172.5" y="16" width="5" height="40" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="180" y="43" width="5" height="13" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="187.5" y="46" width="5" height="10" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="195" y="17" width="5" height="39" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="202.5" y="12" width="5" height="44" rx="1" fill="#2B4A75" opacity="0.38"></rect>
+          <rect x="210" y="8" width="5" height="48" rx="1" fill="#2B4A75"></rect>
+        </svg>
+        <div style="font-size:11px;color:#8A9199;margin-top:4px">включено в радар · 1–29 июля</div>
+      </div>
+    </section>
+    <section data-screen-label="Что важно сегодня" style="margin-top:24px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;display:grid;grid-template-columns:1fr 298px;overflow:hidden">
+      <div style="padding:20px 26px 22px">
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <h2 style="font-size:16.5px;font-weight:600;margin:0">Что важно для AgPM сегодня</h2>
+          <span style="flex:1"></span>
+          <span style="font-size:11.5px;color:#8A9199">аналитическая выжимка · 29 июля</span>
+        </div>
+        <div style="margin-top:16px">
+          <sc-for list="{{ theses }}" as="th" hint-placeholder-count="4">
+            <div style="{{ th.rowStyle }}">
+              <span style="font-family:'PT Mono',monospace;font-size:12px;color:#2B4A75;padding-top:2px">{{ th.idx }}</span>
+              <span style="font-size:13.5px;line-height:1.55;color:#2A3138;text-wrap:pretty"><span style="font-weight:600;color:#1F242A">{{ th.lead }}</span> {{ th.rest }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border-left:1px solid #EEF0EF;background:rgba(43,74,117,0.03);padding:16px 18px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+        <sc-if value="{{ radarDay }}" hint-placeholder-val="{{ true }}">
+          <div style="width:234px;min-height:234px">{{ chartSonar }}</div>
+          <div style="display:flex;gap:13px;font-size:11px;color:#5B636B">
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#2B4A75;display:inline-block"></span>близкий · 9</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#1E6E62;display:inline-block"></span>средний · 17</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#6B6880;display:inline-block"></span>дальний · 11</span>
+          </div>
+          <div style="font-size:11px;color:#8A9199">37 материалов на радаре · выпуск за 29 июля</div>
+        </sc-if>
+        <sc-if value="{{ radarWeek }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative;width:212px">
+            <svg viewBox="0 0 240 240" style="width:100%;display:block" role="img" aria-label="Доли периметров за 7 дней">
+              <circle cx="120" cy="120" r="46" fill="none" stroke="#E9EBEA" stroke-width="10"></circle>
+              <circle cx="120" cy="120" r="72" fill="none" stroke="#E9EBEA" stroke-width="10"></circle>
+              <circle cx="120" cy="120" r="98" fill="none" stroke="#E9EBEA" stroke-width="10"></circle>
+              <line x1="158.7" y1="114.8" x2="172.5" y2="113" stroke="#B3B9BE" stroke-width="1.5"></line>
+              <line x1="121.2" y1="185" x2="121.5" y2="199" stroke="#B3B9BE" stroke-width="1.5"></line>
+              <line x1="210" y1="133.6" x2="223.8" y2="135.7" stroke="#B3B9BE" stroke-width="1.5"></line>
+              <circle data-anim="1" cx="120" cy="120" r="46" fill="none" stroke="#2B4A75" stroke-width="10" stroke-linecap="round" stroke-dasharray="68 221" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcA 1s ease-out 0.1s backwards"></circle>
+              <circle data-anim="1" cx="120" cy="120" r="72" fill="none" stroke="#1E6E62" stroke-width="10" stroke-linecap="round" stroke-dasharray="216 236" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcB 1s ease-out 0.25s backwards"></circle>
+              <circle data-anim="1" cx="120" cy="120" r="98" fill="none" stroke="#6B6880" stroke-width="10" stroke-linecap="round" stroke-dasharray="177 439" stroke-dashoffset="0" transform="rotate(-90 120 120)" style="animation:arcC 1s ease-out 0.4s backwards"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+              <div style="font-family:'PT Mono',monospace;font-size:21px;color:#1F242A">184</div>
+              <div style="font-size:9.5px;color:#8A9199">материала · 7 дней</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:11px;font-size:11px;color:#5B636B;flex-wrap:wrap;justify-content:center">
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#2B4A75;display:inline-block"></span>близкий 23% · 43</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#1E6E62;display:inline-block"></span>средний 48% · 88</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#6B6880;display:inline-block"></span>дальний 29% · 53</span>
+          </div>
+          <div style="font-size:11px;color:#8A9199;text-align:center">23–29 июля · серые засечки — предыдущие 7 дней</div>
+        </sc-if>
+        <sc-if value="{{ radarMonth }}" hint-placeholder-val="{{ false }}">
+          <div style="position:relative;width:240px">
+            {{ chartRing }}
+            <svg viewBox="0 0 300 300" style="position:absolute;inset:0;pointer-events:none" aria-hidden="true">
+              <g style="{{ hlMonth }}">
+                <path d="M150 150 L134.9 10.8 A140 140 0 0 1 165.1 10.8 Z" fill="rgba(43,74,117,0.07)"></path>
+              </g>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none">
+              <div style="font-family:'PT Mono',monospace;font-size:12.5px;color:#1F242A">{{ ringLbl }}</div>
+              <div style="font-size:9.5px;color:#8A9199;margin-top:1px">включено {{ ringTot }}</div>
+              <div style="display:flex;gap:6px;font-family:'PT Mono',monospace;font-size:10px;margin-top:2px;justify-content:center"><span style="color:#2B4A75">Б {{ ringN }}</span><span style="color:#1E6E62">С {{ ringM }}</span><span style="color:#6B6880">Д {{ ringF }}</span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:11px;font-size:11px;color:#5B636B;flex-wrap:wrap;justify-content:center">
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#2B4A75;display:inline-block"></span>близкий · 136</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#1E6E62;display:inline-block"></span>средний · 300</span>
+            <span style="display:inline-flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#6B6880;display:inline-block"></span>дальний · 168</span>
+          </div>
+          <div style="font-size:11px;color:#8A9199;text-align:center">включено по дням · 1–29 июля · приглушённые — выходные</div>
+        </sc-if>
+      </div>
+    </section>
+    <section data-screen-label="Три периметра" style="margin-top:36px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h2 style="font-size:17px;font-weight:600;margin:0">Материалы по периметрам</h2>
+        <span style="flex:1"></span>
+        <span style="font-size:11.5px;color:#8A9199">{{ periodTail }}</span>
+      </div>
+      <sc-if value="{{ anyFilter }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;margin-top:9px;font-size:12.5px;color:#5B636B">Фильтр: {{ filterSummary }}<button onClick="{{ onReset }}" style="font-size:12.5px;color:#2B4A75;text-decoration:underline">сбросить</button></div>
+      </sc-if>
+      <div style="display:flex;gap:16px;align-items:flex-start;margin-top:14px">
+        <sc-if value="{{ showNear }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1.07;min-width:0;background:rgba(43,74,117,0.032);border:1px solid rgba(43,74,117,0.12);border-radius:8px;padding:13px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2" fill="none" stroke="#2B4A75" stroke-width="1.9"></circle><circle cx="8" cy="8" r="4.9" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle><circle cx="8" cy="8" r="7.2" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle></svg>
+              <span style="font-size:14.5px;font-weight:600">Близкий периметр</span>
+              <span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#2B4A75">{{ nearCountLabel }}</span>
+            </div>
+            <div style="font-size:11.5px;color:#7A828B;margin:5px 0 12px;line-height:1.45">PMO и портфели, ИСУП, статусы и поручения, риски, human-in-the-loop</div>
+            <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div data-anim="1" style="height:118px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:96px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:110px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ nearList }}" as="c" hint-placeholder-count="3">
+                  <article style="background:#FFFFFF;border:1px solid #E4E7E6;border-radius:7px;padding:13px 15px;display:flex;flex-direction:column;gap:8px" style-hover="border-color:#B9C4D2">
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#8A9199">
+                      <svg width="13" height="13" viewBox="0 0 14 14" style="flex:none" aria-hidden="true"><circle cx="7" cy="7" r="1.9" fill="none" stroke="#2B4A75" stroke-width="1.7"></circle><circle cx="7" cy="7" r="4.2" fill="none" stroke="#DDE1E0" stroke-width="1"></circle><circle cx="7" cy="7" r="6.2" fill="none" stroke="#DDE1E0" stroke-width="1"></circle></svg>
+                      <span style="font-weight:500;color:#5B636B">{{ c.src }}</span>
+                      <span style="font-family:'PT Mono',monospace;font-size:11px">{{ c.date }}</span>
+                      <span style="flex:1"></span>
+                      <span title="{{ c.coreTitle }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#5B636B;cursor:default"><span style="font-size:9px;color:#1F242A">{{ c.coreMark }}</span>{{ c.coreLabel }}</span>
+                    </div>
+                    <div style="font-size:14.5px;font-weight:600;line-height:1.35;color:#1F242A;text-wrap:pretty">{{ c.t }}</div>
+                    <sc-if value="{{ showSum }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-size:13px;line-height:1.5;color:#4A525A">{{ c.sum }}</div>
+                    </sc-if>
+                    <div style="background:rgba(43,74,117,0.055);border-radius:5px;padding:8px 11px">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.05em;color:#2B4A75;margin-bottom:3px">ВЫВОД ДЛЯ AGPM</div>
+                      <div style="font-size:13px;line-height:1.5;color:#1F242A">{{ c.out }}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#8A9199;flex-wrap:wrap">
+                      <sc-for list="{{ c.tagList }}" as="tg" hint-placeholder-count="2"><span style="{{ tg.style }}">{{ tg.name }}</span></sc-for>
+                      <span style="flex:1"></span>
+                      <a href="{{ c.url }}" target="_blank" rel="noopener" style="font-size:11.5px;display:inline-flex;align-items:center;gap:4px">первоисточник<svg width="8" height="8" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 8 L8 2 M3.5 2 H8 V6.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+                    </div>
+                  </article>
+                </sc-for>
+              </div>
+              <sc-if value="{{ nearEmptyFlag }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:26px 10px;text-align:center;font-size:12.5px;color:#8A9199">Материалов по этому фильтру нет</div>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{ showFoot }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:12px;font-size:11px;color:#8A9199">{{ nearFoot }} · <a href="https://radar.aipractice.space/" target="_blank" rel="noopener" style="font-size:11px">полный выпуск</a></div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showMid }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;min-width:0;padding:13px;border:1px solid transparent">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle><circle cx="8" cy="8" r="4.9" fill="none" stroke="#1E6E62" stroke-width="1.9"></circle><circle cx="8" cy="8" r="7.2" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle></svg>
+              <span style="font-size:14.5px;font-weight:600">Средний периметр</span>
+              <span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#1E6E62">{{ midCountLabel }}</span>
+            </div>
+            <div style="font-size:11.5px;color:#7A828B;margin:5px 0 12px;line-height:1.45">enterprise workflow, governance, безопасность, шлюзы, оркестрация</div>
+            <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div data-anim="1" style="height:110px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:120px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:96px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ midList }}" as="c" hint-placeholder-count="3">
+                  <article style="background:#FFFFFF;border:1px solid #E4E7E6;border-radius:7px;padding:13px 15px;display:flex;flex-direction:column;gap:8px" style-hover="border-color:#AFC6C0">
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#8A9199">
+                      <svg width="13" height="13" viewBox="0 0 14 14" style="flex:none" aria-hidden="true"><circle cx="7" cy="7" r="1.9" fill="none" stroke="#DDE1E0" stroke-width="1"></circle><circle cx="7" cy="7" r="4.2" fill="none" stroke="#1E6E62" stroke-width="1.7"></circle><circle cx="7" cy="7" r="6.2" fill="none" stroke="#DDE1E0" stroke-width="1"></circle></svg>
+                      <span style="font-weight:500;color:#5B636B">{{ c.src }}</span>
+                      <span style="font-family:'PT Mono',monospace;font-size:11px">{{ c.date }}</span>
+                      <span style="flex:1"></span>
+                      <span title="{{ c.coreTitle }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#5B636B;cursor:default"><span style="font-size:9px;color:#1F242A">{{ c.coreMark }}</span>{{ c.coreLabel }}</span>
+                    </div>
+                    <div style="font-size:14.5px;font-weight:600;line-height:1.35;color:#1F242A;text-wrap:pretty">{{ c.t }}</div>
+                    <sc-if value="{{ showSum }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-size:13px;line-height:1.5;color:#4A525A">{{ c.sum }}</div>
+                    </sc-if>
+                    <div style="background:rgba(30,110,98,0.06);border-radius:5px;padding:8px 11px">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.05em;color:#1E6E62;margin-bottom:3px">ВЫВОД ДЛЯ AGPM</div>
+                      <div style="font-size:13px;line-height:1.5;color:#1F242A">{{ c.out }}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#8A9199;flex-wrap:wrap">
+                      <sc-for list="{{ c.tagList }}" as="tg" hint-placeholder-count="2"><span style="{{ tg.style }}">{{ tg.name }}</span></sc-for>
+                      <span style="flex:1"></span>
+                      <a href="{{ c.url }}" target="_blank" rel="noopener" style="font-size:11.5px;display:inline-flex;align-items:center;gap:4px;color:#1E6E62">первоисточник<svg width="8" height="8" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 8 L8 2 M3.5 2 H8 V6.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+                    </div>
+                  </article>
+                </sc-for>
+              </div>
+              <sc-if value="{{ midEmptyFlag }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:26px 10px;text-align:center;font-size:12.5px;color:#8A9199">Материалов по этому фильтру нет</div>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{ showFoot }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:12px;font-size:11px;color:#8A9199">{{ midFoot }} · <a href="https://radar.aipractice.space/" target="_blank" rel="noopener" style="font-size:11px">полный выпуск</a></div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ showFar }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;min-width:0;padding:13px;border:1px solid transparent">
+            <div style="display:flex;align-items:center;gap:8px">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle><circle cx="8" cy="8" r="4.9" fill="none" stroke="#D3D8DB" stroke-width="1.1"></circle><circle cx="8" cy="8" r="7.2" fill="none" stroke="#6B6880" stroke-width="1.9"></circle></svg>
+              <span style="font-size:14.5px;font-weight:600">Дальний периметр</span>
+              <span style="font-family:'PT Mono',monospace;font-size:12.5px;color:#6B6880">{{ farCountLabel }}</span>
+            </div>
+            <div style="font-size:11.5px;color:#7A828B;margin:5px 0 12px;line-height:1.45">рынок агентов, платформы, MCP, инфраструктура, ранние сигналы</div>
+            <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div data-anim="1" style="height:96px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:118px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+                <div data-anim="1" style="height:104px;border-radius:7px;background:#ECEEED;animation:pulse 1.1s ease-in-out infinite"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ farList }}" as="c" hint-placeholder-count="3">
+                  <article style="background:#FFFFFF;border:1px solid #E4E7E6;border-radius:7px;padding:13px 15px;display:flex;flex-direction:column;gap:8px" style-hover="border-color:#C6C4D2">
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#8A9199">
+                      <svg width="13" height="13" viewBox="0 0 14 14" style="flex:none" aria-hidden="true"><circle cx="7" cy="7" r="1.9" fill="none" stroke="#DDE1E0" stroke-width="1"></circle><circle cx="7" cy="7" r="4.2" fill="none" stroke="#DDE1E0" stroke-width="1"></circle><circle cx="7" cy="7" r="6.2" fill="none" stroke="#6B6880" stroke-width="1.7"></circle></svg>
+                      <span style="font-weight:500;color:#5B636B">{{ c.src }}</span>
+                      <span style="font-family:'PT Mono',monospace;font-size:11px">{{ c.date }}</span>
+                      <span style="flex:1"></span>
+                      <span title="{{ c.coreTitle }}" style="display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:#5B636B;cursor:default"><span style="font-size:9px;color:#1F242A">{{ c.coreMark }}</span>{{ c.coreLabel }}</span>
+                    </div>
+                    <div style="font-size:14.5px;font-weight:600;line-height:1.35;color:#1F242A;text-wrap:pretty">{{ c.t }}</div>
+                    <sc-if value="{{ showSum }}" hint-placeholder-val="{{ true }}">
+                      <div style="font-size:13px;line-height:1.5;color:#4A525A">{{ c.sum }}</div>
+                    </sc-if>
+                    <div style="background:rgba(107,104,128,0.07);border-radius:5px;padding:8px 11px">
+                      <div style="font-size:10px;font-weight:600;letter-spacing:0.05em;color:#5B5872;margin-bottom:3px">ВЫВОД ДЛЯ AGPM</div>
+                      <div style="font-size:13px;line-height:1.5;color:#1F242A">{{ c.out }}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;font-size:11.5px;color:#8A9199;flex-wrap:wrap">
+                      <sc-for list="{{ c.tagList }}" as="tg" hint-placeholder-count="2"><span style="{{ tg.style }}">{{ tg.name }}</span></sc-for>
+                      <span style="flex:1"></span>
+                      <a href="{{ c.url }}" target="_blank" rel="noopener" style="font-size:11.5px;display:inline-flex;align-items:center;gap:4px;color:#5B5872">первоисточник<svg width="8" height="8" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 8 L8 2 M3.5 2 H8 V6.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+                    </div>
+                  </article>
+                </sc-for>
+              </div>
+              <sc-if value="{{ farEmptyFlag }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:26px 10px;text-align:center;font-size:12.5px;color:#8A9199">Материалов по этому фильтру нет</div>
+              </sc-if>
+            </sc-if>
+            <sc-if value="{{ showFoot }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-top:12px;font-size:11px;color:#8A9199">{{ farFoot }} · <a href="https://radar.aipractice.space/" target="_blank" rel="noopener" style="font-size:11px">полный выпуск</a></div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </section>
+    <section data-screen-label="Динамика трендов" style="margin-top:42px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h2 style="font-size:17px;font-weight:600;margin:0">Динамика трендов</h2>
+        <span style="flex:1"></span>
+        <span style="font-size:11.5px;color:#8A9199">1–29 июля · агрегаты радара</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.85fr 1fr;gap:16px;margin-top:14px">
+        <div style="background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px 18px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div style="font-size:13.5px;font-weight:600">Материалы в радаре по дням</div>
+            <span style="flex:1"></span>
+            <span style="display:inline-flex;align-items:center;gap:11px;font-size:11px;color:#5B636B">
+              <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#2B4A75;display:inline-block"></span>близкий</span>
+              <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#1E6E62;display:inline-block"></span>средний</span>
+              <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:2px;background:#6B6880;display:inline-block"></span>дальний</span>
+              <span style="color:#8A9199">┄ включено, % от просмотренного</span>
+            </span>
+          </div>
+          <div style="margin-top:12px;min-height:212px">{{ chartMain }}</div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px 18px;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div style="font-size:13.5px;font-weight:600">Плотность сигнала</div>
+            <span style="flex:1"></span>
+            <span style="font-size:11px;color:#8A9199">календарь июля</span>
+          </div>
+          <div style="margin-top:14px;min-height:170px;flex:1;display:flex;align-items:center;justify-content:center">{{ chartHeat }}</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10.5px;color:#8A9199;justify-content:center;margin-top:8px">
+            реже
+            <span style="width:11px;height:11px;border-radius:3px;background:rgba(43,74,117,0.1);display:inline-block"></span>
+            <span style="width:11px;height:11px;border-radius:3px;background:rgba(43,74,117,0.28);display:inline-block"></span>
+            <span style="width:11px;height:11px;border-radius:3px;background:rgba(43,74,117,0.48);display:inline-block"></span>
+            <span style="width:11px;height:11px;border-radius:3px;background:rgba(43,74,117,0.67);display:inline-block"></span>
+            <span style="width:11px;height:11px;border-radius:3px;background:rgba(43,74,117,0.87);display:inline-block"></span>
+            чаще
+          </div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px 18px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div style="font-size:13.5px;font-weight:600">Рубрики за 30 дней</div>
+            <span style="flex:1"></span>
+            <span style="font-size:11px;color:#8A9199">материал может входить в несколько рубрик</span>
+          </div>
+          <div style="margin-top:6px">
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Governance</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#AD7420;width:100%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">118</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Agent workflow</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:88%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">104</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Безопасность</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#AD7420;width:81%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">96</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="стабильно"><path d="M2 6 H9.5 M7 3.5 L9.5 6 L7 8.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">PMO и портфели</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:66%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">78</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">MCP и шлюзы</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:54%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">64</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="стабильно"><path d="M2 6 H9.5 M7 3.5 L9.5 6 L7 8.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">ИСУП и координация</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:44%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">52</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Enterprise adoption</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:40%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">47</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="снижается"><path d="M2.5 2.5 L9.5 9.5 M9.5 4.5 V9.5 H4.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Вендоры и релизы</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:35%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">41</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="стабильно"><path d="M2 6 H9.5 M7 3.5 L9.5 6 L7 8.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Исследования</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:31%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">36</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Human-in-the-loop</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:25%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">29</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="растёт"><path d="M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+            <div style="display:grid;grid-template-columns:170px 1fr 40px 16px;gap:10px;align-items:center;margin-top:9px"><div style="font-size:12.5px;color:#3A4148">Funding / M&amp;A</div><div style="min-width:0"><div style="height:7px;border-radius:2px;background:#3D4A5C;width:15%"></div></div><div style="font-family:'PT Mono',monospace;font-size:12px;color:#5B636B;text-align:right">18</div><svg width="12" height="12" viewBox="0 0 12 12" aria-label="снижается"><path d="M2.5 2.5 L9.5 9.5 M9.5 4.5 V9.5 H4.5" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+          </div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #E6E8E7;border-radius:8px;padding:16px 18px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div style="font-size:13.5px;font-weight:600">Источники</div>
+            <span style="flex:1"></span>
+            <span style="font-size:11px;color:#8A9199">собрано → включено · 30 дней</span>
+          </div>
+          <div style="margin-top:6px">
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">AI Agents Directory</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:23.3%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">163 → 38</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The New Stack</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:58.9%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:19%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">96 → 31</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">VentureBeat</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:54%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:14.7%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">88 → 24</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Блоги вендоров</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:45.4%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:17.8%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">74 → 29</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">InfoQ</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:37.4%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:13.5%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">61 → 22</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">arXiv</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:35.6%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:7.4%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">58 → 12</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">CNews / TAdviser</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:27%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:8%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">44 → 13</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Gartner и аналитика</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:20.2%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:10.4%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">33 → 17</div></div>
+            <div style="display:grid;grid-template-columns:138px 1fr 74px;gap:10px;align-items:center;margin-top:10px"><div style="font-size:12.5px;color:#3A4148;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">PMI</div><div style="position:relative;height:7px;border-radius:2px;background:#F0F2F1;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:12.9%;background:#D5DAD9;border-radius:2px"></div><div style="position:absolute;left:0;top:0;bottom:0;width:8.6%;background:#2B4A75;border-radius:2px"></div></div><div style="font-family:'PT Mono',monospace;font-size:11.5px;color:#5B636B;text-align:right;white-space:nowrap">21 → 14</div></div>
+            <div style="font-size:11px;color:#8A9199;margin-top:12px">Самая высокая доля включённого — у PMI и отраслевой аналитики.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section data-screen-label="Хронология выпусков" style="margin-top:42px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h2 style="font-size:17px;font-weight:600;margin:0">Хронология выпусков</h2>
+        <span style="flex:1"></span>
+        <span style="font-size:11.5px;color:#8A9199">ежедневно · последние 5 дней</span>
+      </div>
+      <div style="border-top:1px solid #E6E8E7;margin-top:12px">
+        <sc-for list="{{ tlDays }}" as="day" hint-placeholder-count="3">
+          <div style="border-bottom:1px solid #E6E8E7;padding:16px 0;display:grid;grid-template-columns:92px 1fr 232px;gap:22px">
+            <div>
+              <div style="font-family:'PT Mono',monospace;font-size:15px;color:#1F242A">{{ day.date }}</div>
+              <div style="font-size:11px;color:#8A9199;margin-top:3px">{{ day.dow }}</div>
+            </div>
+            <div style="min-width:0">
+              <div style="font-size:13px;line-height:1.55;color:#2A3138;max-width:660px;text-wrap:pretty">{{ day.brief }}</div>
+              <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">
+                <sc-for list="{{ day.keyItems }}" as="ki" hint-placeholder-count="3">
+                  <div style="display:flex;gap:8px;align-items:flex-start">
+                    <span style="{{ ki.dotStyle }}"></span>
+                    <span style="font-size:12.5px;font-weight:500;color:#1F242A;line-height:1.4">{{ ki.t }}</span>
+                    <span style="font-size:11px;color:#9AA1A8;white-space:nowrap;padding-top:1px">{{ ki.src }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:11px;color:#9AA1A8;margin-top:9px">{{ day.srcLine }}</div>
+              <sc-if value="{{ day.open }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:10px;background:#FFFFFF;border:1px solid #E6E8E7;border-radius:7px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ day.items }}" as="it" hint-placeholder-count="3">
+                    <div style="display:flex;gap:8px;align-items:flex-start">
+                      <span style="{{ it.dotStyle }}"></span>
+                      <span style="font-size:12.5px;color:#1F242A;flex:1;line-height:1.4;min-width:0">{{ it.t }}</span>
+                      <span style="font-size:11px;color:#9AA1A8;white-space:nowrap;padding-top:1px">{{ it.src }}</span>
+                      <a href="{{ it.url }}" target="_blank" rel="noopener" style="display:inline-flex;padding-top:2px" aria-label="Первоисточник"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 8 L8 2 M3.5 2 H8 V6.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:11px;color:#8A9199;margin-top:2px">{{ day.extraLine }} · <a href="https://radar.aipractice.space/" target="_blank" rel="noopener" style="font-size:11px">полный выпуск</a></div>
+                </div>
+              </sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:#EFF1F0">
+                <span style="{{ day.bn }}"></span>
+                <span style="{{ day.bm }}"></span>
+                <span style="{{ day.bf }}"></span>
+              </div>
+              <div style="font-family:'PT Mono',monospace;font-size:11px;color:#5B636B">{{ day.counts }}</div>
+              <button onClick="{{ day.onToggle }}" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#2B4A75;margin-top:4px;align-self:flex-start">состав дня<svg width="10" height="10" viewBox="0 0 10 10" style="{{ day.chevStyle }}" aria-hidden="true"><path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    <section data-screen-label="Рубрикатор" style="margin-top:42px;margin-bottom:56px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <h2 style="font-size:17px;font-weight:600;margin:0">Рубрикатор</h2>
+        <span style="flex:1"></span>
+        <span style="font-size:11.5px;color:#8A9199">604 материала за 30 дней · клик по рубрике фильтрует ленты периметров</span>
+      </div>
+      <div style="margin-top:14px;border:1px solid #E6E8E7;border-radius:8px;overflow:hidden;background:#E6E8E7;display:grid;grid-template-columns:repeat(3,1fr);gap:1px">
+        <sc-for list="{{ rubCells }}" as="r" hint-placeholder-count="6">
+          <button onClick="{{ r.onPick }}" style="{{ r.style }}">
+            <span style="flex:1;font-size:13px;font-weight:500;text-align:left;line-height:1.35">{{ r.name }}</span>
+            <svg width="12" height="12" viewBox="0 0 12 12" style="flex:none" aria-hidden="true"><path d="{{ r.trend }}" fill="none" stroke="#6B7178" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <span style="font-family:'PT Mono',monospace;font-size:12px;color:#8A9199">{{ r.count }}</span>
+          </button>
+        </sc-for>
+        <div style="background:#FBFBFA;padding:13px 16px;font-size:11px;color:#9AA1A8;line-height:1.5">Материал может входить в несколько рубрик. Активная рубрика фильтрует ленты периметров выше.</div>
+      </div>
+    </section>
+  </main>
+  <footer data-screen-label="Методика и источники" style="background:#16212C;position:relative;overflow:hidden">
+    <svg width="430" height="430" viewBox="0 0 430 430" style="position:absolute;right:-80px;top:-90px;pointer-events:none" aria-hidden="true">
+      <circle cx="215" cy="215" r="90" fill="none" stroke="rgba(199,210,220,0.06)" stroke-width="1"></circle>
+      <circle cx="215" cy="215" r="150" fill="none" stroke="rgba(199,210,220,0.06)" stroke-width="1"></circle>
+      <circle cx="215" cy="215" r="208" fill="none" stroke="rgba(199,210,220,0.05)" stroke-width="1"></circle>
+    </svg>
+    <div style="max-width:1400px;margin:0 auto;padding:42px 28px 0;position:relative;display:grid;grid-template-columns:1.35fr 1fr;gap:56px">
+      <div>
+        <div style="font-size:14.5px;font-weight:600;color:#F2F5F7">Как радар отбирает материалы</div>
+        <p style="font-size:13px;line-height:1.7;color:#AEBAC5;margin:12px 0 0;max-width:620px;text-wrap:pretty">Каждый материал проходит фильтр методики: проверяем первоисточник, полноту и целостность фактов, отсеиваем дубли, пересказы и agent-washing — маркетинг, выдающий обычную автоматизацию за агентность. В радар попадает примерно каждый седьмой просмотренный материал.</p>
+        <p style="font-size:13px;line-height:1.7;color:#AEBAC5;margin:10px 0 0;max-width:620px;text-wrap:pretty">Методическая рамка: агентность значима там, где возникает управленческий контур — ответственность, контроль, риск, портфель, PMO или проектная координация. Материалы вне этого контура остаются рыночным фоном и в выводы не попадают.</p>
+      </div>
+      <div>
+        <div style="font-size:14.5px;font-weight:600;color:#F2F5F7">Источники наблюдения</div>
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.07)"><span style="font-size:12.5px;color:#AEBAC5">AI Agents Directory</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">163</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.07)"><span style="font-size:12.5px;color:#AEBAC5">The New Stack</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">96</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.07)"><span style="font-size:12.5px;color:#AEBAC5">VentureBeat</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">88</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.07)"><span style="font-size:12.5px;color:#AEBAC5">Блоги вендоров</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">74</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.07)"><span style="font-size:12.5px;color:#AEBAC5">InfoQ</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">61</span></div>
+          <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0"><span style="font-size:12.5px;color:#AEBAC5">arXiv</span><span style="font-family:'PT Mono',monospace;font-size:12px;color:#7F8B97">58</span></div>
+        </div>
+        <div style="font-size:11.5px;color:#7F8B97;margin-top:10px">Всего 23 источника · полный список в каждом выпуске</div>
+      </div>
+    </div>
+    <div style="max-width:1400px;margin:38px auto 0;padding:0 28px;position:relative">
+      <div style="border-top:1px solid rgba(255,255,255,0.1);padding:14px 0 18px;display:flex;align-items:center;gap:16px">
+        <span style="font-size:11.5px;color:#7F8B97">© 2026 Радар агентного проектного управления</span>
+        <span style="flex:1"></span>
+        <span style="font-family:'PT Mono',monospace;font-size:11px;color:#7F8B97">radar.aipractice.space · обновление ежедневно в 08:00 МСК</span>
+      </div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultPeriod&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;День&quot;,&quot;7 дней&quot;,&quot;30 дней&quot;],&quot;default&quot;:&quot;День&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Поведение&quot;},&quot;compactCards&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Поведение&quot;},&quot;radarMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Поведение&quot;}}">
+class Component extends DCLogic {
+  state = { period: null, perimeter: 'all', rubric: null, core: 'all', q: '', loading: false, openDay: null, tick: 0 };
+
+  TS = [[4,8,3,152],[5,9,4,161],[3,7,4,148],[2,3,1,64],[1,3,2,58],[5,10,4,170],[6,11,5,176],[7,12,4,181],[5,13,6,188],[6,10,5,174],[2,4,1,71],[2,3,2,66],[7,12,5,183],[8,14,6,196],[9,15,5,204],[7,13,7,192],[6,12,6,187],[3,4,2,74],[2,4,2,69],[8,14,6,198],[9,16,7,209],[8,15,6,201],[10,17,7,214],[9,14,8,206],[3,5,2,78],[2,4,2,70],[8,15,7,197],[10,16,8,212],[11,17,9,214]];
+
+  DLBL = {0:'29.07',1:'28.07',2:'27.07',3:'26.07',4:'25.07',6:'23.07',9:'20.07',13:'16.07',15:'14.07',20:'09.07'};
+
+  RUBFULL = {'PMO и портфели':'AgPM / PMO / портфели','ИСУП':'ИСУП и проектная координация','Governance':'Governance и контроль агентов','Human-in-the-loop':'Human-in-the-loop и ответственность','Workflow':'Agent workflow и оркестрация','Безопасность':'Безопасность и права доступа','MCP':'MCP, шлюзы и инфраструктура','Adoption':'Enterprise adoption и операционные модели','Вендоры':'Вендоры и продуктовые релизы','Исследования':'Исследования и методология','Funding':'Funding / M&A'};
+  CHIPLBL = {Workflow:'Agent workflow',Adoption:'Enterprise adoption',Funding:'Funding / M&A',MCP:'MCP и шлюзы'};
+  RUBSTATS = [['Governance',118,'up'],['Workflow',104,'up'],['Безопасность',96,'flat'],['PMO и портфели',78,'up'],['MCP',64,'flat'],['ИСУП',52,'up'],['Adoption',47,'down'],['Вендоры',41,'flat'],['Исследования',36,'up'],['Human-in-the-loop',29,'up'],['Funding',18,'down']];
+  TRD = {up:'M2.5 9.5 L9.5 2.5 M4.5 2.5 H9.5 V7.5',flat:'M2 6 H9.5 M7 3.5 L9.5 6 L7 8.5',down:'M2.5 2.5 L9.5 9.5 M9.5 4.5 V9.5 H4.5'};
+
+  MATERIALS = [
+    {t:'PMI открыл обсуждение рамки Agentic Delivery Framework',src:'PMI',url:'https://www.pmi.org',d:0,p:'near',rub:['PMO и портфели','Исследования'],core:true,key:true,sum:'Институт вынес на публичное обсуждение драфт стандарта о ролях ИИ-агентов в проектной поставке: агент-координатор, агент статуса, контур ответственности руководителя проекта. Комментарии принимаются до 15 сентября.',out:'Первый отраслевой стандарт, прямо описывающий AgPM. Сверить собственную методику с драфтом до финальной редакции.'},
+    {t:'Rovo в Jira: агент собирает статусы и готовит поручения',src:'Atlassian Blog',url:'https://www.atlassian.com/blog',d:0,p:'near',rub:['ИСУП','Workflow'],core:true,key:true,sum:'Агент опрашивает задачи, формирует сводку для руководителя и заводит поручения по итогам совещаний. Любая операция записи требует подтверждения человека.',out:'Готовый паттерн human-in-the-loop для статусного контура ИСУП: агент готовит, человек утверждает.'},
+    {t:'ServiceNow добавил доказательную цепочку в портфельный ассистент',src:'VentureBeat',url:'https://venturebeat.com',d:0,p:'near',rub:['PMO и портфели','Governance'],core:true,gov:true,key:true,sum:'Каждая рекомендация по портфелю сопровождается журналом: источники данных, промежуточные шаги, версия модели. Журнал доступен внутреннему аудиту.',out:'Аудируемость рекомендаций становится требованием к ИИ-инструментам PMO, а не опцией.'},
+    {t:'Кейс: агент поручений в ИСУП девелопера сократил просрочку на 12 п. п.',src:'CNews',url:'https://www.cnews.ru',d:0,p:'near',rub:['ИСУП','Adoption'],core:false,sum:'Агент разбирает протоколы совещаний, заводит поручения и напоминает исполнителям. За квартал доля просроченных поручений снизилась с 31% до 19%.',out:'Сценарий переносим в любую ИСУП с дисциплиной протоколов; критично качество исходных записей.'},
+    {t:'Entra Agent ID вышел в общий доступ',src:'Microsoft Learn',url:'https://learn.microsoft.com',d:0,p:'mid',rub:['Безопасность','Governance'],core:true,gov:true,key:true,sum:'ИИ-агент получает собственную идентичность: права, владельца и журнал действий наравне с сотрудником. Заявлена поддержка сторонних агентных платформ через открытый профиль.',out:'Права и идентичность агентов — базовый контур контроля. Закладывать в архитектуру ИСУП с первого пилота.'},
+    {t:'OWASP обновил Top-10 рисков агентных систем',src:'OWASP',url:'https://owasp.org',d:0,p:'mid',rub:['Безопасность'],core:true,gov:true,sum:'В список вошли злоупотребление делегированными полномочиями и атаки через цепочки инструментов. Для каждого риска описаны практические контроли.',out:'Готовый чек-лист для приёмки агентных функций в контуре PMO и ИСУП.'},
+    {t:'LangGraph Platform: корпоративный шлюз для оркестрации агентов',src:'InfoQ',url:'https://www.infoq.com',d:0,p:'mid',rub:['Workflow','MCP'],core:true,sum:'Единая точка политики: маршрутизация запросов, лимиты, журналирование вызовов, установка on-prem. Позиционируется как слой между агентами и корпоративными системами.',out:'Агентный шлюз оформляется в отдельный слой ИТ-архитектуры — учитывать при планировании интеграций ИСУП.'},
+    {t:'Gartner: к 2028 году 40% корпоративных процессов получат агентные шаги',src:'Gartner',url:'https://www.gartner.com',d:0,p:'mid',rub:['Adoption','Исследования'],core:false,sum:'Прогноз сопровождается оговоркой: около половины пилотов не дойдут до эксплуатации из-за отсутствия операционной модели и владельца процесса.',out:'Аргумент для дорожной карты AgPM: узкое место — операционная модель, а не инструменты.'},
+    {t:'Anthropic описал паттерны надёжных агентных workflow',src:'Anthropic',url:'https://www.anthropic.com',d:0,p:'mid',rub:['Workflow','Исследования'],core:true,sum:'Разобраны паттерны «оркестратор — исполнители», контрольные точки и деградация до ручного режима при сбоях. Акцент на простых, проверяемых схемах.',out:'Статусный контур проекта проектируется как workflow с контрольными точками — схема переносится напрямую.'},
+    {t:'MCP: спецификация 2026-07 вводит реестр серверов',src:'MCP Project',url:'https://modelcontextprotocol.io',d:0,p:'far',rub:['MCP'],core:true,key:true,sum:'Добавлены реестр серверов, версионирование и декларации разрешений. Поддержку новой версии подтвердили основные вендоры агентных платформ.',out:'Стандартизация протокола снижает риск привязки к вендору при выборе платформы для ИСУП.'},
+    {t:'Протокол A2A передан в Linux Foundation',src:'The New Stack',url:'https://thenewstack.io',d:0,p:'far',rub:['MCP','Вендоры'],core:true,sum:'Обмен задачами между агентами разных вендоров переходит под нейтральное управление. Опубликована дорожная карта совместимости.',out:'Межагентный обмен задачами — будущий транспорт кросс-командной координации.'},
+    {t:'AI Agents Directory: +118 агентов за июль',src:'AI Agents Directory',url:'https://aiagentsdirectory.com',d:0,p:'far',rub:['Вендоры'],core:false,sum:'Рост сосредоточен в категориях workflow и коммуникаций; доля enterprise-агентов достигла 34% каталога.',out:'Рынок смещается от демо к операционным сценариям — сигнал зрелости сегмента.'},
+    {t:'Sierra привлекла $350 млн на корпоративных агентов',src:'TechCrunch',url:'https://techcrunch.com',d:0,p:'far',rub:['Funding'],core:false,sum:'Раунд C при оценке $10 млрд. Компания продаёт результат, а не лицензии: оплата за решённые обращения.',out:'Модель оплаты за результат может дойти и до проектных сервисов — следить за прецедентами.'},
+    {t:'Asana: итоги пилота AI teammates в 40 компаниях',src:'Asana',url:'https://asana.com',d:1,p:'near',rub:['PMO и портфели','Adoption'],core:true,key:true,sum:'Руководители проектов экономят около четырёх часов в неделю на статус-операциях. Главный барьер — доверие к данным, а не качество моделей.',out:'Метрика «часы РП в неделю» — удобное обоснование пилота AgPM перед спонсором.'},
+    {t:'Copilot Studio: мультиагентная оркестрация в GA',src:'Microsoft Learn',url:'https://learn.microsoft.com',d:1,p:'mid',rub:['Workflow','Вендоры'],core:true,key:true,sum:'Сценарии из нескольких агентов с передачей контекста и точками подтверждения человеком вышли из предпросмотра.',out:'Оркестрация перестала быть экспериментом — можно планировать её в продуктивные контуры.'},
+    {t:'Минцифры: проект рекомендаций по ИИ-агентам в госИТ',src:'TAdviser',url:'https://www.tadviser.ru',d:1,p:'mid',rub:['Governance'],core:false,gov:true,key:true,sum:'Журналирование действий, назначенный оператор, ответственность за решения агента. Обсуждение до конца августа.',out:'Ориентир будущих регуляторных требований к ИСУП с агентными функциями в госсекторе.'},
+    {t:'Composio: маркетплейс инструментов для агентов',src:'VentureBeat',url:'https://venturebeat.com',d:1,p:'far',rub:['MCP','Вендоры'],core:false,sum:'Каталог готовых интеграций с корпоративными системами: заявлено более 800 коннекторов и поддержка MCP.',out:'Инфраструктура интеграций коммодитизируется — стоимость подключения агентов к ИСУП снижается.'},
+    {t:'Okta расширила управление машинными идентичностями',src:'Okta',url:'https://www.okta.com',d:2,p:'mid',rub:['Безопасность'],core:true,gov:true,key:true,sum:'Жизненный цикл идентичности агента: выпуск, ротация прав, отзыв. Добавлен отчёт о правах агентов для аудита.',out:'Отзыв прав агента должен быть таким же штатным процессом, как увольнение сотрудника.'},
+    {t:'arXiv: обзор методов мультиагентного планирования',src:'arXiv',url:'https://arxiv.org',d:2,p:'far',rub:['Исследования'],core:false,key:true,sum:'Систематизированы более 60 работ по декомпозиции задач и распределению ролей между агентами; выделены открытые проблемы устойчивости.',out:'Научная база для методики декомпозиции проектных задач между агентами.'},
+    {t:'Notion представил агентные рабочие пространства',src:'Notion',url:'https://www.notion.so',d:3,p:'far',rub:['Вендоры'],core:false,key:true,sum:'Агент собирает контекст из страниц и баз, выполняет многошаговые действия внутри рабочего пространства.',out:'Персональная агентность подтягивается к командной — растёт привычка делегировать агенту.'},
+    {t:'PMI Pulse: 27% PMO уже применяют ИИ в отчётности',src:'PMI',url:'https://www.pmi.org',d:4,p:'near',rub:['PMO и портфели','Исследования'],core:true,key:true,sum:'Опрос 1 200 проектных офисов: отчётность и сбор статусов — первые сценарии. 27% используют регулярно, ещё 41% пилотирует.',out:'ИИ в отчётности PMO становится нормой — вопрос смещается к контролю качества данных.'},
+    {t:'Agentforce расширен на внутренние процессы',src:'Salesforce',url:'https://www.salesforce.com',d:4,p:'mid',rub:['Workflow','Вендоры'],core:false,key:true,sum:'Агенты для согласований, закупок и внутренних заявок; конструктор процессов с точками подтверждения.',out:'Внутренние согласования — соседний с проектным контуром сценарий, удобный для раннего пилота.'},
+    {t:'Российская ИСУП показала агента реестра рисков',src:'CNews',url:'https://www.cnews.ru',d:6,p:'near',rub:['ИСУП','Вендоры'],core:true,sum:'Агент предлагает формулировки рисков из статус-отчётов, назначает владельцев и напоминает о митигации.',out:'Реестр рисков — удачная точка входа агентности в ИСУП: высокая рутина, ясные правила.'},
+    {t:'EU AI Act: разъяснения по агентным системам',src:'Euractiv',url:'https://www.euractiv.com',d:9,p:'mid',rub:['Governance'],core:true,gov:true,sum:'Комиссия уточнила: многошаговые системы с автономными действиями попадают под требования журналирования и человеческого надзора.',out:'Для контуров с ЕС-присутствием журналирование решений агента обязательно — проектировать заранее.'},
+    {t:'OpenAI обновил платформу управления агентами',src:'OpenAI',url:'https://openai.com',d:13,p:'far',rub:['Вендоры','MCP'],core:true,sum:'Управление парком агентов, квоты, аудит вызовов инструментов; заявлена совместимость с реестром MCP.',out:'Консоли управления парком агентов — прообраз «ИСУП для агентов»; следить за паттернами интерфейса.'},
+    {t:'HBR: ответственность в паре «руководитель — агент»',src:'HBR',url:'https://hbr.org',d:15,p:'near',rub:['Human-in-the-loop','Исследования'],core:true,sum:'Разбор кейсов делегирования решений агентам: где размывается ответственность и как её возвращают через явные точки подтверждения.',out:'Точки подтверждения — носитель ответственности, а не тормоз; фиксировать их в регламенте проекта.'},
+    {t:'ISO начала работу над стандартом менеджмента агентных систем',src:'ISO',url:'https://www.iso.org',d:20,p:'mid',rub:['Governance','Исследования'],core:true,gov:true,sum:'Новый рабочий комитет займётся требованиями к жизненному циклу и контролю агентных систем в организациях; первые драфты — в 2027 году.',out:'Горизонт стандартизации задан: строить внутренние регламенты с оглядкой на будущий ISO.'}
+  ];
+
+  THESES = [
+    {lead:'Идентичность агентов стала управляемым контуром.',rest:'Entra Agent ID в общем доступе: агент получает права, владельца и журнал наравне с сотрудником. Закладывать в архитектуру ИСУП на старте.'},
+    {lead:'PMI открыл обсуждение рамки агентной поставки.',rest:'Экспозиционный драфт принимает комментарии до 15 сентября — окно, чтобы сверить методику с будущим стандартом.'},
+    {lead:'Статусный контур — самый зрелый сценарий месяца.',rest:'Atlassian вывел статусные поручения в Jira, Copilot Studio — мультиагентную оркестрацию в GA; везде обязательное подтверждение человеком.'},
+    {lead:'Аудируемость рекомендаций становится нормой.',rest:'Доказательная цепочка в портфельном ассистенте ServiceNow — прецедент требования к ИИ-инструментам PMO.'}
+  ];
+
+  TL = [
+    {off:0,date:'29.07',dow:'вторник',brief:'Идентичность агентов и аудируемость выходят на первый план: Entra Agent ID в общем доступе, доказательная цепочка у ServiceNow, PMI открыл обсуждение рамки агентной поставки.'},
+    {off:1,date:'28.07',dow:'понедельник',brief:'Оркестрация взрослеет: Copilot Studio в GA, Asana публикует первые числа экономии времени РП, Минцифры выносит рекомендации для госИТ.'},
+    {off:2,date:'27.07',dow:'воскресенье',brief:'Тихое воскресенье: безопасность и исследования. Okta закрывает жизненный цикл машинных идентичностей.'},
+    {off:3,date:'26.07',dow:'суббота',brief:'Рыночный фон выходного дня: агентные рабочие пространства и инструментальные каталоги.'},
+    {off:4,date:'25.07',dow:'пятница',brief:'ИИ в отчётности PMO становится нормой: 27% уже применяют. Agentforce расширяется на внутренние согласования.'}
+  ];
+
+  curPeriod() {
+    return this.state.period || ({'День':'d','7 дней':'w','30 дней':'m'}[this.props.defaultPeriod] || 'd');
+  }
+  setPeriod(k) {
+    if (this.curPeriod() === k) return;
+    clearTimeout(this._t);
+    this.setState({ period: k, loading: true, openDay: null });
+    this._t = setTimeout(() => this.setState({ loading: false }), 320);
+  }
+  componentDidMount() { this._iv = setInterval(() => this.setState(s => ({ tick: s.tick + 1 })), 1400); }
+  componentWillUnmount() { clearTimeout(this._t); clearInterval(this._iv); }
+
+  renderVals() {
+    const st = this.state, P = this.curPeriod();
+    const days = { d: 1, w: 7, m: 29 }[P];
+    const slice = this.TS.slice(29 - days);
+    const S = slice.reduce((a, r) => ({ f: a.f + r[0], m: a.m + r[1], n: a.n + r[2], v: a.v + r[3] }), { f: 0, m: 0, n: 0, v: 0 });
+    const inc = S.f + S.m + S.n, cut = S.v - inc;
+    const fmt = x => x.toLocaleString('ru-RU');
+    const ql = st.q.trim().toLowerCase();
+    const filtered = !!(st.rubric || st.core !== 'all' || ql);
+    const match = m => m.d < days
+      && (!st.rubric || m.rub.includes(st.rubric))
+      && (st.core === 'all' || (st.core === 'core' ? m.core : !m.core))
+      && (!ql || (m.t + ' ' + m.sum + ' ' + m.out + ' ' + m.src).toLowerCase().includes(ql));
+    const disp = k => this.CHIPLBL[k] || k;
+    const enrich = m => ({
+      t: m.t, src: m.src, date: this.DLBL[m.d], sum: m.sum, out: m.out, url: m.url,
+      coreMark: m.core ? '◆' : '◇', coreLabel: m.core ? 'Core' : 'Adjacent',
+      coreTitle: m.core ? 'Core: прямое отношение к агентному проектному управлению' : 'Adjacent: смежный сигнал',
+      tagList: m.rub.map(r => ({ name: disp(r), style: (r === 'Governance' || r === 'Безопасность') ? { color: '#A96B12', fontWeight: 500 } : { color: '#8A9199' } }))
+    });
+    const mk = p => this.MATERIALS.filter(m => m.p === p && match(m)).sort((a, b) => a.d - b.d || (b.core ? 1 : 0) - (a.core ? 1 : 0)).map(enrich);
+    const nearList = mk('near'), midList = mk('mid'), farList = mk('far');
+
+    const CHIP = { display: 'inline-flex', alignItems: 'center', gap: '6px', height: '30px', padding: '0 11px', borderRadius: '6px', border: '1px solid #E3E6E5', background: '#FFFFFF', fontSize: '12.5px', color: '#4A525A', cursor: 'pointer', whiteSpace: 'nowrap' };
+    const SEG = i => ({ height: '30px', padding: '0 12px', fontSize: '12.5px', color: '#4A525A', background: 'transparent', borderRight: i ? 'none' : '1px solid #E3E6E5' });
+
+    const periodBtns = [['d', 'День'], ['w', '7 дней'], ['m', '30 дней']].map(([k, label], i) => ({
+      label,
+      style: { height: '32px', padding: '0 13px', fontSize: '12.5px', whiteSpace: 'nowrap', borderRight: i < 2 ? '1px solid #E3E6E5' : 'none', background: P === k ? '#1F242A' : 'transparent', color: P === k ? '#FAFAF8' : '#4A525A' },
+      on: () => this.setPeriod(k)
+    }));
+
+    const PDEF = [['all', 'Все периметры', null, null, null, null], ['near', 'Близкий', S.n, '#2B4A75', 'rgba(43,74,117,0.08)', 'rgba(43,74,117,0.4)'], ['mid', 'Средний', S.m, '#1E6E62', 'rgba(30,110,98,0.08)', 'rgba(30,110,98,0.4)'], ['far', 'Дальний', S.f, '#6B6880', 'rgba(107,104,128,0.1)', 'rgba(107,104,128,0.45)']];
+    const perimChips = PDEF.map(([k, label, cnt, col, tint, bc]) => {
+      const act = st.perimeter === k;
+      let style = { ...CHIP };
+      if (act && k === 'all') style = { ...CHIP, borderColor: '#1F242A', color: '#1F242A', fontWeight: 500 };
+      else if (act) style = { ...CHIP, background: tint, borderColor: bc, color: col, fontWeight: 500 };
+      return { label, count: cnt == null ? '' : String(cnt), style, on: () => this.setState({ perimeter: k }) };
+    });
+
+    const rubChips = this.RUBSTATS.map(([k]) => ({
+      label: disp(k),
+      style: st.rubric === k ? { ...CHIP, background: '#1F242A', borderColor: '#1F242A', color: '#FAFAF8' } : CHIP,
+      on: () => this.setState({ rubric: st.rubric === k ? null : k })
+    }));
+
+    const coreBtns = [['all', 'Все', 'Все материалы'], ['core', 'Core', 'Прямое отношение к AgPM'], ['adj', 'Adjacent', 'Смежные сигналы']].map(([k, label, tip], i) => ({
+      label, tip,
+      style: { height: '30px', padding: '0 11px', fontSize: '12.5px', borderRight: i < 2 ? '1px solid #E3E6E5' : 'none', background: st.core === k ? '#1F242A' : 'transparent', color: st.core === k ? '#FAFAF8' : '#4A525A' },
+      on: () => this.setState({ core: k })
+    }));
+
+    const anyFilter = filtered || st.perimeter !== 'all';
+    const parts = [];
+    if (st.perimeter !== 'all') parts.push('периметр «' + { near: 'Близкий', mid: 'Средний', far: 'Дальний' }[st.perimeter] + '»');
+    if (st.rubric) parts.push('рубрика «' + disp(st.rubric) + '»');
+    if (st.core !== 'all') parts.push(st.core === 'core' ? 'только Core' : 'только Adjacent');
+    if (ql) parts.push('поиск «' + st.q.trim() + '»');
+    const filterSummary = parts.join(' · ');
+
+    const cnt = (list, total) => filtered ? 'найдено ' + list.length : String(total);
+    const foot = (list, total) => list.length + ' ключевых из ' + fmt(total) + ' включённых';
+
+    const theses = this.THESES.map((t, i) => ({
+      idx: '0' + (i + 1), lead: t.lead, rest: t.rest,
+      rowStyle: { display: 'grid', gridTemplateColumns: '30px 1fr', gap: '12px', borderTop: i ? '1px solid #EEF0EF' : 'none', paddingTop: i ? '12px' : '0', marginTop: i ? '12px' : '0' }
+    }));
+
+    const plural = n2 => (n2 % 10 === 1 && n2 % 100 !== 11) ? 'материал' : (n2 % 10 >= 2 && n2 % 10 <= 4 && (n2 % 100 < 12 || n2 % 100 > 14)) ? 'материала' : 'материалов';
+    const PC = { near: '#2B4A75', mid: '#1E6E62', far: '#6B6880' };
+    const dot = p => ({ width: '7px', height: '7px', borderRadius: '50%', background: PC[p], flex: 'none', marginTop: '5px' });
+    const tlDays = this.TL.map(t => {
+      const r = this.TS[28 - t.off], f = r[0], m = r[1], n = r[2], ic = f + m + n;
+      const dayMats = this.MATERIALS.filter(x => x.d === t.off);
+      const keys = dayMats.filter(x => x.key);
+      const su = [...new Set(dayMats.map(x => x.src))];
+      const open = st.openDay === t.off;
+      return {
+        date: t.date, dow: t.dow, brief: t.brief,
+        keyItems: keys.map(k => ({ dotStyle: dot(k.p), t: k.t, src: k.src })),
+        bn: { width: Math.round(n / ic * 100) + '%', background: '#2B4A75' },
+        bm: { width: Math.round(m / ic * 100) + '%', background: '#1E6E62' },
+        bf: { background: '#6B6880', flex: '1' },
+        counts: 'Б ' + n + ' · С ' + m + ' · Д ' + f,
+        srcLine: 'Источники: ' + su.slice(0, 4).join(', ') + (su.length > 4 ? ' и ещё ' + (su.length - 4) : ''),
+        open,
+        chevStyle: { display: 'block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' },
+        onToggle: () => this.setState({ openDay: open ? null : t.off }),
+        items: dayMats.map(k => ({ dotStyle: dot(k.p), t: k.t, src: k.src, url: k.url })),
+        extraLine: 'и ещё ' + (ic - dayMats.length) + ' ' + plural(ic - dayMats.length)
+      };
+    });
+
+    const rubCells = this.RUBSTATS.map(([k, n2, tr]) => {
+      const act = st.rubric === k;
+      return {
+        name: this.RUBFULL[k], count: String(n2), trend: this.TRD[tr],
+        style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 16px', background: act ? 'rgba(43,74,117,0.07)' : '#FFFFFF', textAlign: 'left', width: '100%', color: act ? '#2B4A75' : '#1F242A', cursor: 'pointer' },
+        onPick: () => this.setState({ rubric: act ? null : k })
+      };
+    });
+
+    this._cm = this._cm || this.buildMain();
+    this._ch = this._ch || this.buildHeat();
+    const motion = this.props.radarMotion !== false;
+    if (motion) { this._sn1 = this._sn1 || this.bSonar(true); } else { this._sn0 = this._sn0 || this.bSonar(false); }
+    this._rg = this._rg || this.bRing();
+    const rdi = motion ? (28 + st.tick) % 29 : 28;
+    const rdr = this.TS[rdi];
+
+    return {
+      periodBtns, q: st.q, onSearch: e => this.setState({ q: e.target.value }),
+      perimChips, rubChips,
+      coreBtns, anyFilter, filterSummary,
+      onReset: () => this.setState({ rubric: null, core: 'all', q: '', perimeter: 'all' }),
+      statViewed: fmt(S.v), statInc: fmt(inc), statCut: fmt(cut),
+      statNear: fmt(S.n), statMid: fmt(S.m), statFar: fmt(S.f),
+      statShare: Math.round(S.n / inc * 100),
+      statIncSub: Math.round(inc / S.v * 100) + '% от просмотренного',
+      periodSub: { d: 'за день', w: 'за 7 дней', m: 'за 30 дней' }[P],
+      periodTail: ({ d: 'выпуск за день', w: 'последние 7 дней', m: 'последние 30 дней' }[P]) + ' · включено ' + fmt(inc) + ' из ' + fmt(S.v),
+      showNear: st.perimeter === 'all' || st.perimeter === 'near',
+      showMid: st.perimeter === 'all' || st.perimeter === 'mid',
+      showFar: st.perimeter === 'all' || st.perimeter === 'far',
+      nearList, midList, farList,
+      nearEmptyFlag: nearList.length === 0, midEmptyFlag: midList.length === 0, farEmptyFlag: farList.length === 0,
+      nearCountLabel: cnt(nearList, S.n), midCountLabel: cnt(midList, S.m), farCountLabel: cnt(farList, S.f),
+      nearFoot: foot(nearList, S.n), midFoot: foot(midList, S.m), farFoot: foot(farList, S.f),
+      showFoot: !filtered && !st.loading, showSum: this.props.compactCards !== true,
+      loading: st.loading, ready: !st.loading,
+      radarDay: P === 'd', radarWeek: P === 'w', radarMonth: P === 'm',
+      chartSonar: motion ? this._sn1 : this._sn0,
+      chartRing: this._rg,
+      hlMonth: { transform: 'rotate(' + ((motion ? (28 + st.tick) : 28) * 12.4138).toFixed(1) + 'deg)', transformOrigin: '150px 150px', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' },
+      ringLbl: (rdi + 1) + ' июля', ringTot: rdr[0] + rdr[1] + rdr[2], ringF: rdr[0], ringM: rdr[1], ringN: rdr[2],
+      theses, tlDays, rubCells,
+      chartMain: this._cm, chartHeat: this._ch
+    };
+  }
+
+  buildMain() {
+    const e = React.createElement, TS = this.TS;
+    const W = 780, H = 234, L = 34, R = 48, T = 14, B = 30, pw = W - L - R, ph = H - T - B, step = pw / 29, bw = 15;
+    const y = v => H - B - v * ph / 40, yR = p => H - B - p * ph / 20;
+    const kids = [];
+    [3, 4, 10, 11, 17, 18, 24, 25].forEach(i => kids.push(e('rect', { key: 'w' + i, x: L + i * step, y: T, width: step, height: ph, fill: '#F4F5F3' })));
+    [0, 10, 20, 30, 40].forEach(v => {
+      kids.push(e('line', { key: 'g' + v, x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: '#E9EBEA', strokeWidth: 1 }));
+      kids.push(e('text', { key: 'gl' + v, x: L - 6, y: y(v) + 3, textAnchor: 'end', fontSize: 9.5, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, String(v)));
+    });
+    [0, 10, 20].forEach(p => kids.push(e('text', { key: 'rl' + p, x: W - R + 8, y: yR(p) + 3, fontSize: 9.5, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, p + '%')));
+    TS.forEach((r, i) => {
+      const f = r[0], m = r[1], n = r[2], v = r[3], ic = f + m + n, x = L + i * step + (step - bw) / 2;
+      kids.push(e('g', { key: 'b' + i },
+        e('title', null, (i + 1) + ' июля · включено ' + ic + ' из ' + v + ' · Б ' + n + ' · С ' + m + ' · Д ' + f),
+        e('rect', { x, y: y(n), width: bw, height: y(0) - y(n), fill: '#2B4A75' }),
+        e('rect', { x, y: y(n + m), width: bw, height: y(n) - y(n + m), fill: '#1E6E62' }),
+        e('rect', { x, y: y(ic), width: bw, height: y(n + m) - y(ic), fill: '#6B6880' })
+      ));
+    });
+    kids.push(e('polyline', { key: 'ln', points: TS.map((r, i) => (L + i * step + step / 2).toFixed(1) + ',' + yR((r[0] + r[1] + r[2]) / r[3] * 100).toFixed(1)).join(' '), fill: 'none', stroke: '#1F242A', strokeOpacity: 0.55, strokeWidth: 1.2, strokeDasharray: '3 3' }));
+    [0, 7, 14, 21, 28].forEach(i => kids.push(e('text', { key: 'x' + i, x: L + i * step + step / 2, y: H - 10, textAnchor: 'middle', fontSize: 9.5, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, i === 28 ? '29 июл' : String(i + 1))));
+    return e('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, kids);
+  }
+
+  buildHeat() {
+    const e = React.createElement, TS = this.TS;
+    const cell = 20, gap = 4, L = 30, T = 8;
+    const kids = [['пн', 0], ['ср', 2], ['пт', 4]].map(([lb, r2]) => e('text', { key: 'r' + r2, x: L - 8, y: T + r2 * (cell + gap) + 14, textAnchor: 'end', fontSize: 9.5, fill: '#9AA1A8' }, lb));
+    TS.forEach((r, i) => {
+      const ic = r[0] + r[1] + r[2], dow = (i + 2) % 7, wk = Math.floor((i + 2) / 7);
+      kids.push(e('rect', { key: 'c' + i, x: L + wk * (cell + gap), y: T + dow * (cell + gap), width: cell, height: cell, rx: 4, fill: 'rgba(43,74,117,' + (0.07 + 0.8 * ic / 37).toFixed(2) + ')' }, e('title', null, (i + 1) + ' июля · включено ' + ic)));
+    });
+    ['1', '6', '13', '20', '27'].forEach((d2, wk) => kids.push(e('text', { key: 'w' + wk, x: L + wk * (cell + gap) + cell / 2, y: T + 7 * (cell + gap) + 10, textAnchor: 'middle', fontSize: 9.5, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, d2)));
+    return e('svg', { viewBox: '0 0 160 200', style: { width: '158px', height: 'auto', display: 'block' } }, kids);
+  }
+
+  WKND = new Set([3, 4, 10, 11, 17, 18, 24, 25]);
+
+  bSonar(motion) {
+    const e = React.createElement, C = 120, RAD = Math.PI / 180, T = 8;
+    const kids = [];
+    [34, 64, 94].forEach((r, i) => kids.push(e('circle', { key: 'r' + r, cx: C, cy: C, r, fill: 'none', stroke: i === 2 ? '#DADDDC' : '#E2E5E4', strokeWidth: 1 })));
+    [[120, 26, 120, 20], [214, 120, 220, 120], [120, 214, 120, 220], [26, 120, 20, 120]].forEach((c, i) => kids.push(e('line', { key: 't' + i, x1: c[0], y1: c[1], x2: c[2], y2: c[3], stroke: '#C7CBCE', strokeWidth: 1 })));
+    ['близкий,82', 'средний,52', 'дальний,22'].forEach(s => {
+      const [lb, y] = s.split(',');
+      kids.push(e('text', { key: 'l' + lb, x: C, y: +y, textAnchor: 'middle', fontSize: 9, fill: '#8A9199', paintOrder: 'stroke', stroke: '#F8F9F9', strokeWidth: 3 }, lb));
+    });
+    kids.push(e('g', { key: 'sw', 'data-anim': '1', style: motion ? { transformOrigin: '120px 120px', animation: 'sweep 8s linear infinite' } : { transformOrigin: '120px 120px' } },
+      e('path', { d: 'M120 120 L120 26 A94 94 0 0 1 167 38.6 Z', fill: 'rgba(43,74,117,0.06)' }),
+      e('line', { x1: 120, y1: 120, x2: 120, y2: 26, stroke: 'rgba(43,74,117,0.45)', strokeWidth: 1 })
+    ));
+    kids.push(e('circle', { key: 'c0', cx: C, cy: C, r: 2.6, fill: '#1F242A' }));
+    const sets = [[[10, 50, 95, 140, 190, 240, 292, 310, 350], 34, 3.4, '#2B4A75'], [[5, 28, 47, 68, 90, 113, 132, 155, 176, 198, 220, 240, 252, 290, 310, 332, 350], 64, 3, '#1E6E62'], [[15, 52, 80, 118, 150, 182, 214, 248, 295, 315, 342], 94, 3, '#6B6880']];
+    sets.forEach(([angs, r, rr, col], si) => angs.forEach((a, i) => {
+      const d = (((a + 90) % 360 + 360) % 360) / 360 * T;
+      kids.push(e('circle', {
+        key: 'b' + si + '-' + i, cx: (C + r * Math.cos(a * RAD)).toFixed(1), cy: (C + r * Math.sin(a * RAD)).toFixed(1), r: rr, fill: col, 'data-anim': '1',
+        style: motion ? { opacity: 0.8, transformBox: 'fill-box', transformOrigin: 'center', animation: 'blipK 8s linear infinite', animationDelay: (d - T).toFixed(2) + 's' } : { opacity: 0.85 }
+      }));
+    }));
+    return e('svg', { viewBox: '0 0 240 240', style: { width: '100%', display: 'block' } }, kids);
+  }
+
+  bRing() {
+    const e = React.createElement, C = 150, RAD = Math.PI / 180, step = 360 / 29, r0 = 52;
+    const px = (r, deg) => (C + r * Math.sin(deg * RAD)).toFixed(1);
+    const py = (r, deg) => (C - r * Math.cos(deg * RAD)).toFixed(1);
+    const kids = [e('circle', { key: 'in', cx: C, cy: C, r: 48, fill: 'none', stroke: '#EEF0EF', strokeWidth: 1 })];
+    this.TS.forEach((d, i) => {
+      const th = i * step, op = this.WKND.has(i) ? 0.45 : 1;
+      let acc = r0;
+      const segs = [[d[2], '#2B4A75'], [d[1], '#1E6E62'], [d[0], '#6B6880']];
+      const g = [e('title', { key: 'tt' }, (i + 1) + ' июля · включено ' + (d[0] + d[1] + d[2]) + ' · Б ' + d[2] + ' · С ' + d[1] + ' · Д ' + d[0])];
+      segs.forEach(([v, col], si) => {
+        const len = v * 2.2;
+        g.push(e('line', { key: 's' + si, x1: px(acc, th), y1: py(acc, th), x2: px(acc + len, th), y2: py(acc + len, th), stroke: col, strokeWidth: 7, opacity: op }));
+        acc += len;
+      });
+      kids.push(e('g', { key: 'd' + i }, g));
+    });
+    [0, 7, 14, 21, 28].forEach(i => kids.push(e('text', { key: 'x' + i, x: px(143, i * step), y: +py(143, i * step) + 3, textAnchor: 'middle', fontSize: 9, fill: '#9AA1A8', fontFamily: "'PT Mono',monospace" }, String(i + 1))));
+    return e('svg', { viewBox: '0 0 300 300', style: { width: '100%', display: 'block' } }, kids);
+  }
+}
+</script>
+</body>
+</html>
