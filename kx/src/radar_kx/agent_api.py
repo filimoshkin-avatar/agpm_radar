@@ -100,10 +100,10 @@ MAX_HITS = 50
 #: the list stops oscillating:
 #:
 #: 1. Reading that the dialogue itself does is free at the source: a
-#:    conversation expands what it shows (one known node's neighbourhood,
-#    ; one statement with its links, ) and there is no
-#:    sense fencing one of the two paths the chat walks by. Measured
-#:    2026-08-24: even with  gated,  kept handing
+#:    conversation expands what it shows - one known node's neighbourhood
+#:    (`/graph`), one statement with its links (`/statement`) - and there is
+#:    no sense fencing one of the two paths the chat walks by. Measured
+#:    2026-08-24: even with `/graph` gated, `/statement/<id>` kept handing
 #:    out statement texts with neighbours - a fence with the gate open is
 #:    noise, not a wall.
 #: 2. What the key opens is apparatus, not data: the shelves (search,

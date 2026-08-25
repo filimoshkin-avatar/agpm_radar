@@ -395,24 +395,6 @@ function accessInit() {
   }
 }
 
-/** The wall met inside the thread: open the panel and say what it is.
- *  A reader who clicks a node and gets «служба ответила 403» reads a broken
- *  page; a reader who gets the subscription panel reads a price. */
-function accessOfferPanel(reason) {
-  const panel = document.getElementById("agentSubPanel");
-  const button = document.getElementById("agentSubButton");
-  if (panel) {
-    panel.hidden = false;
-    button?.setAttribute("aria-expanded", "true");
-  }
-  const message = document.getElementById("agentSubMessage");
-  if (message) {
-    message.hidden = false;
-    message.textContent = reason;
-  }
-  panel?.scrollIntoView?.({ behavior: "smooth", block: "center" });
-}
-
 /* The button does not switch anything - it explains, and offers the two doors:
  * a request to the owner, or a key the reader already holds. */
 document.getElementById("agentSubButton")?.addEventListener("click", () => {
@@ -2708,11 +2690,6 @@ async function chatGraphTurn(query) {
     const drawn = wantCanvas && agentLinksGraphRender(data, host);
     if (host) host.hidden = !drawn;
   } catch (error) {
-    if (error && error.subscription) {
-      card.remove();
-      accessOfferPanel("Связи узлов открываются по подписке. Ответы и их доказательства остаются бесплатными.");
-      return;
-    }
     if (meta) meta.textContent = error.message;
   }
 }
