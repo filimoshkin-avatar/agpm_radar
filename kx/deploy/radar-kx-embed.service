@@ -1,0 +1,54 @@
+[Unit]
+# Claims are born without vectors, and linking cannot see a claim that has none:
+# `link_candidates` joins `kx.text_embeddings`, so an unembedded statement is not
+# a candidate at all. Measured 2026-08-25: two consecutive issues - 244 claims on
+# the 24th, 75 on the 25th - were extracted, read, placed in topics and had their
+# entities named, and received zero links between them. The newest embedding in
+# the base was four days old. Nothing had failed; the daily chain simply had no
+# stage that makes a vector.
+#
+# It is its own unit rather than a stage of the catch-up pass because the
+# embedder is the only interpreter on this host with torch, and the worker
+# runtime deliberately does not have it. A pass that reached across that seam
+# would have to know about a second interpreter; a timer does not.
+Description=Radar KX embeddings: give new statements the vectors linking needs
+After=network-online.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=radar_kx
+Group=radar_kx
+WorkingDirectory=/opt/radar-kx/current
+EnvironmentFile=/etc/radar-kx/worker.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/radar-kx/current/src
+Environment=XDG_CACHE_HOME=/tmp/radar-kx-cache
+# The model is on disk and stays there: the encoder must not reach the network.
+Environment=HF_HOME=/usr/local/lib/radar-embed-runtime/models
+Environment=HF_HUB_OFFLINE=1
+Environment=OMP_NUM_THREADS=4
+ExecStart=/usr/local/lib/radar-embed-runtime/venv/bin/python -m radar_kx embed --owner-kind claim_evidence
+UMask=0077
+Nice=10
+CPUWeight=25
+IOWeight=25
+MemoryHigh=2G
+MemoryMax=3G
+TasksMax=128
+TimeoutStartSec=infinity
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+# The database over a unix socket and nothing else: the model is local and
+# `HF_HUB_OFFLINE` keeps it that way, so this pass has no business on a network.
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

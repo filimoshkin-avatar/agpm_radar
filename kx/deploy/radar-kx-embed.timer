@@ -1,0 +1,15 @@
+[Unit]
+# After the catch-up pass, not before it. Claims are born inside catch-up's
+# extraction stage, so a run scheduled ahead of it would encode yesterday's
+# statements and leave today's waiting anyway. Placed here, a statement gets its
+# vector on the day it is extracted and its links on the next pass.
+Description=Encode the statements the daily pass has just extracted
+
+[Timer]
+OnCalendar=*-*-* 06:20:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+Unit=radar-kx-embed.service
+
+[Install]
+WantedBy=timers.target
