@@ -128,7 +128,7 @@ OBSERVATORY_PER_CLASS = 60
 ACCESS_KEY_PREFIX = "radar-"
 ACCESS_KEY_ENTROPY_BYTES = 30
 
-SCHEMA_VERSION = 33
+SCHEMA_VERSION = 34
 
 #: Where a scan reads its documents from. One vocabulary, shared with search, so
 #: the canon cannot quietly fall out of one pipeline and not another: extraction
