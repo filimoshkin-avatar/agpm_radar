@@ -148,13 +148,13 @@ def test_a_live_key_opens_browsing_and_reaches_the_wider_window() -> None:
 def test_the_conversation_paths_stay_open_without_a_key() -> None:
     """The dialogue is the free tier: no key may ever stand in front of it.
 
-    `/graph` is not part of it. The first version of this test asserted that it
-    was, on the reasoning that walking a node's neighbourhood is not browsing -
-    and the reasoning did not survive measurement: `/graph?topic=` returned fifty
-    statement texts per request and said how many more it held. The owner's call
-    (2026-08-24) is that walking is a subscriber's affordance. `/statement` does
-    stay open, knowingly: it walks the same way, so the corpus is slowed rather
-    than closed, and that is written where the gate list is.
+    `/graph` and `/statement` belong to it too, by the owner's standing model
+    (2026-08-25): the subscription is membership, not monetisation, and a
+    conversation may expand everything it shows. The list had `/graph` for a
+    day (2026-08-24, "a boundary, not a protection") - and went back, because
+    a fence that left `/statement` handing out the same texts was noise, and
+    because nothing here is a payment boundary to begin with. This test now
+    pins both walking paths open, so the list cannot oscillate again quietly.
     """
     server, thread = _serve(KeyFake(live=False))
     try:
@@ -166,7 +166,7 @@ def test_the_conversation_paths_stay_open_without_a_key() -> None:
         assert status == HTTPStatus.OK
         assert "prompts" in body
         status, _ = _get(connection, "/graph?claim=c1")
-        assert status == HTTPStatus.FORBIDDEN
+        assert status == HTTPStatus.OK
         status, _ = _get(connection, "/statement/c1")
         assert status == HTTPStatus.OK
     finally:

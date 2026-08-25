@@ -93,24 +93,25 @@ MAX_QUESTION_CHARS = 500
 #: not browsing a corpus.
 MAX_HITS = 50
 
-#: The owner's split (2026-08-24): the conversation is free, browsing the base
-#: is subscribed. These paths answer only with a live key; everything else the
-#: service serves - `/ask`, the `/chat` pair, `/prompts`, `/health` - stays open
-#: regardless, because the answer the agent shows a reader is the product's free
-#: tier, not a leak of the paid one.
+#: The owner's standing model (2026-08-25): the subscription is membership,
+#: not monetisation. The project is free and non-commercial; a key says
+#: «this reader is of the community», and membership buys capabilities and a
+#: hand in the canon - not the corpus. Three consequences, written down so
+#: the list stops oscillating:
 #:
-#: `/graph` is here as a **product boundary, not a protection**, and the
-#: difference is worth writing down because the first version of this list said
-#: the opposite. Walking from node to node is subscriber's work by the owner's
-#: call (2026-08-24); it is not, however, what keeps the corpus in. Measured the
-#: same day: `/graph?topic=` returned fifty statement texts per request and
-#: announced how many more it held, and `/statement/<id>` returns eight
-#: neighbours with their texts - so browsing the base without a key remains
-#: possible through `/statement`, which the owner has chosen to leave open. A
-#: reader who wants the shelves, the search and the cuts still needs a key; a
-#: script that wants the texts is slowed, not stopped. Saying that plainly here
-#: is the point: the next person to read this list must not mistake it for a
-#: fence it is not.
+#: 1. Reading that the dialogue itself does is free at the source: a
+#:    conversation expands what it shows (one known node's neighbourhood,
+#    ; one statement with its links, ) and there is no
+#:    sense fencing one of the two paths the chat walks by. Measured
+#:    2026-08-24: even with  gated,  kept handing
+#:    out statement texts with neighbours - a fence with the gate open is
+#:    noise, not a wall.
+#: 2. What the key opens is apparatus, not data: the shelves (search,
+#:    observatory, contradictions, topics, wiki, gaps), a wider conversation
+#:    window, and later the feeds. A member's difference is what they can
+#:    *do*, and what they owe: participation in the canon's development.
+#: 3. Nothing here is a payment boundary. If a script wants the texts, the
+#:    texts are not what the community is for.
 GATED_PATHS: Final = frozenset(
     {
         "/search",
@@ -120,10 +121,10 @@ GATED_PATHS: Final = frozenset(
         "/contradictions",
         "/gaps",
         "/pages",
-        "/graph",
     }
 )
 GATED_PREFIXES: Final = ("/topics/", "/pages/")
+
 
 #: A subscriber's conversation window. Higher than the free one by the owner's
 #: call - and still a window, not a budget: it stands between a shared key and
