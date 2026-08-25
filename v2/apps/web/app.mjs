@@ -677,6 +677,30 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
+/* Выбор выпуска из архива: рамка перезагружается, шапка называет выбранный номер. */
+function openGazetteIssue(row) {
+  const issue = row.dataset.gazetteIssue;
+  const frame = document.querySelector(".gazette-frame");
+  if (frame && issue && !frame.src.includes(`/gazette-${issue}.html`)) {
+    frame.src = `/gazette-${issue}.html`;
+    if (row.dataset.gazetteDate) {
+      frame.setAttribute("title", `Новости Агентного управления — выпуск от ${row.dataset.gazetteDate}`);
+    }
+    const month = document.querySelector("#gazetteIssue b");
+    const number = document.querySelector("#gazetteIssue .mono");
+    if (month) month.textContent = row.dataset.gazetteMonth || "";
+    if (number) number.textContent = row.dataset.gazetteNumber || "";
+    document.querySelectorAll("[data-gazette-issue]").forEach(item => {
+      const current = item.dataset.gazetteIssue === issue;
+      item.classList.toggle("is-current", current);
+      const tag = item.querySelector(".gazette-archive__tag");
+      if (tag) tag.textContent = current ? "ТЕКУЩИЙ" : "";
+    });
+    frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
+  }
+  gazetteArchive(false);
+}
+
 /* Лого — наверх текущего раздела: раздел не меняем, только прокрутку. */
 document.querySelector(".brand")?.addEventListener("click", event => {
   event.preventDefault();
@@ -1804,6 +1828,10 @@ document.addEventListener("click", event => {
     agentOpenPage(button.dataset.agentPage);
     return;
   }
+  if (button.dataset.gazetteIssue) {
+    openGazetteIssue(button);
+    return;
+  }
   if (button.dataset.agentAdmission) {
     const value = button.dataset.agentAdmission;
     const next = agentState.admission.includes(value)
@@ -1812,10 +1840,7 @@ document.addEventListener("click", event => {
     // Хотя бы один источник всегда выбран: последний чип не снимается.
     if (next.length) agentState.admission = next;
     document.querySelectorAll("[data-agent-admission]").forEach(chip => {
-      const on = agentState.admission.includes(chip.dataset.agentAdmission);
-      chip.classList.toggle("is-active", on);
-      // Подсветка — только для глаза; состояние переключателя говорят вслух.
-      chip.setAttribute("aria-pressed", on ? "true" : "false");
+      chip.classList.toggle("is-active", agentState.admission.includes(chip.dataset.agentAdmission));
     });
     return;
   }
@@ -2759,20 +2784,11 @@ function chatWorkAdvance(work, stage) {
 
 /** Read the SSE frames the service sends: `event: name` + `data: json`, one
  *  blank line between frames. The stream answers or errors; both are frames. */
-/* Что уходит в службу за выбором чипов. Одна полка — её имя, обе — «all»
- * (ADR-0012): значение, которое расширяет поиск, потому что его назвали.
- * Пустая строка здесь стояла до 25.08.2026 и означала «неизвестно» —
- * `agent_api._answer_flow` сужал такое до знания, молча и правильно, а горящий
- * чип «хронике рынка» при этом не делал ничего. */
-function admissionScope() {
-  return agentState.admission.length === 1 ? agentState.admission[0] : "all";
-}
-
 async function chatStreamTurn(question, work, signal) {
   const response = await fetch(`${KB}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
+    body: JSON.stringify({ question, admission: agentState.admission.length === 1 ? agentState.admission[0] : "", session: chatSession }),
     signal
   });
   if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
@@ -2811,7 +2827,7 @@ async function chatJsonTurn(question, work, signal) {
   const answered = await kbFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
+    body: JSON.stringify({ question, admission: agentState.admission.length === 1 ? agentState.admission[0] : "", session: chatSession }),
     signal
   });
   (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));

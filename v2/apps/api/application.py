@@ -37,6 +37,11 @@ _GAZETTE_CSP: Final = (
     "img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-ancestors 'none'; "
     "base-uri 'none'; form-action 'none'"
 )
+# Gazette issues bundled with the application itself; the publisher's own
+# releases live under /gazettes/ with manifest-verified assets.
+_BUNDLED_GAZETTE_ISSUES: Final[frozenset[str]] = frozenset(
+    {"/gazette-20260803.html", "/gazette-20260901.html"}
+)
 _CONTENT_TYPES: Final = {
     ".css": "text/css; charset=utf-8",
     ".gif": "image/gif",
@@ -232,11 +237,11 @@ class RadarApplication:
             )
         if parsed.path.startswith("/assets/"):
             return _not_found()
-        if parsed.path == "/gazette-20260803.html":
+        if parsed.path in _BUNDLED_GAZETTE_ISSUES:
             if query:
                 return _not_found()
             try:
-                body = _read_static(self.web_root, "gazette-20260803.html")
+                body = _read_static(self.web_root, parsed.path.removeprefix("/"))
             except StaticRouteError:
                 return _not_found()
             return _response(
