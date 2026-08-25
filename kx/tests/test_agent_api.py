@@ -376,6 +376,63 @@ def test_an_admission_nobody_named_does_not_widen_the_search() -> None:
     assert kwargs["filters"]["admission"] == "knowledge"
 
 
+def test_an_empty_admission_does_not_widen_the_search_either() -> None:
+    """The exact value the front end sent while the chips were broken.
+
+    A multi-select that had no way to say "both" sent `""`, and this clamp turned
+    it into knowledge - correctly, and invisibly. The chip for the chronicle was
+    lit and did nothing. ADR-0012 gave "both" a name; the empty string keeps
+    meaning what it meant, which is nothing.
+    """
+    talking = service(cached_answer=None, agent_search=[])
+    talking.ask("вопрос", admission="")
+    _, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
+    assert kwargs["filters"]["admission"] == "knowledge"
+
+
+def test_both_shelves_at_once_is_asked_for_by_name() -> None:
+    """ADR-0012: `all` - and only `all` - drops the admission filter.
+
+    Dropping the filter is what widens the search, and it reaches no further than
+    the two shelves: `agent.statement` is built `WHERE admission <> 'rejected'`,
+    so this is "knowledge and the chronicle", not "everything in the base".
+    """
+    talking = service(cached_answer=None, agent_search=[])
+    talking.ask("что известно про пороги", admission="all")
+    name, kwargs = talking.database.asked[1]  # type: ignore[attr-defined]
+    assert name == "agent_search"
+    assert kwargs["filters"]["admission"] is None
+
+
+def test_the_answer_cache_is_keyed_by_the_shelf_that_was_asked() -> None:
+    """ADR-0012, on ADR-0006 §10's own reasoning.
+
+    Without this the widening would be half dead: the same question aimed at
+    knowledge and aimed at both shelves would share one cached answer, and the
+    second reader would be served the first one's narrower search.
+    """
+    scopes = []
+    for admission in ("knowledge", "observatory", "all"):
+        talking = service(cached_answer=None, agent_search=[])
+        talking.ask("один и тот же вопрос", admission=admission)
+        asked = dict(talking.database.asked)  # type: ignore[attr-defined]
+        assert asked["cached_answer"]["scope"] == asked["record_answer"]["scope"]
+        scopes.append(asked["cached_answer"]["scope"])
+    assert len(set(scopes)) == 3, f"three shelves shared a cache key: {scopes}"
+
+
+def test_the_notice_and_the_signature_name_the_agent_not_the_machine() -> None:
+    """ADR-0013, with the expected text written out rather than derived.
+
+    `assert answered["machineNotice"] == MACHINE_NOTICE` holds for every possible
+    value of the constant, so it cannot fail when the constant is wrong - the
+    same shape of test that once compared a key length against the generator that
+    produced it and stayed green while nobody's subscription worked.
+    """
+    assert MACHINE_NOTICE == "Агентный ответ, не редакция базы."
+    assert SIGNATURE == "AgPM Radar, агентная сборка"
+
+
 # ---------------------------------------------------------------------------
 # What a public endpoint owes a caller when it cannot answer
 # ---------------------------------------------------------------------------
