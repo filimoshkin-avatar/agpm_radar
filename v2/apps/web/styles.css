@@ -473,7 +473,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 }
 
 .grid--trend { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
-.grid--calendar { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .grid__stack { display: flex; flex-direction: column; gap: 14px; }
 .panel--wide { margin: 0 24px 18px; }
 

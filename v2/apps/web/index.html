@@ -21,7 +21,7 @@
   <meta name="twitter:image" content="https://radar.agpm.space/og-image-20260803.png">
   <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
   <link rel="icon" href="/favicon.svg?v=20260729-1734">
-  <link rel="stylesheet" href="/assets/styles.css?v=20260825-v25">
+  <link rel="stylesheet" href="/assets/styles.css?v=20260825-v26">
 </head>
 <body>
   <!-- Тикер: та же сводка выпуска, что раньше жила плиткой, — строкой на графите. -->
@@ -167,29 +167,26 @@
             </div>
             <div id="trendBars" class="trend-bars"></div>
           </article>
+          <article class="panel">
+            <div class="panel__head">
+              <h2>Календарь 30 дней</h2>
+              <span class="panel__note mono">ВКЛЮЧЕНО, ПО ДНЯМ</span>
+            </div>
+            <div class="heatmap-week mono" aria-hidden="true">
+              <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span>
+            </div>
+            <div id="heatmap" class="heatmap"></div>
+            <div class="heatmap-key mono">
+              <span>МЕНЬШЕ</span>
+              <i class="heatmap-key__box" style="background:rgba(43,74,117,.10)"></i>
+              <i class="heatmap-key__box" style="background:rgba(43,74,117,.35)"></i>
+              <i class="heatmap-key__box" style="background:rgba(43,74,117,.60)"></i>
+              <i class="heatmap-key__box" style="background:rgba(43,74,117,.85)"></i>
+              <span>БОЛЬШЕ</span>
+              <span class="heatmap-key__today"><i class="heatmap-key__box heatmap-key__box--today"></i>ВЫПУСК</span>
+            </div>
+          </article>
         </div>
-      </section>
-
-      <section class="grid grid--calendar" aria-label="Календарь">
-        <article class="panel">
-          <div class="panel__head">
-            <h2>Календарь 30 дней</h2>
-            <span class="panel__note mono">ВКЛЮЧЕНО, ПО ДНЯМ</span>
-          </div>
-          <div class="heatmap-week mono" aria-hidden="true">
-            <span>ПН</span><span>ВТ</span><span>СР</span><span>ЧТ</span><span>ПТ</span><span>СБ</span><span>ВС</span>
-          </div>
-          <div id="heatmap" class="heatmap"></div>
-          <div class="heatmap-key mono">
-            <span>МЕНЬШЕ</span>
-            <i class="heatmap-key__box" style="background:rgba(43,74,117,.10)"></i>
-            <i class="heatmap-key__box" style="background:rgba(43,74,117,.35)"></i>
-            <i class="heatmap-key__box" style="background:rgba(43,74,117,.60)"></i>
-            <i class="heatmap-key__box" style="background:rgba(43,74,117,.85)"></i>
-            <span>БОЛЬШЕ</span>
-            <span class="heatmap-key__today"><i class="heatmap-key__box heatmap-key__box--today"></i>ВЫПУСК</span>
-          </div>
-        </article>
       </section>
 
       <section class="panel panel--wide" aria-label="Рубрикатор">
@@ -546,6 +543,6 @@
   </div>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=20260825-v25"></script>
+  <script src="/assets/app.mjs?v=20260825-v26"></script>
 </body>
 </html>
