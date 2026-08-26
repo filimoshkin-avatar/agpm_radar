@@ -12,10 +12,10 @@ answered in one sweep in 17.8s and refused in the next, same prompt, same
 quotations. One row for it in the store: a refusal from 25.08 13:37. Forty keys
 were held by refusals, four of them questions the welcome screen still offers.
 
-Not adopted: `SCHEMA_VERSION` is bumped when a migration reaches production.
-These tests run against `superseding_dsn`, which is the adopted schema plus this
-file, and patch the version the worker demands so the real `Database` will speak
-to it at all.
+Applied to production 2026-08-26, and `SCHEMA_VERSION` moved to 35 with it -
+that is what applying earns. These tests kept their own fixture name so they read
+as being about this migration, and every one of them was watched failing against
+schema 34 first.
 """
 
 from __future__ import annotations
@@ -24,8 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import MIGRATION_035, connect
-from radar_kx import database as database_module
+from conftest import connect
 from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.research import EvidenceElement, refuse
@@ -46,17 +45,9 @@ EVIDENCE = (
 
 
 @pytest.fixture
-def store(superseding_dsn: str, monkeypatch: pytest.MonkeyPatch) -> Database:
-    """The real writer, pointed at the migrated database.
-
-    `require_schema` is a hard equality (defect D2), so a repository still
-    declaring 34 cannot open a database at 35. Patched here rather than bumped in
-    `database.py`, because bumping it is what applying the migration to
-    production earns.
-    """
-    monkeypatch.setattr(database_module, "SCHEMA_VERSION", 35)
-    settings = _settings(superseding_dsn)
-    return Database(settings)
+def store(superseding_dsn: str) -> Database:
+    """The real writer, pointed at the migrated database."""
+    return Database(_settings(superseding_dsn))
 
 
 def _settings(dsn: str) -> Settings:
@@ -186,15 +177,3 @@ def test_a_recorded_row_is_still_immutable(superseding_dsn: str) -> None:
                 " ON CONFLICT DO NOTHING"
             )
             cursor.execute(statement)
-
-
-def test_the_migration_is_not_adopted_yet() -> None:
-    """A reminder in the suite, so adoption is a decision and not a drift.
-
-    When the owner applies it: bump `SCHEMA_VERSION` to 35, move MIGRATION_035
-    into ADOPTED_MIGRATIONS, and delete this test.
-    """
-    from conftest import ADOPTED_MIGRATIONS
-
-    assert MIGRATION_035 not in ADOPTED_MIGRATIONS
-    assert database_module.SCHEMA_VERSION == 34

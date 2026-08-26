@@ -164,7 +164,14 @@ def test_the_worker_gate_matches_the_migration_it_requires() -> None:
     # order "database first, release second".
     # The constant tracks what is applied, not what is written: require_schema is a
     # hard gate, so a repository ahead of production cannot be released at all.
-    assert "SCHEMA_VERSION = 34" in source
+    assert "SCHEMA_VERSION = 35" in source
+    superseding = (
+        Path(__file__).parents[1] / "sql" / "035_an_answer_may_follow_a_refusal.sql"
+    ).read_text(encoding="utf-8")
+    assert "UPDATE metadata SET value = '35'::jsonb" in superseding
+    # 035 splits one cache key into two partial ones so an answer can follow a
+    # refusal. It must not soften what the trigger protects on the way past.
+    assert "DROP TRIGGER" not in superseding
     assert "UPDATE metadata SET value = '3'::jsonb" in schema
     caveat = (Path(__file__).parents[1] / "sql" / "004_publication_caveat.sql").read_text(
         encoding="utf-8"

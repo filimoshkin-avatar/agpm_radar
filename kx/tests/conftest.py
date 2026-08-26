@@ -62,10 +62,6 @@ MIGRATION_031 = "031_access_keys.sql"
 MIGRATION_032 = "032_statement_trail.sql"
 MIGRATION_033 = "033_chain_passes.sql"
 MIGRATION_034 = "034_chain_passes_are_writable.sql"
-#: Written and verified, awaiting the owner's decision to apply it. Deliberately
-#: outside ADOPTED_MIGRATIONS: `SCHEMA_VERSION` is bumped when a migration reaches
-#: production, not when it is written, and `require_schema` is a hard equality -
-#: a fixture at 35 would refuse every `Database` the rest of the suite builds.
 MIGRATION_035 = "035_an_answer_may_follow_a_refusal.sql"
 ADOPTED_MIGRATIONS = (
     MIGRATION_003,
@@ -100,6 +96,7 @@ ADOPTED_MIGRATIONS = (
     MIGRATION_032,
     MIGRATION_033,
     MIGRATION_034,
+    MIGRATION_035,
 )
 
 #: The hand-applied production hotfix of 2026-08-22 (defect D1): operator_artifact
@@ -198,15 +195,14 @@ def caveat_dsn(migrated_dsn: str) -> str:
 
 @pytest.fixture
 def migrated_dsn(baseline_dsn: str) -> str:
-    """A database at schema 34 - the version the deployed release requires."""
+    """A database at schema 35 - the version the deployed release requires."""
     _apply(baseline_dsn, ADOPTED_MIGRATIONS)
     return baseline_dsn
 
 
 @pytest.fixture
 def superseding_dsn(migrated_dsn: str) -> str:
-    """A database at schema 35: everything adopted, plus the migration on review."""
-    _apply(migrated_dsn, (MIGRATION_035,))
+    """Alias kept for the tests written against 035 specifically."""
     return migrated_dsn
 
 
