@@ -677,7 +677,8 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
-/* Выбор выпуска из архива: рамка перезагружается, шапка называет выбранный номер. */
+/* Выбор выпуска из архива: рамка перезагружается, шапка называет выбранный номер.
+ * «ТЕКУЩИЙ» — свойство последнего выпуска, оно не переезжает вместе с просмотром. */
 function openGazetteIssue(row) {
   const issue = row.dataset.gazetteIssue;
   const frame = document.querySelector(".gazette-frame");
@@ -690,12 +691,6 @@ function openGazetteIssue(row) {
     const number = document.querySelector("#gazetteIssue .mono");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
     if (number) number.textContent = row.dataset.gazetteNumber || "";
-    document.querySelectorAll("[data-gazette-issue]").forEach(item => {
-      const current = item.dataset.gazetteIssue === issue;
-      item.classList.toggle("is-current", current);
-      const tag = item.querySelector(".gazette-archive__tag");
-      if (tag) tag.textContent = current ? "ТЕКУЩИЙ" : "";
-    });
     frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
   }
   gazetteArchive(false);
