@@ -2506,7 +2506,7 @@ function agentChatInit() {
 /** Ярлык категории примера — словами макета, а не ключом сервиса. */
 const AGENT_PROMPT_CATEGORY = {
   find: "поиск",
-  concept: "понятие",
+  concept: "термин",
   contra: "противоречие",
   watch: "обсерватория"
 };
@@ -2680,10 +2680,10 @@ function chatToolCardHtml(card) {
   const data = (card && card.data) || {};
   if (type === "concept") {
     const statements = Array.isArray(data.statements) ? data.statements.length : 0;
-    const title = data.title || data.topicKey || "понятие";
+    const title = data.title || data.topicKey || "термин";
     return `
       <details class="agent-tool" open>
-        <summary class="agent-tool__head">Карточка понятия: ${escapeHtml(String(title))}
+        <summary class="agent-tool__head">Карточка термина: ${escapeHtml(String(title))}
           <span class="agent-tool__count">${statements} ${plural(statements, "утверждение", "утверждения", "утверждений")}</span>
         </summary>
         <div class="agent-tool__body">
@@ -4203,7 +4203,7 @@ async function agentLoadTopics() {
     const data = await kbFetch("/topics");
     const topics = (data.topics || []).filter(topic => topic.statements > 0);
     box.innerHTML = `
-      <p class="agent-intro">Понятие — это элемент скелета тем, а не страница, где оно описано.
+      <p class="agent-intro">Термин — это элемент скелета тем, а не страница, где оно описано.
       Карточка собирается из утверждений базы.</p>
       <div class="agent-topics">
         ${topics.map(topic => `
@@ -4330,7 +4330,7 @@ function setAgentTab(tab) {
   });
   // Leaving the Links tab tears its canvas down: a hidden canvas keeps its
   // listeners and its memory for nothing.
-  // Композер принадлежит диалогу: на вкладке «Понятия» строка вопроса — шум.
+  // Композер принадлежит диалогу: на вкладке «Термины» строка вопроса — шум.
   document.getElementById("agentComposer")?.toggleAttribute("hidden", tab !== "ask");
   document.body.classList.toggle("is-chat", tab === "ask");
   if (tab !== "graph") agentGraphDestroy();
