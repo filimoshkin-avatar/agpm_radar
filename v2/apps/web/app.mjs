@@ -689,7 +689,6 @@ function openGazetteIssue(row) {
     }
     const month = document.querySelector("#gazetteIssue b");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
-    frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
   }
   gazetteArchive(false);
 }
@@ -813,7 +812,10 @@ document.querySelector(".gazette-frame")?.addEventListener("load", fitGazetteFra
 function printGazette() {
   const frame = document.querySelector(".gazette-frame");
   const fallback = () => {
-    const printWindow = window.open("./gazette-20260803.html", "_blank", "noopener");
+    // Печатается открытый номер, а не тот, с которого страница начиналась:
+    // архив меняет `src` рамки, и запасной путь обязан идти за ним.
+    const source = frame?.getAttribute("src") || "/gazette-20260803.html";
+    const printWindow = window.open(source, "_blank", "noopener");
     if (!printWindow) return;
     printWindow.addEventListener("load", () => {
       printWindow.focus();
@@ -846,6 +848,23 @@ function printGazette() {
   }
 }
 
+/** Нижняя кромка липких шапок — граница, ниже которой начинается видимое.
+ *
+ *  Шапка в «Радаре» одна, в «Агенте» их две: общая и шапка колонки, стоящая
+ *  на полке под ней. Высота считается по факту, а не константой: константа
+ *  была одна, и «в начало» уводило вопрос под вторую шапку. */
+function stickyBottom() {
+  let bottom = 0;
+  for (const selector of [".topbar", ".agent-main__head"]) {
+    const head = document.querySelector(selector);
+    // Скрытый раздел не занимает места: `offsetParent` у него пуст.
+    if (!head || head.offsetParent === null) continue;
+    const shelf = parseFloat(window.getComputedStyle?.(head)?.top) || 0;
+    bottom = Math.max(bottom, shelf + (head.getBoundingClientRect?.().height || 0));
+  }
+  return bottom;
+}
+
 /** Единственный способ подвинуть страницу: окном, а не узлом.
  *
  * Дизайн-система запрещает штатный метод прокрутки к элементу, и не из
@@ -871,7 +890,7 @@ function scrollToNode(node, place = "start") {
     const top = box.top + (window.scrollY || 0);
     const target = place === "end" ? top + box.height - height + inset + 16
       : place === "center" ? top - height / 2 + box.height / 2
-      : top - 72;
+      : top - stickyBottom() - 19;
     window.scrollTo?.({ top: Math.max(0, target), behavior: still ? "auto" : "smooth" });
   } catch {
     /* нет окна — нечего листать */
@@ -2385,7 +2404,9 @@ document.getElementById("chatHistoryList")?.addEventListener("click", event => {
   if (!row) return;
   const turn = document.querySelector(`#agentThread [data-turn="${row.dataset.historyTurn}"]`);
   if (!turn) return;
-  scrollToNode(turn, "center");
+  // Поворот выше окна: его «центр» — это середина ответа, а не вопрос.
+  // История ведёт к вопросу, поэтому позиционируем на начало поворота.
+  scrollToNode(turn, "start");
   turn.classList.add("is-flash");
   setTimeout(() => turn.classList.remove("is-flash"), 1600);
   chatHistoryToggleOpen(false);
@@ -2504,7 +2525,7 @@ function agentChatInit() {
 /** Ярлык категории примера — словами макета, а не ключом сервиса. */
 const AGENT_PROMPT_CATEGORY = {
   find: "поиск",
-  concept: "понятие",
+  concept: "тема",
   contra: "противоречие",
   watch: "обсерватория"
 };
@@ -2678,10 +2699,10 @@ function chatToolCardHtml(card) {
   const data = (card && card.data) || {};
   if (type === "concept") {
     const statements = Array.isArray(data.statements) ? data.statements.length : 0;
-    const title = data.title || data.topicKey || "понятие";
+    const title = data.title || data.topicKey || "тема";
     return `
       <details class="agent-tool" open>
-        <summary class="agent-tool__head">Карточка понятия: ${escapeHtml(String(title))}
+        <summary class="agent-tool__head">Карточка темы: ${escapeHtml(String(title))}
           <span class="agent-tool__count">${statements} ${plural(statements, "утверждение", "утверждения", "утверждений")}</span>
         </summary>
         <div class="agent-tool__body">
@@ -4201,8 +4222,8 @@ async function agentLoadTopics() {
     const data = await kbFetch("/topics");
     const topics = (data.topics || []).filter(topic => topic.statements > 0);
     box.innerHTML = `
-      <p class="agent-intro">Понятие — это элемент скелета тем, а не страница, где оно описано.
-      Карточка собирается из утверждений базы.</p>
+      <p class="agent-intro">Тема — это узел авторского рубрикатора базы: в ней живут
+      утверждения, а не готовое описание. Карточка собирается из утверждений.</p>
       <div class="agent-topics">
         ${topics.map(topic => `
           <button class="agent-topic" type="button" data-agent-topic="${escapeHtml(topic.topic_key)}">
@@ -4328,7 +4349,7 @@ function setAgentTab(tab) {
   });
   // Leaving the Links tab tears its canvas down: a hidden canvas keeps its
   // listeners and its memory for nothing.
-  // Композер принадлежит диалогу: на вкладке «Понятия» строка вопроса — шум.
+  // Композер принадлежит диалогу: на вкладке «Темы» строка вопроса — шум.
   document.getElementById("agentComposer")?.toggleAttribute("hidden", tab !== "ask");
   document.body.classList.toggle("is-chat", tab === "ask");
   if (tab !== "graph") agentGraphDestroy();
