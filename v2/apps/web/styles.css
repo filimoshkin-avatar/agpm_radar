@@ -473,7 +473,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 }
 
 .grid--trend { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
-.grid--calendar { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
 .grid__stack { display: flex; flex-direction: column; gap: 14px; }
 .panel--wide { margin: 0 24px 18px; }
 
@@ -485,6 +484,11 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   background: var(--panel);
   border-bottom: 1px solid var(--rule);
 }
+
+/* Разбор идёт на всю ширину героя: под тезисами и сонаром, над материалами.
+   Поля — те же, что у `.panel--wide`: выйдя из `.hero__theses`, он потерял её
+   `padding` и встал вплотную к кромкам, тогда как всё вокруг отступает на 24px. */
+.hero > .daily-analysis { grid-column: 1 / -1; margin: 0 24px 18px; }
 
 .hero__theses { padding: 22px 24px 18px; border-right: 1px solid var(--rule); }
 
@@ -1326,7 +1330,6 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .gazette-issue__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .gazette-issue__button b { font-weight: 600; }
-.gazette-issue__button .mono { font-size: 10.5px; color: var(--muted); line-height: 1; }
 .gazette-issue__caret { color: var(--meta); }
 
 .gazette-archive {
