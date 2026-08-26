@@ -14,7 +14,13 @@ from http.server import ThreadingHTTPServer
 from typing import Any
 
 from radar_kx.agent_api import AgentService, make_handler
-from radar_kx.agent_chat import select_tool, valid_session, welcome_prompts
+from radar_kx.agent_chat import (
+    CURATED_PROMPTS,
+    NOT_A_SUBJECT,
+    select_tool,
+    valid_session,
+    welcome_prompts,
+)
 
 
 def service(**answers: Any) -> AgentService:
@@ -72,6 +78,35 @@ def test_the_pool_follows_the_base() -> None:
     assert pool["pool"] == pool["poolCurated"] + 2  # «Редкая тема» stays out
     texts = " ".join(prompt["text"] for prompt in pool["prompts"])
     assert "Редкая тема" not in texts
+
+
+def test_a_topic_that_names_a_shelf_is_not_offered_as_a_question() -> None:
+    """Owner's call 2026-08-26: the welcome screen offers nothing it cannot answer.
+
+    «Расскажи про «Тренды»» has no answer - the statements filed under it are each
+    about a different trend and none is about trends. Sixteen topics behaved that
+    way when all 114 prompts were put through the live flow, and they are named in
+    `NOT_A_SUBJECT` because no property of the skeleton separates them: every pool
+    topic is L2 and most of these are childless leaves.
+    """
+    shelved = {**TOPICS[0], "topic_key": sorted(NOT_A_SUBJECT)[0]}
+    title = str(shelved["title"])
+    pool = welcome_prompts([shelved, *TOPICS[1:]], seed=1)
+    assert title not in " ".join(str(prompt["text"]) for prompt in pool["prompts"])
+    assert pool["pool"] == pool["poolCurated"] + 1
+
+
+def test_every_curated_prompt_promises_something_the_base_answers() -> None:
+    """The four that did not were removed the same day, and two of them on purpose.
+
+    «Сколько организаций внедрило агентов в продакшне в 2025 году?» and «Какая доля
+    PMO использует агентов по данным опросов?» carried the hint «честный отказ +
+    ближайшее»: they were written to demonstrate the refusal. The owner retired the
+    demonstration - a suggested question that refuses reads as a broken promise,
+    not as a feature - so no prompt may advertise one any more.
+    """
+    hints = {prompt.hint for prompt in CURATED_PROMPTS}
+    assert not any("отказ" in hint for hint in hints), hints
 
 
 def test_no_category_takes_over_the_welcome_screen() -> None:

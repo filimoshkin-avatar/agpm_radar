@@ -62,13 +62,9 @@ CURATED_PROMPTS: tuple[CuratedPrompt, ...] = (
         "Кто в организации отвечает за ошибку, допущенную агентом?",
     ),
     CuratedPrompt(
-        "find", "поиск с доказательствами", "Что считается первоисточником, а что пересказом?"
-    ),
-    CuratedPrompt(
         "find", "поиск с доказательствами", "Какие метрики внедрения агентов упоминают команды?"
     ),
     CuratedPrompt("concept", "карточка понятия", "Какие статусы бывают у утверждений?"),
-    CuratedPrompt("concept", "карточка понятия", "Что входит в понятие «канон»?"),
     CuratedPrompt(
         "contra", "противоречия по теме", "Где база видит противоречия в оценках эффекта агентов?"
     ),
@@ -79,16 +75,48 @@ CURATED_PROMPTS: tuple[CuratedPrompt, ...] = (
         "contra", "противоречия по теме", "Что противоречиво в подходах к human-in-the-loop?"
     ),
     CuratedPrompt(
-        "watch",
-        "честный отказ + ближайшее",
-        "Сколько организаций внедрило агентов в продакшне в 2025 году?",
+        "watch", "хроника рынка рядом", "Динамика внедрения за 12 месяцев - есть ли тренд?"
     ),
-    CuratedPrompt(
-        "watch", "честный отказ + ближайшее", "Какая доля PMO использует агентов по данным опросов?"
-    ),
-    CuratedPrompt(
-        "watch", "честный отказ + ближайшее", "Динамика внедрения за 12 месяцев - есть ли тренд?"
-    ),
+)
+
+#: Topics whose title names a shelf rather than a subject. «Расскажи про
+#: «Тренды»» has no answer: the 188 statements filed under it are each about a
+#: different trend and not one is about trends, so the model is handed a subject
+#: nobody wrote about and says so.
+#:
+#: Measured, not guessed. On 2026-08-25 all 114 prompts in this pool were put
+#: through the live flow; 20 came back «в базе нет подтверждений», and these are
+#: the sixteen topics among them. Owner's call the same day: the welcome screen
+#: must not offer a question the base cannot answer.
+#:
+#: A list and not a rule, because the rule was looked for and does not exist.
+#: Every pool topic sits at L2, and having children separates 27% from 14% -
+#: most of these are childless leaves, «Безопасность агентных систем» with 305
+#: statements among them. Nothing in the skeleton says "container"; only asking
+#: does.
+#:
+#: Re-measure with `scripts/pool_sweep.py` when the skeleton changes: a topic
+#: that grows a subject's worth of material belongs back on the welcome screen,
+#: and one that stops answering belongs here.
+NOT_A_SUBJECT: frozenset[str] = frozenset(
+    {
+        "domain-agent-economics",
+        "domain-agent-security",
+        "domain-ai-risk-management",
+        "economics-cost-per-task",
+        "economics-oversight-throughput",
+        "foundations-agent-as-participant",
+        "foundations-agentic-and-classical",
+        "learning-glossary",
+        "mechanism-escalation",
+        "observatory-materials",
+        "observatory-research-agenda",
+        "observatory-standards-and-regulation",
+        "observatory-trends",
+        "ontology-relations",
+        "pm-managed-system",
+        "practice-cross-cutting",
+    }
 )
 
 _CONTRA_WORDS = ("противореч", "разноглас", "спор о", "несоглас")
@@ -127,6 +155,8 @@ def welcome_prompts(
         except (TypeError, ValueError):
             statements = 0
         if statements < MIN_STATEMENTS_FOR_PROMPT or len(title) < _MIN_TOPIC_MATCH:
+            continue
+        if str(topic.get("topic_key") or "") in NOT_A_SUBJECT:
             continue
         pool.append(CuratedPrompt("concept", "карточка понятия", f"Расскажи про «{title}»"))
     # Sampling a welcome screen, not a key: `random` is the right tool (S311).
