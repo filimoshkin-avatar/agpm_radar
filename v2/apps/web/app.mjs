@@ -696,11 +696,29 @@ function openGazetteIssue(row) {
   gazetteArchive(false);
 }
 
+/* Статус в шапке газеты говорит о последнем выпуске — и берётся из архива,
+ * а не дублируется строкой: обновился архив — обновился статус. */
+function syncGazetteTopStatus() {
+  const row = document.querySelector("[data-gazette-issue].is-current");
+  const status = document.getElementById("gazetteTopStatus");
+  if (!row || !status) return;
+  const parts = [
+    "ТЕКУЩИЙ НОМЕР:",
+    row.dataset.gazetteNumber || "",
+    "·",
+    (row.dataset.gazetteMonth || "").toUpperCase(),
+  ];
+  if (row.dataset.gazetteNext) parts.push("· СЛЕДУЮЩИЙ —", row.dataset.gazetteNext);
+  status.textContent = parts.filter(Boolean).join(" ");
+}
+
 /* Лого — наверх текущего раздела: раздел не меняем, только прокрутку. */
 document.querySelector(".brand")?.addEventListener("click", event => {
   event.preventDefault();
   window.scrollTo?.(0, 0);
 });
+
+syncGazetteTopStatus();
 
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
