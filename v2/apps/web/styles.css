@@ -485,6 +485,9 @@ body.is-gazette .topbar__right--gazette { display: flex; }
   border-bottom: 1px solid var(--rule);
 }
 
+/* Разбор идёт на всю ширину героя: под тезисами и сонаром, над материалами. */
+.hero > .daily-analysis { grid-column: 1 / -1; }
+
 .hero__theses { padding: 22px 24px 18px; border-right: 1px solid var(--rule); }
 
 .hero__head {
