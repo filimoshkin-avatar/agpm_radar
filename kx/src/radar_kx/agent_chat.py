@@ -64,7 +64,7 @@ CURATED_PROMPTS: tuple[CuratedPrompt, ...] = (
     CuratedPrompt(
         "find", "поиск с доказательствами", "Какие метрики внедрения агентов упоминают команды?"
     ),
-    CuratedPrompt("concept", "карточка понятия", "Какие статусы бывают у утверждений?"),
+    CuratedPrompt("concept", "карточка темы", "Какие статусы бывают у утверждений?"),
     CuratedPrompt(
         "contra", "противоречия по теме", "Где база видит противоречия в оценках эффекта агентов?"
     ),
@@ -159,7 +159,7 @@ def pool_prompts(topics: Sequence[Mapping[str, Any]]) -> list[CuratedPrompt]:
             continue
         if str(topic.get("topic_key") or "") in NOT_A_SUBJECT:
             continue
-        pool.append(CuratedPrompt("concept", "карточка понятия", f"Расскажи про «{title}»"))
+        pool.append(CuratedPrompt("concept", "карточка темы", f"Расскажи про «{title}»"))
     return pool
 
 

@@ -258,7 +258,7 @@ const ANSWER = {
 const PROMPTS = {
   prompts: [
     { text: "Чем подтверждённые положения отличаются от наблюдаемых сигналов?", category: "find", hint: "поиск с доказательствами" },
-    { text: "Расскажи про «Пороги автономии»", category: "concept", hint: "карточка понятия" },
+    { text: "Расскажи про «Пороги автономии»", category: "concept", hint: "карточка темы" },
   ],
   pool: 17,
   poolCurated: 14,
