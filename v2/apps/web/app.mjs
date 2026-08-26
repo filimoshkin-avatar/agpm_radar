@@ -688,9 +688,7 @@ function openGazetteIssue(row) {
       frame.setAttribute("title", `Новости Агентного управления — выпуск от ${row.dataset.gazetteDate}`);
     }
     const month = document.querySelector("#gazetteIssue b");
-    const number = document.querySelector("#gazetteIssue .mono");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
-    if (number) number.textContent = row.dataset.gazetteNumber || "";
     frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
   }
   gazetteArchive(false);
