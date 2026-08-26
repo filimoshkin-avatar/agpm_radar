@@ -139,13 +139,14 @@ def valid_session(session: str) -> bool:
     return not session or _SESSION_PATTERN.fullmatch(session) is not None
 
 
-def welcome_prompts(
-    topics: Sequence[Mapping[str, Any]], *, count: int = PROMPTS_ON_WELCOME, seed: int | None = None
-) -> dict[str, Any]:
-    """Assemble the pool, then sample the welcome screen from it.
+def pool_prompts(topics: Sequence[Mapping[str, Any]]) -> list[CuratedPrompt]:
+    """Every question the welcome screen may offer, in one place.
 
-    Deterministic under a fixed `seed`: a test (and a curious owner) must be
-    able to see exactly what a given session would have been offered.
+    Its own function because two callers need the same answer and a second copy
+    of these three conditions would drift: `scripts/pool_sweep.py` certifies that
+    nothing in this pool refuses, and a sweep of a slightly different pool
+    certifies nothing at all. It caught its own copy doing exactly that - three
+    topics adrift, the title-length rule missing.
     """
     pool: list[CuratedPrompt] = list(CURATED_PROMPTS)
     for topic in topics:
@@ -159,6 +160,18 @@ def welcome_prompts(
         if str(topic.get("topic_key") or "") in NOT_A_SUBJECT:
             continue
         pool.append(CuratedPrompt("concept", "карточка понятия", f"Расскажи про «{title}»"))
+    return pool
+
+
+def welcome_prompts(
+    topics: Sequence[Mapping[str, Any]], *, count: int = PROMPTS_ON_WELCOME, seed: int | None = None
+) -> dict[str, Any]:
+    """Assemble the pool, then sample the welcome screen from it.
+
+    Deterministic under a fixed `seed`: a test (and a curious owner) must be
+    able to see exactly what a given session would have been offered.
+    """
+    pool = pool_prompts(topics)
     # Sampling a welcome screen, not a key: `random` is the right tool (S311).
     generator = random.Random(seed)  # noqa: S311
     picked: list[CuratedPrompt] = []

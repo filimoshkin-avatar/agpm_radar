@@ -17,6 +17,7 @@ from radar_kx.agent_api import AgentService, make_handler
 from radar_kx.agent_chat import (
     CURATED_PROMPTS,
     NOT_A_SUBJECT,
+    pool_prompts,
     select_tool,
     valid_session,
     welcome_prompts,
@@ -107,6 +108,17 @@ def test_every_curated_prompt_promises_something_the_base_answers() -> None:
     """
     hints = {prompt.hint for prompt in CURATED_PROMPTS}
     assert not any("отказ" in hint for hint in hints), hints
+
+
+def test_the_sweep_and_the_welcome_screen_walk_the_same_pool() -> None:
+    """One source, because two copies of three conditions drift - and did.
+
+    `scripts/pool_sweep.py` certifies that nothing on the welcome screen refuses.
+    Its own copy of the pool rules was missing the title-length rule, so it built
+    97 where the screen offers 94: a certificate for a pool nobody is shown. The
+    guard inside the sweep caught it; this keeps there being nothing to catch.
+    """
+    assert len(pool_prompts(TOPICS)) == welcome_prompts(TOPICS, seed=1)["pool"]
 
 
 def test_no_category_takes_over_the_welcome_screen() -> None:

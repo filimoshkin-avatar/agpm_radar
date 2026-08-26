@@ -30,39 +30,27 @@ from pathlib import Path
 from typing import Any
 
 from radar_kx.agent_api import AgentService
-from radar_kx.agent_chat import (
-    CURATED_PROMPTS,
-    MIN_STATEMENTS_FOR_PROMPT,
-    NOT_A_SUBJECT,
-    welcome_prompts,
-)
+from radar_kx.agent_chat import pool_prompts, welcome_prompts
 from radar_kx.config import Settings
 from radar_kx.database import Database
 
 
 def _pool(service: AgentService) -> list[dict[str, Any]]:
-    """The same pool `welcome_prompts` samples from, item by item."""
-    items: list[dict[str, Any]] = [
-        {"kind": "curated", "category": prompt.category, "text": prompt.text}
-        for prompt in CURATED_PROMPTS
-    ]
-    for topic in service.database.agent_topics():
-        title = str(topic.get("title") or "").strip()
-        try:
-            statements = int(topic.get("statements") or 0)
-        except (TypeError, ValueError):
-            statements = 0
-        if statements < MIN_STATEMENTS_FOR_PROMPT:
-            continue
-        if str(topic.get("topic_key") or "") in NOT_A_SUBJECT:
-            continue
+    """The pool the welcome screen samples from - from the same function it uses."""
+    topics = {
+        f"Расскажи про «{str(topic.get('title') or '').strip()}»": topic
+        for topic in service.database.agent_topics()
+    }
+    items: list[dict[str, Any]] = []
+    for prompt in pool_prompts(service.database.agent_topics()):
+        topic = topics.get(prompt.text)
         items.append(
             {
-                "kind": "topic",
-                "category": "concept",
-                "topic_key": topic.get("topic_key"),
-                "statements": statements,
-                "text": f"Расскажи про «{title}»",
+                "kind": "topic" if topic else "curated",
+                "category": prompt.category,
+                "topic_key": topic.get("topic_key") if topic else None,
+                "statements": topic.get("statements") if topic else None,
+                "text": prompt.text,
             }
         )
     return items
