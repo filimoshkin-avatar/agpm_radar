@@ -677,11 +677,48 @@ function gazetteArchive(open) {
 
 document.getElementById("gazetteIssue")?.addEventListener("click", () => gazetteArchive());
 
+/* Выбор выпуска из архива: рамка перезагружается, шапка называет выбранный номер.
+ * «ТЕКУЩИЙ» — свойство последнего выпуска, оно не переезжает вместе с просмотром. */
+function openGazetteIssue(row) {
+  const issue = row.dataset.gazetteIssue;
+  const frame = document.querySelector(".gazette-frame");
+  if (frame && issue && !frame.src.includes(`/gazette-${issue}.html`)) {
+    frame.src = `/gazette-${issue}.html`;
+    if (row.dataset.gazetteDate) {
+      frame.setAttribute("title", `Новости Агентного управления — выпуск от ${row.dataset.gazetteDate}`);
+    }
+    const month = document.querySelector("#gazetteIssue b");
+    const number = document.querySelector("#gazetteIssue .mono");
+    if (month) month.textContent = row.dataset.gazetteMonth || "";
+    if (number) number.textContent = row.dataset.gazetteNumber || "";
+    frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
+  }
+  gazetteArchive(false);
+}
+
+/* Статус в шапке газеты говорит о последнем выпуске — и берётся из архива,
+ * а не дублируется строкой: обновился архив — обновился статус. */
+function syncGazetteTopStatus() {
+  const row = document.querySelector("[data-gazette-issue].is-current");
+  const status = document.getElementById("gazetteTopStatus");
+  if (!row || !status) return;
+  const parts = [
+    "ТЕКУЩИЙ НОМЕР:",
+    row.dataset.gazetteNumber || "",
+    "·",
+    (row.dataset.gazetteMonth || "").toUpperCase(),
+  ];
+  if (row.dataset.gazetteNext) parts.push("· СЛЕДУЮЩИЙ —", row.dataset.gazetteNext);
+  status.textContent = parts.filter(Boolean).join(" ");
+}
+
 /* Лого — наверх текущего раздела: раздел не меняем, только прокрутку. */
 document.querySelector(".brand")?.addEventListener("click", event => {
   event.preventDefault();
   window.scrollTo?.(0, 0);
 });
+
+syncGazetteTopStatus();
 
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
@@ -1802,6 +1839,10 @@ document.addEventListener("click", event => {
   }
   if (button.dataset.agentPage) {
     agentOpenPage(button.dataset.agentPage);
+    return;
+  }
+  if (button.dataset.gazetteIssue) {
+    openGazetteIssue(button);
     return;
   }
   if (button.dataset.agentAdmission) {

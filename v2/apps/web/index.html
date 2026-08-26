@@ -21,7 +21,7 @@
   <meta name="twitter:image" content="https://radar.agpm.space/og-image-20260803.png">
   <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
   <link rel="icon" href="/favicon.svg?v=20260729-1734">
-  <link rel="stylesheet" href="/assets/styles.css?v=489b9f121afa">
+  <link rel="stylesheet" href="/assets/styles.css?v=76729ff56a0b">
 </head>
 <body>
   <!-- Тикер: та же сводка выпуска, что раньше жила плиткой, — строкой на графите. -->
@@ -85,7 +85,7 @@
     </div>
 
     <div class="topbar__right topbar__right--gazette">
-      <span class="topbar__status mono">ТЕКУЩИЙ НОМЕР: № 1 · АВГУСТ 2026 · СЛЕДУЮЩИЙ — СЕНТЯБРЬ</span>
+      <span class="topbar__status mono" id="gazetteTopStatus">ТЕКУЩИЙ НОМЕР: № 2 · СЕНТЯБРЬ 2026 · СЛЕДУЮЩИЙ — ОКТЯБРЬ</span>
       <button class="button button--ghost" id="printGazetteTop" type="button">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 6V2h8v4M4 12H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1M4 10h8v4H4z"></path></svg>
         Печать / PDF
@@ -499,28 +499,38 @@
       <div class="gazette-issue">
         <button class="gazette-issue__button" id="gazetteIssue" type="button" aria-expanded="false" aria-controls="gazetteArchive">
           <i class="gazette-issue__dot" aria-hidden="true"></i>
-          <b>Август 2026</b>
-          <span class="mono">№ 1</span>
+          <b>Сентябрь 2026</b>
+          <span class="mono">№ 2</span>
           <span class="gazette-issue__caret" aria-hidden="true">▾</span>
         </button>
-        <div class="gazette-archive" id="gazetteArchive" hidden role="listbox" aria-label="Архив выпусков">
+        <div class="gazette-archive" id="gazetteArchive" hidden aria-label="Архив выпусков">
           <div class="gazette-archive__head mono">Архив выпусков</div>
-          <div class="gazette-archive__row is-current" role="option" aria-selected="true">
+          <button class="gazette-archive__row is-current" type="button"
+                  data-gazette-issue="20260901" data-gazette-month="Сентябрь 2026" data-gazette-number="№ 2"
+                  data-gazette-date="1 сентября 2026" data-gazette-next="ОКТЯБРЬ">
             <span class="gazette-archive__names">
-              <span class="gazette-archive__month">Август 2026</span>
-              <span class="gazette-archive__sub mono">3 авг · Том I · пилот</span>
+              <span class="gazette-archive__month">Сентябрь 2026</span>
+              <span class="gazette-archive__sub mono">1 сен · Том I · № 2</span>
             </span>
             <span class="gazette-archive__tag mono">ТЕКУЩИЙ</span>
-          </div>
-          <div class="gazette-archive__foot">Архив пополняется по мере выхода номеров — следующий выпуск в сентябре.</div>
+          </button>
+          <button class="gazette-archive__row" type="button"
+                  data-gazette-issue="20260803" data-gazette-month="Август 2026" data-gazette-number="№ 1"
+                  data-gazette-date="3 августа 2026">
+            <span class="gazette-archive__names">
+              <span class="gazette-archive__month">Август 2026</span>
+              <span class="gazette-archive__sub mono">3 авг · Том I · № 1</span>
+            </span>
+          </button>
+          <div class="gazette-archive__foot">Архив пополняется по мере выхода номеров — следующий выпуск в октябре.</div>
         </div>
       </div>
     </div>
     <div class="gazette-stage">
       <iframe
         class="gazette-frame"
-        src="/gazette-20260803.html"
-        title="Новости Агентного управления — выпуск от 3 августа 2026"
+        src="/gazette-20260901.html"
+        title="Новости Агентного управления — выпуск от 1 сентября 2026"
         sandbox="allow-same-origin allow-modals">
       </iframe>
     </div>
@@ -537,6 +547,6 @@
   </div>
 
   <script src="/assets/vendor/cytoscape.3.30.4.min.js"></script>
-  <script src="/assets/app.mjs?v=1fa7f186330d"></script>
+  <script src="/assets/app.mjs?v=4a1fbf951d27"></script>
 </body>
 </html>
