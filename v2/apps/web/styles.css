@@ -1326,7 +1326,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .gazette-issue__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .gazette-issue__button b { font-weight: 600; }
-.gazette-issue__button .mono { font-size: 10.5px; color: var(--muted); }
+.gazette-issue__button .mono { font-size: 10.5px; color: var(--muted); line-height: 1; }
 .gazette-issue__caret { color: var(--meta); }
 
 .gazette-archive {
