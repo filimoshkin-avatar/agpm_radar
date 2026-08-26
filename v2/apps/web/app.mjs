@@ -689,7 +689,6 @@ function openGazetteIssue(row) {
     }
     const month = document.querySelector("#gazetteIssue b");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
-    frame.addEventListener("load", () => fitGazetteFrame(), { once: true });
   }
   gazetteArchive(false);
 }
@@ -813,7 +812,10 @@ document.querySelector(".gazette-frame")?.addEventListener("load", fitGazetteFra
 function printGazette() {
   const frame = document.querySelector(".gazette-frame");
   const fallback = () => {
-    const printWindow = window.open("./gazette-20260803.html", "_blank", "noopener");
+    // Печатается открытый номер, а не тот, с которого страница начиналась:
+    // архив меняет `src` рамки, и запасной путь обязан идти за ним.
+    const source = frame?.getAttribute("src") || "/gazette-20260803.html";
+    const printWindow = window.open(source, "_blank", "noopener");
     if (!printWindow) return;
     printWindow.addEventListener("load", () => {
       printWindow.focus();
