@@ -2385,7 +2385,9 @@ document.getElementById("chatHistoryList")?.addEventListener("click", event => {
   if (!row) return;
   const turn = document.querySelector(`#agentThread [data-turn="${row.dataset.historyTurn}"]`);
   if (!turn) return;
-  scrollToNode(turn, "center");
+  // Поворот выше окна: его «центр» — это середина ответа, а не вопрос.
+  // История ведёт к вопросу, поэтому позиционируем на начало поворота.
+  scrollToNode(turn, "start");
   turn.classList.add("is-flash");
   setTimeout(() => turn.classList.remove("is-flash"), 1600);
   chatHistoryToggleOpen(false);
