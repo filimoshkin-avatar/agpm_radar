@@ -4209,8 +4209,12 @@ class Database:
                          refusal_reason, adjacent_support, verification, evidence_package,
                          clause_count, bound_clause_count, model, prompt_sha256, answered_by)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (normalized_question, scope, coalesce(release_id, ''))
-                        DO NOTHING
+                    -- No conflict target: after 035 the key is two partial
+                    -- indexes - one answer and one refusal per question - and a
+                    -- target naming the columns cannot infer a partial index.
+                    -- Bare DO NOTHING covers whichever of them is hit, and
+                    -- covers the single index before 035 exactly as before.
+                    ON CONFLICT DO NOTHING
                     RETURNING answer_id
                     """,
                     (
@@ -4251,7 +4255,14 @@ class Database:
                 " verification, evidence_package, answered_at"
                 " FROM kx.research_answers"
                 " WHERE normalized_question = %s AND scope = %s"
-                "   AND coalesce(release_id, '') = coalesce(%s, '')",
+                "   AND coalesce(release_id, '') = coalesce(%s, '')"
+                # After 035 a question may hold both an answer and a refusal, and
+                # which one comes back must not depend on the order the planner
+                # happened to read them in. The answer is the cache hit; the
+                # refusal is a record of a turn that did not produce one, and
+                # what the caller does with it is the caller's rule.
+                " ORDER BY (answer_text IS NULL), answered_at DESC"
+                " LIMIT 1",
                 (normalize_question(question), scope, release_id),
             )
             row = cursor.fetchone()
