@@ -10,8 +10,8 @@ Description=Turn a fetched radar issue into decisions waiting for the owner
 # spends money, and a pass that runs while the previous one is still working
 # would cross the profile's ten-concurrent ceiling. `Persistent=true` means a
 # host that was off at 09:00 catches up when it comes back, once.
-OnCalendar=*-*-* 06:00:00 UTC
-RandomizedDelaySec=10min
+OnCalendar=*-*-* 07:00:00 UTC
+RandomizedDelaySec=5min
 Persistent=true
 Unit=radar-kx-catch-up.service
 
