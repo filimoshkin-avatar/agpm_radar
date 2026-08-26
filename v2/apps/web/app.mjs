@@ -848,6 +848,23 @@ function printGazette() {
   }
 }
 
+/** Нижняя кромка липких шапок — граница, ниже которой начинается видимое.
+ *
+ *  Шапка в «Радаре» одна, в «Агенте» их две: общая и шапка колонки, стоящая
+ *  на полке под ней. Высота считается по факту, а не константой: константа
+ *  была одна, и «в начало» уводило вопрос под вторую шапку. */
+function stickyBottom() {
+  let bottom = 0;
+  for (const selector of [".topbar", ".agent-main__head"]) {
+    const head = document.querySelector(selector);
+    // Скрытый раздел не занимает места: `offsetParent` у него пуст.
+    if (!head || head.offsetParent === null) continue;
+    const shelf = parseFloat(window.getComputedStyle?.(head)?.top) || 0;
+    bottom = Math.max(bottom, shelf + (head.getBoundingClientRect?.().height || 0));
+  }
+  return bottom;
+}
+
 /** Единственный способ подвинуть страницу: окном, а не узлом.
  *
  * Дизайн-система запрещает штатный метод прокрутки к элементу, и не из
@@ -873,7 +890,7 @@ function scrollToNode(node, place = "start") {
     const top = box.top + (window.scrollY || 0);
     const target = place === "end" ? top + box.height - height + inset + 16
       : place === "center" ? top - height / 2 + box.height / 2
-      : top - 72;
+      : top - stickyBottom() - 19;
     window.scrollTo?.({ top: Math.max(0, target), behavior: still ? "auto" : "smooth" });
   } catch {
     /* нет окна — нечего листать */
