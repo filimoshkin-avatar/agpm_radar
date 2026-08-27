@@ -400,10 +400,13 @@ class RadarApi:
             )
             return {"items": items}
         if path == "/api/rubrics":
-            _only(values, {"period"})
+            _only(values, {"anchor", "period"})
             period = _period(values)
+            anchor = _date_value(values["anchor"], "anchor") if "anchor" in values else None
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).rubrics(period)
+                lambda connection, _identity: PublicDataRepository(connection).rubrics(
+                    period, anchor
+                )
             )
         if path == "/api/sources":
             _only(values, {"period"})

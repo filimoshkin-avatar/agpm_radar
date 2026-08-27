@@ -1482,14 +1482,16 @@ function renderBars(id, rows, labelKey, valueKey) {
     const isActive = state.rubrics.includes(row.id);
     const arrow = trendArrow(row);
     const deltaClass = arrow === "↘" ? "is-down" : arrow === "→" ? "is-flat" : "";
-    return `<button class="bar-row bar-row-${blockClass} ${isActive ? "is-active" : ""}" data-rubric-bar="${row.id || ""}" aria-pressed="${isActive ? "true" : "false"}">
+    const details = rubricTrendDetails(row);
+    return `<button class="bar-row bar-row-${blockClass} ${isActive ? "is-active" : ""}" data-rubric-bar="${row.id || ""}" aria-pressed="${isActive ? "true" : "false"}" title="${escapeHtml(details)}">
       <span>${escapeHtml(row[labelKey] || "")}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${Math.max(3, value / max * 100)}%"></span></span>
       <span class="bar-count">${value}</span>
       <span class="bar-delta ${deltaClass}">${arrow}</span>
     </button>`;
   }).join("");
-  setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · счёт за 30 дней` : "");
+  const periodLabel = state.period === "7d" ? "динамика за 7 дней" : state.period === "30d" ? "динамика за 30 дней" : "активность выбранного выпуска";
+  setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · ${periodLabel}` : "");
 }
 
 function trendRangeLabel(rows) {
@@ -1604,10 +1606,19 @@ function rubricCell(row) {
 }
 
 function trendArrow(row) {
-  const count = Number(row.count) || 0;
-  if (count > 16) return "↗";
-  if (count < 6) return "↘";
-  return "→";
+  return row.direction === "up" ? "↗" : row.direction === "down" ? "↘" : "→";
+}
+
+function rubricTrendDetails(row) {
+  const confidence = { low: "низкая", medium: "средняя", high: "высокая" }[row.confidence] || "не определена";
+  if (row.period === "day") {
+    return row.currentCount > 0
+      ? `Рубрика представлена в выпуске: ${row.currentCount}. Надёжность: ${confidence}.`
+      : "Рубрика не представлена в выбранном выпуске.";
+  }
+  const currentShare = Math.round((Number(row.currentShare) || 0) * 100);
+  const previousShare = Math.round((Number(row.previousShare) || 0) * 100);
+  return `Было ${row.previousCount || 0}, стало ${row.currentCount || 0}; доля ${previousShare}% → ${currentShare}%; индекс ${Number(row.index || 0).toFixed(1)}; надёжность: ${confidence}.`;
 }
 
 function renderFooterSources() {
@@ -1684,9 +1695,10 @@ async function reload() {
   renderColumns(state.materials);
   let materials;
   try {
-    [materials] = await Promise.all([
+    [materials, , rubrics] = await Promise.all([
       loadIssueMaterials(request),
       loadPeriodStats(request.period),
+      loadRubrics(request.period, request.issueDate),
     ]);
   } catch (error) {
     if (generation !== reloadGeneration) return;
@@ -1708,6 +1720,13 @@ async function reload() {
   renderColumns(materials);
   renderBars("rubrics", rubrics, "title", "count");
   renderRubricator();
+}
+
+async function loadRubrics(period, issueDate) {
+  const apiPeriod = ["issue", "yesterday"].includes(period) ? "day" : period;
+  const params = { period: apiPeriod, anchor: issueDate };
+  const payload = await getJson(`/api/rubrics?${qs(params)}`);
+  return payload.rubrics || [];
 }
 
 async function init() {
@@ -1774,13 +1793,11 @@ async function loadTimeseriesData() {
 }
 
 async function loadSecondaryData() {
-  const [rubricsResult, sourcesResult, publicationTimeseriesResult, issuesResult] = await Promise.allSettled([
-    getJson("/api/rubrics?period=30d"),
+  const [sourcesResult, publicationTimeseriesResult, issuesResult] = await Promise.allSettled([
     getJson("/api/sources?period=30d"),
     getJson("/api/timeseries?days=30&basis=publication"),
     getJson("/api/issues?limit=5"),
   ]);
-  if (rubricsResult.status === "fulfilled") rubrics = rubricsResult.value.rubrics || [];
   if (sourcesResult.status === "fulfilled") sources = sourcesResult.value.sources || [];
   if (publicationTimeseriesResult.status === "fulfilled") publicationTimeseries = publicationTimeseriesResult.value.timeseries || [];
   const issueList = issuesResult.status === "fulfilled" ? issuesResult.value.issues || [] : [];

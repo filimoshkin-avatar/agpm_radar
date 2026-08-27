@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from datetime import date, datetime, timedelta
+from math import log
 from typing import Final, cast
 
 from packages.contracts.json_types import JsonObject, JsonValue
@@ -115,6 +116,35 @@ def _period_dates(connection: sqlite3.Connection, period: str) -> tuple[str, ...
             (start, end),
         )
     )
+
+
+def _rubric_anchor(connection: sqlite3.Connection, anchor_date: str | None) -> date | None:
+    latest = _latest_date(connection)
+    if latest is None:
+        return None
+    if anchor_date is None:
+        return latest
+    try:
+        anchor = date.fromisoformat(anchor_date)
+    except ValueError as error:
+        raise PublicDataError("rubric anchor date is invalid") from error
+    if anchor.isoformat() != anchor_date or anchor > latest:
+        raise PublicDataError("rubric anchor date is outside the published range")
+    return anchor
+
+
+def _rubric_window(period: str, anchor: date) -> tuple[date, date, date | None, date | None]:
+    days = {"day": 1, "yesterday": 1, "7d": 7, "30d": 30}.get(period)
+    if days is None:
+        raise PublicDataError("unsupported rubric period")
+    if period == "yesterday":
+        anchor -= timedelta(days=1)
+    current_start = anchor - timedelta(days=days - 1)
+    if days == 1:
+        return current_start, anchor, None, None
+    previous_end = current_start - timedelta(days=1)
+    previous_start = previous_end - timedelta(days=days - 1)
+    return current_start, anchor, previous_start, previous_end
 
 
 def _page(items: list[JsonObject], offset: int, limit: int) -> tuple[list[JsonObject], int | None]:
@@ -269,30 +299,94 @@ class PublicDataRepository:
         points.sort(key=lambda item: cast(str, item["date"]))
         return points[-days:]
 
-    def rubrics(self, period: str) -> list[JsonObject]:
-        dates = _period_dates(self.connection, period)
-        if not dates:
+    def rubrics(self, period: str, anchor_date: str | None = None) -> list[JsonObject]:
+        anchor = _rubric_anchor(self.connection, anchor_date)
+        if anchor is None:
             return []
-        placeholders = ",".join("?" for _date_value in dates)
-        rows = self.connection.execute(
-            f"""
-            SELECT r.rubric_id, r.title, COUNT(*)
-            FROM pub_material_rubrics_v1 AS r
-            JOIN pub_issues_v1 AS i ON i.issue_id = r.issue_id
-            WHERE i.issue_date IN ({placeholders})
-            GROUP BY r.rubric_id, r.title
-            ORDER BY COUNT(*) DESC, r.title, r.rubric_id
-            """,  # noqa: S608 -- placeholders are generated, never user-controlled
-            dates,
+        current_start, current_end, previous_start, previous_end = _rubric_window(period, anchor)
+        catalog = self.connection.execute(
+            """
+            SELECT rubric_id, MAX(title), MIN(sort_order)
+            FROM pub_material_rubrics_v1
+            GROUP BY rubric_id
+            ORDER BY MIN(sort_order), MAX(title), rubric_id
+            """
         ).fetchall()
-        return [
-            {
-                "count": int(row[2]),
-                "id": _public_text(row[0], "rubric id", maximum=80),
-                "title": _public_text(row[1], "rubric title", maximum=500),
-            }
-            for row in rows
-        ]
+
+        def counts(start: date, end: date) -> tuple[dict[str, int], int]:
+            values = (start.isoformat(), end.isoformat())
+            rows = self.connection.execute(
+                """
+                SELECT r.rubric_id, COUNT(*)
+                FROM pub_material_rubrics_v1 AS r
+                JOIN pub_issues_v1 AS i ON i.issue_id = r.issue_id
+                WHERE i.issue_date BETWEEN ? AND ?
+                GROUP BY r.rubric_id
+                """,
+                values,
+            ).fetchall()
+            total_row = self.connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM pub_issue_materials_v1 AS m
+                JOIN pub_issues_v1 AS i ON i.issue_id = m.issue_id
+                WHERE i.issue_date BETWEEN ? AND ?
+                """,
+                values,
+            ).fetchone()
+            return {str(row[0]): int(row[1]) for row in rows}, int(total_row[0] or 0)
+
+        current, current_total = counts(current_start, current_end)
+        previous: dict[str, int] = {}
+        previous_total = 0
+        if previous_start is not None and previous_end is not None:
+            previous, previous_total = counts(previous_start, previous_end)
+        rubric_total = max(1, len(catalog))
+        result: list[JsonObject] = []
+        for raw_id, raw_title, _sort_order in catalog:
+            rubric_id = _public_text(raw_id, "rubric id", maximum=80)
+            current_count = current.get(rubric_id, 0)
+            previous_count = previous.get(rubric_id, 0)
+            current_share = (current_count + 1) / (current_total + rubric_total)
+            if previous_start is None:
+                index = 100.0 if current_count else 0.0
+                direction = "up" if current_count else "flat"
+            else:
+                previous_share = (previous_count + 1) / (previous_total + rubric_total)
+                index = 100.0 * log(current_share / previous_share)
+                direction = "up" if index > 10 else "down" if index < -10 else "flat"
+            evidence = current_count + previous_count
+            confidence = "high" if evidence >= 10 else "medium" if evidence >= 4 else "low"
+            result.append(
+                {
+                    "anchorDate": current_end.isoformat(),
+                    "confidence": confidence,
+                    "count": current_count,
+                    "currentCount": current_count,
+                    "currentShare": round(current_share, 6),
+                    "currentTotal": current_total,
+                    "direction": direction,
+                    "id": rubric_id,
+                    "index": round(index, 2),
+                    "period": "day" if period in {"day", "yesterday"} else period,
+                    "previousCount": previous_count,
+                    "previousShare": (
+                        None
+                        if previous_start is None
+                        else round((previous_count + 1) / (previous_total + rubric_total), 6)
+                    ),
+                    "previousTotal": previous_total,
+                    "title": _public_text(raw_title, "rubric title", maximum=500),
+                }
+            )
+        return sorted(
+            result,
+            key=lambda item: (
+                -float(cast(float, item["index"])),
+                -int(cast(int, item["currentCount"])),
+                str(item["title"]),
+            ),
+        )
 
     def sources(self, period: str) -> list[JsonObject]:
         dates = _period_dates(self.connection, period)

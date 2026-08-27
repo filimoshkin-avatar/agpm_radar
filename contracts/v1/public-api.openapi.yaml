@@ -110,6 +110,9 @@ paths:
       operationId: listRubrics
       parameters:
         - {$ref: "#/components/parameters/Period"}
+        - name: anchor
+          in: query
+          schema: {type: string, format: date}
       responses:
         "200":
           description: Rubrics for published materials
@@ -320,11 +323,22 @@ components:
     Rubric:
       type: object
       additionalProperties: false
-      required: [id, title, count]
+      required: [id, title, count, currentCount, previousCount, currentTotal, previousTotal, currentShare, previousShare, index, direction, confidence, period, anchorDate]
       properties:
         id: {type: string}
         title: {type: string}
         count: {type: integer, minimum: 0}
+        currentCount: {type: integer, minimum: 0}
+        previousCount: {type: integer, minimum: 0}
+        currentTotal: {type: integer, minimum: 0}
+        previousTotal: {type: integer, minimum: 0}
+        currentShare: {type: number, minimum: 0, maximum: 1}
+        previousShare: {type: [number, "null"], minimum: 0, maximum: 1}
+        index: {type: number}
+        direction: {type: string, enum: [up, flat, down]}
+        confidence: {type: string, enum: [low, medium, high]}
+        period: {type: string, enum: [day, 7d, 30d]}
+        anchorDate: {type: string, format: date}
     Source:
       type: object
       additionalProperties: false

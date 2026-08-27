@@ -366,7 +366,24 @@ def test_all_openapi_endpoints_are_published_only_and_schema_valid(
         _assert_schema("Rubric", item)
     for item in sources:
         _assert_schema("Source", item)
-    assert rubrics == [{"count": 1, "id": "orchestration", "title": "Оркестрация"}]
+    assert rubrics == [
+        {
+            "anchorDate": "2026-08-21",
+            "confidence": "low",
+            "count": 1,
+            "currentCount": 1,
+            "currentShare": 1.0,
+            "currentTotal": 1,
+            "direction": "flat",
+            "id": "orchestration",
+            "index": 0.0,
+            "period": "30d",
+            "previousCount": 0,
+            "previousShare": 1.0,
+            "previousTotal": 0,
+            "title": "Оркестрация",
+        }
+    ]
     assert sources == [{"included": 1, "name": "Synthetic Journal"}]
     last_material_page = cast(dict[str, object], bodies[-1])
     material = cast(list[dict[str, object]], last_material_page["items"])[0]
