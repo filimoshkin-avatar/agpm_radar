@@ -1481,7 +1481,12 @@ function renderBars(id, rows, labelKey, valueKey) {
     const blockClass = rubricBlockClasses[row.id] || "default";
     const isActive = state.rubrics.includes(row.id);
     const arrow = trendArrow(row);
-    const deltaClass = arrow === "↘" ? "is-down" : arrow === "→" ? "is-flat" : "";
+    // Низкая надёжность гасит стрелку до цвета «ровно»: направление показано,
+    // но не выдаёт себя за сигнал, которого в двух окнах ещё нет.
+    const deltaClass = [
+      arrow === "↘" ? "is-down" : arrow === "→" ? "is-flat" : "",
+      row.confidence === "low" ? "is-weak" : "",
+    ].filter(Boolean).join(" ");
     const details = rubricTrendDetails(row);
     return `<button class="bar-row bar-row-${blockClass} ${isActive ? "is-active" : ""}" data-rubric-bar="${row.id || ""}" aria-pressed="${isActive ? "true" : "false"}" title="${escapeHtml(details)}">
       <span>${escapeHtml(row[labelKey] || "")}</span>
@@ -1490,21 +1495,12 @@ function renderBars(id, rows, labelKey, valueKey) {
       <span class="bar-delta ${deltaClass}">${arrow}</span>
     </button>`;
   }).join("");
-  const periodLabel = state.period === "7d" ? "динамика за 7 дней" : state.period === "30d" ? "динамика за 30 дней" : "активность выбранного выпуска";
-  setText("rubricatorNote", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · ${periodLabel}` : "");
-}
-
-function trendRangeLabel(rows) {
-  if (!rows.length) return "30 дней · агрегаты радара";
-  const firstDate = rows[0].stat_date;
-  const lastDate = rows.at(-1).stat_date;
-  const lastMonth = dateUtc(lastDate).toLocaleDateString("ru-RU", { month: "long", timeZone: "UTC" });
-  if (monthIndex(firstDate) === monthIndex(lastDate) && fullYear(firstDate) === fullYear(lastDate)) {
-    return `${dayOfMonth(firstDate)}–${dayOfMonth(lastDate)} ${lastMonth} · агрегаты радара`;
-  }
-  const firstLabel = dateUtc(firstDate).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
-  const lastLabel = dateUtc(lastDate).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
-  return `${firstLabel} – ${lastLabel} · агрегаты радара`;
+  // Подпись принадлежит той панели, в которой лежат столбики: #rubricatorNote —
+  // заголовок «Рубрикатора», и период динамики там врал про соседнюю сетку счётов.
+  const periodLabel = state.period === "7d"
+    ? "7 дней к предыдущим 7"
+    : state.period === "30d" ? "30 дней к предыдущим 30" : "выпуск к предыдущему";
+  setText("trendRange", rows.length ? `${rows.length} ${pluralRu(rows.length, "рубрика", "рубрики", "рубрик")} · ${periodLabel}` : "");
 }
 
 /* «Материалы в разрезе по дням» и календарь — макет v3.
@@ -1514,8 +1510,6 @@ function trendRangeLabel(rows) {
  * место плотной стопке, потому что дизайн-система просит данные, а не рамку. */
 function renderTrendPanels() {
   const rows = timeseries.slice(-30);
-  const trendRange = document.getElementById("trendRange");
-  if (trendRange) trendRange.textContent = trendRangeLabel(rows);
   renderTrendStack(rows);
   renderHeatmap(rows);
 }
@@ -1595,6 +1589,10 @@ function renderRubricator() {
   });
   cells.push(`<div class="rubric-cell rubric-help"><strong>Множественный выбор</strong><span>Рубрики сужают выдачу по принципу «хотя бы одна из выбранных».</span></div>`);
   document.getElementById("rubricator").innerHTML = cells.join("");
+  const countLabel = state.period === "7d"
+    ? "счёт за 7 дней"
+    : state.period === "30d" ? "счёт за 30 дней" : "счёт по выпуску";
+  setText("rubricatorNote", rubrics.length ? `${rubrics.length} ${pluralRu(rubrics.length, "рубрика", "рубрики", "рубрик")} · ${countLabel}` : "");
 }
 
 function rubricCell(row) {
@@ -1611,10 +1609,8 @@ function trendArrow(row) {
 
 function rubricTrendDetails(row) {
   const confidence = { low: "низкая", medium: "средняя", high: "высокая" }[row.confidence] || "не определена";
-  if (row.period === "day") {
-    return row.currentCount > 0
-      ? `Рубрика представлена в выпуске: ${row.currentCount}. Надёжность: ${confidence}.`
-      : "Рубрика не представлена в выбранном выпуске.";
+  if (row.previousShare === null || row.previousShare === undefined) {
+    return `Материалов: ${row.currentCount || 0}. Сравнивать не с чем: более раннего выпуска нет.`;
   }
   const currentShare = Math.round((Number(row.currentShare) || 0) * 100);
   const previousShare = Math.round((Number(row.previousShare) || 0) * 100);
@@ -1694,11 +1690,19 @@ async function reload() {
   state.loading = true;
   renderColumns(state.materials);
   let materials;
+  // `rubrics` живёт на уровне модуля, поэтому пишется только после проверки
+  // поколения: опоздавший reload иначе оставлял бы свой период в общем состоянии,
+  // не перерисовав экран. Отказ рубрик — не отказ выпуска: панель просто
+  // остаётся прежней, а страница рисуется.
+  let nextRubrics = null;
   try {
-    [materials, , rubrics] = await Promise.all([
+    [materials, , nextRubrics] = await Promise.all([
       loadIssueMaterials(request),
       loadPeriodStats(request.period),
-      loadRubrics(request.period, request.issueDate),
+      loadRubrics(request.period, request.issueDate).catch(error => {
+        console.warn("Radar rubrics unavailable", error);
+        return null;
+      }),
     ]);
   } catch (error) {
     if (generation !== reloadGeneration) return;
@@ -1706,6 +1710,7 @@ async function reload() {
     throw error;
   }
   if (generation !== reloadGeneration) return;
+  if (nextRubrics) rubrics = nextRubrics;
   state.materials = materials;
   state.loading = false;
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;

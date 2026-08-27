@@ -996,6 +996,10 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .bar-row .bar-delta.is-down { color: var(--accent); }
 .bar-row .bar-delta.is-flat { color: var(--muted); }
+/* Направление при низкой надёжности гаснет до цвета «ровно»: два окна ещё не
+   набрали материала, чтобы стрелка что-то утверждала. Правило стоит последним —
+   оно перекрывает и is-down, и is-up. */
+.bar-row .bar-delta.is-weak { color: var(--muted); }
 
 /* ── Разрез по дням ─────────────────────────────────────────────────────── */
 

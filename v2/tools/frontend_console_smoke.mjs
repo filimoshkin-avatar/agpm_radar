@@ -118,6 +118,10 @@ const pageMaterial = {
 // cache and no race - and the branch is live code, serving every issue
 // published before the contract, so it is not optional to cover.
 const preContract = process.argv.includes("--pre-contract");
+// Rubrics are a secondary panel, and their failure must not take the issue with
+// them. The branch is live: /api/rubrics answers 503 when its anchor is past the
+// edge of the archive.
+const rubricsDown = process.argv.includes("--rubrics-down");
 const oldIssue = {
   ...issue,
   analysis: {
@@ -135,7 +139,11 @@ globalThis.fetch = async raw => {
   requests.push(path);
   let payload = preContract ? oldIssue : issue;
   if (path.startsWith("/api/timeseries")) payload = { items: [{ ...issue.stats, date: issue.issueDate }] };
-  else if (path.startsWith("/api/rubrics") || path.startsWith("/api/sources")) payload = [];
+  else if (path.startsWith("/api/rubrics")) {
+    if (rubricsDown) return { ok: false, status: 503, async json() { return {}; } };
+    payload = [];
+  }
+  else if (path.startsWith("/api/sources")) payload = [];
   else if (path.startsWith("/api/issues?") || path === "/api/issues") payload = { items: [], nextCursor: null };
   else if (path === "/api/stats?period=7d") payload = { adjacent: 5, core: 7, cut: 109, far: 4, included: 12, mid: 5, near: 3, viewed: 121 };
   else if (path.startsWith("/api/materials") || path.startsWith("/api/search")) {
@@ -208,4 +216,6 @@ if (unhandled.length
   throw new Error(`frontend period/pagination regression failed: ${unhandled.map(String).join("; ")}`);
 }
 
-process.stdout.write("Frontend console smoke: PASS (Legacy-parity empty/fallback route)\n");
+process.stdout.write(rubricsDown
+  ? "Frontend console smoke: PASS (rubrics unavailable, issue still renders)\n"
+  : "Frontend console smoke: PASS (Legacy-parity empty/fallback route)\n");

@@ -66,6 +66,25 @@ function v2Material(id, perimeter = "near") {
   };
 }
 
+function rubricRow(id, title, period) {
+  return {
+    anchorDate: "2026-08-22",
+    confidence: "low",
+    count: 1,
+    currentCount: 1,
+    currentShare: 1,
+    currentTotal: 1,
+    direction: "flat",
+    id,
+    index: 0,
+    period,
+    previousCount: 0,
+    previousShare: null,
+    previousTotal: 0,
+    title,
+  };
+}
+
 function makeStats(included) {
   return {
     adjacent: 0,
@@ -79,7 +98,7 @@ function makeStats(included) {
   };
 }
 
-async function runCase({ name, relativeScript, v2, sonarTitle }) {
+async function runCase({ name, relativeScript, v2, sonarTitle, expectedRubric }) {
   class FakeElement {
     constructor(tag = "div") {
       this.tagName = tag.toUpperCase();
@@ -176,7 +195,14 @@ async function runCase({ name, relativeScript, v2, sonarTitle }) {
         ? { items: [{ ...issueStats, date: "2026-08-22" }] }
         : { timeseries: [{ ...issueStats, stat_date: "2026-08-22" }] };
     } else if (requestPath.startsWith("/api/rubrics")) {
-      payload = v2 ? [] : { rubrics: [] };
+      // Рубрики тоже участвуют в гонке: в V2 их просит каждый reload, и
+      // опоздавший тридцатидневный ответ не должен осесть в общем состоянии
+      // после того, как выпуск уже нарисован. Пустой массив, стоявший здесь
+      // раньше, делал эту ветку непроверяемой.
+      const row = requestPath.includes("period=30d")
+        ? rubricRow("stale-30d", "Рубрика 30 дней", "30d")
+        : rubricRow("fresh-issue", "Рубрика выпуска", "day");
+      payload = v2 ? [row] : { rubrics: [row] };
     } else if (requestPath.startsWith("/api/sources")) {
       payload = v2 ? [] : { sources: [] };
     } else if (requestPath.startsWith("/api/issues")) {
@@ -233,6 +259,15 @@ async function runCase({ name, relativeScript, v2, sonarTitle }) {
   await waitTurn();
   await waitTurn();
 
+  // Рубрикатор рисуется из модульной переменной, а не из ответа: перерисовка
+  // после гонки показывает, чей набор в ней остался.
+  vm.runInContext("renderRubricator()", context);
+  const rubricator = elements.get("rubricator").innerHTML;
+  const strayRubric = expectedRubric === "fresh-issue" ? "stale-30d" : "fresh-issue";
+  if (!rubricator.includes(expectedRubric) || rubricator.includes(strayRubric)) {
+    throw new Error(`${name}: rubricator holds ${strayRubric}, expected ${expectedRubric}`);
+  }
+
   const blips = countOccurrences(elements.get("radarViz").innerHTML, 'class="sonar-blip"');
   const cards = countOccurrences(elements.get("columns").innerHTML, '<article class="card');
   const included = Number(elements.get("included").textContent);
@@ -254,12 +289,16 @@ await runCase({
   relativeScript: "work/radar-app/app.js",
   v2: false,
   sonarTitle: "Сонар",
+  // Legacy просит рубрики один раз и всегда за 30 дней: гонки у него нет,
+  // и держать он должен именно тридцатидневный набор.
+  expectedRubric: "stale-30d",
 });
 await runCase({
   name: "V2",
   relativeScript: "v2/apps/web/app.mjs",
   v2: true,
   sonarTitle: "Сонар · сегодня",
+  expectedRubric: "fresh-issue",
 });
 
 process.stdout.write("Frontend period-switch race smoke: PASS (Legacy + V2)\n");
