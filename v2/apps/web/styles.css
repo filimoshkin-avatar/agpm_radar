@@ -944,7 +944,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 
 .bar-row {
   display: grid;
-  grid-template-columns: 168px 1fr 40px 46px;
+  grid-template-columns: minmax(0, 1fr) 40px 46px;
   gap: 10px;
   align-items: center;
   border: 0;
@@ -957,9 +957,12 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 }
 
 .bar-row > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+}
+
+.bar-row .bar-track {
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .bar-row:hover > span:first-child { color: var(--accent); }
@@ -3343,7 +3346,7 @@ body:not(.is-chat) .chat-up { display: none; }
 @media (max-width: 1100px) {
   .hero { grid-template-columns: 1fr; }
   .hero__theses { border-right: 0; border-bottom: 1px solid var(--rule); }
-  .bar-row { grid-template-columns: 132px 1fr 34px 40px; }
+  .bar-row { grid-template-columns: minmax(0, 1fr) 34px 40px; }
 }
 
 @media (max-width: 940px) {
@@ -3393,8 +3396,7 @@ body:not(.is-chat) .chat-up { display: none; }
   .agent-clash { grid-template-columns: 1fr; }
   .agent-trail__step { grid-template-columns: 1fr auto; }
   .agent-clash__mark { text-align: left; }
-  .bar-row { grid-template-columns: 1fr 34px 40px; }
-  .bar-row .bar-track { grid-column: 1 / -1; grid-row: 2; }
+  .bar-row { grid-template-columns: minmax(0, 1fr) 34px 40px; }
 
   /* Палец толще курсора: на узком экране всё нажимаемое дорастает до 40px. */
   .chip, .rubric-cell, .agent-topic, .agent-links__row, .button { min-height: 40px; }
