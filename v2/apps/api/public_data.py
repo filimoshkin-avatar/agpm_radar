@@ -36,6 +36,10 @@ class PublishedResourceNotFoundError(PublicDataError):
     """A requested published DTO does not exist."""
 
 
+class PublicDataInputError(PublicDataError):
+    """A bounded request value the caller can correct: the boundary answers 400, not 503."""
+
+
 def _public_text(value: object, label: str, *, maximum: int) -> str:
     if (
         not isinstance(value, str)
@@ -84,18 +88,30 @@ def _period_bounds(anchor: date, period: str) -> tuple[str, str]:
     return start.isoformat(), anchor.isoformat()
 
 
-def _latest_date(connection: sqlite3.Connection) -> date | None:
-    row = connection.execute("SELECT MAX(issue_date) FROM pub_issues_v1").fetchone()
+def _issue_date(row: tuple[object, ...] | None) -> date | None:
     if row is None or row[0] is None:
         return None
     value = str(row[0])
     try:
         parsed = date.fromisoformat(value)
     except ValueError as error:
-        raise PublicDataError("latest published issue date is invalid") from error
+        raise PublicDataError("published issue date is invalid") from error
     if parsed.isoformat() != value:
-        raise PublicDataError("latest published issue date is not canonical")
+        raise PublicDataError("published issue date is not canonical")
     return parsed
+
+
+def _latest_date(connection: sqlite3.Connection) -> date | None:
+    return _issue_date(connection.execute("SELECT MAX(issue_date) FROM pub_issues_v1").fetchone())
+
+
+def _issue_date_before(connection: sqlite3.Connection, moment: date) -> date | None:
+    return _issue_date(
+        connection.execute(
+            "SELECT MAX(issue_date) FROM pub_issues_v1 WHERE issue_date < ?",
+            (moment.isoformat(),),
+        ).fetchone()
+    )
 
 
 def _period_dates(connection: sqlite3.Connection, period: str) -> tuple[str, ...]:
@@ -127,13 +143,17 @@ def _rubric_anchor(connection: sqlite3.Connection, anchor_date: str | None) -> d
     try:
         anchor = date.fromisoformat(anchor_date)
     except ValueError as error:
-        raise PublicDataError("rubric anchor date is invalid") from error
+        raise PublicDataInputError("rubric anchor date is invalid") from error
     if anchor.isoformat() != anchor_date or anchor > latest:
-        raise PublicDataError("rubric anchor date is outside the published range")
+        raise PublicDataInputError("rubric anchor date is outside the published range")
     return anchor
 
 
-def _rubric_window(period: str, anchor: date) -> tuple[date, date, date | None, date | None]:
+def _rubric_window(
+    connection: sqlite3.Connection,
+    period: str,
+    anchor: date,
+) -> tuple[date, date, date | None, date | None]:
     days = {"day": 1, "yesterday": 1, "7d": 7, "30d": 30}.get(period)
     if days is None:
         raise PublicDataError("unsupported rubric period")
@@ -141,10 +161,32 @@ def _rubric_window(period: str, anchor: date) -> tuple[date, date, date | None, 
         anchor -= timedelta(days=1)
     current_start = anchor - timedelta(days=days - 1)
     if days == 1:
-        return current_start, anchor, None, None
+        # One issue is compared with the previous published day, not with the
+        # calendar yesterday: the archive has gaps, and an empty day would hand
+        # every rubric a rise.
+        previous = _issue_date_before(connection, current_start)
+        return current_start, anchor, previous, previous
     previous_end = current_start - timedelta(days=1)
     previous_start = previous_end - timedelta(days=days - 1)
     return current_start, anchor, previous_start, previous_end
+
+
+def _rubric_confidence(*, support: int, window: int, rubric_total: int) -> str:
+    """How far the index can be trusted.
+
+    The index is a ratio of shares, and the weaker of the two windows bounds it -
+    not their sum. While the smaller window holds fewer materials than the catalog
+    holds rubrics, the smoothing prior outweighs the data and there is nothing to
+    compare. The former `current + previous` rule could not see that: a rubric with
+    nothing at all in the previous window earned "high" on current volume alone.
+    """
+    if window < rubric_total:
+        return "low"
+    if support >= 10 and window >= 30:
+        return "high"
+    if support >= 4 and window >= 10:
+        return "medium"
+    return "low"
 
 
 def _page(items: list[JsonObject], offset: int, limit: int) -> tuple[list[JsonObject], int | None]:
@@ -303,13 +345,14 @@ class PublicDataRepository:
         anchor = _rubric_anchor(self.connection, anchor_date)
         if anchor is None:
             return []
-        current_start, current_end, previous_start, previous_end = _rubric_window(period, anchor)
+        current_start, current_end, previous_start, previous_end = _rubric_window(
+            self.connection, period, anchor
+        )
         catalog = self.connection.execute(
             """
-            SELECT rubric_id, MAX(title), MIN(sort_order)
+            SELECT rubric_id, MAX(title)
             FROM pub_material_rubrics_v1
             GROUP BY rubric_id
-            ORDER BY MIN(sort_order), MAX(title), rubric_id
             """
         ).fetchall()
 
@@ -343,20 +386,31 @@ class PublicDataRepository:
             previous, previous_total = counts(previous_start, previous_end)
         rubric_total = max(1, len(catalog))
         result: list[JsonObject] = []
-        for raw_id, raw_title, _sort_order in catalog:
+        for raw_id, raw_title in catalog:
             rubric_id = _public_text(raw_id, "rubric id", maximum=80)
             current_count = current.get(rubric_id, 0)
             previous_count = previous.get(rubric_id, 0)
+            # A rubric empty in both windows carries neither a count nor a trend:
+            # a zero row with an arrow would state exactly what the data does not.
+            if not current_count and not previous_count:
+                continue
             current_share = (current_count + 1) / (current_total + rubric_total)
             if previous_start is None:
-                index = 100.0 if current_count else 0.0
-                direction = "up" if current_count else "flat"
+                # Nothing to compare with - there is no earlier issue. That is
+                # "no data", not growth: the index stays at zero, the arrow flat.
+                previous_share = None
+                index = 0.0
+                direction = "flat"
+                confidence = "low"
             else:
                 previous_share = (previous_count + 1) / (previous_total + rubric_total)
                 index = 100.0 * log(current_share / previous_share)
                 direction = "up" if index > 10 else "down" if index < -10 else "flat"
-            evidence = current_count + previous_count
-            confidence = "high" if evidence >= 10 else "medium" if evidence >= 4 else "low"
+                confidence = _rubric_confidence(
+                    support=min(current_count, previous_count),
+                    window=min(current_total, previous_total),
+                    rubric_total=rubric_total,
+                )
             result.append(
                 {
                     "anchorDate": current_end.isoformat(),
@@ -370,21 +424,19 @@ class PublicDataRepository:
                     "index": round(index, 2),
                     "period": "day" if period in {"day", "yesterday"} else period,
                     "previousCount": previous_count,
-                    "previousShare": (
-                        None
-                        if previous_start is None
-                        else round((previous_count + 1) / (previous_total + rubric_total), 6)
-                    ),
+                    "previousShare": (None if previous_share is None else round(previous_share, 6)),
                     "previousTotal": previous_total,
                     "title": _public_text(raw_title, "rubric title", maximum=500),
                 }
             )
+        # Ordered by count, because bar length encodes count: a list sorted by an
+        # index the reader cannot see reads as a broken histogram.
         return sorted(
             result,
             key=lambda item: (
-                -float(cast(float, item["index"])),
                 -int(cast(int, item["currentCount"])),
                 str(item["title"]),
+                str(item["id"]),
             ),
         )
 
@@ -452,6 +504,7 @@ class PublicDataRepository:
 
 __all__ = [
     "PublicDataError",
+    "PublicDataInputError",
     "PublicDataRepository",
     "PublishedResourceNotFoundError",
 ]

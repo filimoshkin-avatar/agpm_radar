@@ -21,6 +21,7 @@ from packages.validation.public_issue import PublicIssueValidationError
 from apps.api.database import ActiveDatabaseManager, PublicDatabaseError
 from apps.api.public_data import (
     PublicDataError,
+    PublicDataInputError,
     PublicDataRepository,
     PublishedResourceNotFoundError,
 )
@@ -445,7 +446,7 @@ class RadarApi:
         try:
             path, values = _parse_target(raw_target)
             return _json_response(200, self._dispatch(path, values, remote_key))
-        except RequestInputError:
+        except (RequestInputError, PublicDataInputError):
             return _error(400, "INVALID_REQUEST", "The request is invalid", safe_request_id)
         except PublishedResourceNotFoundError:
             return _error(404, "NOT_FOUND", "Published resource not found", safe_request_id)

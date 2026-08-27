@@ -434,6 +434,10 @@ def test_empty_no_llm_and_direct_internal_sql_are_explicit(
         "/api/stats",
         "/api/timeseries?days=91",
         "/api/materials?perimeter=inside",
+        "/api/rubrics?anchor=2026-08-32",
+        # A date past the edge of the archive is a caller error, not a database
+        # outage: this used to answer 503 "Published data is unavailable".
+        "/api/rubrics?anchor=2099-01-01",
     ),
 )
 def test_malformed_inputs_are_bounded_json_errors(
