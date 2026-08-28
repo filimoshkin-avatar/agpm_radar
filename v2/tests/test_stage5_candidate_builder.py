@@ -1144,7 +1144,8 @@ def test_analysis_evidence_titles_are_part_of_the_candidate_contract() -> None:
             "evidenceTitles": ["Первый", "Второй", "Первый"],
             "blocks": [{"kind": "overview", "title": "Сигнал", "text": "Текст."}],
             "theses": [],
-        }
+        },
+        [],
     )
     for wrong in ("не список", ["Первый", ""], [["вложенный"]]):
         with pytest.raises(CandidateValidationError, match="evidenceTitles"):
@@ -1155,5 +1156,71 @@ def test_analysis_evidence_titles_are_part_of_the_candidate_contract() -> None:
                     "evidenceTitles": wrong,
                     "blocks": [{"kind": "overview", "title": "Сигнал", "text": "Текст."}],
                     "theses": [],
-                }
+                },
+                [],
             )
+
+
+def _grounded_analysis(materials: list[object], **overrides: object) -> dict[str, object]:
+    from packages.contracts.analysis import issue_content_hash
+
+    analysis: dict[str, object] = {
+        "headline": "Сигнал",
+        "brief": "Кратко.",
+        "blocks": [{"kind": "overview", "title": "Сигнал", "text": "Текст."}],
+        "theses": [],
+        "evidenceMaterialIds": [cast(dict[str, object], item)["materialId"] for item in materials],
+        "inputContentHash": issue_content_hash(
+            [cast(dict[str, object], item) for item in materials]
+        ),
+    }
+    analysis.update(overrides)
+    return analysis
+
+
+def _grounded_materials() -> list[object]:
+    return [
+        {
+            "materialId": f"mat_{index}",
+            "title": f"Материал {index}",
+            "summary": f"Содержание {index}",
+            "rubrics": ["governance_control"],
+            "perimeter": "mid",
+        }
+        for index in (1, 2)
+    ]
+
+
+def test_grounded_analysis_is_checked_against_the_composition_it_lands_on() -> None:
+    """The hash is re-derived at the door, not taken on the analysis's word.
+
+    Generation checks the binding once. Every later path - a correction, an analysis
+    lifted out of another candidate with --analysis-candidate - arrives here, and the
+    door used to ask only whether the hash looked like a hash.
+    """
+    from packages.domain.candidates import CandidateValidationError, _validate_analysis
+
+    materials = _grounded_materials()
+    _validate_analysis(_grounded_analysis(materials), materials)
+
+    changed = [
+        *materials,
+        {
+            "materialId": "mat_3",
+            "title": "Материал 3",
+            "summary": "Содержание 3",
+            "rubrics": ["governance_control"],
+            "perimeter": "far",
+        },
+    ]
+    with pytest.raises(CandidateValidationError, match="does not describe this issue"):
+        _validate_analysis(_grounded_analysis(materials), changed)
+
+
+def test_grounded_analysis_cannot_cite_a_material_the_issue_does_not_carry() -> None:
+    from packages.domain.candidates import CandidateValidationError, _validate_analysis
+
+    materials = _grounded_materials()
+    analysis = _grounded_analysis(materials, evidenceMaterialIds=["mat_1", "mat_removed"])
+    with pytest.raises(CandidateValidationError, match="outside the issue"):
+        _validate_analysis(analysis, materials)

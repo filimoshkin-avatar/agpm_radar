@@ -177,6 +177,43 @@ def _analysis(
     return cast(JsonObject, result)
 
 
+def _daily_analysis(
+    document: dict[str, object],
+    *,
+    materials: list[JsonObject],
+    issue_date: str,
+    artifacts_root: Path,
+    legacy_count: int,
+    stats: dict[str, int],
+    brief: str,
+) -> tuple[JsonObject, str | None]:
+    """The day's analysis, and the reason the V2-native one was not used.
+
+    A rejected analysis is not a reason to leave the day without an issue. Legacy's
+    imported analysis is what V2 published until 2026-08-28 and is still better than
+    nothing; `_llm_outcome` records which of the two the issue was built from. This
+    decision is a function rather than a branch inside `main` so that the fallback
+    can be exercised: it had no caller at all for a day, and nothing noticed.
+    """
+    llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
+    issue = cast(dict[str, object], document["issue"])
+    thesis_source = (
+        cast(list[dict[str, object]], llm_theses.get("theses") or [])
+        if llm_theses is not None and llm_theses.get("status") == "success"
+        else cast(list[dict[str, object]], issue.get("theses") or [])
+    )
+    try:
+        generated = generate_v2_analysis(
+            issue_date=issue_date, materials=materials, artifacts_root=artifacts_root
+        )
+    except V2AnalysisError as error:
+        return _analysis(document, legacy_count=legacy_count, stats=stats), str(error)
+    return (
+        _native_analysis(cast(dict[str, object], generated), brief=brief, theses=thesis_source),
+        None,
+    )
+
+
 def _llm_outcome(*, native: bool) -> JsonObject:
     """The day's LLM record: what was asked for, and what the issue was actually built from.
 
@@ -326,31 +363,15 @@ def main() -> int:
     # should not cost an inference first.
     base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
-    thesis_source = (
-        cast(list[dict[str, object]], llm_theses.get("theses") or [])
-        if llm_theses is not None and llm_theses.get("status") == "success"
-        else cast(list[dict[str, object]], issue.get("theses") or [])
+    analysis, analysis_failure = _daily_analysis(
+        document,
+        materials=materials,
+        issue_date=issue_date,
+        artifacts_root=args.root / "llm-analysis",
+        legacy_count=legacy_count,
+        stats=stats,
+        brief=reconciled_brief,
     )
-    try:
-        generated_analysis = generate_v2_analysis(
-            issue_date=issue_date,
-            materials=materials,
-            artifacts_root=args.root / "llm-analysis",
-        )
-    except V2AnalysisError as error:
-        # A rejected analysis is not a reason to leave the day without an issue.
-        # Legacy's imported analysis is what V2 published until 2026-08-28, and it
-        # is still better than nothing; the LLM record below says which one this is.
-        analysis = _analysis(document, legacy_count=legacy_count, stats=stats)
-        analysis_failure: str | None = str(error)
-    else:
-        analysis = _native_analysis(
-            cast(dict[str, object], generated_analysis),
-            brief=reconciled_brief,
-            theses=thesis_source,
-        )
-        analysis_failure = None
     atomic_write_new(
         args.root / "analysis-outcome.json",
         canonical_json_line(

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Final, cast
 from urllib.parse import urlsplit
 
+from packages.contracts.analysis import issue_content_hash
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import SafeFilesystemError, relative_parts
 
@@ -308,7 +309,7 @@ def _validate_base(value: object) -> None:
     _sha256(base["logicalStateHash"], "expectedBase.logicalStateHash")
 
 
-def _validate_analysis(value: object) -> None:
+def _validate_analysis(value: object, materials: list[object]) -> None:
     # `evidenceTitles` is optional at the candidate door: candidates built
     # before the field existed remain valid, and the public contract still
     # always carries the list (normalised to [] where a candidate had none).
@@ -341,8 +342,30 @@ def _validate_analysis(value: object) -> None:
         raise CandidateValidationError("analysis.evidenceMaterialIds must contain at most 40 ids")
     for index, material_id in enumerate(evidence_ids):
         _text(material_id, f"analysis.evidenceMaterialIds[{index}]", minimum=1, maximum=200)
+    # Grounding is checked against the composition this analysis is being attached
+    # to, not against the one it was written for. Generation checks it once; every
+    # later path - a correction, an analysis lifted from another candidate - passes
+    # through this door, and until now the door only asked whether the hash looked
+    # like a hash. A claim about materials must be re-checked where the materials are.
+    included = {
+        str(cast(dict[str, object], item).get("materialId"))
+        for item in materials
+        if isinstance(item, dict)
+    }
+    outside = sorted(str(item) for item in evidence_ids if str(item) not in included)
+    if outside:
+        raise CandidateValidationError(
+            f"analysis.evidenceMaterialIds cites materials outside the issue: {outside}"
+        )
     if "inputContentHash" in analysis:
         _sha256(analysis["inputContentHash"], "analysis.inputContentHash")
+        expected = issue_content_hash(
+            [cast(Mapping[str, object], item) for item in materials if isinstance(item, dict)]
+        )
+        if analysis["inputContentHash"] != expected:
+            raise CandidateValidationError(
+                "analysis.inputContentHash does not describe this issue's composition"
+            )
     blocks = analysis["blocks"]
     if not isinstance(blocks, list) or len(blocks) > 20:
         raise CandidateValidationError("analysis.blocks must contain at most 20 blocks")
@@ -492,7 +515,7 @@ def _validate_desired_issue(value: object, global_llm: JsonObject) -> dict[str, 
         raise CandidateValidationError("material positions must be contiguous from 1")
     if bool(materials) == (issue["emptyReason"] is not None):
         raise CandidateValidationError("emptyReason must exist exactly for an empty issue")
-    _validate_analysis(issue["analysis"])
+    _validate_analysis(issue["analysis"], materials)
     stats = _exact(
         issue["stats"],
         {"viewed", "included", "cut", "near", "mid", "far", "core", "adjacent"},

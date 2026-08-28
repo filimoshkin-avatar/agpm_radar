@@ -2,12 +2,17 @@
 
 # ruff: noqa: RUF001
 
+from pathlib import Path
 from typing import cast
 
 import pytest
-from packages.domain.candidates import validate_llm_outcome
+import tools.build_stage14_daily as daily
+from packages.contracts.analysis import issue_content_hash
+from packages.domain.candidates import _validate_analysis, validate_llm_outcome
+from packages.domain.snapshot import JsonObject
 from tools.build_stage14_correction import _flag_names
-from tools.build_stage14_daily import _analysis, _llm_outcome, _reconcile_narrative
+from tools.build_stage14_daily import _analysis, _daily_analysis, _llm_outcome, _reconcile_narrative
+from tools.generate_v2_analysis import V2AnalysisError
 
 
 def test_filtered_material_reconciles_counts_and_perimeters() -> None:
@@ -184,3 +189,113 @@ def test_the_fallback_day_does_not_claim_a_model_wrote_the_analysis() -> None:
         "implementation": "legacy-analysis-import",
         "version": "1",
     }
+
+
+def _daily_document() -> dict[str, object]:
+    return {
+        "daily_analysis": {
+            "headline": "Сигнал",
+            "analysis": {
+                "signal": "Повторяется governance.",
+                "why_agpm": "Значение для контура.",
+                "watch_next": "Смотреть дальше.",
+            },
+        },
+        "issue": {
+            "brief": "В выпуске 2 материала: близкий периметр — 2.",
+            "theses": [{"lead": "Вывод", "rest": "Выбрано 2 материала."}],
+        },
+    }
+
+
+def _daily_materials() -> list[JsonObject]:
+    return [
+        cast(
+            JsonObject,
+            {
+                "materialId": f"mat_{index}",
+                "title": f"Материал {index}",
+                "summary": f"Содержание {index}",
+                "agpmTakeaway": f"Вывод {index}",
+                "rubrics": ["governance_control"],
+                "perimeter": "near",
+            },
+        )
+        for index in (1, 2)
+    ]
+
+
+_STATS = {
+    "adjacent": 0,
+    "core": 2,
+    "cut": 8,
+    "far": 0,
+    "included": 2,
+    "mid": 0,
+    "near": 2,
+    "viewed": 10,
+}
+
+
+def test_a_rejected_analysis_still_produces_an_issue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The V2-native path had no fallback for a day: three failed attempts ended the
+    # whole daily run. This is the wiring that puts Legacy's analysis back in its place.
+    def rejected(**_kwargs: object) -> dict[str, object]:
+        raise V2AnalysisError("analysis failed after 3 attempts")
+
+    monkeypatch.setattr(daily, "generate_v2_analysis", rejected)
+    materials = _daily_materials()
+    analysis, failure = _daily_analysis(
+        _daily_document(),
+        materials=materials,
+        issue_date="2026-08-28",
+        artifacts_root=tmp_path / "llm-analysis",
+        legacy_count=2,
+        stats=_STATS,
+        brief="В выпуске 2 материала: близкий периметр — 2.",
+    )
+
+    assert failure == "analysis failed after 3 attempts"
+    assert cast(list[dict[str, object]], analysis["blocks"])[0]["text"] == (
+        "Повторяется governance."
+    )
+    # And the fallback analysis is something the candidate door accepts.
+    _validate_analysis(analysis, list(materials))
+    validate_llm_outcome(_llm_outcome(native=failure is None))
+
+
+def test_an_accepted_analysis_is_the_one_that_reaches_the_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    materials = _daily_materials()
+
+    def accepted(**_kwargs: object) -> dict[str, object]:
+        return {
+            "headline": "Заголовок модели",
+            "signal": "Сигнал модели.",
+            "why_agpm": "Значение модели.",
+            "watch_next": "Наблюдение модели.",
+            "evidence_material_ids": ["mat_1"],
+            "evidence_titles": ["Материал 1"],
+            "input_content_hash": issue_content_hash(materials),
+        }
+
+    monkeypatch.setattr(daily, "generate_v2_analysis", accepted)
+    analysis, failure = _daily_analysis(
+        _daily_document(),
+        materials=materials,
+        issue_date="2026-08-28",
+        artifacts_root=tmp_path / "llm-analysis",
+        legacy_count=2,
+        stats=_STATS,
+        brief="В выпуске 2 материала: близкий периметр — 2.",
+    )
+
+    assert failure is None
+    assert analysis["headline"] == "Заголовок модели"
+    _validate_analysis(analysis, list(materials))
+    validate_llm_outcome(_llm_outcome(native=True))
