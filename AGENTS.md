@@ -63,7 +63,12 @@ NO_COLOR=1 bash v2/scripts/verify.sh
 
 - `v2/scripts/run_stage15_daily.sh` в основном worktree — работа другой сессии;
 - `Permissions-Policy` в Caddy (микрофон) — решение владельца;
-- список моделей за пределами `zai/glm-5.2` и `minimax/MiniMax-M3`;
+- список моделей на Local Ru за пределами `zai/glm-5.2` и `minimax/MiniMax-M3` —
+  это P9 и ADR-0005, и держат его три места: `model_routes` профиля Hermes, точка
+  входа профиля и `ALLOWED_MODELS` в `kx/src/radar_kx/orchestrator.py`. Область
+  важна: контрол-хост под P9 не подпадает — суточный анализ радара зовёт
+  `openai/gpt-5.5` через `openclaw infer` с самого начала
+  (`pipeline/scripts/agpm_radar_openclaw_analysis.py`);
 - применение миграций к production;
 - любой новый systemd-юнит;
 - `GATED_PATHS` в `kx/src/radar_kx/agent_api.py` — меняется только вместе со
