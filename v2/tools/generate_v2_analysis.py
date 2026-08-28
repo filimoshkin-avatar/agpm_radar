@@ -15,7 +15,7 @@ from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 
 MODEL = "openai/gpt-5.5"
-PROMPT_VERSION = "v2-daily-analysis-ru-v2"
+PROMPT_VERSION = "v2-daily-analysis-ru-v3"
 MAX_ATTEMPTS = 3
 MIN_ANALYTIC_PARAGRAPHS = 3
 MAX_ANALYTIC_PARAGRAPHS = 5
@@ -38,6 +38,13 @@ def _sentences(text: str) -> list[str]:
 
 def _quality_violations(raw: JsonObject) -> list[str]:
     violations: list[str] = []
+    for key in ("headline", "signal", "why_agpm", "watch_next"):
+        identifiers = sorted(set(re.findall(r"\bmat_[A-Za-z0-9_]+\b", str(raw.get(key) or ""))))
+        if identifiers:
+            violations.append(
+                f"{key}: технические material_id запрещены в пользовательском тексте; "
+                f"замени их точными названиями материалов: {', '.join(identifiers)}"
+            )
     for key in ("signal", "why_agpm"):
         text = str(raw.get(key) or "").strip()
         paragraph_count = len(_paragraphs(text))
@@ -140,6 +147,9 @@ def generate_v2_analysis(
         "рисков и операционной модели. Отделяй факты источников от аналитических выводов.\n"
         "watch_next: 2–4 предложения о том, что проверять в следующих выпусках. "
         "evidence_material_ids: 2–10 идентификаторов только из входного списка. "
+        "Технические идентификаторы mat_* используй только в evidence_material_ids. "
+        "В headline, signal, why_agpm и watch_next называй материалы только по их точным "
+        "человекочитаемым заголовкам из поля title; не показывай material_id читателю. "
         "input_content_hash верни без изменений.\n\n"
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
     )

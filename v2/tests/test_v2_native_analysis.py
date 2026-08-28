@@ -114,3 +114,24 @@ def test_analysis_rejects_compact_model_response() -> None:
             materials=materials,
             content_hash=content_hash,
         )
+
+
+def test_analysis_rejects_material_ids_in_reader_facing_text() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    with pytest.raises(V2AnalysisError, match="material_id запрещены"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "headline": "Заголовок",
+                    "signal": _long_block("Материалы mat_1 и mat_2 подтверждают сигнал."),
+                    "why_agpm": _long_block("Значение."),
+                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
