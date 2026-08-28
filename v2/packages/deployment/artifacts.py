@@ -136,8 +136,10 @@ WEB_PATHS: Final = (
     # _BUNDLED_GAZETTE_ISSUES in apps/api/application.py. Caddy is no longer a
     # third: its matcher takes /gazette-*.html now.
     "apps/web/gazette-20260803.html",
+    "apps/web/gazette-20260803-r2.html",
     "apps/web/gazette-20260901.html",
     "apps/web/gazette-20260901-r2.html",
+    "apps/web/gazette-20260901-r3.html",
     "apps/web/index.html",
     "apps/web/og-image-20260803.png",
     "apps/web/styles.css",
