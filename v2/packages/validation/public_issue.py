@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from typing import Final, cast
 from urllib.parse import urlsplit, urlunsplit
 
-from packages.contracts.analysis import clean_evidence_material_ids, clean_evidence_titles
+from packages.contracts.analysis import clean_evidence_titles
 from packages.contracts.json_types import JsonObject, JsonValue
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE, assert_sqlite_runtime
 
@@ -259,15 +259,8 @@ def validate_public_issue_document(value: object) -> JsonObject:
     _llm(issue["llm"], "llm")
     stats = _stats(issue["stats"])
 
-    optional_analysis_fields = {
-        key
-        for key in ("evidenceMaterialIds", "inputContentHash")
-        if isinstance(issue["analysis"], dict) and key in cast(dict[str, object], issue["analysis"])
-    }
     analysis = _exact(
-        issue["analysis"],
-        {"blocks", "brief", "evidenceTitles", "headline"} | optional_analysis_fields,
-        "analysis",
+        issue["analysis"], {"blocks", "brief", "evidenceTitles", "headline"}, "analysis"
     )
     _optional_text(analysis["headline"], "analysis.headline", maximum=500)
     _optional_text(analysis["brief"], "analysis.brief", maximum=4_000)
@@ -281,12 +274,6 @@ def validate_public_issue_document(value: object) -> JsonObject:
             minimum=1,
             maximum=300,
         )
-    evidence_ids = analysis.get("evidenceMaterialIds", [])
-    if not isinstance(evidence_ids, list) or len(evidence_ids) > 40:
-        raise PublicIssueValidationError("analysis.evidenceMaterialIds must contain at most 40 ids")
-    for index, material_id in enumerate(evidence_ids):
-        _text(material_id, f"analysis.evidenceMaterialIds[{index}]", minimum=1, maximum=200)
-    _optional_text(analysis.get("inputContentHash"), "analysis.inputContentHash", maximum=64)
     blocks = analysis["blocks"]
     if not isinstance(blocks, list) or not blocks or len(blocks) > 20:
         raise PublicIssueValidationError("analysis.blocks must contain 1..20 items")
@@ -444,18 +431,6 @@ def _analysis_blocks(
         if mapped:
             return mapped
     return [_fallback_block(material_count, stats, status)]
-
-
-def _native_analysis_metadata(raw: Mapping[str, object]) -> JsonObject:
-    """Expose native grounding metadata only for releases that carry it."""
-    result: JsonObject = {}
-    if "evidenceMaterialIds" in raw:
-        result["evidenceMaterialIds"] = cast(
-            JsonValue, clean_evidence_material_ids(raw.get("evidenceMaterialIds"))
-        )
-    if "inputContentHash" in raw:
-        result["inputContentHash"] = cast(JsonValue, raw.get("inputContentHash"))
-    return result
 
 
 def _verify_database_boundary(connection: sqlite3.Connection) -> None:
@@ -675,7 +650,6 @@ def build_public_issue(
             "evidenceTitles": clean_evidence_titles(
                 cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
             ),
-            **_native_analysis_metadata(cast(Mapping[str, object], raw_analysis)),
             "headline": analysis_row["headline"],
         },
         "brief": issue["brief"],
@@ -878,7 +852,6 @@ def build_public_issue_from_views(
             "evidenceTitles": clean_evidence_titles(
                 cast(Mapping[str, object], raw_analysis).get("evidenceTitles")
             ),
-            **_native_analysis_metadata(cast(Mapping[str, object], raw_analysis)),
             "headline": analysis_row["headline"],
         },
         "brief": issue["brief"],

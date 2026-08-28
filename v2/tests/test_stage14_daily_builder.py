@@ -5,8 +5,9 @@
 from typing import cast
 
 import pytest
+from packages.domain.candidates import validate_llm_outcome
 from tools.build_stage14_correction import _flag_names
-from tools.build_stage14_daily import _analysis, _reconcile_narrative
+from tools.build_stage14_daily import _analysis, _llm_outcome, _reconcile_narrative
 
 
 def test_filtered_material_reconciles_counts_and_perimeters() -> None:
@@ -160,3 +161,26 @@ def test_analysis_carries_evidence_titles_as_the_llm_chose_them() -> None:
     }
     analysis = _analysis(document, legacy_count=1, stats=_zero_stats())
     assert analysis["evidenceTitles"] == ["Второй источник", "Первый источник", "Третий"]
+
+
+def test_the_native_day_records_the_model_that_wrote_the_analysis() -> None:
+    outcome = _llm_outcome(native=True)
+
+    validate_llm_outcome(outcome)
+    assert outcome["status"] == "success"
+    assert outcome["effective"] == {"model": "gpt-5.5", "provider": "openai"}
+
+
+def test_the_fallback_day_does_not_claim_a_model_wrote_the_analysis() -> None:
+    # "fallback" in this schema means a second model answered; a deterministic
+    # substitute is "unavailable". The record used to be a success literal either
+    # way, so a Legacy-analysis day claimed a model that never accepted anything.
+    outcome = _llm_outcome(native=False)
+
+    validate_llm_outcome(outcome)
+    assert outcome["status"] == "unavailable"
+    assert outcome["effective"] is None
+    assert outcome["deterministicFallback"] == {
+        "implementation": "legacy-analysis-import",
+        "version": "1",
+    }

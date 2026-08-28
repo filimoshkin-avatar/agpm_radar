@@ -20,7 +20,7 @@ from packages.domain.snapshot import JsonObject, canonical_json_line, create_sna
 from packages.legacy_bridge.importer import deterministic_id
 from packages.storage.safe_files import atomic_write_new
 
-from tools.generate_v2_analysis import generate_v2_analysis
+from tools.generate_v2_analysis import V2AnalysisError, generate_v2_analysis
 
 
 def _timestamp(value: object) -> str | None:
@@ -177,6 +177,58 @@ def _analysis(
     return cast(JsonObject, result)
 
 
+def _llm_outcome(*, native: bool) -> JsonObject:
+    """The day's LLM record: what was asked for, and what the issue was actually built from.
+
+    "unavailable" is this schema's word for "no model result, deterministic fallback
+    used"; "fallback" means a second model answered, which is not what happens here.
+    The record used to be a success literal regardless, so a fallback issue would have
+    claimed a model wrote the analysis Legacy had.
+    """
+    requested = {"model": "gpt-5.5", "provider": "openai"}
+    if native:
+        return cast(
+            JsonObject,
+            {
+                "attempts": [
+                    {
+                        "accepted": True,
+                        "errorCode": None,
+                        "model": "gpt-5.5",
+                        "order": 1,
+                        "provider": "openai",
+                        "status": "success",
+                    }
+                ],
+                "deterministicFallback": None,
+                "effective": dict(requested),
+                "effectiveAttemptOrder": 1,
+                "requested": dict(requested),
+                "status": "success",
+            },
+        )
+    return cast(
+        JsonObject,
+        {
+            "attempts": [
+                {
+                    "accepted": False,
+                    "errorCode": "ANALYSIS_REJECTED",
+                    "model": "gpt-5.5",
+                    "order": 1,
+                    "provider": "openai",
+                    "status": "error",
+                }
+            ],
+            "deterministicFallback": {"implementation": "legacy-analysis-import", "version": "1"},
+            "effective": None,
+            "effectiveAttemptOrder": None,
+            "requested": dict(requested),
+            "status": "unavailable",
+        },
+    )
+
+
 def _native_analysis(
     generated: dict[str, object], *, brief: str, theses: list[dict[str, object]]
 ) -> JsonObject:
@@ -270,22 +322,45 @@ def main() -> int:
     reconciled_brief = _reconcile_narrative(
         str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
     )
+    # The source database is checked before the model is asked: a broken release
+    # should not cost an inference first.
+    base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    generated_analysis = generate_v2_analysis(
-        issue_date=issue_date,
-        materials=materials,
-        artifacts_root=args.root / "llm-analysis",
-    )
     llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
     thesis_source = (
         cast(list[dict[str, object]], llm_theses.get("theses") or [])
         if llm_theses is not None and llm_theses.get("status") == "success"
         else cast(list[dict[str, object]], issue.get("theses") or [])
     )
-    native_analysis = _native_analysis(
-        cast(dict[str, object], generated_analysis), brief=reconciled_brief, theses=thesis_source
+    try:
+        generated_analysis = generate_v2_analysis(
+            issue_date=issue_date,
+            materials=materials,
+            artifacts_root=args.root / "llm-analysis",
+        )
+    except V2AnalysisError as error:
+        # A rejected analysis is not a reason to leave the day without an issue.
+        # Legacy's imported analysis is what V2 published until 2026-08-28, and it
+        # is still better than nothing; the LLM record below says which one this is.
+        analysis = _analysis(document, legacy_count=legacy_count, stats=stats)
+        analysis_failure: str | None = str(error)
+    else:
+        analysis = _native_analysis(
+            cast(dict[str, object], generated_analysis),
+            brief=reconciled_brief,
+            theses=thesis_source,
+        )
+        analysis_failure = None
+    atomic_write_new(
+        args.root / "analysis-outcome.json",
+        canonical_json_line(
+            {
+                "reason": analysis_failure,
+                "source": "legacy-import" if analysis_failure else "v2-native",
+            }
+        ),
+        mode=0o600,
     )
-    base = inspect_release_database(args.source_db)
     snapshots = args.root / "snapshots"
     run_root = args.root / "run"
     staging = args.root / "staging"
@@ -310,29 +385,13 @@ def main() -> int:
         consumed_at=args.created_at,
         expected_identity=snapshot.identity,
     )
-    llm = {
-        "attempts": [
-            {
-                "accepted": True,
-                "errorCode": None,
-                "model": "gpt-5.5",
-                "order": 1,
-                "provider": "openai",
-                "status": "success",
-            }
-        ],
-        "deterministicFallback": None,
-        "effective": {"model": "gpt-5.5", "provider": "openai"},
-        "effectiveAttemptOrder": 1,
-        "requested": {"model": "gpt-5.5", "provider": "openai"},
-        "status": "success",
-    }
+    llm = _llm_outcome(native=analysis_failure is None)
     raw_candidate: dict[str, object] = {
         "candidateId": args.candidate_id,
         "contractVersion": "1.0.0",
         "createdAt": args.created_at,
         "desiredIssue": {
-            "analysis": native_analysis,
+            "analysis": analysis,
             "brief": reconciled_brief,
             "emptyReason": None,
             "issueDate": issue_date,
@@ -383,6 +442,7 @@ def main() -> int:
     print(
         canonical_json_line(
             {
+                "analysisSource": "legacy-import" if analysis_failure else "v2-native",
                 "candidate": str(candidate_path),
                 "excludedMaterials": len(excluded),
                 "package": str(result.package.path),

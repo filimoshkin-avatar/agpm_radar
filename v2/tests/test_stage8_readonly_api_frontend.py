@@ -118,7 +118,14 @@ def _build_release(path: Path, *, release_id: str, latest_title: str) -> None:
                                 "text": "Системы усиливают контроль границ.",
                                 "title": "Главный сигнал",
                             }
-                        ]
+                        ],
+                        # Grounding metadata a V2-native analysis stores beside the
+                        # blocks. It belongs to the record, not to the reader: the
+                        # frozen Analysis schema is additionalProperties:false, so
+                        # surfacing it fails the contract assertion below. Without a
+                        # row that carries it, that assertion could never say so.
+                        "evidenceMaterialIds": ["material_public"],
+                        "inputContentHash": "0" * 64,
                     }
                 ),
                 _json([{"lead": "Контроль", "rest": "становится частью архитектуры."}]),
