@@ -40,7 +40,13 @@ _GAZETTE_CSP: Final = (
 # Gazette issues bundled with the application itself; the publisher's own
 # releases live under /gazettes/ with manifest-verified assets.
 _BUNDLED_GAZETTE_ISSUES: Final[frozenset[str]] = frozenset(
-    {"/gazette-20260803.html", "/gazette-20260901.html", "/gazette-20260901-r2.html"}
+    {
+        "/gazette-20260803.html",
+        "/gazette-20260803-r2.html",
+        "/gazette-20260901.html",
+        "/gazette-20260901-r2.html",
+        "/gazette-20260901-r3.html",
+    }
 )
 _CONTENT_TYPES: Final = {
     ".css": "text/css; charset=utf-8",
