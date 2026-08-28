@@ -402,10 +402,14 @@ def _add_issue_desired_state(
     requested = cast(dict[str, str] | None, llm["requested"])
     effective = cast(dict[str, str] | None, llm["effective"])
     analysis = cast(dict[str, object], issue["analysis"])
+    persisted_analysis = {"blocks": analysis["blocks"]}
+    for key in ("evidenceTitles", "evidenceMaterialIds", "inputContentHash"):
+        if key in analysis:
+            persisted_analysis[key] = analysis[key]
     issue_analysis_values = {
         "issue_id": issue_id,
         "headline": analysis["headline"],
-        "analysis_json": _json_text({"blocks": analysis["blocks"]}),
+        "analysis_json": _json_text(persisted_analysis),
         "theses_json": _json_text(analysis["theses"]),
         "brief": analysis["brief"],
         "llm_status": llm["status"],

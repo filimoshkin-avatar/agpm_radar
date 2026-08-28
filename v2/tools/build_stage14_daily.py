@@ -20,6 +20,8 @@ from packages.domain.snapshot import JsonObject, canonical_json_line, create_sna
 from packages.legacy_bridge.importer import deterministic_id
 from packages.storage.safe_files import atomic_write_new
 
+from tools.generate_v2_analysis import generate_v2_analysis
+
 
 def _timestamp(value: object) -> str | None:
     if not value:
@@ -175,6 +177,36 @@ def _analysis(
     return cast(JsonObject, result)
 
 
+def _native_analysis(
+    generated: dict[str, object], *, brief: str, theses: list[dict[str, object]]
+) -> JsonObject:
+    """Map a verified V2-native model response into the candidate contract."""
+    return cast(
+        JsonObject,
+        {
+            "blocks": [
+                {"kind": "overview", "text": generated["signal"], "title": "Сигнал"},
+                {
+                    "kind": "signals",
+                    "text": generated["why_agpm"],
+                    "title": "Почему это важно для AgPM",
+                },
+                {
+                    "kind": "actions",
+                    "text": generated["watch_next"],
+                    "title": "Что смотреть дальше",
+                },
+            ],
+            "brief": brief,
+            "evidenceMaterialIds": generated["evidence_material_ids"],
+            "evidenceTitles": generated["evidence_titles"],
+            "headline": generated["headline"],
+            "inputContentHash": generated["input_content_hash"],
+            "theses": theses,
+        },
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--legacy-json", required=True, type=Path)
@@ -238,8 +270,22 @@ def main() -> int:
     reconciled_brief = _reconcile_narrative(
         str(issue.get("brief") or ""), legacy_count=legacy_count, stats=stats
     )
-    base = inspect_release_database(args.source_db)
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    generated_analysis = generate_v2_analysis(
+        issue_date=issue_date,
+        materials=materials,
+        artifacts_root=args.root / "llm-analysis",
+    )
+    llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
+    thesis_source = (
+        cast(list[dict[str, object]], llm_theses.get("theses") or [])
+        if llm_theses is not None and llm_theses.get("status") == "success"
+        else cast(list[dict[str, object]], issue.get("theses") or [])
+    )
+    native_analysis = _native_analysis(
+        cast(dict[str, object], generated_analysis), brief=reconciled_brief, theses=thesis_source
+    )
+    base = inspect_release_database(args.source_db)
     snapshots = args.root / "snapshots"
     run_root = args.root / "run"
     staging = args.root / "staging"
@@ -286,7 +332,7 @@ def main() -> int:
         "contractVersion": "1.0.0",
         "createdAt": args.created_at,
         "desiredIssue": {
-            "analysis": _analysis(document, legacy_count=legacy_count, stats=stats),
+            "analysis": native_analysis,
             "brief": reconciled_brief,
             "emptyReason": None,
             "issueDate": issue_date,
@@ -310,7 +356,7 @@ def main() -> int:
         "llmOutcome": llm,
         "operation": "daily",
         "queueChanges": [],
-        "reason": "Stage 14 manual daily dry run from captured Legacy publication",
+        "reason": "V2 daily issue with analysis generated from the final eligible composition",
         "schemaVersion": 1,
         "snapshot": {
             "itemCount": snapshot.identity.item_count,

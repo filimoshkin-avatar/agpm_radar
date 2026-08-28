@@ -312,10 +312,14 @@ def _validate_analysis(value: object) -> None:
     # `evidenceTitles` is optional at the candidate door: candidates built
     # before the field existed remain valid, and the public contract still
     # always carries the list (normalised to [] where a candidate had none).
-    has_titles = isinstance(value, dict) and "evidenceTitles" in cast(dict[str, object], value)
+    optional_fields = {
+        key
+        for key in ("evidenceTitles", "evidenceMaterialIds", "inputContentHash")
+        if isinstance(value, dict) and key in cast(dict[str, object], value)
+    }
     analysis = _exact(
         value,
-        {"headline", "brief", "blocks", "theses"} | ({"evidenceTitles"} if has_titles else set()),
+        {"headline", "brief", "blocks", "theses"} | optional_fields,
         "desiredIssue.analysis",
     )
     _optional_text(analysis["headline"], "analysis.headline", maximum=500)
@@ -332,6 +336,13 @@ def _validate_analysis(value: object) -> None:
             minimum=1,
             maximum=300,
         )
+    evidence_ids = analysis.get("evidenceMaterialIds", [])
+    if not isinstance(evidence_ids, list) or len(evidence_ids) > 40:
+        raise CandidateValidationError("analysis.evidenceMaterialIds must contain at most 40 ids")
+    for index, material_id in enumerate(evidence_ids):
+        _text(material_id, f"analysis.evidenceMaterialIds[{index}]", minimum=1, maximum=200)
+    if "inputContentHash" in analysis:
+        _sha256(analysis["inputContentHash"], "analysis.inputContentHash")
     blocks = analysis["blocks"]
     if not isinstance(blocks, list) or len(blocks) > 20:
         raise CandidateValidationError("analysis.blocks must contain at most 20 blocks")
