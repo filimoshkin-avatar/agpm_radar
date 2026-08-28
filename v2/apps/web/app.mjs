@@ -2733,7 +2733,7 @@ function chatToolCardHtml(card) {
             : `<pre class="agent-tool__raw">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`}
           <div class="agent-answer__topics">
             ${chatSubTeaser(String(title))}
-            <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+            <span class="agent-sub__note" hidden>Подписка на получение информации по темам доступна после авторизации.</span>
           </div>
         </div>
       </details>`;
@@ -3473,7 +3473,7 @@ function chatTopicsRow(evidence) {
       <span class="agent-ask__label">темы ответа:</span>
       ${shown.map(chatSubTeaser).join("")}
       ${hidden ? `<span class="agent-sub__more mono" title="${escapeHtml(titles.slice(CHAT_TOPICS_SHOWN).join(", "))}">и ещё ${hidden}</span>` : ""}
-      <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+      <span class="agent-sub__note" hidden>Подписка на получение информации по темам доступна после авторизации.</span>
     </div>`;
 }
 
