@@ -689,6 +689,13 @@ function openGazetteIssue(row) {
     }
     const month = document.querySelector("#gazetteIssue b");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
+    document.querySelectorAll("[data-gazette-issue]").forEach(item => {
+      item.classList.toggle("is-viewed", item === row);
+      // Подсветка — единственный признак просматриваемого выпуска, а фон её
+      // держит на 1.11:1: без aria-pressed выбор не виден ни скринридеру, ни
+      // тому, кто не различает эти два бежевых.
+      item.setAttribute("aria-pressed", item === row ? "true" : "false");
+    });
   }
   gazetteArchive(false);
 }
@@ -2733,7 +2740,7 @@ function chatToolCardHtml(card) {
             : `<pre class="agent-tool__raw">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`}
           <div class="agent-answer__topics">
             ${chatSubTeaser(String(title))}
-            <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+            <span class="agent-sub__note" hidden>Подписка на получение информации по темам доступна после авторизации.</span>
           </div>
         </div>
       </details>`;
@@ -3473,7 +3480,7 @@ function chatTopicsRow(evidence) {
       <span class="agent-ask__label">темы ответа:</span>
       ${shown.map(chatSubTeaser).join("")}
       ${hidden ? `<span class="agent-sub__more mono" title="${escapeHtml(titles.slice(CHAT_TOPICS_SHOWN).join(", "))}">и ещё ${hidden}</span>` : ""}
-      <span class="agent-sub__note" hidden>Подписка на узлы станет доступной по подписке — позже, после авторизации.</span>
+      <span class="agent-sub__note" hidden>Подписка на получение информации по темам доступна после авторизации.</span>
     </div>`;
 }
 
