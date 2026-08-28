@@ -689,6 +689,9 @@ function openGazetteIssue(row) {
     }
     const month = document.querySelector("#gazetteIssue b");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
+    document.querySelectorAll("[data-gazette-issue]").forEach(item => {
+      item.classList.toggle("is-viewed", item === row);
+    });
   }
   gazetteArchive(false);
 }

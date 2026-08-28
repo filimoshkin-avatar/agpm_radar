@@ -1380,7 +1380,7 @@ button.gazette-archive__row {
 }
 button.gazette-archive__row:hover { background: var(--sub); }
 
-.gazette-archive__row.is-current { background: var(--rail); }
+.gazette-archive__row.is-viewed { background: var(--rail); }
 .gazette-archive__names { display: flex; flex-direction: column; gap: 1px; }
 .gazette-archive__month { font-size: 13px; font-weight: 600; }
 .gazette-archive__sub { font-size: 10px; color: var(--muted); }
