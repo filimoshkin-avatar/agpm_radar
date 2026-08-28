@@ -26,6 +26,11 @@ def _materials() -> list[JsonObject]:
     ]
 
 
+def _long_block(label: str) -> str:
+    paragraph = f"{label} " + ("Содержательный управленческий вывод для проектного контура. " * 8)
+    return "\n\n".join([paragraph, paragraph, paragraph])
+
+
 def test_analysis_is_bound_to_final_six_material_composition() -> None:
     materials = _materials()
     content_hash = issue_content_hash(materials)
@@ -34,9 +39,9 @@ def test_analysis_is_bound_to_final_six_material_composition() -> None:
             JsonObject,
             {
                 "headline": "Заголовок",
-                "signal": "Сигнал",
-                "why_agpm": "Значение",
-                "watch_next": "Наблюдение",
+                "signal": _long_block("Сигнал."),
+                "why_agpm": _long_block("Значение."),
+                "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
                 "evidence_material_ids": ["mat_2", "mat_5"],
                 "input_content_hash": content_hash,
             },
@@ -83,6 +88,27 @@ def test_analysis_rejects_stale_composition_hash() -> None:
                     "watch_next": "Наблюдение",
                     "evidence_material_ids": ["mat_1"],
                     "input_content_hash": "0" * 64,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
+
+
+def test_analysis_rejects_compact_model_response() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    with pytest.raises(V2AnalysisError, match="quality gate failed"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "headline": "Заголовок",
+                    "signal": "Один короткий абзац.",
+                    "why_agpm": "Один короткий абзац.",
+                    "watch_next": "Одно предложение.",
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
                 },
             ),
             materials=materials,
