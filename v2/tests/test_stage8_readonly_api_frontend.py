@@ -680,6 +680,12 @@ def test_spa_assets_gazette_and_missing_routes_are_separate(
     september_revision = application.handle("GET", "/gazette-20260901-r2.html")
     assert september_revision.status == 200
     assert b"<!doctype html>" in september_revision.body.lower()
+    september_r3 = application.handle("GET", "/gazette-20260901-r3.html")
+    assert september_r3.status == 200
+    assert b"<!doctype html>" in september_r3.body.lower()
+    august_revision = application.handle("GET", "/gazette-20260803-r2.html")
+    assert august_revision.status == 200
+    assert b"<!doctype html>" in august_revision.body.lower()
     gazette = application.handle("GET", "/gazettes/2026-08/")
     assert gazette.status == 200
     assert b"Published gazette" in gazette.body
@@ -777,8 +783,8 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "Источники выпуска</h2>" not in html
     assert "ИСТОЧНИКИ ВЫПУСКА" in html
     assert "Рубрикатор" in html
-    assert "/gazette-20260901-r2.html" in html
-    assert 'data-gazette-issue="20260803"' in html
+    assert "/gazette-20260901-r3.html" in html
+    assert 'data-gazette-issue="20260803-r2"' in html
     assert "@media (max-width: 1100px)" in styles
     assert "@media (max-width: 760px)" in styles
     node = shutil.which("node")
