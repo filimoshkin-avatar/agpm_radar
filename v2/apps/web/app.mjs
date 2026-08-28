@@ -691,6 +691,10 @@ function openGazetteIssue(row) {
     if (month) month.textContent = row.dataset.gazetteMonth || "";
     document.querySelectorAll("[data-gazette-issue]").forEach(item => {
       item.classList.toggle("is-viewed", item === row);
+      // Подсветка — единственный признак просматриваемого выпуска, а фон её
+      // держит на 1.11:1: без aria-pressed выбор не виден ни скринридеру, ни
+      // тому, кто не различает эти два бежевых.
+      item.setAttribute("aria-pressed", item === row ? "true" : "false");
     });
   }
   gazetteArchive(false);
