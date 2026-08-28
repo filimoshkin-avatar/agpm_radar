@@ -220,6 +220,11 @@ def main() -> int:
     parser.add_argument("--llm-success-model")
     parser.add_argument("--llm-success-provider")
     parser.add_argument("--reconcile-legacy-count", type=int)
+    parser.add_argument(
+        "--analysis-candidate",
+        type=Path,
+        help="Reuse a verified desiredIssue.analysis object from a V2-native daily candidate",
+    )
     args = parser.parse_args()
     if bool(args.llm_success_model) != bool(args.llm_success_provider):
         parser.error("--llm-success-model and --llm-success-provider must be provided together")
@@ -240,6 +245,12 @@ def main() -> int:
             no_llm=args.no_llm,
             reconcile_legacy_count=args.reconcile_legacy_count,
         )
+    if args.analysis_candidate is not None:
+        source_candidate = json.loads(args.analysis_candidate.read_bytes())
+        native_analysis = source_candidate.get("desiredIssue", {}).get("analysis")
+        if not isinstance(native_analysis, dict):
+            parser.error("--analysis-candidate has no desiredIssue.analysis object")
+        cast(dict[str, object], desired)["analysis"] = native_analysis
     with sqlite3.connect(args.source_db) as connection:
         issue_id = cast(str, desired["issueId"])
         expected_issue_hash = issue_state_hash(connection, issue_id)
@@ -354,7 +365,11 @@ def main() -> int:
             else (
                 "Reconcile V2 narrative after eligibility filtering"
                 if args.reconcile_legacy_count is not None
-                else "Stage 14 remove confirmed historical duplicate URLs"
+                else (
+                    "Replace inherited Legacy analysis with V2-native grounded analysis"
+                    if args.analysis_candidate is not None
+                    else "Stage 14 remove confirmed historical duplicate URLs"
+                )
             )
         ),
         "schemaVersion": 1,
