@@ -26,6 +26,15 @@ from packages.storage.safe_files import (
     read_regular_file,
 )
 
+from tools.generate_v2_analysis import WORST_CASE_SECONDS as ANALYSIS_WORST_CASE_SECONDS
+
+#: A candidate build is the worst-case analysis plus the snapshot, the database
+#: inspection and the packaging. The analysis term is imported rather than restated:
+#: the retry policy lives in one place, and changing it must not require remembering
+#: this ceiling.
+_CANDIDATE_BUILD_OVERHEAD_SECONDS = 120
+_CANDIDATE_BUILD_TIMEOUT_SECONDS = ANALYSIS_WORST_CASE_SECONDS + _CANDIDATE_BUILD_OVERHEAD_SECONDS
+
 
 class Stage15DualRunError(RuntimeError):
     """The isolated V2 branch could not produce a proved comparison."""
@@ -282,13 +291,18 @@ def _build_candidate(args: argparse.Namespace, legacy_json: Path, run_root: Path
         "--root",
         str(run_root / "candidate-build"),
     ]
-    completed = subprocess.run(  # noqa: S603
-        command,
-        cwd=args.v2_root,
-        capture_output=True,
-        check=False,
-        timeout=300,
-    )
+    try:
+        completed = subprocess.run(  # noqa: S603
+            command,
+            cwd=args.v2_root,
+            capture_output=True,
+            check=False,
+            timeout=_CANDIDATE_BUILD_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise Stage15DualRunError(
+            f"candidate build timed out after {_CANDIDATE_BUILD_TIMEOUT_SECONDS} s"
+        ) from error
     if completed.returncode != 0:
         message = completed.stderr.decode("utf-8", errors="replace")[-4000:]
         raise Stage15DualRunError(f"candidate build failed ({completed.returncode}): {message}")

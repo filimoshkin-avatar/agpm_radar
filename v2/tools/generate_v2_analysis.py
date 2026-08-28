@@ -17,6 +17,12 @@ from packages.storage.safe_files import atomic_write_new
 MODEL = "openai/gpt-5.5"
 PROMPT_VERSION = "v2-daily-analysis-ru-v3"
 MAX_ATTEMPTS = 3
+ATTEMPT_TIMEOUT_SECONDS = 180
+#: This module's worst case: every attempt runs to its own ceiling. The caller must
+#: allow the candidate build at least this much - `run_stage15_dual` derives its cap
+#: from here rather than remembering a number. Its former 300 seconds were less than
+#: 3 x 180, and the run died on a `TimeoutExpired` nobody caught.
+WORST_CASE_SECONDS = MAX_ATTEMPTS * ATTEMPT_TIMEOUT_SECONDS
 MIN_ANALYTIC_PARAGRAPHS = 3
 MAX_ANALYTIC_PARAGRAPHS = 5
 MIN_ANALYTIC_CHARS = 1_200
@@ -67,8 +73,34 @@ def _quality_violations(raw: JsonObject) -> list[str]:
     return violations
 
 
+def _strip_json_fence(value: str) -> str:
+    """Strip the markdown fence a model wraps JSON in even when asked not to.
+
+    The Legacy pipeline calls this very same `openclaw infer` and has stripped the
+    fence since 2026-07 (`pipeline/scripts/agpm_radar_openclaw_analysis.py`). The V2
+    port dropped that line, and the first fenced answer took the daily chain down.
+    Retrying does not cover it: the repair prompt carries "Expecting value: line 1
+    column 1", from which no model infers that the fence is the problem.
+    """
+    text = value.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    return text.strip()
+
+
 def _parse_json(text: str) -> JsonObject:
-    value: object = json.loads(text)
+    cleaned = _strip_json_fence(text)
+    try:
+        value: object = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Legacy's second line of defence: take everything between the outermost
+        # braces. A sentence before or after the object is not worth losing a day for.
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        value = json.loads(cleaned[start : end + 1])
     if not isinstance(value, dict):
         raise V2AnalysisError("model response is not a JSON object")
     return cast(JsonObject, value)
@@ -116,7 +148,11 @@ def validate_v2_analysis(
 
 
 def generate_v2_analysis(
-    *, issue_date: str, materials: list[JsonObject], artifacts_root: Path, timeout: int = 180
+    *,
+    issue_date: str,
+    materials: list[JsonObject],
+    artifacts_root: Path,
+    timeout: int = ATTEMPT_TIMEOUT_SECONDS,
 ) -> JsonObject:
     """Call OpenClaw only after V2 eligibility has fixed the included materials."""
     content_hash = issue_content_hash(materials)
@@ -174,13 +210,34 @@ def generate_v2_analysis(
         atomic_write_new(artifacts_root / f"request-attempt-{attempt}.json", request, mode=0o600)
         if attempt == 1:
             atomic_write_new(artifacts_root / "request.json", request, mode=0o600)
-        completed = subprocess.run(
-            ["openclaw", "infer", "model", "run", "--model", MODEL, "--json", "--prompt", prompt],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=timeout,
-        )
+        try:
+            completed = subprocess.run(
+                [
+                    "openclaw",
+                    "infer",
+                    "model",
+                    "run",
+                    "--model",
+                    MODEL,
+                    "--json",
+                    "--prompt",
+                    prompt,
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            # A hung model costs one attempt. This exception used to travel past
+            # V2AnalysisError and up, where nothing caught it either.
+            failures.append(f"OpenClaw inference timed out after {timeout} s")
+            atomic_write_new(
+                artifacts_root / f"response-attempt-{attempt}.json",
+                canonical_json_line({"attempt": attempt, "timedOutAfterSeconds": timeout}),
+                mode=0o600,
+            )
+            continue
         response = canonical_json_line(
             {
                 "attempt": attempt,
@@ -201,6 +258,4 @@ def generate_v2_analysis(
             )
         except (V2AnalysisError, json.JSONDecodeError) as exc:
             failures.append(str(exc))
-    raise V2AnalysisError(
-        f"analysis failed after {MAX_ATTEMPTS} attempts: " + " | ".join(failures)
-    )
+    raise V2AnalysisError(f"analysis failed after {MAX_ATTEMPTS} attempts: " + " | ".join(failures))

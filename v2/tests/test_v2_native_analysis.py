@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+from pathlib import Path
 from typing import cast
 
 import pytest
 from packages.contracts.analysis import issue_content_hash
 from packages.domain.snapshot import JsonObject
-from tools.generate_v2_analysis import V2AnalysisError, validate_v2_analysis
+from tools.generate_v2_analysis import (
+    MAX_ATTEMPTS,
+    V2AnalysisError,
+    _model_payload,
+    generate_v2_analysis,
+    validate_v2_analysis,
+)
 
 
 def _materials() -> list[JsonObject]:
@@ -18,6 +27,7 @@ def _materials() -> list[JsonObject]:
                 "materialId": f"mat_{index}",
                 "title": f"Материал {index}",
                 "summary": f"Содержание {index}",
+                "agpmTakeaway": f"Вывод {index}",
                 "rubrics": ["governance_control"],
                 "perimeter": "mid",
             },
@@ -134,4 +144,79 @@ def test_analysis_rejects_material_ids_in_reader_facing_text() -> None:
             ),
             materials=materials,
             content_hash=content_hash,
+        )
+
+
+def _envelope(text: str) -> str:
+    """The shape `openclaw infer model run --json` actually returns."""
+    return json.dumps({"ok": True, "outputs": [{"mediaUrl": None, "text": text}]})
+
+
+def _good_answer(content_hash: str) -> str:
+    return json.dumps(
+        {
+            "headline": "Заголовок",
+            "signal": _long_block("Сигнал."),
+            "why_agpm": _long_block("Значение."),
+            "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+            "evidence_material_ids": ["mat_1", "mat_2"],
+            "input_content_hash": content_hash,
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_a_fenced_answer_is_read_not_rejected() -> None:
+    # What a real call returned: the model wrapped its JSON in ```json even though
+    # the prompt asked for JSON only. Legacy strips this; the V2 port had not.
+    payload = _model_payload(_envelope('```json\n{"headline": "ok"}\n```'))
+
+    assert payload["headline"] == "ok"
+
+
+def test_prose_around_the_object_is_read_not_rejected() -> None:
+    payload = _model_payload(_envelope('Here is the analysis:\n{"headline": "ok"}\nDone.'))
+
+    assert payload["headline"] == "ok"
+
+
+def test_a_hung_attempt_costs_one_attempt_not_the_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    calls: list[int] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(1)
+        if len(calls) == 1:
+            raise subprocess.TimeoutExpired(command, 180)
+        return subprocess.CompletedProcess(command, 0, _envelope(_good_answer(content_hash)), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = generate_v2_analysis(
+        issue_date="2026-08-28",
+        materials=materials,
+        artifacts_root=tmp_path / "llm-analysis",
+    )
+
+    assert len(calls) == 2
+    assert result["evidence_material_ids"] == ["mat_1", "mat_2"]
+    assert (tmp_path / "llm-analysis" / "response-attempt-1.json").exists()
+
+
+def test_every_attempt_timing_out_is_a_bounded_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def always_hangs(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(command, 180)
+
+    monkeypatch.setattr(subprocess, "run", always_hangs)
+    with pytest.raises(V2AnalysisError, match=f"after {MAX_ATTEMPTS} attempts"):
+        generate_v2_analysis(
+            issue_date="2026-08-28",
+            materials=_materials(),
+            artifacts_root=tmp_path / "llm-analysis",
         )
