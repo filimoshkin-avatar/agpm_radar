@@ -225,6 +225,10 @@ def main() -> int:
         type=Path,
         help="Reuse a verified desiredIssue.analysis object from a V2-native daily candidate",
     )
+    parser.add_argument(
+        "--analysis-headline",
+        help="Replace only the analysis headline while preserving its verified content binding",
+    )
     args = parser.parse_args()
     if bool(args.llm_success_model) != bool(args.llm_success_provider):
         parser.error("--llm-success-model and --llm-success-provider must be provided together")
@@ -251,6 +255,9 @@ def main() -> int:
         if not isinstance(native_analysis, dict):
             parser.error("--analysis-candidate has no desiredIssue.analysis object")
         cast(dict[str, object], desired)["analysis"] = native_analysis
+    if args.analysis_headline is not None:
+        analysis = cast(dict[str, object], desired["analysis"])
+        analysis["headline"] = args.analysis_headline.strip()
     with sqlite3.connect(args.source_db) as connection:
         issue_id = cast(str, desired["issueId"])
         expected_issue_hash = issue_state_hash(connection, issue_id)
@@ -366,9 +373,13 @@ def main() -> int:
                 "Reconcile V2 narrative after eligibility filtering"
                 if args.reconcile_legacy_count is not None
                 else (
-                    "Replace inherited Legacy analysis with V2-native grounded analysis"
-                    if args.analysis_candidate is not None
-                    else "Stage 14 remove confirmed historical duplicate URLs"
+                    "Synchronize V2 analysis headline with Legacy"
+                    if args.analysis_headline is not None
+                    else (
+                        "Replace inherited Legacy analysis with V2-native grounded analysis"
+                        if args.analysis_candidate is not None
+                        else "Stage 14 remove confirmed historical duplicate URLs"
+                    )
                 )
             )
         ),
