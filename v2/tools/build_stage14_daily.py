@@ -208,8 +208,18 @@ def _daily_analysis(
         )
     except V2AnalysisError as error:
         return _analysis(document, legacy_count=legacy_count, stats=stats), str(error)
+    legacy_daily = cast(dict[str, object], document["daily_analysis"])
+    legacy_headline = str(legacy_daily.get("headline") or "").strip()
+    if not legacy_headline:
+        legacy_analysis = cast(dict[str, object], legacy_daily.get("analysis") or {})
+        legacy_headline = str(legacy_analysis.get("headline") or "").strip()
     return (
-        _native_analysis(cast(dict[str, object], generated), brief=brief, theses=thesis_source),
+        _native_analysis(
+            cast(dict[str, object], generated),
+            brief=brief,
+            theses=thesis_source,
+            headline=legacy_headline,
+        ),
         None,
     )
 
@@ -267,9 +277,13 @@ def _llm_outcome(*, native: bool) -> JsonObject:
 
 
 def _native_analysis(
-    generated: dict[str, object], *, brief: str, theses: list[dict[str, object]]
+    generated: dict[str, object],
+    *,
+    brief: str,
+    theses: list[dict[str, object]],
+    headline: str,
 ) -> JsonObject:
-    """Map a verified V2-native model response into the candidate contract."""
+    """Map V2-native blocks while preserving Legacy's canonical issue headline."""
     return cast(
         JsonObject,
         {
@@ -289,7 +303,7 @@ def _native_analysis(
             "brief": brief,
             "evidenceMaterialIds": generated["evidence_material_ids"],
             "evidenceTitles": generated["evidence_titles"],
-            "headline": generated["headline"],
+            "headline": headline,
             "inputContentHash": generated["input_content_hash"],
             "theses": theses,
         },

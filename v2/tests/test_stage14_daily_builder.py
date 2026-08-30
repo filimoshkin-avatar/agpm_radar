@@ -275,7 +275,6 @@ def test_an_accepted_analysis_is_the_one_that_reaches_the_candidate(
 
     def accepted(**_kwargs: object) -> dict[str, object]:
         return {
-            "headline": "Заголовок модели",
             "signal": "Сигнал модели.",
             "why_agpm": "Значение модели.",
             "watch_next": "Наблюдение модели.",
@@ -296,6 +295,6 @@ def test_an_accepted_analysis_is_the_one_that_reaches_the_candidate(
     )
 
     assert failure is None
-    assert analysis["headline"] == "Заголовок модели"
+    assert analysis["headline"] == "Сигнал"
     _validate_analysis(analysis, list(materials))
     validate_llm_outcome(_llm_outcome(native=True))

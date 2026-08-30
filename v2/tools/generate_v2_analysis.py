@@ -44,7 +44,7 @@ def _sentences(text: str) -> list[str]:
 
 def _quality_violations(raw: JsonObject) -> list[str]:
     violations: list[str] = []
-    for key in ("headline", "signal", "why_agpm", "watch_next"):
+    for key in ("signal", "why_agpm", "watch_next"):
         identifiers = sorted(set(re.findall(r"\bmat_[A-Za-z0-9_]+\b", str(raw.get(key) or ""))))
         if identifiers:
             violations.append(
@@ -117,7 +117,7 @@ def _model_payload(stdout: str) -> JsonObject:
 def validate_v2_analysis(
     raw: JsonObject, *, materials: list[JsonObject], content_hash: str
 ) -> JsonObject:
-    required_text = ("headline", "signal", "why_agpm", "watch_next")
+    required_text = ("signal", "why_agpm", "watch_next")
     for key in required_text:
         if not isinstance(raw.get(key), str) or not str(raw[key]).strip():
             raise V2AnalysisError(f"analysis field {key} is empty")
@@ -136,7 +136,6 @@ def validate_v2_analysis(
     return cast(
         JsonObject,
         {
-            "headline": str(raw["headline"]).strip(),
             "signal": str(raw["signal"]).strip(),
             "why_agpm": str(raw["why_agpm"]).strip(),
             "watch_next": str(raw["watch_next"]).strip(),
@@ -176,7 +175,7 @@ def generate_v2_analysis(
         "Опирайся только на материалы из входного JSON. Не упоминай исключённые или внешние "
         "материалы и не придумывай факты.\n"
         "Не заменяй четыре формальных тезиса: это отдельный раскрываемый аналитический блок.\n"
-        "Верни только JSON с полями headline, signal, why_agpm, watch_next, "
+        "Верни только JSON с полями signal, why_agpm, watch_next, "
         "evidence_material_ids, input_content_hash.\n"
         "signal и why_agpm должны быть развёрнутыми: по 3–5 связных абзацев и не менее "
         "1 200 знаков каждый. Раскрой управленческий смысл для AgPM, PMO, ИСУП, governance, "
@@ -184,7 +183,7 @@ def generate_v2_analysis(
         "watch_next: 2–4 предложения о том, что проверять в следующих выпусках. "
         "evidence_material_ids: 2–10 идентификаторов только из входного списка. "
         "Технические идентификаторы mat_* используй только в evidence_material_ids. "
-        "В headline, signal, why_agpm и watch_next называй материалы только по их точным "
+        "В signal, why_agpm и watch_next называй материалы только по их точным "
         "человекочитаемым заголовкам из поля title; не показывай material_id читателю. "
         "input_content_hash верни без изменений.\n\n"
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
