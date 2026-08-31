@@ -76,6 +76,96 @@ PY
 )"
 printf '%s\n' "$summary"
 
+notify_message="$(${v2_root}/.venv/bin/python - "$report" <<'PY'
+import json
+import sys
+
+x = json.loads(sys.argv[1])
+legacy = x["legacy"]
+v2 = x["v2"]
+diff = x["urlDifferences"]
+verdict = x.get("comparisonVerdict", {"status": "legacy_report_without_verdict", "alert": False})
+publication = x["publication"]
+release_id = v2.get("releaseId") or "нет release id"
+issue_date = x["issueDate"]
+only_legacy = diff.get("onlyLegacy", [])
+only_v2 = diff.get("onlyV2", [])
+periods = v2.get("periodAnalysis", {})
+
+status = "опубликован" if v2.get("status") == "published" else str(v2.get("status", "неизвестно"))
+publication_disposition = publication.get("disposition", "unknown")
+verdict_status = verdict.get("status", "unknown")
+alert = bool(verdict.get("alert", False))
+
+if alert:
+    verdict_line = "Требуется внимание: расхождение Legacy/V2 не объяснено автоматически."
+elif only_legacy or only_v2:
+    verdict_line = "Расхождения Legacy/V2 есть, но они объяснены правилами V2."
+else:
+    verdict_line = "Расхождений между Legacy и V2 нет."
+
+lines = [
+    f"Радар V2: выпуск за {issue_date} обработан.",
+    "",
+    f"Статус V2: {status}.",
+    f"Публикация: {publication_disposition}.",
+    f"Release: {release_id}.",
+    f"Legacy: {legacy['materialCount']} материалов.",
+    f"V2: {v2['materialCount']} материалов.",
+    f"LLM V2: {v2.get('llmStatus', 'unknown')}.",
+    (
+        "Период 7 дней: "
+        f"{periods.get('7d', {}).get('status', 'missing')}, "
+        f"модель {periods.get('7d', {}).get('model') or 'нет'}, "
+        f"попыток {periods.get('7d', {}).get('attempts', 0)}."
+    ),
+    (
+        "Период 30 дней: "
+        f"{periods.get('30d', {}).get('status', 'missing')}, "
+        f"модель {periods.get('30d', {}).get('model') or 'нет'}, "
+        f"попыток {periods.get('30d', {}).get('attempts', 0)}."
+    ),
+    f"Только в Legacy: {len(only_legacy)}.",
+    f"Только в V2: {len(only_v2)}.",
+    f"Вердикт сверки: {verdict_status}.",
+    verdict_line,
+    "",
+    f"Выпуск: https://radar.agpm.space/?date={issue_date}",
+    f"API: https://radar.agpm.space/api/issues/{issue_date}",
+]
+
+for label, key in (("7 дней", "7d"), ("30 дней", "30d")):
+    period = periods.get(key, {})
+    if period.get("status") == "fallback":
+        lines.append(f"Fallback {label}: {period.get('error') or 'причина не указана'}")
+
+if only_legacy:
+    lines.extend(["", "Не попали в V2:"])
+    lines.extend(f"- {url}" for url in only_legacy[:5])
+    if len(only_legacy) > 5:
+        lines.append(f"- и ещё {len(only_legacy) - 5}")
+
+if only_v2:
+    lines.extend(["", "Есть только в V2:"])
+    lines.extend(f"- {url}" for url in only_v2[:5])
+    if len(only_v2) > 5:
+        lines.append(f"- и ещё {len(only_v2) - 5}")
+
+print("\n".join(lines))
+PY
+)"
+
+if [[ -n "${RADAR_V2_NOTIFY_CHANNEL:-}" && -n "${RADAR_V2_NOTIFY_TARGET:-}" ]]; then
+  if ! openclaw message send \
+      --channel "$RADAR_V2_NOTIFY_CHANNEL" \
+      --target "$RADAR_V2_NOTIFY_TARGET" \
+      --message "$notify_message" >/dev/null; then
+    echo "Radar V2 notification delivery failed." >&2
+  fi
+else
+  echo "Radar V2 notification skipped: RADAR_V2_NOTIFY_CHANNEL or RADAR_V2_NOTIFY_TARGET is not set." >&2
+fi
+
 if [[ "$(${v2_root}/.venv/bin/python -c 'import json,sys; print(str(json.loads(sys.argv[1]).get("comparisonVerdict", {}).get("alert", False)).lower())' "$report")" == "true" ]]; then
   exit 3
 fi
