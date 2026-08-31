@@ -173,6 +173,28 @@ def _llm_status(document: JsonObject) -> str:
     return "unavailable"
 
 
+def _period_statuses(document: JsonObject) -> JsonObject:
+    analysis = cast(dict[str, object], document.get("analysis") or {})
+    blocks = cast(list[dict[str, object]], analysis.get("blocks") or [])
+    result: dict[str, object] = {}
+    for period in ("7d", "30d"):
+        title = f"Период AgPM · {period} · метаданные"
+        raw = next(
+            (str(block.get("text") or "") for block in blocks if block.get("title") == title), ""
+        )
+        try:
+            metadata = json.loads(raw)
+        except json.JSONDecodeError:
+            metadata = {}
+        result[period] = {
+            "attempts": metadata.get("attempts", 0),
+            "error": metadata.get("error"),
+            "model": metadata.get("model"),
+            "status": metadata.get("status", "missing"),
+        }
+    return cast(JsonObject, result)
+
+
 def _application_release_id(public_base: str) -> str:
     health, _content = _fetch_json(f"{public_base.rstrip('/')}/api/health")
     value = health.get("applicationReleaseId")
@@ -440,6 +462,7 @@ def main() -> int:
         "v2": {
             "llmStatus": _llm_status(v2),
             "materialCount": len(v2_urls),
+            "periodAnalysis": _period_statuses(v2),
             "publicSha256": _sha256(v2_bytes),
             "releaseId": pointer.release_id,
             "stateHash": pointer.state_hash,

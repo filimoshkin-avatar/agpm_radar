@@ -36,6 +36,24 @@ function legacyMaterial(item) {
 function legacyIssue(payload) {
   const blocks = payload.analysis?.blocks || [];
   const block = kind => blocks.find(item => item.kind === kind)?.text || "";
+  const periodTheses = {};
+  for (const period of ["7d", "30d"]) {
+    const prefix = `Период AgPM · ${period} · `;
+    const theses = blocks
+      .filter(item => item.title?.startsWith(prefix) && !item.title.endsWith("метаданные"))
+      .sort((a, b) => a.title.localeCompare(b.title, "ru"))
+      .map(item => {
+        const [lead, ...rest] = String(item.text || "").split(/\n\n+/);
+        return { lead: lead.trim(), rest: rest.join("\n\n").trim() };
+      })
+      .filter(item => item.lead && item.rest);
+    const metadataBlock = blocks.find(item => item.title === `${prefix}метаданные`);
+    let metadata = {};
+    if (metadataBlock) {
+      try { metadata = JSON.parse(metadataBlock.text); } catch (_error) { metadata = {}; }
+    }
+    if (theses.length) periodTheses[period] = { ...metadata, theses };
+  }
   // The analysis headline is the analysis's own - the issue brief is a
   // different animal and used to stand in its place. `watch_next` is a
   // Legacy field name; on the V2 side that text lives in the `actions` block.
@@ -74,6 +92,7 @@ function legacyIssue(payload) {
       status: payload.llm?.status || "fallback",
       analysis,
     },
+    period_theses: periodTheses,
     materials: (payload.materials || []).map(legacyMaterial),
   };
 }
@@ -991,7 +1010,8 @@ function renderTheses(materials) {
   const selectedPayload = state.issueDate ? issueCache.get(state.issueDate) : issueCache.get(latest?.issue?.issue_date);
   const selectedIssue = selectedPayload?.issue || latest?.issue;
   const selectedLlmTheses = selectedPayload?.issue_llm_theses;
-  const periodTheses = latest?.period_theses?.[state.period]?.theses || [];
+  const periodResult = latest?.period_theses?.[state.period] || null;
+  const periodTheses = periodResult?.theses || [];
   const issueLlmTheses = selectedLlmTheses?.status === "success" && selectedLlmTheses?.theses?.length ? selectedLlmTheses.theses : [];
   const generated = periodTheses.length ? periodTheses : issueLlmTheses.length ? issueLlmTheses : selectedIssue?.theses?.length ? selectedIssue.theses : [
     { lead: "Операционная агентность требует governance.", rest: "В материалах чаще всего появляются контроль доступа, workflow, трассировка и корпоративная эксплуатация." },
@@ -1005,6 +1025,11 @@ function renderTheses(materials) {
   setText("thesesNote", [
     issueNumber ? `выпуск ${issueNumber}` : "",
     `${shown.length} ${pluralRu(shown.length, "тезис", "тезиса", "тезисов")}`,
+    periodResult?.status === "fallback"
+      ? "резервный текст: LLM недоступна"
+      : periodResult?.model
+        ? `LLM: ${periodResult.model}`
+        : "",
   ].filter(Boolean).join(" · "));
   document.getElementById("theses").innerHTML = shown.map((item, index) => {
     const lead = item.lead || item[0] || "";

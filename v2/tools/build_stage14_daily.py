@@ -21,6 +21,7 @@ from packages.legacy_bridge.importer import deterministic_id
 from packages.storage.safe_files import atomic_write_new
 
 from tools.generate_v2_analysis import V2AnalysisError, generate_v2_analysis
+from tools.v2_period_analysis import generate_period, period_blocks, strip_period_blocks
 
 
 def _timestamp(value: object) -> str | None:
@@ -386,12 +387,51 @@ def main() -> int:
         stats=stats,
         brief=reconciled_brief,
     )
+    current_issue = cast(
+        JsonObject,
+        {
+            "issueDate": issue_date,
+            "materials": materials,
+        },
+    )
+    period_root = args.root / "llm-period-analysis"
+    period_7d = generate_period(
+        database=args.source_db,
+        anchor=issue_date,
+        period="7d",
+        artifacts_root=period_root,
+        current_issue=current_issue,
+    )
+    period_30d = generate_period(
+        database=args.source_db,
+        anchor=issue_date,
+        period="30d",
+        artifacts_root=period_root,
+        current_issue=current_issue,
+        previous=cast(list[JsonObject], period_7d["theses"]),
+    )
+    analysis_blocks = cast(list[JsonObject], analysis["blocks"])
+    cast(dict[str, object], analysis)["blocks"] = strip_period_blocks(
+        analysis_blocks
+    ) + period_blocks({"7d": period_7d, "30d": period_30d})
     atomic_write_new(
         args.root / "analysis-outcome.json",
         canonical_json_line(
             {
                 "reason": analysis_failure,
                 "source": "legacy-import" if analysis_failure else "v2-native",
+                "periods": {
+                    "7d": {
+                        "attempts": period_7d["attempts"],
+                        "model": period_7d["model"],
+                        "status": period_7d["status"],
+                    },
+                    "30d": {
+                        "attempts": period_30d["attempts"],
+                        "model": period_30d["model"],
+                        "status": period_30d["status"],
+                    },
+                },
             }
         ),
         mode=0o600,
@@ -478,6 +518,18 @@ def main() -> int:
         canonical_json_line(
             {
                 "analysisSource": "legacy-import" if analysis_failure else "v2-native",
+                "periodAnalysis": {
+                    "7d": {
+                        "attempts": period_7d["attempts"],
+                        "model": period_7d["model"],
+                        "status": period_7d["status"],
+                    },
+                    "30d": {
+                        "attempts": period_30d["attempts"],
+                        "model": period_30d["model"],
+                        "status": period_30d["status"],
+                    },
+                },
                 "candidate": str(candidate_path),
                 "excludedMaterials": len(excluded),
                 "package": str(result.package.path),
