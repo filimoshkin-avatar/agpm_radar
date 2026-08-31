@@ -734,9 +734,22 @@ function renderCard(item) {
   const host = sourceHost(item.url) || item.source_name || "источник";
   const date = materialDateLabel(item);
   const signal = signalMeta(item);
-  const description = item.brief || item.summary || "";
-  const llmTakeaway = item.llm_summary && item.llm_summary.status === "success" ? item.llm_summary.short_text : "";
-  const takeaway = llmTakeaway || item.agpm_takeaway || "";
+  const llmSummary = item.llm_summary || null;
+  const llmSuccess = Boolean(
+    llmSummary
+    && llmSummary.status === "success"
+    && String(llmSummary.short_text || "").trim()
+    && String(llmSummary.agpm_angle || "").trim()
+  );
+  const description = llmSuccess
+    ? llmSummary.short_text
+    : (item.brief || item.summary || "");
+  const takeaway = llmSuccess
+    ? llmSummary.agpm_angle
+    : (item.agpm_takeaway || "");
+  const generationStatus = llmSuccess
+    ? ""
+    : '<span class="generation-fallback" title="LLM-описание не сформировано после повторных попыток; показан детерминированный резервный текст">fallback</span>';
   const tags = (item.rubrics || []).slice(0, 3).map(id => {
     const tagClass = rubricTagClasses[id] || "tag-default";
     return `<span class="tag ${tagClass}">${rubricNames[id] || id}</span>`;
@@ -747,6 +760,7 @@ function renderCard(item) {
       <span>${escapeHtml(host)}</span>
       <span class="mono">${escapeHtml(date)}</span>
       <span class="signal ${signal.className}" title="${escapeHtml(signal.title)}">${signal.mark} ${escapeHtml(signal.label)}</span>
+      ${generationStatus}
     </div>
     <h3>${escapeHtml(item.title)}</h3>
     <p>${escapeHtml(description)}</p>

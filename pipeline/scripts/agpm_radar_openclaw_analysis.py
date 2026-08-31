@@ -28,7 +28,7 @@ from radar_paths import DB_PATH, LLM_CLASSIFICATION_DIR, ensure_dirs
 
 OPENCLAW_DAILY_PROMPT_VERSION = "openclaw-daily-analysis-ru-v1"
 OPENCLAW_ISSUE_THESES_PROMPT_VERSION = "openclaw-issue-theses-ru-v1"
-OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v1"
+OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v2"
 
 
 def connect(db: Path) -> sqlite3.Connection:
@@ -318,7 +318,7 @@ def normalize_card_summaries(value: Any, material_ids: set[str]) -> list[dict[st
         material_id = str(item.get("id") or item.get("material_id") or "").strip()
         short_text = str(item.get("short_text") or "").strip()
         agpm_angle = str(item.get("agpm_angle") or "").strip()
-        if material_id in material_ids and short_text:
+        if material_id in material_ids and short_text and agpm_angle:
             result.append({"id": material_id, "short_text": short_text, "agpm_angle": agpm_angle})
     return result
 
@@ -333,10 +333,14 @@ def generate_card_summaries(
 ) -> tuple[int, str, str]:
     material_ids = {str(item.get("id")) for item in context["materials"] if item.get("id")}
     prompt = (
-        "Ты редактор AgPM Radar. Для каждой карточки выпуска подготовь короткий русский LLM-текст.\n"
-        "Не меняй факты и не добавляй внешние сведения. Текст должен помогать читателю понять, почему материал важен для AgPM.\n"
-        "Верни только JSON вида {\"summaries\":[{\"id\":\"material_id\", \"short_text\":\"1-2 предложения\", \"agpm_angle\":\"краткий управленческий угол\"}]}.\n"
-        "Верни запись для каждого material_id из входных данных.\n\n"
+        "Ты редактор AgPM Radar. Для каждой карточки выпуска подготовь два самостоятельных русских текста.\n"
+        "short_text — 2–3 конкретных предложения о фактах и механизме именно этого материала. "
+        "agpm_angle — 2–3 предложения с отдельным управленческим выводом для AgPM, PMO или ИСУП.\n"
+        "Не меняй факты, не добавляй внешние сведения и не повторяй заголовок как описание. "
+        "Не используй универсальные заготовки вроде «материал описывает переход», «для AgPM это важно» "
+        "или одинаковое начало для нескольких карточек. Различай факт источника и аналитический вывод.\n"
+        "Верни только JSON вида {\"summaries\":[{\"id\":\"material_id\", \"short_text\":\"2–3 предложения\", \"agpm_angle\":\"2–3 предложения\"}]}.\n"
+        "Оба поля обязательны и непусты для каждого material_id из входных данных. Если хотя бы одной записи или поля нет, ответ будет отклонён и запрос повторится.\n\n"
         f"Материалы выпуска: {json.dumps(context['materials'], ensure_ascii=False)}"
     )
     parsed, request_path, response_path = openclaw_json(
@@ -350,7 +354,8 @@ def generate_card_summaries(
     missing_ids = material_ids - returned_ids
     if missing_ids:
         raise RuntimeError(
-            f"OpenClaw card summaries JSON is incomplete: {len(missing_ids)} of {len(material_ids)} material(s) missing"
+            "OpenClaw card summaries JSON is incomplete: "
+            f"{len(missing_ids)} of {len(material_ids)} material(s) missing or have an empty short_text/agpm_angle"
         )
     for item in summaries:
         conn.execute(
