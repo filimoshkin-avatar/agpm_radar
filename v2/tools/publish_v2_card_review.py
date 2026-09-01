@@ -39,7 +39,8 @@ def _apply_review(database: Path, review: JsonObject) -> None:
         actual = {str(card["materialId"]) for card in cards}
         if actual != expected:
             raise ValueError(
-                f"review material ids differ: missing={expected-actual}, extra={actual-expected}"
+                "review material ids differ: "
+                f"missing={expected - actual}, extra={actual - expected}"
             )
         updated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         for card in cards:

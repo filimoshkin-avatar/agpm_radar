@@ -74,9 +74,7 @@ def _validate(raw: JsonObject, expected_ids: set[str]) -> list[JsonObject]:
         if len(short_text) < 120 or len(agpm_angle) < 120:
             continue
         seen.add(material_id)
-        result.append(
-            {"materialId": material_id, "shortText": short_text, "agpmAngle": agpm_angle}
-        )
+        result.append({"materialId": material_id, "shortText": short_text, "agpmAngle": agpm_angle})
     missing = expected_ids - seen
     if missing:
         raise CardReviewError(f"missing or incomplete cards: {sorted(missing)}")
@@ -115,8 +113,8 @@ def generate(*, database: Path, issue_date: str, output: Path) -> JsonObject:
         "Опирайся только на входные данные, не добавляй внешних фактов. Отделяй факт источника от "
         "аналитического вывода. Не повторяй заголовок как описание. Не используй универсальные "
         "заготовки и одинаковые начала для разных карточек.\n"
-        "Верни только JSON вида {\"cards\":[{\"materialId\":\"...\",\"shortText\":\"...\","
-        "\"agpmAngle\":\"...\"}]}. Оба текста обязательны для каждого materialId.\n\n"
+        'Верни только JSON вида {"cards":[{"materialId":"...","shortText":"...",'
+        '"agpmAngle":"..."}]}. Оба текста обязательны для каждого materialId.\n\n'
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
     )
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
