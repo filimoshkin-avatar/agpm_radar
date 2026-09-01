@@ -84,6 +84,7 @@ RUNTIME_FORBIDDEN_FRAGMENTS: Final = (
     "/root/",
     ".openclaw",
     "147.45.99.225",
+    "194.87.143.141",
     "backend/",
     "data/corpus",
     "data/db",

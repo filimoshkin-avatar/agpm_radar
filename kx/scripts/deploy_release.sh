@@ -11,7 +11,7 @@
 # remembering.
 set -euo pipefail
 
-HOST="${RADAR_KX_HOST:-root@147.45.99.225}"
+HOST="${RADAR_KX_HOST:-root@radar.agpm.space}"
 KEY="${RADAR_KX_SSH_KEY:-/root/.ssh/local_ru_admin}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 

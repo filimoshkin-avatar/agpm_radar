@@ -11,7 +11,7 @@
 Через туннель, без Caddy, тоже работает:
 
 ```bash
-ssh -N -L 19702:127.0.0.1:19702 -i /root/.ssh/local_ru_admin root@147.45.99.225
+ssh -N -L 19702:127.0.0.1:19702 -i /root/.ssh/local_ru_admin root@radar.agpm.space
 # затем http://127.0.0.1:19702/
 ```
 

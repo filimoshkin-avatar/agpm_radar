@@ -26,7 +26,7 @@ cd "${kx_root}"
 export RADAR_KX_TEST_ADMIN_DSN="${RADAR_KX_TEST_ADMIN_DSN:-dbname=postgres}"
 
 case "${RADAR_KX_TEST_ADMIN_DSN}" in
-  *radar_kx[^_]*|*147.45.99.225*)
+  *radar_kx[^_]*|*147.45.99.225*|*194.87.143.141*|*radar.agpm.space*)
     printf 'refusing to run against what looks like production: %s\n' \
       "${RADAR_KX_TEST_ADMIN_DSN}" >&2
     exit 1

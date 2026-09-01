@@ -8,7 +8,7 @@ AgPM Radar — публичное приложение ежедневного р
 
 - Legacy development/production: этот сервер, рабочий каталог `/mnt/vdd/Radar`; текущий `radar.aipractice.space` продолжает работать без архитектурных изменений до отдельного cutover-решения.
 - Radar V2 development: параллельная пересборка на этом сервере с отдельными кодом, SQLite, очередями и публикационным состоянием.
-- Radar V2 shadow production: Local Ru `147.45.99.225` под отдельным hostname для длительного сравнения с Legacy до явного принятия владельцем.
+- Radar V2 shadow production: Local Ru `194.87.143.141` (переезд с `147.45.99.225` 31.08.2026) под отдельным hostname для длительного сравнения с Legacy до явного принятия владельцем.
 - Project Manager/OpenClaw: утренний cron, сбор, редакторский отбор, ручные корректировки, LLM/fallback, Telegram и формирование candidate packages.
 - Radar V2 publisher: детерминированные проверки, DOCX/JSON, SQLite delta, доставка, атомарная активация, healthcheck и rollback.
 
