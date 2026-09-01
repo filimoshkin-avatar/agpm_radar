@@ -54,7 +54,7 @@ report="$(${v2_root}/.venv/bin/python -m tools.run_stage15_dual \
   --runs-root /root/.openclaw-projectmanager/workspace/state/radar-v2/dual-run-cron \
   --v2-root "$v2_root" \
   --python "$v2_root/.venv/bin/python" \
-  --ssh-host radar-v2-deploy@147.45.99.225 \
+  --ssh-host radar-v2-deploy@radar.agpm.space \
   --ssh-identity /root/.ssh/radar_v2_publisher_stage13 \
   --v2-public-base https://radar.agpm.space)"
 
