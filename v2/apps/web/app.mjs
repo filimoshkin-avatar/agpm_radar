@@ -1409,24 +1409,34 @@ function materialMatches(item) {
   if (state.perimeter !== "all" && item.perimeter !== state.perimeter) return false;
   if (state.rubrics.length && !state.rubrics.some(id => (item.rubrics || []).includes(id))) return false;
   if (state.q) {
-    // Search looks at exactly the texts the card shows, so a hit is always visible
-    // on the card that produced it. The server-side search of the period modes
-    // follows the same rule through the pub_search_documents_v1 view.
-    const { description, takeaway } = cardTexts(item);
-    const haystack = [item.title, description, takeaway, item.source_name].join(" ").toLowerCase();
-    if (!haystack.includes(state.q.toLowerCase())) return false;
+    // Search looks at everything the card shows as text and nothing else, so a hit
+    // is always visible on the card that produced it. The server-side search of the
+    // period modes applies the same rule in apps/api/public_data.py.
+    if (!cardSearchText(item).includes(state.q.toLowerCase())) return false;
   }
   return true;
 }
 
-// The texts a card shows: the model's when its analysis succeeded, the rule-based
-// ones otherwise. One rule for rendering and for search, so they cannot drift apart.
-function cardTexts(item) {
+// Everything a card shows as text, in one place: renderCard() draws it and the
+// search reads it, so the two cannot drift apart. The description and takeaway
+// are the model's when its analysis succeeded, the rule-based ones otherwise.
+function cardView(item) {
   const llmSucceeded = item.llm_summary && item.llm_summary.status === "success";
   return {
+    host: sourceHost(item.url) || item.source_name || "источник",
+    date: materialDateLabel(item),
+    signal: signalMeta(item),
     description: (llmSucceeded ? item.llm_summary.short_text : "") || item.brief || item.summary || "",
     takeaway: (llmSucceeded ? item.llm_summary.agpm_angle : "") || item.agpm_takeaway || "",
+    tags: (item.rubrics || []).slice(0, 3).map(id => ({ id, name: rubricNames[id] || id })),
   };
+}
+
+function cardSearchText(item) {
+  const view = cardView(item);
+  return [view.signal.label, view.host, view.date, item.title, view.description, view.takeaway, ...view.tags.map(tag => tag.name)]
+    .join(" ")
+    .toLowerCase();
 }
 
 function renderColumns(materials) {
@@ -1457,13 +1467,11 @@ function renderColumns(materials) {
 }
 
 function renderCard(item) {
-  const host = sourceHost(item.url) || item.source_name || "источник";
-  const date = materialDateLabel(item);
-  const signal = signalMeta(item);
-  const { description, takeaway } = cardTexts(item);
-  const tags = (item.rubrics || []).slice(0, 3).map(id => {
-    const tagClass = rubricTagClasses[id] || "tag-default";
-    return `<span class="tag ${tagClass}">${rubricNames[id] || id}</span>`;
+  const view = cardView(item);
+  const { host, date, signal, description, takeaway } = view;
+  const tags = view.tags.map(tag => {
+    const tagClass = rubricTagClasses[tag.id] || "tag-default";
+    return `<span class="tag ${tagClass}">${tag.name}</span>`;
   }).join("");
   return `<article class="card">
     <div class="card__meta">

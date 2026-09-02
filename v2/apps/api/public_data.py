@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import urllib.parse
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from math import log
 from typing import Final, cast
@@ -199,7 +201,7 @@ def _shown_texts(item: JsonObject) -> tuple[str, str]:
     """The description and takeaway a card shows, so search hits are always visible.
 
     The model's texts when its analysis succeeded, the rule-based ones otherwise: the same
-    rule as cardTexts() in apps/web/app.mjs and pub_search_documents_v1.
+    rule as cardView() in apps/web/app.mjs and pub_search_documents_v1.
     """
     llm = item.get("llm")
     succeeded = isinstance(llm, dict) and llm.get("status") == "success"
@@ -210,6 +212,81 @@ def _shown_texts(item: JsonObject) -> tuple[str, str]:
         item.get("agpmTakeaway") or ""
     )
     return description, takeaway
+
+
+# The card's signal labels and the abbreviated Russian month names of the browser's
+# ru-RU locale (CLDR), which fmtDate() in apps/web/app.mjs prints without the dot.
+_SIGNAL_LABELS: Final = {"strong": "Сильный сигнал", "context": "Контекст", "watch": "Наблюдение"}
+_MONTHS_SHORT: Final = (
+    "янв",
+    "февр",
+    "мар",
+    "апр",
+    "мая",
+    "июн",
+    "июл",
+    "авг",
+    "сент",
+    "окт",
+    "нояб",
+    "дек",
+)
+
+
+def _source_host(url: str) -> str:
+    """The host the card prints for a material: sourceHost() in apps/web/app.mjs."""
+    host = urllib.parse.urlsplit(url).hostname or ""
+    return host.removeprefix("www.")
+
+
+def _date_label(item: JsonObject) -> str:
+    """The date line of the card: materialDateLabel() with the compact fmtDate()."""
+
+    def compact(value: object) -> str:
+        text = str(value or "")[:10]
+        try:
+            day, month = int(text[8:10]), int(text[5:7])
+        except ValueError:
+            return ""
+        return f"{day} {_MONTHS_SHORT[month - 1]}" if 1 <= month <= 12 else ""
+
+    if item.get("publishedAt"):
+        return f"опубл. {compact(item['publishedAt'])}"
+    issue_date = compact(item.get("issueDate"))
+    if issue_date:
+        return f"дата публикации не найдена · выпуск {issue_date}"
+    return "дата публикации не найдена"
+
+
+def _card_search_text(item: JsonObject, rubric_titles: Mapping[str, str]) -> str:
+    """Everything the card shows as text, casefolded: cardSearchText() in apps/web/app.mjs.
+
+    Signal label, source host, date line, title, description, takeaway and the names of
+    the first three rubric tags. Nothing the card does not show, so a hit is always visible.
+    """
+    description, takeaway = _shown_texts(item)
+    strength = str(
+        item.get("signalStrength") or ("strong" if item.get("verdict") == "core" else "context")
+    )
+    signal = _SIGNAL_LABELS.get(strength, _SIGNAL_LABELS["strong"])
+    host = (
+        _source_host(str(item.get("url") or "")) or str(item.get("sourceName") or "") or "источник"
+    )
+    rubrics = [
+        rubric_titles.get(str(rubric), str(rubric))
+        for rubric in cast(list[JsonValue], item.get("rubrics") or [])[:3]
+    ]
+    return " ".join(
+        (
+            signal,
+            host,
+            _date_label(item),
+            str(item.get("title") or ""),
+            description,
+            takeaway,
+            *rubrics,
+        )
+    ).casefold()
 
 
 class PublicDataRepository:
@@ -293,20 +370,17 @@ class PublicDataRepository:
             ]
         if query is not None:
             tokens = tuple(part.casefold() for part in query.split() if part)
-            filtered: list[JsonObject] = []
-            for item in materials:
-                description, takeaway = _shown_texts(item)
-                searchable = " ".join(
-                    (
-                        str(item.get("title") or ""),
-                        description,
-                        takeaway,
-                        str(item.get("sourceName") or ""),
-                    )
-                ).casefold()
-                if all(token in searchable for token in tokens):
-                    filtered.append(item)
-            materials = filtered
+            rubric_titles = {
+                str(row[0]): str(row[1])
+                for row in self.connection.execute(
+                    "SELECT DISTINCT rubric_id, title FROM pub_material_rubrics_v1"
+                )
+            }
+            materials = [
+                item
+                for item in materials
+                if all(token in _card_search_text(item, rubric_titles) for token in tokens)
+            ]
         return _page(materials, offset, limit)
 
     def stats(self, period: str) -> JsonObject:

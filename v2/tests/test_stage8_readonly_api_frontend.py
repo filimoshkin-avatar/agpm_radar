@@ -29,7 +29,7 @@ from apps.api import (
 )
 from apps.api.__main__ import _application_release_id
 from apps.api.http_server import RadarHttpServer
-from apps.api.public_data import _shown_texts
+from apps.api.public_data import _card_search_text, _date_label, _shown_texts
 from packages.domain.snapshot import JsonObject
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
 from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, verify_database
@@ -784,7 +784,7 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert 'description: (llmSucceeded ? item.llm_summary.short_text : "")' in script
     assert 'takeaway: (llmSucceeded ? item.llm_summary.agpm_angle : "")' in script
     # Rendering and search take the card texts from the same rule.
-    assert script.count("= cardTexts(item)") == 2
+    assert script.count("= cardView(item)") == 2
     assert 'signal: block("overview")' in script
     assert 'why_agpm: block("signals")' in script
     assert "Сонар" in html
@@ -847,6 +847,11 @@ def test_search_looks_only_at_the_texts_a_card_shows(
         ("агентов", 1),  # title
         ("стала надёжнее", 0),  # summary, hidden behind the brief
         ("Коротко от LLM", 0),  # model text of a fallback analysis, not shown
+        ("example.test", 1),  # the host the card prints for the source
+        ("Synthetic Journal", 0),  # the source name is not on the card when a host is
+        ("Сильный сигнал", 1),  # the signal label of the card
+        ("опубл. 20 авг", 1),  # the date line of the card
+        ("Оркестрация", 1),  # the rubric tag
     )
     for query, expected in cases:
         target = "/api/search?period=30d&" + urllib.parse.urlencode({"q": query})
@@ -872,3 +877,39 @@ def test_shown_texts_follow_the_card_rule() -> None:
         "только шаблон",
         "",
     )
+
+
+def test_card_search_text_is_everything_the_card_shows() -> None:
+    item: JsonObject = {
+        "llm": {"status": "success"},
+        "llmShortText": "Klarna передала агенту чаты",
+        "llmAgpmAngle": "Выбирать сценарий по baseline",
+        "brief": "скрытый шаблон",
+        "summary": "скрытый шаблон подлиннее",
+        "agpmTakeaway": "скрытый вывод",
+        "title": "Заголовок",
+        "url": "https://www.monday.com/blog/ai-workspace/",
+        "sourceName": "Brave web research: near",
+        "publishedAt": "2026-09-01T04:00:00Z",
+        "issueDate": "2026-09-02",
+        "signalStrength": "context",
+        "verdict": "core",
+        "rubrics": ["governance", "orchestration", "isup", "fourth"],
+    }
+    text = _card_search_text(item, {"governance": "Управление", "orchestration": "Оркестрация"})
+    for shown in (
+        "контекст",
+        "monday.com",
+        "опубл. 1 сент",
+        "заголовок",
+        "klarna",
+        "baseline",
+        "управление",
+        "оркестрация",
+        "isup",
+    ):
+        assert shown in text, shown
+    for hidden in ("www.", "brave", "скрытый", "fourth"):
+        assert hidden not in text, hidden
+    assert _date_label({"issueDate": "2026-09-02"}) == "дата публикации не найдена · выпуск 2 сент"
+    assert _date_label({}) == "дата публикации не найдена"
