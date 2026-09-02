@@ -195,6 +195,23 @@ def _page(items: list[JsonObject], offset: int, limit: int) -> tuple[list[JsonOb
     return selected, next_offset if next_offset < len(items) else None
 
 
+def _shown_texts(item: JsonObject) -> tuple[str, str]:
+    """The description and takeaway a card shows, so search hits are always visible.
+
+    The model's texts when its analysis succeeded, the rule-based ones otherwise: the same
+    rule as cardTexts() in apps/web/app.mjs and pub_search_documents_v1.
+    """
+    llm = item.get("llm")
+    succeeded = isinstance(llm, dict) and llm.get("status") == "success"
+    description = (str(item.get("llmShortText") or "") if succeeded else "") or (
+        str(item.get("brief") or "") or str(item.get("summary") or "")
+    )
+    takeaway = (str(item.get("llmAgpmAngle") or "") if succeeded else "") or str(
+        item.get("agpmTakeaway") or ""
+    )
+    return description, takeaway
+
+
 class PublicDataRepository:
     """Map allowlisted published views to exact public DTOs."""
 
@@ -278,9 +295,14 @@ class PublicDataRepository:
             tokens = tuple(part.casefold() for part in query.split() if part)
             filtered: list[JsonObject] = []
             for item in materials:
+                description, takeaway = _shown_texts(item)
                 searchable = " ".join(
-                    str(item.get(field) or "")
-                    for field in ("title", "summary", "agpmTakeaway", "sourceName")
+                    (
+                        str(item.get("title") or ""),
+                        description,
+                        takeaway,
+                        str(item.get("sourceName") or ""),
+                    )
                 ).casefold()
                 if all(token in searchable for token in tokens):
                     filtered.append(item)

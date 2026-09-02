@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
@@ -28,6 +29,8 @@ from apps.api import (
 )
 from apps.api.__main__ import _application_release_id
 from apps.api.http_server import RadarHttpServer
+from apps.api.public_data import _shown_texts
+from packages.domain.snapshot import JsonObject
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
 from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, verify_database
 from packages.storage.migrations import create_database
@@ -830,3 +833,42 @@ def test_active_release_file_remains_byte_stable_after_public_queries(
     assert not Path(f"{pointer.database_path}-wal").exists()
     assert not Path(f"{pointer.database_path}-shm").exists()
     assert not Path(f"{pointer.database_path}-journal").exists()
+
+
+def test_search_looks_only_at_the_texts_a_card_shows(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    _manager, api, _active_root = stage8_runtime
+    # The fixture material's analysis is a fallback: the card shows the brief and the
+    # rule-based takeaway, never the stored model texts and never the longer summary.
+    cases = (
+        ("Короткий проверенный", 1),  # brief, shown
+        ("границы полномочий", 1),  # rule-based takeaway, shown
+        ("агентов", 1),  # title
+        ("стала надёжнее", 0),  # summary, hidden behind the brief
+        ("Коротко от LLM", 0),  # model text of a fallback analysis, not shown
+    )
+    for query, expected in cases:
+        target = "/api/search?period=30d&" + urllib.parse.urlencode({"q": query})
+        payload = cast(dict[str, object], _payload(api.handle("GET", target)))
+        assert len(cast(list[object], payload["items"])) == expected, query
+
+
+def test_shown_texts_follow_the_card_rule() -> None:
+    succeeded: JsonObject = {
+        "llm": {"status": "success"},
+        "llmShortText": "Факты модели",
+        "llmAgpmAngle": "Вывод модели",
+        "brief": "краткий шаблон",
+        "summary": "шаблон",
+        "agpmTakeaway": "шаблонный вывод",
+    }
+    assert _shown_texts(succeeded) == ("Факты модели", "Вывод модели")
+    fallback: JsonObject = {**succeeded, "llm": {"status": "fallback"}}
+    assert _shown_texts(fallback) == ("краткий шаблон", "шаблонный вывод")
+    without_brief: JsonObject = {**fallback, "brief": None}
+    assert _shown_texts(without_brief) == ("шаблон", "шаблонный вывод")
+    assert _shown_texts({"llm": {"status": "success"}, "summary": "только шаблон"}) == (
+        "только шаблон",
+        "",
+    )
