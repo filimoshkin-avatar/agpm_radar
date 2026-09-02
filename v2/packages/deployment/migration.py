@@ -11,7 +11,7 @@ from pathlib import PurePosixPath
 from typing import cast
 
 from packages.deployment.manifest import ApplicationManifest, validate_utc_timestamp
-from packages.storage.hashing import logical_state_hash, table_hash
+from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, table_hash
 from packages.storage.migrations import Migration, apply_migrations
 from packages.storage.sqlite_profile import (
     REQUIRED_SQLITE_PROFILE,
@@ -199,6 +199,10 @@ def migrate_staging_connection(
         )
         connection.execute("BEGIN IMMEDIATE")
         _install_compatibility(connection, manifest, activated_at)
+        # The search index is a projection of pub_search_documents_v1. A migration may
+        # redefine that view (0003 did), and the index is outside the logical state, so
+        # it is rebuilt here rather than left stale until the next content publication.
+        rebuild_and_check_fts(connection)
         connection.commit()
         verify_public_database_connection(connection)
     except BaseException:

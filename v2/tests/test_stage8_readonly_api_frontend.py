@@ -778,8 +778,10 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert (
         'const llmSucceeded = item.llm_summary && item.llm_summary.status === "success"' in script
     )
-    assert 'description = (llmSucceeded ? item.llm_summary.short_text : "")' in script
-    assert 'takeaway = (llmSucceeded ? item.llm_summary.agpm_angle : "")' in script
+    assert 'description: (llmSucceeded ? item.llm_summary.short_text : "")' in script
+    assert 'takeaway: (llmSucceeded ? item.llm_summary.agpm_angle : "")' in script
+    # Rendering and search take the card texts from the same rule.
+    assert script.count("= cardTexts(item)") == 2
     assert 'signal: block("overview")' in script
     assert 'why_agpm: block("signals")' in script
     assert "Сонар" in html

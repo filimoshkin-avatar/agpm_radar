@@ -472,7 +472,7 @@ publicViews:
   pub_gazette_assets_v1: {publishedOnly: true, source: gazette_assets}
   pub_material_rubrics_v1: {publishedOnly: true, source: material_rubrics_join_rubrics}
   pub_material_quality_v1: {publishedOnly: true, source: material_quality}
-  pub_search_documents_v1: {publishedOnly: true, source: issue_materials_join_materials}
+  pub_search_documents_v1: {publishedOnly: true, source: issue_materials_join_materials_and_analysis}
 apiReadAllowlist:
   - pub_health_v1
   - pub_issues_v1

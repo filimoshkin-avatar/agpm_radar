@@ -1409,16 +1409,24 @@ function materialMatches(item) {
   if (state.perimeter !== "all" && item.perimeter !== state.perimeter) return false;
   if (state.rubrics.length && !state.rubrics.some(id => (item.rubrics || []).includes(id))) return false;
   if (state.q) {
-    // Search must see the texts the card shows: the LLM's when it succeeded, the
-    // rule-based ones otherwise. Both sets are kept so a hit does not depend on
-    // which branch rendered.
-    const llm = item.llm_summary || {};
-    const haystack = [item.title, item.summary, item.agpm_takeaway, item.source_name, llm.short_text, llm.agpm_angle]
-      .join(" ")
-      .toLowerCase();
+    // Search looks at exactly the texts the card shows, so a hit is always visible
+    // on the card that produced it. The server-side search of the period modes
+    // follows the same rule through the pub_search_documents_v1 view.
+    const { description, takeaway } = cardTexts(item);
+    const haystack = [item.title, description, takeaway, item.source_name].join(" ").toLowerCase();
     if (!haystack.includes(state.q.toLowerCase())) return false;
   }
   return true;
+}
+
+// The texts a card shows: the model's when its analysis succeeded, the rule-based
+// ones otherwise. One rule for rendering and for search, so they cannot drift apart.
+function cardTexts(item) {
+  const llmSucceeded = item.llm_summary && item.llm_summary.status === "success";
+  return {
+    description: (llmSucceeded ? item.llm_summary.short_text : "") || item.brief || item.summary || "",
+    takeaway: (llmSucceeded ? item.llm_summary.agpm_angle : "") || item.agpm_takeaway || "",
+  };
 }
 
 function renderColumns(materials) {
@@ -1452,9 +1460,7 @@ function renderCard(item) {
   const host = sourceHost(item.url) || item.source_name || "источник";
   const date = materialDateLabel(item);
   const signal = signalMeta(item);
-  const llmSucceeded = item.llm_summary && item.llm_summary.status === "success";
-  const description = (llmSucceeded ? item.llm_summary.short_text : "") || item.brief || item.summary || "";
-  const takeaway = (llmSucceeded ? item.llm_summary.agpm_angle : "") || item.agpm_takeaway || "";
+  const { description, takeaway } = cardTexts(item);
   const tags = (item.rubrics || []).slice(0, 3).map(id => {
     const tagClass = rubricTagClasses[id] || "tag-default";
     return `<span class="tag ${tagClass}">${rubricNames[id] || id}</span>`;

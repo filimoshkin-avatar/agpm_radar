@@ -484,6 +484,7 @@ def test_manual_approved_deploy_migrates_both_and_proves_rollback(
         ) == (
             ("0001",),
             ("0002",),
+            ("0003",),
         )
         assert source_db.execute(
             "SELECT application_release_id FROM application_compatibility ORDER BY activated_at DESC LIMIT 1"
@@ -757,7 +758,7 @@ def test_migration_bundle_runner_is_self_contained_and_locked(
         text=True,
     )
     report = json.loads(completed.stdout)
-    assert report["appliedMigrations"] == ["0002"]
+    assert report["appliedMigrations"] == ["0002", "0003"]
     assert report["stateHash"] == state_hash
     with sqlite3.connect(staging) as connection:
         assert tuple(
@@ -765,6 +766,7 @@ def test_migration_bundle_runner_is_self_contained_and_locked(
         ) == (
             ("0001",),
             ("0002",),
+            ("0003",),
         )
 
     common_arguments = [
