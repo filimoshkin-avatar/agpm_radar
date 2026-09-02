@@ -1409,7 +1409,13 @@ function materialMatches(item) {
   if (state.perimeter !== "all" && item.perimeter !== state.perimeter) return false;
   if (state.rubrics.length && !state.rubrics.some(id => (item.rubrics || []).includes(id))) return false;
   if (state.q) {
-    const haystack = [item.title, item.summary, item.agpm_takeaway, item.source_name].join(" ").toLowerCase();
+    // Search must see the texts the card shows: the LLM's when it succeeded, the
+    // rule-based ones otherwise. Both sets are kept so a hit does not depend on
+    // which branch rendered.
+    const llm = item.llm_summary || {};
+    const haystack = [item.title, item.summary, item.agpm_takeaway, item.source_name, llm.short_text, llm.agpm_angle]
+      .join(" ")
+      .toLowerCase();
     if (!haystack.includes(state.q.toLowerCase())) return false;
   }
   return true;

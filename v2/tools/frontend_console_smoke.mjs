@@ -122,6 +122,23 @@ const preContract = process.argv.includes("--pre-contract");
 // them. The branch is live: /api/rubrics answers 503 when its anchor is past the
 // edge of the archive.
 const rubricsDown = process.argv.includes("--rubrics-down");
+// A card whose LLM texts succeeded: the description slot must show the LLM's
+// short text and «ВЫВОД ДЛЯ AgPM» its angle, and the rule-based summary and
+// takeaway of that material must not be on the card at all. The fixtures of the
+// other routes carry only `status: "fallback"`, so this is the one place the
+// success branch of renderCard() runs under the gate.
+const llmMaterial = {
+  ...pageMaterial,
+  agpmTakeaway: "Детерминированный вывод.",
+  canonicalUrl: "https://example.test/llm",
+  id: "llm-material",
+  llm: { effectiveModel: "openai/gpt-5.5", status: "success" },
+  llmAgpmAngle: "Вывод по фактам статьи.",
+  llmShortText: "Факты из статьи про Rovo.",
+  summary: "Детерминированное описание.",
+  title: "Карточка с текстами модели",
+  url: "https://example.test/llm",
+};
 const oldIssue = {
   ...issue,
   analysis: {
@@ -130,7 +147,7 @@ const oldIssue = {
       { kind: "actions", text: "Старое что-дальше.", title: "Что смотреть дальше" },
     ],
   },
-  materials: [{ ...pageMaterial, keyMaterial: true, title: "Ключевой материал" }],
+  materials: [{ ...pageMaterial, keyMaterial: true, title: "Ключевой материал" }, llmMaterial],
   title: "Старый выпуск",
 };
 
@@ -187,7 +204,21 @@ if (preContract) {
   if (!dailyBody.includes("Старое что-дальше.")) {
     throw new Error("the actions block did not render for a pre-contract issue");
   }
-  process.stdout.write("Frontend console smoke: PASS (pre-contract fallback)\n");
+  // Both card branches on one page: the LLM card shows the model's texts and
+  // none of its rule-based ones, the fallback card shows its rule-based ones.
+  const cards = elements.get("columns").innerHTML;
+  if (!cards.includes("<p>Факты из статьи про Rovo.</p>")
+    || !cards.includes("ВЫВОД ДЛЯ AgPM · </b>Вывод по фактам статьи.")) {
+    throw new Error("the LLM card did not render the model's short text and angle in their slots");
+  }
+  if (cards.includes("Детерминированное описание.") || cards.includes("Детерминированный вывод.")) {
+    throw new Error("the LLM card still shows a rule-based text");
+  }
+  if (!cards.includes("<p>Материал второй страницы.</p>")
+    || !cards.includes("ВЫВОД ДЛЯ AgPM · </b>Проверить пагинацию.")) {
+    throw new Error("the fallback card did not render its rule-based summary and takeaway");
+  }
+  process.stdout.write("Frontend console smoke: PASS (pre-contract fallback, LLM and fallback cards)\n");
   process.exit(0);
 }
 if (dailyHeadline !== "Заголовок анализа") {
