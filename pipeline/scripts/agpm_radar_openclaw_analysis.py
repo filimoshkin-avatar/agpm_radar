@@ -36,6 +36,8 @@ CARD_SOURCE_TEXT_CHARS = 12000
 CARD_MIN_TEXT_CHARS = 80
 # The prompt asks for 600 and 500 characters; the check leaves room for a long sentence.
 CARD_MAX_TEXT_CHARS = {"short_text": 720, "agpm_angle": 600}
+# Lowercase Latin words that legitimately sit inside a proper name («Center for AI Safety»).
+CARD_LATIN_NAME_WORDS = frozenset({"and", "for", "the", "von", "van", "der", "del", "des", "of"})
 # Openings of the rule-based card texts, normalised the way card_text_words() does it.
 # A model that was shown the article and still writes one of these is paraphrasing
 # the template, not the source.
@@ -361,6 +363,45 @@ def card_template_phrase(text: str) -> str | None:
     return None
 
 
+DOMAIN_PATTERN = r"\b([\w-]+)(?:\.[\w-]+)*\.(?:com|ai|io|org|net|ru|dev)\b"
+
+
+def card_brand_words(*texts: str) -> frozenset[str]:
+    """Lowercase brands the source itself spells as a domain: «monday.com» allows «monday»."""
+    return frozenset(
+        match.group(1).lower() for text in texts for match in re.finditer(DOMAIN_PATTERN, text)
+    )
+
+
+def card_foreign_words(text: str, allowed: frozenset[str] = frozenset()) -> list[str]:
+    """English words the reader should not meet: all-lowercase Latin words outside names and domains.
+
+    Proper names and abbreviations carry a capital (Salesforce, NIST, iPhone, AgPM) and pass;
+    «end-to-end workflows», «lift» or «legacy-системах» do not. Domain names are skipped, and so
+    are the lowercase brands in `allowed`.
+    """
+    stripped = re.sub(DOMAIN_PATTERN, " ", text)
+    found: list[str] = []
+    previous_is_brand = False
+    previous_end = 0
+    for match in re.finditer(r"[A-Za-z][A-Za-z'’-]*", stripped):
+        word = match.group().strip("-'’")
+        # «monday sidekick», «monday vibe»: a product the brand itself spells in lowercase.
+        follows_brand = previous_is_brand and stripped[previous_end : match.start()].isspace()
+        if (
+            len(word) >= 3
+            and word.islower()
+            and word not in CARD_LATIN_NAME_WORDS
+            and word not in allowed
+            and not follows_brand
+            and word not in found
+        ):
+            found.append(word)
+        previous_is_brand = word in allowed or follows_brand
+        previous_end = match.end()
+    return found
+
+
 def card_texts_repeat(left: str, right: str) -> tuple[bool, float]:
     same_lead = (
         card_text_words(left)[:CARD_LEADING_WORDS] == card_text_words(right)[:CARD_LEADING_WORDS]
@@ -390,7 +431,9 @@ def normalize_card(value: Any) -> dict[str, str]:
     return {"short_text": short_text, "agpm_angle": agpm_angle}
 
 
-def validate_card_text(card: dict[str, str], *, source_text: str, title: str) -> None:
+def validate_card_text(card: dict[str, str], *, source_text: str, title: str, url: str = "") -> None:
+    # The source's own address counts: monday.com's blog says «monday» and never spells the domain.
+    brands = card_brand_words(title, source_text, url)
     for field in ("short_text", "agpm_angle"):
         if len(card[field]) < CARD_MIN_TEXT_CHARS:
             raise RuntimeError(f"{field} is too short: {len(card[field])} chars")
@@ -401,6 +444,12 @@ def validate_card_text(card: dict[str, str], *, source_text: str, title: str) ->
         phrase = card_template_phrase(card[field])
         if phrase:
             raise RuntimeError(f"{field} uses a template phrase: «{phrase}»")
+        foreign = card_foreign_words(card[field], brands)
+        if foreign:
+            raise RuntimeError(
+                f"{field} keeps English words outside proper names, write them in Russian: "
+                + ", ".join(foreign[:10])
+            )
     if not card_binding_terms(card["short_text"], source_text, title):
         raise RuntimeError("short_text names nothing from the article body beyond its title")
     same_lead, similarity = card_texts_repeat(card["short_text"], card["agpm_angle"])
@@ -464,8 +513,17 @@ def card_prompt(material: dict[str, Any], source_text: str, feedback: list[str])
         "управляемости и governance. Начинай его с сути, а не с «Для PMO» или «Для AgPM».\n"
         "Запрещено: универсальные заготовки («для AgPM это важно», «усиливает governance-линию», "
         "«переход от помощников к агентным workflow»), факты не из статьи, повтор одного текста в другом.\n"
+        "Язык: оба текста целиком по-русски, для читателя, который не знает английского. Латиницей "
+        "пишутся только имена собственные и аббревиатуры: компании, продукты, стандарты, документы, "
+        "люди (Salesforce, Slack, NIST, Winter ’27, GPT-5.5), а также CRM, API, KPI, ROI. Все остальные "
+        "слова переводи: не «end-to-end workflows», а «сквозные рабочие процессы»; не «lift», а "
+        "«прирост»; не «legacy-системы», а «унаследованные системы»; не «identity и authorization», а "
+        "«идентификация и права доступа»; не «non-human traffic», а «трафик не от людей»; не "
+        "«onboarding», а «подключение»; не «triage», а «разбор». Английское слово строчными буквами "
+        "вне имени собственного отклоняет ответ.\n"
         "Ответ будет отклонён, если short_text не содержит ни одного названия, числа или термина "
-        "из текста статьи, или если любой из текстов состоит из заготовок.\n"
+        "из текста статьи, если любой из текстов состоит из заготовок или содержит английские слова "
+        "вне имён собственных.\n"
         'Верни только JSON вида {"short_text": "...", "agpm_angle": "..."}.'
         f"{repair}\n\nСтатья: {json.dumps(article, ensure_ascii=False)}"
     )
@@ -491,7 +549,12 @@ def generate_card_text(
         raise RuntimeError(f"card JSON is invalid: {exc}") from exc
     try:
         card = normalize_card(parsed)
-        validate_card_text(card, source_text=source_text, title=str(material.get("title") or ""))
+        validate_card_text(
+            card,
+            source_text=source_text,
+            title=str(material.get("title") or ""),
+            url=str(material.get("url") or ""),
+        )
     except RuntimeError as exc:
         feedback.append(str(exc))
         raise

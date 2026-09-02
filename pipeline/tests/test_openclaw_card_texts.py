@@ -18,7 +18,7 @@ ARTICLE = (
 )
 TITLE = "Atlassian extends AI reach of Jira into agentic engineering workflows"
 FACTUAL = (
-    "Atlassian встраивает в Jira агентов Rovo: они берут тикеты, открывают pull request и "
+    "Atlassian встраивает в Jira агентов Rovo: они берут задачи, открывают запросы на слияние и "
     "отчитываются в задаче. По словам Ming Wu, пилот начнётся с 40 корпоративных клиентов "
     "в октябре 2026 года."
 )
@@ -128,3 +128,72 @@ def test_overlong_field_is_rejected() -> None:
     assert len(long_angle) > m.CARD_MAX_TEXT_CHARS["agpm_angle"]
     with pytest.raises(RuntimeError, match="too long"):
         m.validate_card_text(card(agpm_angle=long_angle), source_text=ARTICLE, title=TITLE)
+
+
+def test_runglish_is_rejected_and_names_pass() -> None:
+    runglish = (
+        "Salesforce в Winter ’27 заявила, что агенты будут выполнять end-to-end workflows в CRM, "
+        "Slack, Microsoft Teams, голосе и legacy-системах: booking calls «до секунд», Agentic "
+        "Commerce Search даёт 13% lift. NIST запустил AI Agent Standards Initiative с фокусом на "
+        "AI agent security, identity и authorization; Cloudflare оценивает non-human traffic."
+    )
+    assert m.card_foreign_words(runglish) == [
+        "end-to-end",
+        "workflows",
+        "legacy",
+        "booking",
+        "calls",
+        "lift",
+        "agent",
+        "security",
+        "identity",
+        "authorization",
+        "non-human",
+        "traffic",
+    ]
+    russian = (
+        "Salesforce в выпуске Winter ’27 обещает сквозные рабочие процессы в CRM, Slack и "
+        "Microsoft Teams; NIST запустил инициативу AI Agent Standards Initiative, а Center for AI "
+        "Safety и портал DevOps.com пишут об iPhone, GPT-5.5 и AgPM без англицизмов."
+    )
+    assert m.card_foreign_words(russian) == []
+
+
+def test_card_with_runglish_is_rejected_with_the_words_named() -> None:
+    angle = ANGLE.replace("журнал его действий", "audit log его действий")
+    with pytest.raises(RuntimeError, match="English words outside proper names.*audit, log"):
+        m.validate_card_text(card(agpm_angle=angle), source_text=ARTICLE, title=TITLE)
+
+
+def test_prompt_states_the_language_rule() -> None:
+    material = {"id": "m1", "title": TITLE, "url": "https://example.test/a", "rubrics": []}
+    prompt = m.card_prompt(material, ARTICLE, [])
+    assert "целиком по-русски" in prompt
+    assert "сквозные рабочие процессы" in prompt
+
+
+def test_lowercase_brand_spelled_as_a_domain_in_the_source_is_allowed() -> None:
+    source = "monday.com launches Sidekick, an agent that drafts boards. Read more at monday.com/blog."
+    assert m.card_brand_words("monday.com adds agents", source) == frozenset({"monday"})
+    text = "monday выпустила Sidekick: агент собирает доски и переносит задачи в рабочие процессы."
+    assert m.card_foreign_words(text, m.card_brand_words(source)) == []
+    assert m.card_foreign_words(text) == ["monday"]
+
+
+def test_brand_of_the_source_address_is_allowed() -> None:
+    text = FACTUAL.replace("Atlassian встраивает", "monday встраивает")
+    with pytest.raises(RuntimeError, match="write them in Russian: monday"):
+        m.validate_card_text(card(short_text=text), source_text=ARTICLE, title=TITLE)
+    m.validate_card_text(
+        card(short_text=text),
+        source_text=ARTICLE,
+        title=TITLE,
+        url="https://monday.com/blog/ai-workspace/",
+    )
+
+
+def test_product_named_right_after_the_brand_is_allowed() -> None:
+    allowed = frozenset({"monday"})
+    text = "monday sidekick собирает доски, а monday vibe строит приложения; agents тут англицизм."
+    assert m.card_foreign_words(text, allowed) == ["agents"]
+    assert m.card_foreign_words("sidekick без бренда рядом", allowed) == ["sidekick"]
