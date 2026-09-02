@@ -24,14 +24,31 @@ from agpm_radar_issue_theses import (
     normalize_daily_analysis,
     normalize_theses,
 )
-from radar_paths import DB_PATH, LLM_CLASSIFICATION_DIR, ensure_dirs
+from radar_paths import DB_PATH, LLM_CLASSIFICATION_DIR, WORKSPACE_CORPUS, ensure_dirs
 
 
 OPENCLAW_DAILY_PROMPT_VERSION = "openclaw-daily-analysis-ru-v1"
 OPENCLAW_ISSUE_THESES_PROMPT_VERSION = "openclaw-issue-theses-ru-v1"
-OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v3"
+OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v4"
 CARD_SIMILARITY_THRESHOLD = 0.72
 CARD_LEADING_WORDS = 8
+CARD_SOURCE_TEXT_CHARS = 12000
+CARD_MIN_TEXT_CHARS = 80
+# The prompt asks for 600 and 500 characters; the check leaves room for a long sentence.
+CARD_MAX_TEXT_CHARS = {"short_text": 720, "agpm_angle": 600}
+# Openings of the rule-based card texts, normalised the way card_text_words() does it.
+# A model that was shown the article and still writes one of these is paraphrasing
+# the template, not the source.
+CARD_TEMPLATE_PHRASES = (
+    "описывает переход от отдельных",
+    "переход от отдельных ai помощников",
+    "усиливает governance линию",
+    "для agpm это важно",
+    "материал близкого периметра",
+    "материал среднего периметра",
+    "сигнал дальнего периметра",
+    "нужно читать как сигнал",
+)
 
 
 def connect(db: Path) -> sqlite3.Connection:
@@ -309,23 +326,6 @@ def generate_issue_llm_theses(
     return request_path, response_path
 
 
-def normalize_card_summaries(value: Any, material_ids: set[str]) -> list[dict[str, str]]:
-    if isinstance(value, dict):
-        value = value.get("summaries")
-    if not isinstance(value, list):
-        return []
-    result: list[dict[str, str]] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        material_id = str(item.get("id") or item.get("material_id") or "").strip()
-        short_text = str(item.get("short_text") or "").strip()
-        agpm_angle = str(item.get("agpm_angle") or "").strip()
-        if material_id in material_ids and short_text and agpm_angle:
-            result.append({"id": material_id, "short_text": short_text, "agpm_angle": agpm_angle})
-    return result
-
-
 def card_text_words(text: str) -> list[str]:
     return re.findall(r"[a-zа-яё0-9]+", text.casefold())
 
@@ -344,91 +344,277 @@ def card_text_similarity(left: str, right: str) -> float:
     return len(left_shingles & right_shingles) / len(union) if union else 0.0
 
 
-def validate_card_text_distinctness(summaries: list[dict[str, str]]) -> None:
+def card_terms(text: str) -> set[str]:
+    return {word for word in card_text_words(text) if len(word) >= 4 or word.isdigit()}
+
+
+def card_binding_terms(short_text: str, source_text: str, title: str) -> set[str]:
+    """Terms the description takes from the article body rather than from its title."""
+    return (card_terms(short_text) & card_terms(source_text)) - card_terms(title)
+
+
+def card_template_phrase(text: str) -> str | None:
+    words = " ".join(card_text_words(text))
+    for phrase in CARD_TEMPLATE_PHRASES:
+        if phrase in words:
+            return phrase
+    return None
+
+
+def card_texts_repeat(left: str, right: str) -> tuple[bool, float]:
+    same_lead = (
+        card_text_words(left)[:CARD_LEADING_WORDS] == card_text_words(right)[:CARD_LEADING_WORDS]
+    )
+    return same_lead, card_text_similarity(left, right)
+
+
+def repeated_card_pair(cards: list[dict[str, str]]) -> tuple[str, str, str, str] | None:
+    """First pair of cards sharing an opening or most of their wording: field, left id, right id, why."""
     for field in ("short_text", "agpm_angle"):
-        for left, right in combinations(summaries, 2):
-            left_text = left[field]
-            right_text = right[field]
-            same_lead = (
-                card_text_words(left_text)[:CARD_LEADING_WORDS]
-                == card_text_words(right_text)[:CARD_LEADING_WORDS]
-            )
-            similarity = card_text_similarity(left_text, right_text)
+        for left, right in combinations(cards, 2):
+            same_lead, similarity = card_texts_repeat(left[field], right[field])
             if same_lead or similarity >= CARD_SIMILARITY_THRESHOLD:
-                raise RuntimeError(
-                    f"OpenClaw card summaries repeat {field}: {left['id']} and {right['id']} "
-                    f"(similarity={similarity:.2f}, same_lead={same_lead})"
-                )
+                return field, left["id"], right["id"], f"similarity={similarity:.2f}, same_lead={same_lead}"
+    return None
+
+
+def normalize_card(value: Any) -> dict[str, str]:
+    if isinstance(value, list) and len(value) == 1:
+        value = value[0]
+    if not isinstance(value, dict):
+        raise RuntimeError("card JSON is not an object")
+    short_text = str(value.get("short_text") or "").strip()
+    agpm_angle = str(value.get("agpm_angle") or "").strip()
+    if not short_text or not agpm_angle:
+        raise RuntimeError("card JSON lacks short_text or agpm_angle")
+    return {"short_text": short_text, "agpm_angle": agpm_angle}
+
+
+def validate_card_text(card: dict[str, str], *, source_text: str, title: str) -> None:
+    for field in ("short_text", "agpm_angle"):
+        if len(card[field]) < CARD_MIN_TEXT_CHARS:
+            raise RuntimeError(f"{field} is too short: {len(card[field])} chars")
+        if len(card[field]) > CARD_MAX_TEXT_CHARS[field]:
+            raise RuntimeError(
+                f"{field} is too long: {len(card[field])} chars, at most {CARD_MAX_TEXT_CHARS[field]}"
+            )
+        phrase = card_template_phrase(card[field])
+        if phrase:
+            raise RuntimeError(f"{field} uses a template phrase: «{phrase}»")
+    if not card_binding_terms(card["short_text"], source_text, title):
+        raise RuntimeError("short_text names nothing from the article body beyond its title")
+    same_lead, similarity = card_texts_repeat(card["short_text"], card["agpm_angle"])
+    if same_lead or similarity >= CARD_SIMILARITY_THRESHOLD:
+        raise RuntimeError(
+            f"agpm_angle repeats short_text (similarity={similarity:.2f}, same_lead={same_lead})"
+        )
+
+
+def load_card_source_text(material: dict[str, Any]) -> tuple[str, str]:
+    """Article body for one material from the shared fulltext cache.
+
+    A miss is fetched; a cached failure is retried once, so a transient error does not
+    leave the card without its article for good. Returns the text and the fetch status.
+    """
+    # Pulls requests and BeautifulSoup; imported here so the module stays importable without them.
+    from agpm_radar_report import fetch_fulltext, fulltext_cache_path
+
+    payload = fetch_fulltext(material, WORKSPACE_CORPUS)
+    if payload and payload.get("status") != "resolved":
+        cache = fulltext_cache_path(WORKSPACE_CORPUS, material.get("url"))
+        if cache.exists():
+            cache.unlink()
+            payload = fetch_fulltext(material, WORKSPACE_CORPUS)
+    if not payload:
+        return "", "no_url"
+    text = str(payload.get("text") or "").strip()
+    status = str(payload.get("status") or "unresolved")
+    if status != "resolved" or len(text) < 300:
+        return "", status
+    return text[:CARD_SOURCE_TEXT_CHARS], status
+
+
+def card_prompt(material: dict[str, Any], source_text: str, feedback: list[str]) -> str:
+    article = {
+        "title": material.get("title"),
+        "source_name": material.get("source_name"),
+        "url": material.get("url"),
+        "published_at": material.get("published_at"),
+        "perimeter": material.get("perimeter"),
+        "rubrics": [RUBRIC_NAMES.get(rubric, rubric) for rubric in material.get("rubrics") or []],
+        "source_text": source_text,
+    }
+    repair = (
+        f"\n\nПредыдущий ответ отклонён: {feedback[-1]}. Напиши оба текста заново с учётом этого."
+        if feedback
+        else ""
+    )
+    return (
+        "Ты редактор AgPM Radar. AgPM — агентное управление проектами: применение ИИ-агентов "
+        "в проектном управлении, PMO и ИСУП.\n"
+        "Ниже одна статья из выпуска радара: заголовок, источник и текст. "
+        "Подготовь по ней два самостоятельных текста на русском языке.\n"
+        "short_text — 2–3 коротких предложения, не длиннее 600 знаков, о том, что конкретно в статье: "
+        "кто и что сделал или предложил, какие продукты, компании, цифры, сроки и механизмы названы. "
+        "Только то, что есть в тексте. Выбери 2–4 самых важных факта, а не перечисляй всё. "
+        "Не пересказывай заголовок и не подменяй содержание общими словами об агентах и workflow.\n"
+        "agpm_angle — 2–3 предложения, не длиннее 500 знаков, с управленческим выводом для AgPM, PMO "
+        "или ИСУП: что из этой статьи стоит взять в практику проектного управления, где риск, что "
+        "проверить у себя. Вывод опирается на факты из short_text, а не на общие слова об "
+        "управляемости и governance. Начинай его с сути, а не с «Для PMO» или «Для AgPM».\n"
+        "Запрещено: универсальные заготовки («для AgPM это важно», «усиливает governance-линию», "
+        "«переход от помощников к агентным workflow»), факты не из статьи, повтор одного текста в другом.\n"
+        "Ответ будет отклонён, если short_text не содержит ни одного названия, числа или термина "
+        "из текста статьи, или если любой из текстов состоит из заготовок.\n"
+        'Верни только JSON вида {"short_text": "...", "agpm_angle": "..."}.'
+        f"{repair}\n\nСтатья: {json.dumps(article, ensure_ascii=False)}"
+    )
+
+
+def generate_card_text(
+    material: dict[str, Any],
+    source_text: str,
+    *,
+    issue_date: str,
+    model: str,
+    timeout: int,
+    feedback: list[str],
+) -> tuple[dict[str, str], str, str]:
+    """One model call for one card. A rejected answer leaves its reason in `feedback` for the next attempt."""
+    stem = f"{issue_date}.{OPENCLAW_CARD_SUMMARY_PROMPT_VERSION}.{material['id']}"
+    try:
+        parsed, request_path, response_path = openclaw_json(
+            card_prompt(material, source_text, feedback), model=model, stem=stem, timeout=timeout
+        )
+    except json.JSONDecodeError as exc:
+        feedback.append("ответ не разобран как JSON")
+        raise RuntimeError(f"card JSON is invalid: {exc}") from exc
+    try:
+        card = normalize_card(parsed)
+        validate_card_text(card, source_text=source_text, title=str(material.get("title") or ""))
+    except RuntimeError as exc:
+        feedback.append(str(exc))
+        raise
+    return card, request_path, response_path
+
+
+def write_card_summary(conn: sqlite3.Connection, issue_date: str, card: dict[str, str]) -> None:
+    conn.execute(
+        """
+        INSERT INTO material_llm_summaries(
+          material_id, issue_date, short_text, agpm_angle, provider, model,
+          prompt_version, request_path, response_path, status, error, updated_at
+        )
+        VALUES (?, ?, ?, ?, 'openclaw', ?, ?, ?, ?, 'success', '', datetime('now'))
+        ON CONFLICT(material_id) DO UPDATE SET
+          issue_date = excluded.issue_date,
+          short_text = excluded.short_text,
+          agpm_angle = excluded.agpm_angle,
+          provider = excluded.provider,
+          model = excluded.model,
+          prompt_version = excluded.prompt_version,
+          request_path = excluded.request_path,
+          response_path = excluded.response_path,
+          status = excluded.status,
+          error = excluded.error,
+          updated_at = datetime('now')
+        """,
+        (
+            card["id"],
+            issue_date,
+            card["short_text"],
+            card["agpm_angle"],
+            card["model"],
+            OPENCLAW_CARD_SUMMARY_PROMPT_VERSION,
+            card["request_path"],
+            card["response_path"],
+        ),
+    )
 
 
 def generate_card_summaries(
     conn: sqlite3.Connection,
     issue_date: str,
-    context: dict[str, Any],
+    materials: list[dict[str, Any]],
     *,
-    model: str,
+    models: list[str],
+    delays: list[float],
     timeout: int,
-) -> tuple[int, str, str]:
-    material_ids = {str(item.get("id")) for item in context["materials"] if item.get("id")}
-    prompt = (
-        "Ты редактор AgPM Radar. Для каждой карточки выпуска подготовь два самостоятельных русских текста.\n"
-        "short_text — 2–3 конкретных предложения о фактах и механизме именно этого материала. "
-        "agpm_angle — 2–3 предложения с отдельным управленческим выводом для AgPM, PMO или ИСУП.\n"
-        "Не меняй факты, не добавляй внешние сведения и не повторяй заголовок как описание. "
-        "Не используй универсальные заготовки вроде «материал описывает переход», «для AgPM это важно» "
-        "или одинаковое начало для нескольких карточек. Различай факт источника и аналитический вывод.\n"
-        "Верни только JSON вида {\"summaries\":[{\"id\":\"material_id\", \"short_text\":\"2–3 предложения\", \"agpm_angle\":\"2–3 предложения\"}]}.\n"
-        "Оба поля обязательны и непусты для каждого material_id из входных данных. Если хотя бы одной записи или поля нет, ответ будет отклонён и запрос повторится.\n\n"
-        f"Материалы выпуска: {json.dumps(context['materials'], ensure_ascii=False)}"
-    )
-    parsed, request_path, response_path = openclaw_json(
-        prompt,
-        model=model,
-        stem=f"{issue_date}.{OPENCLAW_CARD_SUMMARY_PROMPT_VERSION}",
-        timeout=timeout,
-    )
-    summaries = normalize_card_summaries(parsed, material_ids)
-    returned_ids = {item["id"] for item in summaries}
-    missing_ids = material_ids - returned_ids
-    if missing_ids:
-        raise RuntimeError(
-            "OpenClaw card summaries JSON is incomplete: "
-            f"{len(missing_ids)} of {len(material_ids)} material(s) missing or have an empty short_text/agpm_angle"
-        )
-    validate_card_text_distinctness(summaries)
-    for item in summaries:
-        conn.execute(
-            """
-            INSERT INTO material_llm_summaries(
-              material_id, issue_date, short_text, agpm_angle, provider, model,
-              prompt_version, request_path, response_path, status, error, updated_at
+) -> tuple[int, list[str]]:
+    """LLM texts for every material whose article body is available; the rest keep the rule-based text.
+
+    Each card is one model call with the article inside the prompt, retried with the rejection reason
+    across the model chain. Cards that repeat each other are regenerated once more. Returns the number
+    of cards written and the failures that were persisted as errors.
+    """
+    by_id = {str(item.get("id")): item for item in materials if item.get("id")}
+    sources: dict[str, str] = {}
+    cards: dict[str, dict[str, str]] = {}
+    failures: list[str] = []
+
+    def generate(material_id: str, reason: str | None) -> None:
+        feedback = [reason] if reason else []
+        try:
+            (card, request_path, response_path), model = run_with_model_fallback(
+                f"card {material_id}",
+                lambda model: generate_card_text(
+                    by_id[material_id],
+                    sources[material_id],
+                    issue_date=issue_date,
+                    model=model,
+                    timeout=timeout,
+                    feedback=feedback,
+                ),
+                models=models,
+                delays=delays,
             )
-            VALUES (?, ?, ?, ?, 'openclaw', ?, ?, ?, ?, 'success', '', datetime('now'))
-            ON CONFLICT(material_id) DO UPDATE SET
-              issue_date = excluded.issue_date,
-              short_text = excluded.short_text,
-              agpm_angle = excluded.agpm_angle,
-              provider = excluded.provider,
-              model = excluded.model,
-              prompt_version = excluded.prompt_version,
-              request_path = excluded.request_path,
-              response_path = excluded.response_path,
-              status = excluded.status,
-              error = excluded.error,
-              updated_at = datetime('now')
-            """,
-            (
-                item["id"],
-                issue_date,
-                item["short_text"],
-                item.get("agpm_angle", ""),
-                model,
-                OPENCLAW_CARD_SUMMARY_PROMPT_VERSION,
-                request_path,
-                response_path,
-            ),
+        except Exception as exc:  # noqa: BLE001 - persist the error and go on with the other cards.
+            cards.pop(material_id, None)
+            mark_card_errors(conn, issue_date, {material_id}, models[-1], str(exc))
+            conn.commit()
+            failures.append(f"card {material_id}: {exc}")
+            return
+        cards[material_id] = {
+            **card,
+            "id": material_id,
+            "model": model,
+            "request_path": request_path,
+            "response_path": response_path,
+        }
+
+    for material_id, material in by_id.items():
+        text, status = load_card_source_text(material)
+        if not text:
+            mark_card_without_source(conn, issue_date, material_id, status)
+            conn.commit()
+            print(f"card {material_id}: no article text ({status}); rule-based text stays")
+            continue
+        sources[material_id] = text
+        generate(material_id, None)
+
+    for _ in range(len(cards)):
+        pair = repeated_card_pair(list(cards.values()))
+        if pair is None:
+            break
+        field, left_id, right_id, detail = pair
+        print(f"card {right_id}: {field} repeats card {left_id} ({detail}); regenerating")
+        generate(
+            right_id,
+            f"{field} повторяет текст другой карточки этого выпуска: «{cards[left_id][field][:120]}». "
+            "Нужны другое начало и формулировки по фактам именно этой статьи",
         )
-    return len(summaries), request_path, response_path
+    pair = repeated_card_pair(list(cards.values()))
+    if pair is not None:
+        field, left_id, right_id, detail = pair
+        cards.pop(right_id)
+        error = f"{field} still repeats card {left_id} ({detail})"
+        mark_card_errors(conn, issue_date, {right_id}, models[-1], error)
+        failures.append(f"card {right_id}: {error}")
+
+    for card in cards.values():
+        write_card_summary(conn, issue_date, card)
+    conn.commit()
+    return len(cards), failures
 
 
 def mark_error(conn: sqlite3.Connection, table: str, issue_date: str, model: str, error: str) -> None:
@@ -479,9 +665,37 @@ def mark_card_errors(
               status = excluded.status,
               error = excluded.error,
               updated_at = datetime('now')
+            WHERE material_llm_summaries.status != 'success'
             """,
             (material_id, issue_date, model, OPENCLAW_CARD_SUMMARY_PROMPT_VERSION, error),
         )
+
+
+def mark_card_without_source(
+    conn: sqlite3.Connection,
+    issue_date: str,
+    material_id: str,
+    fetch_status: str,
+) -> None:
+    """Record that no model was asked because the article body is unavailable; a stored success stays."""
+    conn.execute(
+        """
+        INSERT INTO material_llm_summaries(
+          material_id, issue_date, short_text, agpm_angle, provider, model,
+          prompt_version, request_path, response_path, status, error, updated_at
+        )
+        VALUES (?, ?, '', '', 'openclaw', NULL, ?, '', '', 'fallback', ?, datetime('now'))
+        ON CONFLICT(material_id) DO UPDATE SET
+          issue_date = excluded.issue_date,
+          model = excluded.model,
+          prompt_version = excluded.prompt_version,
+          status = excluded.status,
+          error = excluded.error,
+          updated_at = datetime('now')
+        WHERE material_llm_summaries.status != 'success'
+        """,
+        (material_id, issue_date, OPENCLAW_CARD_SUMMARY_PROMPT_VERSION, f"no source text: {fetch_status}"),
+    )
 
 
 def mark_empty_issue(conn: sqlite3.Connection, issue_date: str, model: str) -> None:
@@ -527,6 +741,11 @@ def main() -> int:
     parser.add_argument("--max-materials", type=int, default=20)
     parser.add_argument("--skip-card-summaries", action="store_true")
     parser.add_argument(
+        "--only-card-summaries",
+        action="store_true",
+        help="Regenerate only the card texts; the daily analysis and the theses are left as they are.",
+    )
+    parser.add_argument(
         "--require-all",
         action="store_true",
         help="Return a non-zero exit code if any LLM layer fails after all retries and fallbacks.",
@@ -548,57 +767,52 @@ def main() -> int:
         delays = retry_delays(args.retry_delays)
         failures: list[str] = []
 
-        try:
-            _, daily_model = run_with_model_fallback(
-                "daily analysis",
-                lambda model: generate_daily_analysis(
-                    conn, issue_date, context, model=model, timeout=args.timeout
-                ),
-                models=models,
-                delays=delays,
-            )
-            conn.commit()
-            print(f"daily analysis: success with {daily_model}")
-        except Exception as exc:  # noqa: BLE001 - persist error and continue with other layers.
-            mark_error(conn, "issue_daily_analysis", issue_date, models[-1], str(exc))
-            conn.commit()
-            failures.append(str(exc))
-
-        try:
-            _, theses_model = run_with_model_fallback(
-                "issue theses",
-                lambda model: generate_issue_llm_theses(
-                    conn, issue_date, context, model=model, timeout=args.timeout
-                ),
-                models=models,
-                delays=delays,
-            )
-            conn.commit()
-            print(f"issue theses: success with {theses_model}")
-        except Exception as exc:  # noqa: BLE001
-            mark_error(conn, "issue_llm_theses", issue_date, models[-1], str(exc))
-            conn.commit()
-            failures.append(str(exc))
-
-        card_count = 0
-        if not args.skip_card_summaries:
+        if not args.only_card_summaries:
             try:
-                card_result, card_model = run_with_model_fallback(
-                    "card summaries",
-                    lambda model: generate_card_summaries(
+                _, daily_model = run_with_model_fallback(
+                    "daily analysis",
+                    lambda model: generate_daily_analysis(
                         conn, issue_date, context, model=model, timeout=args.timeout
                     ),
                     models=models,
                     delays=delays,
                 )
-                card_count = int(card_result[0])
                 conn.commit()
-                print(f"card summaries: success with {card_model}")
-            except Exception as exc:  # noqa: BLE001
-                material_ids = {str(item.get("id")) for item in context["materials"] if item.get("id")}
-                mark_card_errors(conn, issue_date, material_ids, models[-1], str(exc))
+                print(f"daily analysis: success with {daily_model}")
+            except Exception as exc:  # noqa: BLE001 - persist error and continue with other layers.
+                mark_error(conn, "issue_daily_analysis", issue_date, models[-1], str(exc))
                 conn.commit()
                 failures.append(str(exc))
+
+            try:
+                _, theses_model = run_with_model_fallback(
+                    "issue theses",
+                    lambda model: generate_issue_llm_theses(
+                        conn, issue_date, context, model=model, timeout=args.timeout
+                    ),
+                    models=models,
+                    delays=delays,
+                )
+                conn.commit()
+                print(f"issue theses: success with {theses_model}")
+            except Exception as exc:  # noqa: BLE001
+                mark_error(conn, "issue_llm_theses", issue_date, models[-1], str(exc))
+                conn.commit()
+                failures.append(str(exc))
+
+        card_count = 0
+        if not args.skip_card_summaries:
+            selected_ids = {str(item.get("id")) for item in context["materials"] if item.get("id")}
+            card_count, card_failures = generate_card_summaries(
+                conn,
+                issue_date,
+                [item for item in materials if str(item.get("id")) in selected_ids],
+                models=models,
+                delays=delays,
+                timeout=args.timeout,
+            )
+            failures.extend(card_failures)
+            print(f"card summaries: {card_count} written, {len(card_failures)} failed")
 
         conn.commit()
         print(f"OpenClaw LLM analysis saved for {issue_date}; card summaries: {card_count}")

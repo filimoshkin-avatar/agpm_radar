@@ -9,6 +9,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
@@ -20,7 +21,12 @@ from packages.storage.content_pointer import read_content_pointer
 from packages.storage.safe_files import atomic_write_new
 
 
-def _apply_review(database: Path, review: JsonObject) -> None:
+def _apply_review(database: Path, review: JsonObject) -> tuple[int, int]:
+    """Write the reviewed cards into the projection; cards the review omits keep their text.
+
+    Returns how many cards were updated and how many the issue has beyond them. A card
+    outside the issue is an error: the review was built for another issue or another release.
+    """
     issue_date = str(review["issueDate"])
     cards = cast(list[dict[str, object]], review["cards"])
     with sqlite3.connect(database) as connection:
@@ -37,13 +43,13 @@ def _apply_review(database: Path, review: JsonObject) -> None:
             )
         }
         actual = {str(card["materialId"]) for card in cards}
-        if actual != expected:
+        if not actual or not actual <= expected:
             raise ValueError(
-                "review material ids differ: "
-                f"missing={expected - actual}, extra={actual - expected}"
+                f"review material ids are outside the issue: extra={sorted(actual - expected)}"
             )
         updated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         for card in cards:
+            model = str(card.get("model") or review["model"])
             connection.execute(
                 """
                 UPDATE material_analysis
@@ -55,8 +61,8 @@ def _apply_review(database: Path, review: JsonObject) -> None:
                 (
                     card["shortText"],
                     card["agpmAngle"],
-                    review["model"],
-                    review["model"],
+                    model,
+                    model,
                     review["promptVersion"],
                     updated_at,
                     issue_id,
@@ -64,6 +70,7 @@ def _apply_review(database: Path, review: JsonObject) -> None:
                 ),
             )
         connection.commit()
+    return len(actual), len(expected - actual)
 
 
 def main() -> int:
@@ -75,17 +82,26 @@ def main() -> int:
     parser.add_argument("--application-release-id", required=True)
     parser.add_argument("--ssh-host", required=True)
     parser.add_argument("--ssh-identity", required=True, type=Path)
+    parser.add_argument(
+        "--revision",
+        type=int,
+        default=1,
+        help="Number in the candidate id; raise it when the issue already had a card review.",
+    )
     args = parser.parse_args()
 
     review = cast(JsonObject, json.loads(args.review.read_bytes()))
     issue_date = str(review["issueDate"])
     stamp = issue_date.replace("-", "")
-    candidate_id = f"cand_correct_{stamp}_card_review_v1"
+    candidate_id = f"cand_correct_{stamp}_card_review_v{args.revision}"
     args.root.mkdir(mode=0o700, parents=True, exist_ok=False)
     pointer = read_content_pointer(args.source_root)
     projection = args.root / "projection.sqlite"
     shutil.copy2(pointer.database_path, projection)
-    _apply_review(projection, review)
+    updated, untouched = _apply_review(projection, review)
+    print(
+        f"{candidate_id}: {updated} card(s) updated, {untouched} left as published", file=sys.stderr
+    )
 
     now = datetime.now(UTC).replace(microsecond=0)
     created_at = now.isoformat().replace("+00:00", "Z")
