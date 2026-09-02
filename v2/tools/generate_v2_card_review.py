@@ -9,6 +9,7 @@ import json
 import re
 import sqlite3
 import subprocess
+from itertools import combinations
 from pathlib import Path
 from typing import cast
 
@@ -21,10 +22,43 @@ MODEL = "openai/gpt-5.5"
 PROMPT_VERSION = "v2-card-review-ru-v1"
 MAX_ATTEMPTS = 3
 TIMEOUT_SECONDS = 240
+SIMILARITY_THRESHOLD = 0.72
+LEADING_WORDS = 8
 
 
 class CardReviewError(RuntimeError):
     """The historical card review could not be generated or verified."""
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-zа-яё0-9]+", text.casefold())
+
+
+def _shingles(text: str, width: int = 3) -> set[tuple[str, ...]]:
+    words = _words(text)
+    if len(words) < width:
+        return {tuple(words)} if words else set()
+    return {tuple(words[index : index + width]) for index in range(len(words) - width + 1)}
+
+
+def _text_similarity(left: str, right: str) -> float:
+    left_shingles = _shingles(left)
+    right_shingles = _shingles(right)
+    union = left_shingles | right_shingles
+    return len(left_shingles & right_shingles) / len(union) if union else 0.0
+
+
+def _reject_similar_texts(cards: list[JsonObject], field: str) -> None:
+    for left, right in combinations(cards, 2):
+        left_text = str(left[field])
+        right_text = str(right[field])
+        same_lead = _words(left_text)[:LEADING_WORDS] == _words(right_text)[:LEADING_WORDS]
+        similarity = _text_similarity(left_text, right_text)
+        if same_lead or similarity >= SIMILARITY_THRESHOLD:
+            raise CardReviewError(
+                f"semantically repetitive {field}: {left['materialId']} and "
+                f"{right['materialId']} (similarity={similarity:.2f}, same_lead={same_lead})"
+            )
 
 
 def _strip_fence(text: str) -> str:
@@ -82,6 +116,8 @@ def _validate(raw: JsonObject, expected_ids: set[str]) -> list[JsonObject]:
         raise CardReviewError("duplicate shortText values")
     if len({str(item["agpmAngle"]) for item in result}) != len(result):
         raise CardReviewError("duplicate agpmAngle values")
+    _reject_similar_texts(result, "shortText")
+    _reject_similar_texts(result, "agpmAngle")
     return result
 
 

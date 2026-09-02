@@ -11,6 +11,7 @@ import sqlite3
 import subprocess
 import time
 from datetime import datetime, timezone
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,9 @@ from radar_paths import DB_PATH, LLM_CLASSIFICATION_DIR, ensure_dirs
 
 OPENCLAW_DAILY_PROMPT_VERSION = "openclaw-daily-analysis-ru-v1"
 OPENCLAW_ISSUE_THESES_PROMPT_VERSION = "openclaw-issue-theses-ru-v1"
-OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v2"
+OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v3"
+CARD_SIMILARITY_THRESHOLD = 0.72
+CARD_LEADING_WORDS = 8
 
 
 def connect(db: Path) -> sqlite3.Connection:
@@ -323,6 +326,41 @@ def normalize_card_summaries(value: Any, material_ids: set[str]) -> list[dict[st
     return result
 
 
+def card_text_words(text: str) -> list[str]:
+    return re.findall(r"[a-zа-яё0-9]+", text.casefold())
+
+
+def card_text_shingles(text: str, width: int = 3) -> set[tuple[str, ...]]:
+    words = card_text_words(text)
+    if len(words) < width:
+        return {tuple(words)} if words else set()
+    return {tuple(words[index : index + width]) for index in range(len(words) - width + 1)}
+
+
+def card_text_similarity(left: str, right: str) -> float:
+    left_shingles = card_text_shingles(left)
+    right_shingles = card_text_shingles(right)
+    union = left_shingles | right_shingles
+    return len(left_shingles & right_shingles) / len(union) if union else 0.0
+
+
+def validate_card_text_distinctness(summaries: list[dict[str, str]]) -> None:
+    for field in ("short_text", "agpm_angle"):
+        for left, right in combinations(summaries, 2):
+            left_text = left[field]
+            right_text = right[field]
+            same_lead = (
+                card_text_words(left_text)[:CARD_LEADING_WORDS]
+                == card_text_words(right_text)[:CARD_LEADING_WORDS]
+            )
+            similarity = card_text_similarity(left_text, right_text)
+            if same_lead or similarity >= CARD_SIMILARITY_THRESHOLD:
+                raise RuntimeError(
+                    f"OpenClaw card summaries repeat {field}: {left['id']} and {right['id']} "
+                    f"(similarity={similarity:.2f}, same_lead={same_lead})"
+                )
+
+
 def generate_card_summaries(
     conn: sqlite3.Connection,
     issue_date: str,
@@ -357,6 +395,7 @@ def generate_card_summaries(
             "OpenClaw card summaries JSON is incomplete: "
             f"{len(missing_ids)} of {len(material_ids)} material(s) missing or have an empty short_text/agpm_angle"
         )
+    validate_card_text_distinctness(summaries)
     for item in summaries:
         conn.execute(
             """

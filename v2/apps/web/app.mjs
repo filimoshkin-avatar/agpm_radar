@@ -1446,9 +1446,9 @@ function renderCard(item) {
   const host = sourceHost(item.url) || item.source_name || "источник";
   const date = materialDateLabel(item);
   const signal = signalMeta(item);
-  const description = item.brief || item.summary || "";
-  const llmTakeaway = item.llm_summary && item.llm_summary.status === "success" ? item.llm_summary.short_text : "";
-  const takeaway = llmTakeaway || item.agpm_takeaway || "";
+  const llmSucceeded = item.llm_summary && item.llm_summary.status === "success";
+  const description = (llmSucceeded ? item.llm_summary.short_text : "") || item.brief || item.summary || "";
+  const takeaway = (llmSucceeded ? item.llm_summary.agpm_angle : "") || item.agpm_takeaway || "";
   const tags = (item.rubrics || []).slice(0, 3).map(id => {
     const tagClass = rubricTagClasses[id] || "tag-default";
     return `<span class="tag ${tagClass}">${rubricNames[id] || id}</span>`;
