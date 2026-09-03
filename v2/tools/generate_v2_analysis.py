@@ -15,7 +15,7 @@ from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 
 MODEL = "openai/gpt-5.5"
-PROMPT_VERSION = "v2-daily-analysis-ru-v4"
+PROMPT_VERSION = "v2-daily-analysis-ru-v5"
 MAX_ATTEMPTS = 3
 ATTEMPT_TIMEOUT_SECONDS = 180
 #: This module's worst case: every attempt runs to its own ceiling. The caller must
@@ -28,6 +28,8 @@ MAX_ANALYTIC_PARAGRAPHS = 5
 MIN_ANALYTIC_CHARS = 1_200
 MIN_WATCH_SENTENCES = 2
 MAX_WATCH_SENTENCES = 4
+MIN_THESIS_REST_CHARS = 320
+MIN_THESIS_REST_SENTENCES = 3
 
 
 class V2AnalysisError(RuntimeError):
@@ -83,6 +85,7 @@ def _validate_theses(raw: object, *, materials: list[JsonObject]) -> list[JsonOb
         "far": re.compile(r"\bдальн\w*\s+периметр\w*", re.IGNORECASE),
     }
     result: list[JsonObject] = []
+    titles = [str(item["title"]) for item in materials]
     for index, item in enumerate(raw):
         if not isinstance(item, dict):
             raise V2AnalysisError(f"analysis theses[{index}] is not an object")
@@ -91,6 +94,40 @@ def _validate_theses(raw: object, *, materials: list[JsonObject]) -> list[JsonOb
         if not lead or not rest:
             raise V2AnalysisError(f"analysis theses[{index}] has an empty lead or rest")
         text = f"{lead} {rest}"
+        if len(rest) < MIN_THESIS_REST_CHARS:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] rest is too short: {len(rest)} < {MIN_THESIS_REST_CHARS}"
+            )
+        sentence_count = len(_sentences(rest))
+        if sentence_count < MIN_THESIS_REST_SENTENCES:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] needs at least {MIN_THESIS_REST_SENTENCES} "
+                f"sentences, got {sentence_count}"
+            )
+        evidence_gap = rest.casefold().startswith("материалы выпуска не отвечают на вопрос")
+        cited_title = any(title.casefold() in rest.casefold() for title in titles)
+        if not evidence_gap and not cited_title:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] must cite an included title or state an evidence gap"
+            )
+        identifiers = sorted(set(re.findall(r"\bmat_[A-Za-z0-9_]+\b", text)))
+        if identifiers:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] contains reader-facing material_id: {identifiers}"
+            )
+        internal_fields = [
+            field
+            for field in ("llm_short_text", "llm_agpm_angle", "agpm_takeaway")
+            if field in text.casefold()
+        ]
+        if internal_fields:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] exposes internal fields: {internal_fields}"
+            )
+        if re.search(r"\$\d+\.\d+", text):
+            raise V2AnalysisError(
+                f"analysis theses[{index}] uses a dot as a currency decimal separator"
+            )
         unsupported = [
             perimeter
             for perimeter, pattern in perimeter_words.items()
@@ -194,6 +231,8 @@ def generate_v2_analysis(
             {
                 "material_id": item["materialId"],
                 "title": item["title"],
+                "llm_short_text": item.get("llmShortText"),
+                "llm_agpm_angle": item.get("llmAgpmAngle"),
                 "summary": item["summary"],
                 "agpm_takeaway": item["agpmTakeaway"],
                 "perimeter": item["perimeter"],
@@ -206,7 +245,7 @@ def generate_v2_analysis(
         "Ты аналитик AgPM Radar V2. Сформируй подробный дневной разбор на русском языке.\n"
         "Опирайся только на материалы из входного JSON. Не упоминай исключённые или внешние "
         "материалы и не придумывай факты.\n"
-        "Сформируй также ровно четыре коротких тезиса по финальному составу V2. "
+        "Сформируй также ровно четыре содержательных тезиса по финальному составу V2. "
         "Не упоминай периметр, которого нет во входном списке.\n"
         "Верни только JSON с полями signal, why_agpm, watch_next, theses, "
         "evidence_material_ids, input_content_hash.\n"
@@ -215,6 +254,18 @@ def generate_v2_analysis(
         "рисков и операционной модели. Отделяй факты источников от аналитических выводов.\n"
         "watch_next: 2–4 предложения о том, что проверять в следующих выпусках. "
         "theses: массив ровно из четырёх объектов с непустыми полями lead и rest. "
+        "lead — конкретный вывод, rest — 3–5 предложений и не менее 320 знаков. "
+        "В каждом rest назови точный заголовок хотя бы одного входного материала и приведи "
+        "проверяемую конкретную фактологию прежде всего из llm_short_text и llm_agpm_angle: "
+        "продукт, действие, число, срок, интеграцию или ограничение. Поля summary и agpm_takeaway "
+        "используй только как резервный контекст и не пересказывай их общими фразами. Затем отдели "
+        "факт источника от интерпретации для AgPM. Если входные материалы не дают конкретных "
+        "фактов для вывода, начни rest "
+        "словами «Материалы выпуска не отвечают на вопрос…» и прямо укажи, каких данных "
+        "не хватает; "
+        "не заполняй пробел общими рассуждениями. Не называй читателю поля JSON: llm_short_text, "
+        "llm_agpm_angle, summary, agpm_takeaway. Соблюдай русскую типографику, включая запятую "
+        "как десятичный разделитель. "
         "evidence_material_ids: 2–10 идентификаторов только из входного списка. "
         "Технические идентификаторы mat_* используй только в evidence_material_ids. "
         "В signal, why_agpm и watch_next называй материалы только по их точным "

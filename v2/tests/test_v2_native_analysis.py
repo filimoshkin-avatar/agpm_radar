@@ -1,5 +1,7 @@
 """Grounding invariants for analysis generated from the final V2 composition."""
 
+# ruff: noqa: RUF001
+
 from __future__ import annotations
 
 import json
@@ -42,10 +44,14 @@ def _long_block(label: str) -> str:
 
 
 def _theses() -> list[dict[str, str]]:
-    return [
-        {"lead": f"Тезис {index}.", "rest": "Основание по среднему периметру."}
-        for index in range(1, 5)
-    ]
+    rest = (
+        "«Материал 1» фиксирует конкретный сигнал из финального состава выпуска. "
+        "Фактология источника используется как основание, а не подменяется общей формулой. "
+        "Для AgPM это означает необходимость связать наблюдение с управленческим процессом, "
+        "ответственным человеком, допустимым действием агента и проверяемым результатом, чтобы "
+        "тезис можно было проверить по карточке и использовать при выборе следующего действия."
+    )
+    return [{"lead": f"Тезис {index}.", "rest": rest} for index in range(1, 5)]
 
 
 def test_analysis_is_bound_to_final_six_material_composition() -> None:
@@ -76,8 +82,81 @@ def test_analysis_rejects_thesis_about_absent_perimeter() -> None:
     materials = _materials()
     content_hash = issue_content_hash(materials)
     theses = _theses()
-    theses[1]["rest"] = "Два материала близкого периметра подтверждают вывод."
+    theses[1]["rest"] += " Два материала близкого периметра подтверждают вывод."
     with pytest.raises(V2AnalysisError, match="absent V2 perimeters"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "signal": _long_block("Сигнал."),
+                    "why_agpm": _long_block("Значение."),
+                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                    "theses": theses,
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
+
+
+def test_analysis_rejects_dry_thesis_without_facts_or_evidence_gap() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    theses = _theses()
+    theses[0]["rest"] = (
+        "Агенты становятся частью процессов и требуют управленческого контроля. "
+        "Для PMO важны роли, журналы и ответственность человека. "
+        "Вывод следует учитывать при проектировании ИСУП."
+    )
+    with pytest.raises(V2AnalysisError, match="too short"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "signal": _long_block("Сигнал."),
+                    "why_agpm": _long_block("Значение."),
+                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                    "theses": theses,
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
+
+
+def test_analysis_rejects_internal_field_names_in_reader_text() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    theses = _theses()
+    theses[0]["rest"] += " Поле llm_agpm_angle подтверждает вывод."
+    with pytest.raises(V2AnalysisError, match="exposes internal fields"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "signal": _long_block("Сигнал."),
+                    "why_agpm": _long_block("Значение."),
+                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                    "theses": theses,
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
+
+
+def test_analysis_rejects_dot_in_currency_decimal() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    theses = _theses()
+    theses[0]["rest"] += " Цена указана как $0.75 за миллион токенов."
+    with pytest.raises(V2AnalysisError, match="currency decimal separator"):
         validate_v2_analysis(
             cast(
                 JsonObject,
