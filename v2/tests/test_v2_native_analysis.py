@@ -101,31 +101,68 @@ def test_analysis_rejects_thesis_about_absent_perimeter() -> None:
         )
 
 
-def test_analysis_rejects_dry_thesis_without_facts_or_evidence_gap() -> None:
-    materials = _materials()
+def _validate_with_theses(
+    theses: list[dict[str, str]], materials: list[JsonObject] | None = None
+) -> JsonObject:
+    materials = materials if materials is not None else _materials()
     content_hash = issue_content_hash(materials)
+    return validate_v2_analysis(
+        cast(
+            JsonObject,
+            {
+                "signal": _long_block("Сигнал."),
+                "why_agpm": _long_block("Значение."),
+                "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                "theses": theses,
+                "evidence_material_ids": ["mat_1", "mat_2"],
+                "input_content_hash": content_hash,
+            },
+        ),
+        materials=materials,
+        content_hash=content_hash,
+    )
+
+
+def test_analysis_names_every_thesis_defect_in_one_rejection() -> None:
+    # One repair prompt per attempt, three attempts, nine rules over four theses:
+    # a rejection naming only the first defect spends the day on one rule at a time.
     theses = _theses()
     theses[0]["rest"] = (
         "Агенты становятся частью процессов и требуют управленческого контроля. "
         "Для PMO важны роли, журналы и ответственность человека. "
         "Вывод следует учитывать при проектировании ИСУП."
     )
-    with pytest.raises(V2AnalysisError, match="too short"):
-        validate_v2_analysis(
-            cast(
-                JsonObject,
-                {
-                    "signal": _long_block("Сигнал."),
-                    "why_agpm": _long_block("Значение."),
-                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
-                    "theses": theses,
-                    "evidence_material_ids": ["mat_1", "mat_2"],
-                    "input_content_hash": content_hash,
-                },
-            ),
-            materials=materials,
-            content_hash=content_hash,
-        )
+    with pytest.raises(V2AnalysisError) as rejection:
+        _validate_with_theses(theses)
+    message = str(rejection.value)
+    assert "theses[0] rest is too short" in message
+    assert "theses[0] must cite an included title" in message
+
+
+def test_analysis_accepts_thesis_that_names_an_evidence_gap_instead_of_a_title() -> None:
+    theses = _theses()
+    theses[2]["rest"] = (
+        "Материалы выпуска не отвечают на вопрос о сроках внедрения агентов в ИСУП. "
+        "Ни один из шести материалов не называет дату, этап или ограничение пилота, по "
+        "которым можно было бы судить о готовности процессов. "
+        "Для вывода не хватает данных о том, какие действия агента допущены в проектном "
+        "контуре, кто отвечает за результат и как фиксируется журнал решений, поэтому "
+        "тезис остаётся открытым до следующих выпусков."
+    )
+    assert len(cast(list[object], _validate_with_theses(theses)["theses"])) == 4
+
+
+def test_analysis_reads_summary_as_a_field_name_but_not_inside_a_cited_title() -> None:
+    materials = _materials()
+    title = "Weekly Summary: Agents in the PMO"
+    materials[0]["title"] = title
+    theses = _theses()
+    for thesis in theses:
+        thesis["rest"] = thesis["rest"].replace("«Материал 1»", f"«{title}»")
+    _validate_with_theses(theses, materials)
+    theses[0]["rest"] += " Поле summary подтверждает вывод."
+    with pytest.raises(V2AnalysisError, match=r"exposes internal fields: \['summary'\]"):
+        _validate_with_theses(theses, materials)
 
 
 def test_analysis_rejects_internal_field_names_in_reader_text() -> None:

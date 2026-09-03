@@ -75,57 +75,70 @@ def _quality_violations(raw: JsonObject) -> list[str]:
     return violations
 
 
-def _validate_theses(raw: object, *, materials: list[JsonObject]) -> list[JsonObject]:
+def _thesis_violations(raw: object, *, materials: list[JsonObject]) -> list[str]:
+    """Every defect of the four theses at once, so one repair prompt names them all.
+
+    The first version raised on the first defect: the model fixed one rule per
+    attempt, and three attempts are fewer than nine rules over four theses. The
+    messages go back to the model verbatim.
+    """
     if not isinstance(raw, list) or len(raw) != 4:
-        raise V2AnalysisError("analysis theses must contain exactly 4 items")
+        return ["analysis theses must contain exactly 4 items"]
     available = {str(item["perimeter"]) for item in materials}
     perimeter_words = {
         "near": re.compile(r"\bблизк\w*\s+периметр\w*", re.IGNORECASE),
         "mid": re.compile(r"\bсредн\w*\s+периметр\w*", re.IGNORECASE),
         "far": re.compile(r"\bдальн\w*\s+периметр\w*", re.IGNORECASE),
     }
-    result: list[JsonObject] = []
-    titles = [str(item["title"]) for item in materials]
+    titles = [str(item["title"]).casefold() for item in materials]
+    violations: list[str] = []
     for index, item in enumerate(raw):
         if not isinstance(item, dict):
-            raise V2AnalysisError(f"analysis theses[{index}] is not an object")
+            violations.append(f"analysis theses[{index}] is not an object")
+            continue
         lead = str(item.get("lead") or "").strip()
         rest = str(item.get("rest") or "").strip()
         if not lead or not rest:
-            raise V2AnalysisError(f"analysis theses[{index}] has an empty lead or rest")
+            violations.append(f"analysis theses[{index}] has an empty lead or rest")
+            continue
         text = f"{lead} {rest}"
         if len(rest) < MIN_THESIS_REST_CHARS:
-            raise V2AnalysisError(
+            violations.append(
                 f"analysis theses[{index}] rest is too short: {len(rest)} < {MIN_THESIS_REST_CHARS}"
             )
         sentence_count = len(_sentences(rest))
         if sentence_count < MIN_THESIS_REST_SENTENCES:
-            raise V2AnalysisError(
+            violations.append(
                 f"analysis theses[{index}] needs at least {MIN_THESIS_REST_SENTENCES} "
                 f"sentences, got {sentence_count}"
             )
-        evidence_gap = rest.casefold().startswith("материалы выпуска не отвечают на вопрос")
-        cited_title = any(title.casefold() in rest.casefold() for title in titles)
-        if not evidence_gap and not cited_title:
-            raise V2AnalysisError(
+        folded_rest = rest.casefold()
+        evidence_gap = folded_rest.startswith("материалы выпуска не отвечают на вопрос")
+        if not evidence_gap and not any(title in folded_rest for title in titles):
+            violations.append(
                 f"analysis theses[{index}] must cite an included title or state an evidence gap"
             )
         identifiers = sorted(set(re.findall(r"\bmat_[A-Za-z0-9_]+\b", text)))
         if identifiers:
-            raise V2AnalysisError(
+            violations.append(
                 f"analysis theses[{index}] contains reader-facing material_id: {identifiers}"
             )
+        # The cited title is the model's obligation, not its own words: a source called
+        # "Weekly Summary" or priced "$0.75" in its title must not fail the thesis citing it.
+        own_words = text.casefold()
+        for title in titles:
+            own_words = own_words.replace(title, " ")
         internal_fields = [
             field
-            for field in ("llm_short_text", "llm_agpm_angle", "agpm_takeaway")
-            if field in text.casefold()
+            for field in ("llm_short_text", "llm_agpm_angle", "summary", "agpm_takeaway")
+            if field in own_words
         ]
         if internal_fields:
-            raise V2AnalysisError(
+            violations.append(
                 f"analysis theses[{index}] exposes internal fields: {internal_fields}"
             )
-        if re.search(r"\$\d+\.\d+", text):
-            raise V2AnalysisError(
+        if re.search(r"\$\d+\.\d+", own_words):
+            violations.append(
                 f"analysis theses[{index}] uses a dot as a currency decimal separator"
             )
         unsupported = [
@@ -134,11 +147,15 @@ def _validate_theses(raw: object, *, materials: list[JsonObject]) -> list[JsonOb
             if perimeter not in available and pattern.search(text)
         ]
         if unsupported:
-            raise V2AnalysisError(
-                f"analysis theses[{index}] cites absent V2 perimeters: {unsupported}"
-            )
-        result.append({"lead": lead, "rest": rest})
-    return result
+            violations.append(f"analysis theses[{index}] cites absent V2 perimeters: {unsupported}")
+    return violations
+
+
+def _clean_theses(raw: object) -> list[JsonObject]:
+    return [
+        cast(JsonObject, {"lead": str(item["lead"]).strip(), "rest": str(item["rest"]).strip()})
+        for item in cast(list[dict[str, object]], raw)
+    ]
 
 
 def _strip_json_fence(value: str) -> str:
@@ -198,7 +215,9 @@ def validate_v2_analysis(
     unknown = [material_id for material_id in evidence_ids if material_id not in included]
     if unknown:
         raise V2AnalysisError(f"analysis cites materials outside the V2 issue: {unknown}")
-    quality_violations = _quality_violations(raw)
+    quality_violations = _quality_violations(raw) + _thesis_violations(
+        raw.get("theses"), materials=materials
+    )
     if quality_violations:
         raise V2AnalysisError("analysis quality gate failed: " + "; ".join(quality_violations))
     return cast(
@@ -207,7 +226,7 @@ def validate_v2_analysis(
             "signal": str(raw["signal"]).strip(),
             "why_agpm": str(raw["why_agpm"]).strip(),
             "watch_next": str(raw["watch_next"]).strip(),
-            "theses": _validate_theses(raw.get("theses"), materials=materials),
+            "theses": _clean_theses(raw["theses"]),
             "evidence_material_ids": evidence_ids,
             "evidence_titles": [str(included[item_id]["title"]) for item_id in evidence_ids],
             "input_content_hash": content_hash,
