@@ -41,6 +41,13 @@ def _long_block(label: str) -> str:
     return "\n\n".join([paragraph, paragraph, paragraph])
 
 
+def _theses() -> list[dict[str, str]]:
+    return [
+        {"lead": f"Тезис {index}.", "rest": "Основание по среднему периметру."}
+        for index in range(1, 5)
+    ]
+
+
 def test_analysis_is_bound_to_final_six_material_composition() -> None:
     materials = _materials()
     content_hash = issue_content_hash(materials)
@@ -52,6 +59,7 @@ def test_analysis_is_bound_to_final_six_material_composition() -> None:
                 "signal": _long_block("Сигнал."),
                 "why_agpm": _long_block("Значение."),
                 "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                "theses": _theses(),
                 "evidence_material_ids": ["mat_2", "mat_5"],
                 "input_content_hash": content_hash,
             },
@@ -61,6 +69,30 @@ def test_analysis_is_bound_to_final_six_material_composition() -> None:
     )
     assert result["evidence_material_ids"] == ["mat_2", "mat_5"]
     assert result["evidence_titles"] == ["Материал 2", "Материал 5"]
+    assert len(cast(list[object], result["theses"])) == 4
+
+
+def test_analysis_rejects_thesis_about_absent_perimeter() -> None:
+    materials = _materials()
+    content_hash = issue_content_hash(materials)
+    theses = _theses()
+    theses[1]["rest"] = "Два материала близкого периметра подтверждают вывод."
+    with pytest.raises(V2AnalysisError, match="absent V2 perimeters"):
+        validate_v2_analysis(
+            cast(
+                JsonObject,
+                {
+                    "signal": _long_block("Сигнал."),
+                    "why_agpm": _long_block("Значение."),
+                    "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+                    "theses": theses,
+                    "evidence_material_ids": ["mat_1", "mat_2"],
+                    "input_content_hash": content_hash,
+                },
+            ),
+            materials=materials,
+            content_hash=content_hash,
+        )
 
 
 def test_analysis_rejects_evidence_from_excluded_legacy_material() -> None:
@@ -159,6 +191,7 @@ def _good_answer(content_hash: str) -> str:
             "signal": _long_block("Сигнал."),
             "why_agpm": _long_block("Значение."),
             "watch_next": "Проверить развитие сигнала. Сверить выводы и методику.",
+            "theses": _theses(),
             "evidence_material_ids": ["mat_1", "mat_2"],
             "input_content_hash": content_hash,
         },

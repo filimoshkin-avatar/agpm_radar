@@ -278,6 +278,10 @@ def test_an_accepted_analysis_is_the_one_that_reaches_the_candidate(
             "signal": "Сигнал модели.",
             "why_agpm": "Значение модели.",
             "watch_next": "Наблюдение модели.",
+            "theses": [
+                {"lead": f"Тезис {index}.", "rest": "Основание по финальному составу V2."}
+                for index in range(1, 5)
+            ],
             "evidence_material_ids": ["mat_1"],
             "evidence_titles": ["Материал 1"],
             "input_content_hash": issue_content_hash(materials),
@@ -296,5 +300,6 @@ def test_an_accepted_analysis_is_the_one_that_reaches_the_candidate(
 
     assert failure is None
     assert analysis["headline"] == "Сигнал"
+    assert cast(list[dict[str, object]], analysis["theses"])[0]["lead"] == "Тезис 1."
     _validate_analysis(analysis, list(materials))
     validate_llm_outcome(_llm_outcome(native=True))

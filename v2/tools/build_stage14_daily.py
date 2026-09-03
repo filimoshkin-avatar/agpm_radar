@@ -196,13 +196,6 @@ def _daily_analysis(
     decision is a function rather than a branch inside `main` so that the fallback
     can be exercised: it had no caller at all for a day, and nothing noticed.
     """
-    llm_theses = cast(dict[str, object] | None, document.get("issue_llm_theses"))
-    issue = cast(dict[str, object], document["issue"])
-    thesis_source = (
-        cast(list[dict[str, object]], llm_theses.get("theses") or [])
-        if llm_theses is not None and llm_theses.get("status") == "success"
-        else cast(list[dict[str, object]], issue.get("theses") or [])
-    )
     try:
         generated = generate_v2_analysis(
             issue_date=issue_date, materials=materials, artifacts_root=artifacts_root
@@ -218,7 +211,6 @@ def _daily_analysis(
         _native_analysis(
             cast(dict[str, object], generated),
             brief=brief,
-            theses=thesis_source,
             headline=legacy_headline,
         ),
         None,
@@ -281,7 +273,6 @@ def _native_analysis(
     generated: dict[str, object],
     *,
     brief: str,
-    theses: list[dict[str, object]],
     headline: str,
 ) -> JsonObject:
     """Map V2-native blocks while preserving Legacy's canonical issue headline."""
@@ -306,7 +297,7 @@ def _native_analysis(
             "evidenceTitles": generated["evidence_titles"],
             "headline": headline,
             "inputContentHash": generated["input_content_hash"],
-            "theses": theses,
+            "theses": generated["theses"],
         },
     )
 

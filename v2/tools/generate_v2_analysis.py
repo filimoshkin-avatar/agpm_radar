@@ -15,7 +15,7 @@ from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 
 MODEL = "openai/gpt-5.5"
-PROMPT_VERSION = "v2-daily-analysis-ru-v3"
+PROMPT_VERSION = "v2-daily-analysis-ru-v4"
 MAX_ATTEMPTS = 3
 ATTEMPT_TIMEOUT_SECONDS = 180
 #: This module's worst case: every attempt runs to its own ceiling. The caller must
@@ -71,6 +71,37 @@ def _quality_violations(raw: JsonObject) -> list[str]:
             f"получено {sentence_count}"
         )
     return violations
+
+
+def _validate_theses(raw: object, *, materials: list[JsonObject]) -> list[JsonObject]:
+    if not isinstance(raw, list) or len(raw) != 4:
+        raise V2AnalysisError("analysis theses must contain exactly 4 items")
+    available = {str(item["perimeter"]) for item in materials}
+    perimeter_words = {
+        "near": re.compile(r"\bблизк\w*\s+периметр\w*", re.IGNORECASE),
+        "mid": re.compile(r"\bсредн\w*\s+периметр\w*", re.IGNORECASE),
+        "far": re.compile(r"\bдальн\w*\s+периметр\w*", re.IGNORECASE),
+    }
+    result: list[JsonObject] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise V2AnalysisError(f"analysis theses[{index}] is not an object")
+        lead = str(item.get("lead") or "").strip()
+        rest = str(item.get("rest") or "").strip()
+        if not lead or not rest:
+            raise V2AnalysisError(f"analysis theses[{index}] has an empty lead or rest")
+        text = f"{lead} {rest}"
+        unsupported = [
+            perimeter
+            for perimeter, pattern in perimeter_words.items()
+            if perimeter not in available and pattern.search(text)
+        ]
+        if unsupported:
+            raise V2AnalysisError(
+                f"analysis theses[{index}] cites absent V2 perimeters: {unsupported}"
+            )
+        result.append({"lead": lead, "rest": rest})
+    return result
 
 
 def _strip_json_fence(value: str) -> str:
@@ -139,6 +170,7 @@ def validate_v2_analysis(
             "signal": str(raw["signal"]).strip(),
             "why_agpm": str(raw["why_agpm"]).strip(),
             "watch_next": str(raw["watch_next"]).strip(),
+            "theses": _validate_theses(raw.get("theses"), materials=materials),
             "evidence_material_ids": evidence_ids,
             "evidence_titles": [str(included[item_id]["title"]) for item_id in evidence_ids],
             "input_content_hash": content_hash,
@@ -174,13 +206,15 @@ def generate_v2_analysis(
         "Ты аналитик AgPM Radar V2. Сформируй подробный дневной разбор на русском языке.\n"
         "Опирайся только на материалы из входного JSON. Не упоминай исключённые или внешние "
         "материалы и не придумывай факты.\n"
-        "Не заменяй четыре формальных тезиса: это отдельный раскрываемый аналитический блок.\n"
-        "Верни только JSON с полями signal, why_agpm, watch_next, "
+        "Сформируй также ровно четыре коротких тезиса по финальному составу V2. "
+        "Не упоминай периметр, которого нет во входном списке.\n"
+        "Верни только JSON с полями signal, why_agpm, watch_next, theses, "
         "evidence_material_ids, input_content_hash.\n"
         "signal и why_agpm должны быть развёрнутыми: по 3–5 связных абзацев и не менее "
         "1 200 знаков каждый. Раскрой управленческий смысл для AgPM, PMO, ИСУП, governance, "
         "рисков и операционной модели. Отделяй факты источников от аналитических выводов.\n"
         "watch_next: 2–4 предложения о том, что проверять в следующих выпусках. "
+        "theses: массив ровно из четырёх объектов с непустыми полями lead и rest. "
         "evidence_material_ids: 2–10 идентификаторов только из входного списка. "
         "Технические идентификаторы mat_* используй только в evidence_material_ids. "
         "В signal, why_agpm и watch_next называй материалы только по их точным "
