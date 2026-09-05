@@ -18,15 +18,50 @@ from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
 
-from tools.generate_v2_analysis import prompt_argv_overflow
+from tools.generate_v2_analysis import MAX_PROMPT_ARGV_BYTES, prompt_argv_overflow
 
 PRIMARY_MODEL = "openai/gpt-5.5"
 FALLBACK_MODEL = "openai/gpt-5.4"
-PROMPT_VERSION = "v2-period-analysis-ru-v1"
+PROMPT_VERSION = "v2-period-analysis-ru-v2"
 MAX_ATTEMPTS = 3
 TIMEOUT_SECONDS = 240
 PERIODS = ("7d", "30d")
 MARKER = "Период AgPM"
+
+#: How large a prompt may be built. The kernel refuses a single argument above
+#: `MAX_PROMPT_ARGV_BYTES`; a repair attempt appends the model's own rejection
+#: text, whose length nobody here chooses, so the reserve is taken up front.
+#: `prompt_argv_overflow` stays the last line of defence.
+PROMPT_BUDGET_BYTES = MAX_PROMPT_ARGV_BYTES - 8_192
+
+#: How much of one material may travel, in rungs of (description, AgPM angle).
+#: The former context took the first sixty materials and stopped there: the
+#: 30-day window on 2026-09-05 held 196, and 136 of them - the whole far
+#: perimeter and everything older - the model never saw at all, while the
+#: theses promised a month. The owner's decision of 2026-09-05: the whole
+#: window travels, and it is each material that gets shorter.
+#:
+#: The angle runs out before the description and disappears on the narrow
+#: rungs. The description carries the fact the material is in the window for;
+#: the angle is interpretation, and producing it is the model's own job rather
+#: than a retelling of somebody else's.
+#:
+#: The rungs are deliberately close together. With coarse ones the 30-day
+#: window landed on 120 characters and left a third of the budget unspent;
+#: measured 2026-09-05 against the production release, 196 materials.
+TEXT_CAPS = (
+    (700, 350),
+    (500, 250),
+    (360, 180),
+    (260, 130),
+    (200, 0),
+    (160, 0),
+    (120, 0),
+    (80, 0),
+    (0, 0),
+)
+
+_PERIMETER_ORDER = {"near": 0, "mid": 1, "far": 2}
 
 
 class PeriodAnalysisError(RuntimeError):
@@ -116,40 +151,135 @@ def _window_documents(
     return documents
 
 
-def _context(documents: list[JsonObject], period: str, anchor: str) -> JsonObject:
-    materials: list[dict[str, object]] = []
+def _shorten(value: object, cap: int) -> str:
+    """One material's text under a ceiling, cut on a word boundary.
+
+    A word cut in half reads to a model as a fact that is not there; the
+    ellipsis says the text continues, and the prompt forbids completing it.
+    """
+    text = " ".join(str(value or "").split())
+    if cap <= 0 or not text:
+        return ""
+    if len(text) <= cap:
+        return text
+    cut = text[:cap]
+    space = cut.rfind(" ")
+    if space > cap // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,.;:—-") + "…"
+
+
+def _material_rows(documents: list[JsonObject]) -> list[dict[str, object]]:
+    """Every material of the window, ordered by what the theses need first.
+
+    Near perimeter before far, newer before older inside a perimeter, and the
+    title breaks ties: the order has to be deterministic, because the prompt is
+    retained beside the answer and is what a later check reads.
+    """
+    rows: list[dict[str, object]] = []
     for document in documents:
         for raw in cast(list[dict[str, object]], document["materials"]):
-            materials.append(
+            rows.append(
                 {
                     "issueDate": document["issueDate"],
                     "title": raw["title"],
-                    "summary": raw.get("llmShortText") or raw.get("summary") or raw.get("brief"),
-                    "agpmAngle": raw.get("llmAgpmAngle") or raw.get("agpmTakeaway"),
+                    "text": raw.get("llmShortText") or raw.get("summary") or raw.get("brief") or "",
+                    "angle": raw.get("llmAgpmAngle") or raw.get("agpmTakeaway") or "",
                     "perimeter": raw["perimeter"],
                     "rubrics": raw["rubrics"],
                     "sourceName": raw["sourceName"],
                 }
             )
-    total = len(materials)
-    materials.sort(
+    rows.sort(
         key=lambda item: (
-            {"near": 0, "mid": 1, "far": 2}.get(str(item["perimeter"]), 3),
+            _PERIMETER_ORDER.get(str(item["perimeter"]), 3),
             -date.fromisoformat(str(item["issueDate"])).toordinal(),
+            str(item["title"]),
         )
     )
-    sample = materials[:60]
+    return rows
+
+
+def _context(
+    rows: list[dict[str, object]],
+    period: str,
+    anchor: str,
+    *,
+    issue_count: int,
+    caps: tuple[int, int],
+    total: int,
+) -> JsonObject:
+    """The window as the model will see it: every material, texts under `caps`."""
+    text_cap, angle_cap = caps
+    materials: list[dict[str, object]] = []
+    for row in rows:
+        material: dict[str, object] = {
+            "issueDate": row["issueDate"],
+            "title": row["title"],
+            "perimeter": row["perimeter"],
+            "rubrics": row["rubrics"],
+        }
+        summary = _shorten(row["text"], text_cap)
+        angle = _shorten(row["angle"], angle_cap)
+        # An empty field is bytes that say nothing and an invitation to decide
+        # the material is empty. It is simply absent instead.
+        if summary:
+            material["summary"] = summary
+        if angle:
+            material["agpmAngle"] = angle
+        materials.append(material)
     return cast(
         JsonObject,
         {
             "anchorDate": anchor,
-            "issueCount": len(documents),
+            "angleCap": angle_cap,
+            "issueCount": issue_count,
             "materialCount": total,
-            "materials": sample,
+            "materials": materials,
+            "omittedMaterialCount": total - len(materials),
             "period": period,
-            "sampledMaterialCount": len(sample),
+            "shownMaterialCount": len(materials),
+            "textCap": text_cap,
         },
     )
+
+
+def _fit_context(
+    documents: list[JsonObject],
+    period: str,
+    anchor: str,
+    previous: list[JsonObject] | None,
+) -> JsonObject:
+    """The most detailed context that still fits one command-line argument.
+
+    Texts shrink first, down to titles alone. Only if the titles of the whole
+    window do not fit either - which takes hundreds of materials - is the
+    window cut from the end of the priority order, and the number dropped goes
+    into the metadata: a prompt that silently showed a part would misstate what
+    the theses rest on.
+    """
+    rows = _material_rows(documents)
+    total = len(rows)
+    issue_count = len(documents)
+
+    def fits(context: JsonObject) -> bool:
+        return len(_prompt(context, period, previous).encode("utf-8")) <= PROMPT_BUDGET_BYTES
+
+    context = _context(rows, period, anchor, issue_count=issue_count, caps=(0, 0), total=total)
+    for caps in TEXT_CAPS:
+        candidate = _context(rows, period, anchor, issue_count=issue_count, caps=caps, total=total)
+        if fits(candidate):
+            return candidate
+        context = candidate
+    shown = total
+    while shown > 1:
+        shown = max(1, shown * 3 // 4)
+        context = _context(
+            rows[:shown], period, anchor, issue_count=issue_count, caps=(0, 0), total=total
+        )
+        if fits(context):
+            return context
+    return context
 
 
 def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None) -> str:
@@ -160,6 +290,30 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
         else "Найди устойчивые паттерны и структурные сдвиги: повторяемость сигналов, зрелость практик, "
         "накопленные риски и последствия для операционной модели AgPM, PMO и ИСУП."
     )
+    shown = int(cast(int, context["shownMaterialCount"]))
+    total = int(cast(int, context["materialCount"]))
+    cap = int(cast(int, context["textCap"]))
+    # The prompt says what it carries. A model that was not told a text is cut
+    # completes it, and writes the completion down as a fact.
+    if cap:
+        angle_cap = int(cast(int, context["angleCap"]))
+        carried = (
+            f"Материалов в окне {total}, все они ниже. Описания обрезаны до {cap} знаков"
+            + (f", выводы — до {angle_cap}" if angle_cap else ", выводов для AgPM нет")
+            + "; многоточие в конце значит, что текст продолжается. "
+            "Не достраивай обрезанное и не выдавай обрывок за законченную мысль.\n"
+        )
+    else:
+        carried = (
+            f"Материалов в окне {total}, все они ниже — заголовками, без текстов: окно "
+            "слишком велико, чтобы тексты поместились. Опирайся на состав и повторяемость "
+            "тем, а не на содержание отдельного материала.\n"
+        )
+    if shown != total:
+        carried += (
+            f"Показано {shown} из {total}: остальные не поместились. Не утверждай ничего "
+            "о материалах, которых здесь нет.\n"
+        )
     distinction = ""
     if previous:
         distinction = (
@@ -171,6 +325,7 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
     return (
         "Ты аналитик AgPM Radar V2. Подготовь четыре доказательных управленческих тезиса на русском языке.\n"
         f"{task}\n"
+        f"{carried}"
         "Опирайся только на входные данные. Не перечисляй новости по одной, не добавляй внешние факты и "
         "не используй универсальные заготовки. Каждый rest должен показывать опору в корпусе окна и значение "
         "для агентного управления проектами.\n"
@@ -200,11 +355,16 @@ def _fallback(period: str, context: JsonObject, error: str, *, attempts: int) ->
         {
             "attempts": attempts,
             "error": error,
+            "issueCount": context["issueCount"],
+            "materialCount": count,
             "model": "rules-period-v2",
             "period": period,
             "promptVersion": PROMPT_VERSION,
             "provider": "fallback",
+            "shownMaterialCount": context["shownMaterialCount"],
             "status": "fallback",
+            "textCap": context["textCap"],
+            "angleCap": context["angleCap"],
             "theses": theses,
         },
     )
@@ -222,7 +382,7 @@ def generate_period(
     documents = _window_documents(
         database, anchor=anchor, period=period, current_issue=current_issue
     )
-    context = _context(documents, period, anchor)
+    context = _fit_context(documents, period, anchor, previous)
     root = artifacts_root / period
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     failures: list[str] = []
@@ -299,7 +459,10 @@ def generate_period(
                     "period": period,
                     "promptVersion": PROMPT_VERSION,
                     "provider": "openai",
+                    "angleCap": context["angleCap"],
+                    "shownMaterialCount": context["shownMaterialCount"],
                     "status": "success",
+                    "textCap": context["textCap"],
                     "theses": cast(list[object], theses),
                 },
             )
