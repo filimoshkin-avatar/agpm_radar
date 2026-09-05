@@ -19,6 +19,7 @@ from apps.api.service import ApiResponse, RadarApi
 _MAX_STATIC_BYTES: Final = 8 * 1024 * 1024
 _GAZETTE_PERIOD: Final = re.compile(r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
 _SPA_ISSUE: Final = re.compile(r"^/issues/[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+_ISO_DATE: Final = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _NO_STORE: Final = (("Cache-Control", "no-store"),)
 _IMMUTABLE_CACHE: Final = (("Cache-Control", "public, max-age=31536000, immutable"),)
 _SECURITY_HEADERS: Final = (
@@ -320,7 +321,19 @@ class RadarApplication:
         spa_route = parsed.path in {"/", "/gazettes", "/issues", "/search"} or (
             _SPA_ISSUE.fullmatch(parsed.path) is not None
         )
-        if not spa_route or query:
+        if not spa_route:
+            return _not_found()
+        # `/issues/<date>` is the address of an issue. `/?date=<date>` is the
+        # same address in the form every daily notification sent before
+        # 2026-09-05 carries, and the frontend reads it and replaces it; the
+        # service has to answer it too, or the one URL a reader was handed is
+        # a 404 from whichever layer answers first. Nothing else may carry a
+        # query on an SPA route.
+        if query and not (
+            parsed.path == "/"
+            and set(query) == {"date"}
+            and _ISO_DATE.fullmatch(query["date"]) is not None
+        ):
             return _not_found()
         try:
             body = _read_static(self.web_root, "index.html")

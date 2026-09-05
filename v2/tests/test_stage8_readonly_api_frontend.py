@@ -702,6 +702,14 @@ def test_spa_assets_gazette_and_missing_routes_are_separate(
     gazette = application.handle("GET", "/gazettes/2026-08/")
     assert gazette.status == 200
     assert b"Published gazette" in gazette.body
+    # The address an already-sent notification carries: the frontend reads it
+    # and replaces it with /issues/<date>, and the service must not 404 it.
+    legacy_link = application.handle("GET", "/?date=2026-08-20")
+    assert legacy_link.status == 200
+    assert b'<main id="top"' in legacy_link.body
+    assert application.handle("GET", "/?date=20260820").status == 404
+    assert application.handle("GET", "/?date=2026-08-20&extra=1").status == 404
+    assert application.handle("GET", "/issues/2026-08-20?date=2026-08-20").status == 404
     assert "script-src 'none'" in dict(gazette.headers)["Content-Security-Policy"]
 
     (period_root / "unlisted.txt").write_text("must not be served", encoding="utf-8")

@@ -130,7 +130,7 @@ lines = [
     f"Вердикт сверки: {verdict_status}.",
     verdict_line,
     "",
-    f"Выпуск: https://radar.agpm.space/?date={issue_date}",
+    f"Выпуск: https://radar.agpm.space/issues/{issue_date}",
     f"API: https://radar.agpm.space/api/issues/{issue_date}",
 ]
 

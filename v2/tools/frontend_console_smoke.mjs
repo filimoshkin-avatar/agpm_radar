@@ -40,6 +40,27 @@ const requests = [];
 const documentHandlers = new Map();
 process.on("unhandledRejection", error => unhandled.push(error));
 
+// A reader arriving by link: the address names a past issue, and the page must
+// open that issue - and write its canonical address back. Until 05.09.2026 the
+// address was never read, and the daily notification's link opened the latest.
+const deepLink = process.argv.includes("--deep-link");
+// The already-sent form: every daily notification before 05.09.2026 links with
+// `?date=`. It must open its issue and leave the canonical address behind it.
+const LINKED_DATE = "2026-08-20";
+const historyCalls = [];
+const windowHandlers = new Map();
+const fakeLocation = {
+  hash: "",
+  hostname: "radar.test",
+  origin: "https://radar.test",
+  pathname: "/",
+  port: "",
+  search: deepLink ? `?date=${LINKED_DATE}` : "",
+};
+const fakeHistory = {
+  pushState(_state, _title, url) { historyCalls.push(["pushState", url]); },
+  replaceState(_state, _title, url) { historyCalls.push(["replaceState", url]); },
+};
 globalThis.HTMLElement = FakeElement;
 globalThis.document = {
   body: new FakeElement("body"),
@@ -50,12 +71,9 @@ globalThis.document = {
 };
 globalThis.localStorage = { getItem() { return null; }, setItem() {} };
 globalThis.window = {
-  location: {
-    hash: "",
-    hostname: "radar.test",
-    origin: "https://radar.test",
-    port: "",
-  },
+  addEventListener(event, handler) { windowHandlers.set(event, handler); },
+  history: fakeHistory,
+  location: fakeLocation,
   matchMedia() { return { matches: true }; },
   open() { return null; },
   setTimeout,
@@ -162,6 +180,7 @@ globalThis.fetch = async raw => {
   }
   else if (path.startsWith("/api/sources")) payload = [];
   else if (path.startsWith("/api/issues?") || path === "/api/issues") payload = { items: [], nextCursor: null };
+  else if (path === `/api/issues/${LINKED_DATE}`) payload = { ...issue, issueDate: LINKED_DATE, title: "Выпуск по ссылке" };
   else if (path === "/api/stats?period=7d") payload = { adjacent: 5, core: 7, cut: 109, far: 4, included: 12, mid: 5, near: 3, viewed: 121 };
   else if (path.startsWith("/api/materials") || path.startsWith("/api/search")) {
     const cursor = new URL(`https://radar.test${path}`).searchParams.get("cursor");
@@ -181,6 +200,41 @@ if (unhandled.length || !elements.get("issueDate").textContent || !elements.get(
 
 if (requests.some(path => path.includes("period=7d"))) {
   throw new Error("7d requests occurred before the period was selected");
+}
+
+if (deepLink) {
+  if (!requests.includes(`/api/issues/${LINKED_DATE}`)) {
+    throw new Error("the linked issue was never requested: the address was not read");
+  }
+  // `?date=` is answered and then replaced, not pushed: arriving somewhere is
+  // not a step the back button should have to walk back through.
+  if (JSON.stringify(historyCalls) !== JSON.stringify([["replaceState", `/issues/${LINKED_DATE}`]])) {
+    throw new Error(`the canonical address was not written back once: ${JSON.stringify(historyCalls)}`);
+  }
+  const linkedLabel = elements.get("issueDate").textContent;
+  // And back: the address returns to `/`, so the latest issue returns with it.
+  fakeLocation.search = "";
+  fakeLocation.pathname = "/";
+  windowHandlers.get("popstate")?.({});
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const backLabel = elements.get("issueDate").textContent;
+  if (!windowHandlers.has("popstate")) {
+    throw new Error("nothing listens for the back button");
+  }
+  if (backLabel === linkedLabel) {
+    throw new Error(`the back button did not leave the linked issue: still "${backLabel}"`);
+  }
+  if (historyCalls.length !== 1) {
+    throw new Error(`walking back wrote a new address: ${JSON.stringify(historyCalls)}`);
+  }
+  if (unhandled.length) {
+    throw new Error(`deep-link smoke failed: ${unhandled.map(String).join("; ")}`);
+  }
+  process.stdout.write("Frontend console smoke: PASS (a link opens its own issue, back returns)\n");
+  process.exit(0);
+}
+if (historyCalls.length) {
+  throw new Error(`the latest issue must stay at / without writing an address: ${JSON.stringify(historyCalls)}`);
 }
 
 // The analysis block: the analysis's own headline (never the issue brief),

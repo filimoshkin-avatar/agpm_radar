@@ -272,6 +272,56 @@ function activeIssueDate() {
   return state.issueDate || latest?.issue?.issue_date || null;
 }
 
+/* ── Адрес выпуска ──────────────────────────────────────────────────────
+ *
+ * Ссылка на выпуск — `/issues/<дата>`. `?date=<дата>` принимается ради
+ * уведомлений, которые уже разосланы с ним, и на месте заменяется
+ * каноническим адресом. До 05.09.2026 фронт не читал адрес вовсе: суточное
+ * уведомление обещало выпуск, а открывался последний, и поделиться выпуском
+ * было нечем — календарь менял экран, не адрес.
+ *
+ * Последний выпуск живёт по `/`, без собственного адреса: ссылка на «сегодня»
+ * не должна завтра вести во вчера. Периоды 7 и 30 дней адреса тоже не имеют. */
+const ISSUE_PATH = /^\/issues\/(\d{4}-\d{2}-\d{2})\/?$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function routeIssueDate() {
+  try {
+    const found = ISSUE_PATH.exec(String(window.location.pathname || ""));
+    if (found) return found[1];
+    const asked = new URLSearchParams(String(window.location.search || "")).get("date");
+    return asked && ISO_DATE.test(asked) ? asked : null;
+  } catch {
+    return null; // адреса нет — открывается последний выпуск
+  }
+}
+
+function issuePath() {
+  const date = state.period === "issue" ? state.issueDate : null;
+  return date && date !== latest?.issue?.issue_date ? `/issues/${date}` : "/";
+}
+
+function syncIssueAddress(replace = false) {
+  try {
+    const target = issuePath();
+    const current = String(window.location.pathname || "") + String(window.location.search || "");
+    if (target === current) return;
+    window.history[replace ? "replaceState" : "pushState"]({ issueDate: state.issueDate }, "", target);
+  } catch {
+    /* адреса нет — экран меняется, строка адреса остаётся */
+  }
+}
+
+// Кнопка «назад» возвращает выпуск, адрес которого только что ушёл из строки.
+window.addEventListener?.("popstate", () => {
+  const wanted = routeIssueDate();
+  state.period = "issue";
+  state.issueDate = wanted && wanted !== latest?.issue?.issue_date ? wanted : null;
+  document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === "issue"));
+  if (state.viewMode !== "radar") setViewMode("radar");
+  reload().catch(error => apiError(error.message));
+});
+
 function yesterdayIssueDate() {
   return shiftDate(latest?.issue?.issue_date, -1);
 }
@@ -990,7 +1040,10 @@ function renderFooterMethod(stats) {
   if (!node) return;
   node.innerHTML = [
     `<span>ПРОСМОТРЕНО ${stats.viewed || 0} → ВКЛЮЧЕНО ${stats.included || 0}</span>`,
-    `<span>ОТСЕЧЕНО ${stats.cut || 0} · ДУБЛИ, РЕКЛАМА, AGENT-WASHING</span>`,
+    // Всё, что не вошло: редакционный отброс Legacy (дубли, реклама, шум),
+    // материалы вне 30-дневного окна V2 и исключённые вручную. Число —
+    // `viewed − included`, и подпись обязана называть все его причины.
+    `<span>ОТСЕЧЕНО ${stats.cut || 0} · РЕДАКЦИЯ, ОКНО 30 ДНЕЙ, ВРУЧНУЮ</span>`,
     `<span>ПЕРИМЕТРЫ: Б ${stats.near || 0} · С ${stats.mid || 0} · Д ${stats.far || 0}</span>`,
   ].join("");
 }
@@ -1794,8 +1847,14 @@ async function init() {
     issue_llm_theses: latest.issue_llm_theses,
     materials: latest.materials || [],
   });
-  setText("issueDate", issueLabel(latest.issue?.issue_date));
+  const wanted = routeIssueDate();
+  if (wanted && wanted !== latest.issue?.issue_date) {
+    state.period = "issue";
+    state.issueDate = wanted;
+  }
+  setText("issueDate", issueLabel(activeIssueDate()));
   await reload();
+  syncIssueAddress(true);
   loadTimeseriesData().catch(error => {
     console.warn("Radar timeseries unavailable after retries", error);
   });
@@ -1961,6 +2020,7 @@ document.addEventListener("click", event => {
     state.issueDate = button.dataset.period === "yesterday" ? yesterdayIssueDate() : null;
     document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn === button));
     reload();
+    syncIssueAddress();
   }
   if (button.dataset.perimeter) {
     state.perimeter = button.dataset.perimeter;
@@ -1980,6 +2040,7 @@ document.addEventListener("click", event => {
     // Ссылка на выпуск может быть нажата и вне радара: сначала показываем радар.
     if (state.viewMode !== "radar") setViewMode("radar");
     reload();
+    syncIssueAddress();
     scrollToNode(document.getElementById("columns"));
   }
   if (button.id === "resetFilters") {
@@ -3308,7 +3369,7 @@ async function chatGraphTurn(query, { follow = true } = {}) {
       && (String(query).includes("force=1") || (!isSubject && width >= 640))
       && (data.nodes || []).length <= 41;
     if (host) host.__chatWalk = true;
-    const drawn = wantCanvas && agentLinksGraphRender(data, host);
+    const drawn = wantCanvas && await agentLinksGraphRender(data, host);
     if (host) host.hidden = !drawn;
   } catch (error) {
     if (meta) meta.textContent = error.message;
@@ -3377,6 +3438,37 @@ function graphSelection(host, act) {
   };
 }
 
+/* ── Граф грузится, когда его открыли ───────────────────────────────────
+ *
+ * cytoscape весит 374 КБ — больше самого приложения — и ехал каждому
+ * читателю синхронным <script> перед app.mjs, задерживая радар ради вкладки,
+ * которую открывает один из многих. Теперь его просит первый мини-граф или
+ * вкладка «Граф», один раз; ошибка сети оставляет читателю список соседей,
+ * который и так рисуется всегда. Путь тот же, что был в index.html: он в
+ * матчере ассетов Caddy и в артефакте, версия — в имени файла. */
+const CYTOSCAPE_SRC = "/assets/vendor/cytoscape.3.30.4.min.js";
+let cytoscapeLoading = null;
+
+function loadCytoscape() {
+  if (typeof cytoscape === "function") return Promise.resolve(true);
+  if (cytoscapeLoading) return cytoscapeLoading;
+  cytoscapeLoading = new Promise(resolve => {
+    try {
+      const script = document.createElement("script");
+      script.src = CYTOSCAPE_SRC;
+      script.onload = () => resolve(typeof cytoscape === "function");
+      script.onerror = () => resolve(false);
+      document.head.appendChild(script);
+    } catch {
+      resolve(false); // консольный смоук: документа нет, есть список
+    }
+  }).then(loaded => {
+    if (!loaded) cytoscapeLoading = null; // следующая попытка — новый запрос
+    return loaded;
+  });
+  return cytoscapeLoading;
+}
+
 function chatMinisDestroy() {
   chatMinis.forEach(instance => {
     try {
@@ -3388,12 +3480,13 @@ function chatMinisDestroy() {
   chatMinis.clear();
 }
 
-function chatMiniGraph(index, host) {
+async function chatMiniGraph(index, host) {
   const turn = chatTurns[index];
   const evidence = Array.isArray(turn?.answered?.evidence) ? turn.answered.evidence : [];
   const openButton = claim =>
     `<button class="agent-turn__copy" type="button" data-open-links="${escapeHtml(claim || "")}">открыть в «Связях»</button>`;
-  if (typeof cytoscape !== "function") {
+  host.innerHTML = agentLoadingHtml("Загружаю граф…");
+  if (!(await loadCytoscape())) {
     host.innerHTML = `
       <p class="agent-waiting">Мини-граф здесь не рисуется, но соседей видно целиком.</p>
       <div class="chat-mini__foot">${openButton(chatTopClaim(evidence))}</div>`;
@@ -3935,8 +4028,8 @@ function agentGraphRoute(nodeId) {
   return `${parameter}=${encodeURIComponent(key)}`;
 }
 
-function agentLinksGraphRender(data, host) {
-  if (typeof cytoscape !== "function") return false;
+async function agentLinksGraphRender(data, host) {
+  if (!(await loadCytoscape())) return false;
   agentGraphDestroy();
   const nodes = data.nodes || [];
   const edges = data.edges || [];
@@ -4180,7 +4273,7 @@ async function agentLoadGraph(target, options = {}) {
     const wantCanvas = Boolean(host)
       && (options.forceCanvas || (!isSubject && width >= 640))
       && (data.nodes || []).length <= 41;
-    const drawn = wantCanvas && agentLinksGraphRender(data, host);
+    const drawn = wantCanvas && await agentLinksGraphRender(data, host);
     if (host) host.hidden = !drawn;
     if (host && isSubject && !options.forceCanvas) {
       box.insertAdjacentHTML("afterbegin",

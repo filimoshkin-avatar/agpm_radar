@@ -51,6 +51,9 @@ node tools/frontend_console_smoke.mjs --pre-contract
 # And a third: the rubrics endpoint answers 503. That panel is secondary, so
 # the issue must still render rather than fall to the error banner.
 node tools/frontend_console_smoke.mjs --rubrics-down
+# And a fourth: a reader arriving by /issues/<date> must get that issue, not
+# the latest - the address is read at boot and written back canonically.
+node tools/frontend_console_smoke.mjs --deep-link
 
 step "agent view console smoke"
 node tools/agent_console_smoke.mjs
