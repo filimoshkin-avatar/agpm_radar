@@ -41,7 +41,7 @@ The physical V1 schema consists of:
 - gazette metadata/assets;
 - final content release markers and application compatibility markers.
 
-FTS5 table `published_materials_fts` is derived only from versioned view `pub_search_documents_v1` with tokenizer `unicode61 remove_diacritics 2`. No triggers or delta operations target FTS virtual/internal tables. They are excluded from canonical hashing, rebuilt in deterministic order after every apply, and checked through projection count, FTS integrity and golden-query parity.
+~~FTS5 table `published_materials_fts` is derived only from versioned view `pub_search_documents_v1` with tokenizer `unicode61 remove_diacritics 2`. No triggers or delta operations target FTS virtual/internal tables. They are excluded from canonical hashing, rebuilt in deterministic order after every apply, and checked through projection count, FTS integrity and golden-query parity.~~ **Superseded by ADR-0014 (2026-09-05): both objects were removed by migration 0004. Search runs in the application, over the texts a card shows.**
 
 ### 3. Draft and published lifecycle
 
@@ -50,7 +50,7 @@ FTS5 table `published_materials_fts` is derived only from versioned view `pub_se
 - New V2 publication requires `publication_origin='v2'`, non-null `published_at` and `content_hash`.
 - A Legacy-imported public issue may have unknown original publication time. It is imported as `published` with `published_at=NULL`, `publication_origin='legacy_inferred'` and explicit provenance.
 - A draft is physically replicated to Local Ru only as part of a validated publisher operation.
-- Versioned `pub_*_v1` views must filter `lifecycle_status='published'` at the SQLite query boundary. API code may read only those views, `pub_health_v1` and derived published FTS; implementation should additionally install an SQLite authorizer when supported.
+- Versioned `pub_*_v1` views must filter `lifecycle_status='published'` at the SQLite query boundary. API code may read only those views and `pub_health_v1`; implementation should additionally install an SQLite authorizer when supported. (The derived published FTS named here was removed by ADR-0014.)
 - Material membership is represented by `issue_materials`; removing an item from one issue deletes/unpublishes that relation, not the global material row.
 - Historical correction overwrites the current issue state. Product revisions are not exposed. Before/after snapshots, delta, hashes, actor and reason are retained in external technical audit/backup artifacts.
 
@@ -79,7 +79,6 @@ Writers operate only on staging copies with `foreign_keys=ON`, `trusted_schema=O
 - have no `-wal`/`-shm` sidecars;
 - pass `integrity_check` and `foreign_key_check`;
 - have expected schema/application IDs;
-- have rebuilt FTS and search parity checks;
 - expose an expected logical state hash and file SHA-256.
 
 ### 6. Hash semantics
@@ -116,7 +115,6 @@ Large/raw evidence is stored outside SQLite and referenced by content-addressed 
 ### Costs
 
 - A staging-copy publisher and logical hasher are mandatory.
-- FTS must be rebuilt and checked after every content apply.
 - Cross-host activation needs explicit compensation/rollback states.
 - Exact SQLite runtime parity must be maintained in application releases.
 

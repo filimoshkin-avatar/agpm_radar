@@ -29,6 +29,7 @@ from apps.api import (
     SearchRateLimiter,
 )
 from apps.api.__main__ import _application_release_id
+from apps.api.database import PUBLIC_READ_OBJECTS
 from apps.api.http_server import RadarHttpServer, remote_key
 from apps.api.public_data import _card_search_text, _date_label, _shown_texts
 from packages.domain.snapshot import JsonObject
@@ -927,6 +928,22 @@ def test_active_release_file_remains_byte_stable_after_public_queries(
     assert not Path(f"{pointer.database_path}-wal").exists()
     assert not Path(f"{pointer.database_path}-shm").exists()
     assert not Path(f"{pointer.database_path}-journal").exists()
+
+
+def test_the_contract_and_the_authorizer_name_the_same_objects() -> None:
+    """Two texts of one rule, checked against each other.
+
+    `apiReadAllowlist` in the contract and `PUBLIC_READ_OBJECTS` in
+    apps/api/database.py both say what a public query may read, and the second
+    is what the SQLite authorizer actually enforces. Nothing compared them:
+    dropping a name from one and not the other would have gone unnoticed until
+    a reader hit either a 503 or an object the contract never allowed.
+    """
+    contract = cast(
+        dict[str, object],
+        yaml.safe_load(OPENAPI.parent.joinpath("sqlite-contract.yaml").read_text(encoding="utf-8")),
+    )
+    assert set(cast(list[str], contract["apiReadAllowlist"])) == PUBLIC_READ_OBJECTS
 
 
 def test_search_looks_only_at_the_texts_a_card_shows(

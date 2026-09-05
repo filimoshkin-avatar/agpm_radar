@@ -58,6 +58,11 @@ IPAddressAllow=localhost
 # One socket, named. `--host 127.0.0.1 --port 8765` is an argument and an
 # argument can be changed; this is the unit's own answer to what the service is
 # allowed to listen on.
+#
+# Stricter than the code on purpose, and the two are tied only here: `serve()`
+# in apps/api/http_server.py also accepts `::1` and `localhost`, and starting
+# with either of those against this line fails to bind rather than listening
+# somewhere nobody meant. Fail-closed, but invisible - hence this note.
 SocketBindDeny=any
 SocketBindAllow=ipv4:tcp:8765
 LimitNOFILE=4096
