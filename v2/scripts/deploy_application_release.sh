@@ -17,6 +17,12 @@ set -euo pipefail
 
 commit_ref="${1:?usage: deploy_application_release.sh <commit> [--web-only]}"
 web_only="${2:-}"
+# Опечатка в этом слове означала бы «выкатывай всё», то есть рестарт продовой
+# службы там, где просили только фронт.
+if [[ -n "$web_only" && "$web_only" != "--web-only" ]]; then
+  printf '[deploy] FAIL: unknown argument: %s\n' "$web_only" >&2
+  exit 2
+fi
 HOST="${RADAR_V2_HOST:-root@radar.agpm.space}"
 KEY="${RADAR_V2_SSH_KEY:-/root/.ssh/local_ru_admin}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -48,6 +54,14 @@ trap 'git -C "$REPO" worktree remove --force "$work/source" >/dev/null 2>&1 || t
 )
 (cd "$work/dist" && sha256sum -c radar-v2-application-release.tar.gz.sha256 >/dev/null)
 package_sha="$(cut -d' ' -f1 "$work/dist/radar-v2-application-release.tar.gz.sha256")"
+# До первой отправки: собранный `index.html` называет собранные ассеты. Правило
+# ломали трижды, последний раз пятью релизами подряд, и каждый раз его замечали
+# после выката. Здесь ещё ничего не выкачено.
+(cd "$work/source/v2" && python3 tools/check_asset_tokens.py >/dev/null) \
+  || die "собранный index.html называет не те ассеты — см. tools/check_asset_tokens.py"
+app_token="$(sha256sum "$work/source/v2/apps/web/app.mjs" | cut -c1-12)"
+css_token="$(sha256sum "$work/source/v2/apps/web/styles.css" | cut -c1-12)"
+say "asset tokens: app.mjs $app_token, styles.css $css_token"
 mkdir -p "$work/stage"
 tar -xzf "$work/dist/radar-v2-application-release.tar.gz" -C "$work/stage"
 (cd "$work/stage/radar-v2-application-release" && sha256sum -c checksums.sha256 >/dev/null)
@@ -62,7 +76,8 @@ scp -q -i "$KEY" -o BatchMode=yes \
   "$work/APPLICATION-RELEASE.json" \
   "$HOST:/var/lib/radar-v2/incoming/application/$rel/"
 
-ssh -i "$KEY" -o BatchMode=yes "$HOST" "REL='$rel' WEB_ONLY='$web_only' bash -s" <<'REMOTE'
+ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "REL='$rel' WEB_ONLY='$web_only' APP_TOKEN='$app_token' CSS_TOKEN='$css_token' bash -s" <<'REMOTE'
 set -euo pipefail
 say() { printf '[remote] %s\n' "$*"; }
 die() { printf '[remote] FAIL: %s\n' "$*" >&2; exit 1; }
@@ -120,17 +135,20 @@ if [[ "$WEB_ONLY" != "--web-only" ]]; then
   ln -sfn "$prev_api" "/opt/radar-v2-api/current.before-$REL"
   switch_pointer /opt/radar-v2-api/current "releases/$REL"
   systemctl restart radar-v2-api.service
-  sleep 2
-  if ! systemctl is-active --quiet radar-v2-api.service; then
+  # `Type=simple` объявляет службу активной сразу после форка, до bind, поэтому
+  # ждём ответа, а не состояния юнита. `|| true` обязательно: под `set -e`
+  # ненулевой код curl убивал скрипт прямо здесь — после переключения указателя
+  # и до единственного места, где написан откат.
+  health=""
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 2
+    health="$(curl -s --max-time 5 http://127.0.0.1:8765/api/health || true)"
+    [[ "$health" == *"\"applicationReleaseId\":\"$REL\""* ]] && break
+  done
+  if [[ "$health" != *"\"applicationReleaseId\":\"$REL\""* ]]; then
     switch_pointer /opt/radar-v2-api/current "$prev_api"
     systemctl restart radar-v2-api.service
-    die "radar-v2-api did not come up on $REL; pointer restored to $prev_api"
-  fi
-  health="$(curl -s --max-time 10 http://127.0.0.1:8765/api/health)"
-  if ! grep -q "\"applicationReleaseId\":\"$REL\"" <<<"$health"; then
-    switch_pointer /opt/radar-v2-api/current "$prev_api"
-    systemctl restart radar-v2-api.service
-    die "health does not name $REL: $health; pointer restored to $prev_api"
+    die "health does not name $REL after 20 s: ${health:-нет ответа}; pointer restored to $prev_api"
   fi
   say "api: $health"
   say "api rollback: ln -sfn $prev_api /opt/radar-v2-api/current.new && mv -T /opt/radar-v2-api/current.new /opt/radar-v2-api/current && systemctl restart radar-v2-api.service"
@@ -151,21 +169,30 @@ prev_web="$(readlink /srv/radar-v2.aipractice.space/current)"
 ln -sfn "$prev_web" "/srv/radar-v2.aipractice.space/current.before-$REL"
 switch_pointer /srv/radar-v2.aipractice.space/current "releases/$REL"
 say "web: current -> $(readlink /srv/radar-v2.aipractice.space/current)"
+# То, что видит вернувшийся читатель: индекс называет собранные токены, и оба
+# замороженных ассета по ним отвечают. Проверка стоит здесь, а не на стороне
+# оператора, потому что откат тут — одна строка и `prev_web` ещё в руках.
+served=""
+for _ in 1 2 3; do
+  served="$(curl -sS --max-time 15 https://radar.agpm.space/ || true)"
+  [[ "$served" == *"/assets/app.mjs?v=$APP_TOKEN"* ]] && break
+  sleep 2
+done
+web_fault=""
+[[ "$served" == *"/assets/app.mjs?v=$APP_TOKEN"* ]] || web_fault="index.html не называет app.mjs?v=$APP_TOKEN"
+[[ "$served" == *"/assets/styles.css?v=$CSS_TOKEN"* ]] || web_fault="${web_fault:-index.html не называет styles.css?v=$CSS_TOKEN}"
+for asset in "app.mjs?v=$APP_TOKEN" "styles.css?v=$CSS_TOKEN"; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://radar.agpm.space/assets/$asset" || true)"
+  [[ "$code" == "200" ]] || web_fault="${web_fault:-/assets/$asset отвечает ${code:-нет ответа}}"
+done
+if [[ -n "$web_fault" ]]; then
+  switch_pointer /srv/radar-v2.aipractice.space/current "$prev_web"
+  die "$web_fault; web pointer restored to $prev_web"
+fi
+say "web: reader gets app.mjs?v=$APP_TOKEN and styles.css?v=$CSS_TOKEN"
 say "web rollback: ln -sfn $prev_web /srv/radar-v2.aipractice.space/current.new && mv -T /srv/radar-v2.aipractice.space/current.new /srv/radar-v2.aipractice.space/current"
 rm -rf stage
 REMOTE
 
-# The reader's view: the served index names the new tokens and both frozen
-# assets answer under them.
-index="$(curl -s --max-time 15 https://radar.agpm.space/)"
-for asset in app.mjs styles.css; do
-  token="$(grep -o "/assets/$asset?v=[0-9a-f]*" <<<"$index" | head -1)"
-  [[ -n "$token" ]] || die "served index.html has no token for $asset"
-  local_token="/assets/$asset?v=$(sha256sum "$work/source/v2/apps/web/$asset" | cut -c1-12)"
-  [[ "$token" == "$local_token" ]] || die "served $token differs from built $local_token"
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://radar.agpm.space$token")"
-  [[ "$code" == "200" ]] || die "$token answers $code"
-  say "front: $token 200"
-done
-say "public health: $(curl -s --max-time 15 https://radar.agpm.space/api/health)"
+say "public health: $(curl -s --max-time 15 https://radar.agpm.space/api/health || true)"
 say "done: $rel"

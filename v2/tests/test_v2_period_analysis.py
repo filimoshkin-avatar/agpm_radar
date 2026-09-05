@@ -103,7 +103,9 @@ def test_an_over_long_prompt_falls_back_without_a_model_call(
     )
 
     assert result["status"] == "fallback"
-    assert result["attempts"] == 1
+    # Zero, not one: the model was never asked. `attempts` counts paid calls,
+    # and the owner counts them too.
+    assert result["attempts"] == 0
     assert "argv limit" in str(result["error"])
 
 

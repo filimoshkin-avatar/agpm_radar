@@ -284,29 +284,65 @@ function activeIssueDate() {
  * не должна завтра вести во вчера. Периоды 7 и 30 дней адреса тоже не имеют. */
 const ISSUE_PATH = /^\/issues\/(\d{4}-\d{2}-\d{2})\/?$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// Последний адрес, который эта страница показала сама. Хэша в нём нет: «#top»
+// у логотипа — тоже запись в истории, и без сравнения «назад» с неё сбрасывало
+// период на «Выпуск» и выкидывало читателя из «Газеты» на радар, хотя никакого
+// выпуска в этом шаге не было.
+let shownAddress = null;
+
+function currentAddress() {
+  return String(window.location.pathname || "") + String(window.location.search || "");
+}
+
+/** Календарная дата, а не только её форма: `2026-02-31` проходит регулярное
+ *  выражение и получает от API 400, а 400 — это не «выпуска нет», это бросок,
+ *  после которого баннер «API недоступен» переспрашивает тот же адрес каждые
+ *  пятнадцать секунд и радар не рисуется никогда. */
+function validIssueDate(value) {
+  return ISO_DATE.test(value) && dateUtc(value)?.toISOString().slice(0, 10) === value;
+}
 
 function routeIssueDate() {
   try {
     const found = ISSUE_PATH.exec(String(window.location.pathname || ""));
-    if (found) return found[1];
+    if (found) return validIssueDate(found[1]) ? found[1] : null;
     const asked = new URLSearchParams(String(window.location.search || "")).get("date");
-    return asked && ISO_DATE.test(asked) ? asked : null;
+    return asked && validIssueDate(asked) ? asked : null;
   } catch {
     return null; // адреса нет — открывается последний выпуск
   }
 }
 
+/** Адрес, за который отвечает переключение выпуска.
+ *
+ *  `/agent`, `/search` и `/gazettes` Caddy отдаёт намеренно, и синхронизация
+ *  выпуска не имеет права стирать адрес, который читателю дали для другого
+ *  экрана. Своими считаются только «/», «/?date=…» и «/issues/…». */
+function ownedAddress() {
+  const pathname = String(window.location.pathname || "");
+  if (ISSUE_PATH.test(pathname)) return true;
+  if (pathname !== "/") return false;
+  const keys = [...new URLSearchParams(String(window.location.search || "")).keys()];
+  return keys.length === 0 || (keys.length === 1 && keys[0] === "date");
+}
+
+// «Вчера» тоже называет точный выпуск, и адрес у неё выпускный: иначе на экране
+// стоял один выпуск, а в строке — другой, и F5 показывал не то, что было видно.
 function issuePath() {
-  const date = state.period === "issue" ? state.issueDate : null;
+  const date = ["issue", "yesterday"].includes(state.period) ? state.issueDate : null;
   return date && date !== latest?.issue?.issue_date ? `/issues/${date}` : "/";
 }
 
 function syncIssueAddress(replace = false) {
   try {
+    if (!ownedAddress()) return;
     const target = issuePath();
-    const current = String(window.location.pathname || "") + String(window.location.search || "");
-    if (target === current) return;
+    if (target === currentAddress()) {
+      shownAddress = target;
+      return;
+    }
     window.history[replace ? "replaceState" : "pushState"]({ issueDate: state.issueDate }, "", target);
+    shownAddress = target;
   } catch {
     /* адреса нет — экран меняется, строка адреса остаётся */
   }
@@ -314,6 +350,8 @@ function syncIssueAddress(replace = false) {
 
 // Кнопка «назад» возвращает выпуск, адрес которого только что ушёл из строки.
 window.addEventListener?.("popstate", () => {
+  if (!ownedAddress() || currentAddress() === shownAddress) return;
+  shownAddress = currentAddress();
   const wanted = routeIssueDate();
   state.period = "issue";
   state.issueDate = wanted && wanted !== latest?.issue?.issue_date ? wanted : null;
@@ -1774,7 +1812,7 @@ async function loadIssuePayload(issueDate) {
   if (issueCache.has(issueDate)) return issueCache.get(issueDate);
   const response = await fetch(`${API}/api/issues/${issueDate}`);
   if (response.status === 404) {
-    const empty = { issue: { issue_date: issueDate, theses: [] }, materials: [] };
+    const empty = { absent: true, issue: { issue_date: issueDate, theses: [] }, materials: [] };
     issueCache.set(issueDate, empty);
     return empty;
   }
@@ -1854,6 +1892,12 @@ async function init() {
   }
   setText("issueDate", issueLabel(activeIssueDate()));
   await reload();
+  // Ссылка на выпуск, которого нет: показываем последний и приводим адрес к
+  // нему. Пустой экран без единого слова о том, почему он пуст, — хуже.
+  if (state.issueDate && issueCache.get(state.issueDate)?.absent) {
+    state.issueDate = null;
+    await reload();
+  }
   syncIssueAddress(true);
   loadTimeseriesData().catch(error => {
     console.warn("Radar timeseries unavailable after retries", error);
@@ -3195,7 +3239,12 @@ document.getElementById("agentThread")?.addEventListener("click", event => {
     mini.classList.toggle("is-open", opening);
     if (opening && !host.dataset.drawn) {
       host.dataset.drawn = "1";
-      chatMiniGraph(Number(mini.dataset.graphMini), host);
+      // Отказ внутри — не молчаливый: без этого панель навсегда оставалась на
+      // «Загружаю граф…», а повторное открытие не пробовало снова.
+      chatMiniGraph(Number(mini.dataset.graphMini), host).catch(error => {
+        delete host.dataset.drawn;
+        host.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
+      });
     }
     return;
   }
@@ -3456,8 +3505,14 @@ function loadCytoscape() {
     try {
       const script = document.createElement("script");
       script.src = CYTOSCAPE_SRC;
-      script.onload = () => resolve(typeof cytoscape === "function");
-      script.onerror = () => resolve(false);
+      const done = loaded => {
+        // Неудавшийся тег снимается: иначе повторные отказы копят в <head> по
+        // тегу на попытку, все с одним и тем же src.
+        if (!loaded) script.remove?.();
+        resolve(loaded);
+      };
+      script.onload = () => done(typeof cytoscape === "function");
+      script.onerror = () => done(false);
       document.head.appendChild(script);
     } catch {
       resolve(false); // консольный смоук: документа нет, есть список

@@ -44,6 +44,13 @@ process.on("unhandledRejection", error => unhandled.push(error));
 // open that issue - and write its canonical address back. Until 05.09.2026 the
 // address was never read, and the daily notification's link opened the latest.
 const deepLink = process.argv.includes("--deep-link");
+// A link whose date is not a date: `2026-02-31` passes the shape and gets 400
+// from the API, and 400 is a throw, not «no such issue». Before the calendar
+// check the banner re-asked the same address every fifteen seconds for ever.
+const deadLink = process.argv.includes("--dead-link");
+// A link whose date is real but was never published: the reader gets the latest
+// issue and the address that names it, not a blank screen with no explanation.
+const absentLink = process.argv.includes("--absent-link");
 // The already-sent form: every daily notification before 05.09.2026 links with
 // `?date=`. It must open its issue and leave the canonical address behind it.
 const LINKED_DATE = "2026-08-20";
@@ -53,9 +60,9 @@ const fakeLocation = {
   hash: "",
   hostname: "radar.test",
   origin: "https://radar.test",
-  pathname: "/",
+  pathname: absentLink ? "/issues/2019-01-01" : "/",
   port: "",
-  search: deepLink ? `?date=${LINKED_DATE}` : "",
+  search: deepLink ? `?date=${LINKED_DATE}` : deadLink ? "?date=2026-02-31" : "",
 };
 const fakeHistory = {
   pushState(_state, _title, url) { historyCalls.push(["pushState", url]); },
@@ -181,6 +188,7 @@ globalThis.fetch = async raw => {
   else if (path.startsWith("/api/sources")) payload = [];
   else if (path.startsWith("/api/issues?") || path === "/api/issues") payload = { items: [], nextCursor: null };
   else if (path === `/api/issues/${LINKED_DATE}`) payload = { ...issue, issueDate: LINKED_DATE, title: "Выпуск по ссылке" };
+  else if (path === "/api/issues/2019-01-01") return { ok: false, status: 404, async json() { return {}; } };
   else if (path === "/api/stats?period=7d") payload = { adjacent: 5, core: 7, cut: 109, far: 4, included: 12, mid: 5, near: 3, viewed: 121 };
   else if (path.startsWith("/api/materials") || path.startsWith("/api/search")) {
     const cursor = new URL(`https://radar.test${path}`).searchParams.get("cursor");
@@ -200,6 +208,40 @@ if (unhandled.length || !elements.get("issueDate").textContent || !elements.get(
 
 if (requests.some(path => path.includes("period=7d"))) {
   throw new Error("7d requests occurred before the period was selected");
+}
+
+if (deadLink) {
+  // The address is refused before it becomes a request, so nothing throws and
+  // nothing is written back over it.
+  if (requests.some(path => path.startsWith("/api/issues/2026-"))) {
+    throw new Error(`a date that is not a date became a request: ${JSON.stringify(requests)}`);
+  }
+  // The address said an issue and named no date the calendar has, so the page
+  // shows the latest and the address is made to say that.
+  if (JSON.stringify(historyCalls) !== JSON.stringify([["replaceState", "/"]])) {
+    throw new Error(`a refused address did not land on /: ${JSON.stringify(historyCalls)}`);
+  }
+  if (unhandled.length || !elements.get("columns").innerHTML) {
+    throw new Error(`the page did not render: ${unhandled.map(String).join("; ")}`);
+  }
+  process.stdout.write("Frontend console smoke: PASS (a date that is not a date opens the latest)\n");
+  process.exit(0);
+}
+
+if (absentLink) {
+  if (!requests.includes("/api/issues/2019-01-01")) {
+    throw new Error("the linked issue was never asked for");
+  }
+  // 404 is not an error and not an empty screen: the latest issue, at its own
+  // address.
+  if (JSON.stringify(historyCalls) !== JSON.stringify([["replaceState", "/"]])) {
+    throw new Error(`a dead link did not land on /: ${JSON.stringify(historyCalls)}`);
+  }
+  if (unhandled.length || !elements.get("columns").innerHTML) {
+    throw new Error(`the page did not render: ${unhandled.map(String).join("; ")}`);
+  }
+  process.stdout.write("Frontend console smoke: PASS (a link to no issue opens the latest)\n");
+  process.exit(0);
 }
 
 if (deepLink) {
@@ -226,6 +268,16 @@ if (deepLink) {
   }
   if (historyCalls.length !== 1) {
     throw new Error(`walking back wrote a new address: ${JSON.stringify(historyCalls)}`);
+  }
+  // The logo is `<a href="#top">`: a fragment jump is a history entry too, and
+  // walking back off it used to reset the period to «Выпуск» and throw a reader
+  // out of the gazette onto the radar, with no issue involved at all.
+  const beforeAnchor = requests.length;
+  fakeLocation.hash = "#top";
+  windowHandlers.get("popstate")?.({});
+  await new Promise(resolve => setTimeout(resolve, 25));
+  if (requests.length !== beforeAnchor || historyCalls.length !== 1) {
+    throw new Error("walking back off an anchor reloaded the radar");
   }
   if (unhandled.length) {
     throw new Error(`deep-link smoke failed: ${unhandled.map(String).join("; ")}`);

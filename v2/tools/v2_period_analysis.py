@@ -386,6 +386,10 @@ def generate_period(
     root = artifacts_root / period
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     failures: list[str] = []
+    #: How many times the model was asked. Not the attempt number: an attempt
+    #: burnt on the argv ceiling never reaches the model, and "1 attempt" in the
+    #: owner's report would name a paid call that was never made.
+    calls = 0
     for attempt in range(1, MAX_ATTEMPTS + 1):
         model = PRIMARY_MODEL if attempt < MAX_ATTEMPTS else FALLBACK_MODEL
         repair = (
@@ -409,23 +413,32 @@ def generate_period(
             mode=0o600,
         )
         try:
-            completed = subprocess.run(
-                [
-                    "openclaw",
-                    "infer",
-                    "model",
-                    "run",
-                    "--model",
-                    model,
-                    "--json",
-                    "--prompt",
-                    prompt,
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=TIMEOUT_SECONDS,
-            )
+            calls += 1
+            try:
+                completed = subprocess.run(
+                    [
+                        "openclaw",
+                        "infer",
+                        "model",
+                        "run",
+                        "--model",
+                        model,
+                        "--json",
+                        "--prompt",
+                        prompt,
+                    ],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=TIMEOUT_SECONDS,
+                )
+            except OSError as error:
+                # The process could not be started: a missing binary, an argument
+                # the kernel refused. One failed attempt, like a hung model.
+                # Narrow, around this one call: in the broad `except` this also
+                # caught the artifact write, so a full disk after a good answer
+                # threw the finished theses away and bought two more.
+                raise PeriodAnalysisError(f"OpenClaw не удалось запустить: {error}") from error
             atomic_write_new(
                 root / f"response-attempt-{attempt}.json",
                 canonical_json_line(
@@ -448,7 +461,7 @@ def generate_period(
             result = cast(
                 JsonObject,
                 {
-                    "attempts": attempt,
+                    "attempts": calls,
                     "error": None,
                     "evidenceTitles": [
                         str(item["title"]) for item in cast(list[JsonObject], context["materials"])
@@ -469,13 +482,12 @@ def generate_period(
             atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
             return result
         except (
-            OSError,
             json.JSONDecodeError,
             PeriodAnalysisError,
             subprocess.TimeoutExpired,
         ) as error:
             failures.append(str(error))
-    result = _fallback(period, context, " | ".join(failures), attempts=len(failures))
+    result = _fallback(period, context, " | ".join(failures), attempts=calls)
     atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
     return result
 

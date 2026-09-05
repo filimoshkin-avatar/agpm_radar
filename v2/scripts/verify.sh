@@ -54,6 +54,11 @@ node tools/frontend_console_smoke.mjs --rubrics-down
 # And a fourth: a reader arriving by /issues/<date> must get that issue, not
 # the latest - the address is read at boot and written back canonically.
 node tools/frontend_console_smoke.mjs --deep-link
+# A date that is not a date, and a date that is real but never published: both
+# open the latest issue instead of locking the page in a retry loop or leaving
+# a blank screen.
+node tools/frontend_console_smoke.mjs --dead-link
+node tools/frontend_console_smoke.mjs --absent-link
 
 step "agent view console smoke"
 node tools/agent_console_smoke.mjs

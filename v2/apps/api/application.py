@@ -318,7 +318,9 @@ class RadarApplication:
                 cache=_IMMUTABLE_CACHE,
                 csp=_GAZETTE_CSP,
             )
-        spa_route = parsed.path in {"/", "/gazettes", "/issues", "/search"} or (
+        # The same list as Caddy's `@spa` matcher. The two texts of one rule
+        # had already drifted: Caddy served `/agent` and the application did not.
+        spa_route = parsed.path in {"/", "/agent", "/gazettes", "/issues", "/search"} or (
             _SPA_ISSUE.fullmatch(parsed.path) is not None
         )
         if not spa_route:

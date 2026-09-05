@@ -745,9 +745,37 @@ def test_the_chain_travels_with_the_counts_so_the_reader_can_check() -> None:
 
 
 def test_a_client_that_stops_talking_does_not_hold_a_thread_for_ever() -> None:
-    """The stdlib handler waits without limit unless a timeout is named."""
+    """A socket that goes quiet mid-request is closed, not waited on for ever.
+
+    Asserting `handler.timeout == 30.0` would have been a test of the constant
+    it reads: it stays green if `StreamRequestHandler` ever stops applying the
+    attribute, which is the whole of what this change relies on. So the test
+    connects, says nothing, and waits for the server to hang up.
+    """
+    import socket
+    import threading
+    from http.server import ThreadingHTTPServer
+
     from radar_kx.agent_api import AgentService, make_handler
 
     handler = make_handler(cast(AgentService, object()))
-
     assert handler.timeout == 30.0
+    handler.timeout = 0.3  # the same attribute, at test speed
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address[0], server.server_address[1]
+        client = socket.create_connection((str(host), int(port)), timeout=5)
+        try:
+            client.settimeout(5)
+            # Not one byte of a request line, and never any.
+            assert client.recv(1) == b""
+        finally:
+            client.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
