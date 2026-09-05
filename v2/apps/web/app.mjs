@@ -788,6 +788,9 @@ const GAZETTE_MONTHS = ["Январь", "Февраль", "Март", "Апре�
   "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const GAZETTE_MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн",
   "июл", "авг", "сен", "окт", "ноя", "дек"];
+// Два падежа, потому что две фразы: «следующий выпуск в октябре» под архивом и
+// «СЛЕДУЮЩИЙ — ОКТЯБРЬ» в шапке. Один список обслуживал обе, и шапка говорила
+// «СЛЕДУЮЩИЙ — ОКТЯБРЕ».
 const GAZETTE_MONTHS_IN = ["январе", "феврале", "марте", "апреле", "мае", "июне",
   "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"];
 let gazetteIssues = null;
@@ -810,9 +813,9 @@ function gazetteShortDate(publishedAt) {
 }
 
 /** Следующий номер — месяц после последнего, включая переход через год. */
-function gazetteNextMonth(period) {
+function gazetteNextMonth(period, months = GAZETTE_MONTHS) {
   const index = gazetteMonthIndex(period);
-  return index < 0 ? "" : GAZETTE_MONTHS_IN[(index + 1) % 12];
+  return index < 0 ? "" : months[(index + 1) % 12];
 }
 
 function gazetteRowHtml(item, ordinal, current) {
@@ -839,8 +842,8 @@ function renderGazetteArchive(items) {
   const foot = document.getElementById("gazetteArchiveFoot");
   if (!rows) return;
   if (!items.length) {
-    rows.innerHTML = `<div class="gazette-archive__foot">Опубликованных номеров пока нет.</div>`;
-    if (foot) foot.textContent = "";
+    rows.innerHTML = `<div class="gazette-archive__note">Опубликованных номеров пока нет.</div>`;
+    if (foot) foot.hidden = true;
     return;
   }
   // Список приходит от новых к старым, поэтому номер выпуска считается с конца.
@@ -848,10 +851,11 @@ function renderGazetteArchive(items) {
     .map((item, index) => gazetteRowHtml(item, items.length - index, index === 0))
     .join("");
   if (foot) {
-    const next = gazetteNextMonth(items[0].period);
+    const next = gazetteNextMonth(items[0].period, GAZETTE_MONTHS_IN);
     foot.textContent = next
-      ? `Архив пополняется по мере выхода номеров — следующий выпуск в ${next}.`
+      ? `Архив пополняется по мере выхода номеров — следующий выпуск в ${next.toLowerCase()}.`
       : "Архив пополняется по мере выхода номеров.";
+    foot.hidden = false;
   }
   const frame = document.querySelector(".gazette-frame");
   const first = items[0];
@@ -867,19 +871,32 @@ async function loadGazettes() {
   if (gazetteLoading) return gazetteLoading;
   gazetteLoading = (async () => {
     const rows = document.getElementById("gazetteArchiveRows");
-    if (rows) rows.innerHTML = `<div class="gazette-archive__foot">Загружаю архив…</div>`;
+    const foot = document.getElementById("gazetteArchiveFoot");
+    if (rows) rows.innerHTML = `<div class="gazette-archive__note">Загружаю архив…</div>`;
+    if (foot) foot.hidden = true;
     try {
-      const payload = await getJson("/api/gazettes?limit=100");
-      gazetteIssues = Array.isArray(payload.items) ? payload.items : [];
+      // Все страницы, а не первая: номер выпуска считается от конца списка, и
+      // недобранный хвост тихо сдвинул бы нумерацию.
+      const items = [];
+      let cursor = null;
+      do {
+        const query = cursor ? `?limit=100&cursor=${encodeURIComponent(cursor)}` : "?limit=100";
+        const payload = await getJson(`/api/gazettes${query}`);
+        items.push(...(Array.isArray(payload.items) ? payload.items : []));
+        cursor = payload.nextCursor || null;
+      } while (cursor && items.length < 1000);
+      gazetteIssues = items;
       renderGazetteArchive(gazetteIssues);
       return gazetteIssues;
     } catch (error) {
       gazetteLoading = null;
+      // Читателю — что случилось, а не код состояния и путь эндпоинта.
       if (rows) {
-        rows.innerHTML = `<div class="gazette-archive__foot">Архив недоступен: ${escapeHtml(error.message)}</div>`;
+        rows.innerHTML = `<div class="gazette-archive__note">Архив сейчас недоступен. Попробуйте обновить страницу.</div>`;
       }
       const status = document.getElementById("gazetteTopStatus");
       if (status) status.textContent = "АРХИВ НЕДОСТУПЕН";
+      console.warn("Radar gazettes unavailable", error);
       return [];
     }
   })();
@@ -927,8 +944,11 @@ function syncGazetteTopStatus() {
   const row = document.querySelector("[data-gazette-issue].is-current");
   const status = document.getElementById("gazetteTopStatus");
   if (!row || !status) return;
+  // Безусловно: условие «только если пусто» при зашитом в разметку месяце было
+  // ложно всегда, и кнопка навсегда оставалась на том номере, который кто-то
+  // однажды вписал руками.
   const button = document.querySelector("#gazetteIssue b");
-  if (button && !button.textContent) button.textContent = row.dataset.gazetteMonth || "";
+  if (button) button.textContent = row.dataset.gazetteMonth || "";
   const next = gazetteNextMonth(row.dataset.gazetteIssue);
   const parts = [
     "ТЕКУЩИЙ НОМЕР:",

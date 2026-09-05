@@ -33,10 +33,16 @@ _SPA_CSP: Final = (
     "font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
     "base-uri 'none'; form-action 'none'"
 )
+# `frame-ancestors 'self'`, not 'none': the gazette is shown on the front page
+# inside a same-origin `<iframe>`, and 'none' forbids exactly that. It is not
+# visible today because Caddy overwrites the header with its own - which is
+# precisely what made the line dangerous: drop the overriding header in the
+# belief that the application serves its own, and the section goes dark with no
+# code change at all. `font-src` keeps `data:`: an issue embeds its own faces.
 _GAZETTE_CSP: Final = (
     "default-src 'none'; script-src 'none'; style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-ancestors 'none'; "
-    "base-uri 'none'; form-action 'none'"
+    "img-src 'self' data:; font-src 'self' data:; connect-src 'none'; "
+    "frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
 )
 _CONTENT_TYPES: Final = {
     ".css": "text/css; charset=utf-8",

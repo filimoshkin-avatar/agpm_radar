@@ -48,5 +48,15 @@ def test_no_gazette_issue_is_shipped_with_the_application() -> None:
     assert not [path for path in WEB_PATHS if "/gazette-" in path], (
         "a gazette issue is back in the web role"
     )
+    import re
+
     html = (web / "index.html").read_text(encoding="utf-8")
-    assert "gazette-2026" not in html, "index.html names an issue instead of asking the API"
+    # A year inside the substring would blind this half of the gate from 2027.
+    assert not re.search(r"gazette-\d{8}", html), (
+        "index.html names an issue instead of asking the API"
+    )
+    # And no month typed in by hand: the archive button is filled from the API
+    # answer, and a month written into the markup would outlive every new issue.
+    assert re.search(r'id="gazetteIssue"[^>]*>\s*<i[^>]*></i>\s*<b></b>', html), (
+        "the archive button names a month instead of taking it from the API"
+    )

@@ -24,6 +24,13 @@ class FakeElement {
   insertAdjacentHTML(_where, html) { this.innerHTML += html; }
   scrollIntoView() {}
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  toggleAttribute(name, force) {
+    const on = force === undefined ? !this.attributes.has(name) : Boolean(force);
+    if (on) this.attributes.set(name, ""); else this.attributes.delete(name);
+    if (name === "hidden") this.hidden = on;
+    return on;
+  }
 }
 
 const ids = [
@@ -33,8 +40,14 @@ const ids = [
   "printGazetteTop", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
   "search", "sparkline", "theses", "thesesTitle", "trendBars",
   "trendRange", "viewed",
+  // The gazette section: its archive, its foot, its header line and the frame.
+  "gazetteArchive", "gazetteArchiveFoot", "gazetteArchiveRows", "gazetteIssue",
+  "gazetteTopStatus", "gazetteView", "agentView",
 ];
 const elements = new Map(ids.map(id => [id, new FakeElement()]));
+// `#gazetteIssue b` and `.gazette-frame` are reached by selector, not by id.
+const gazetteMonthButton = new FakeElement("b");
+const gazetteFrame = new FakeElement("iframe");
 const unhandled = [];
 const requests = [];
 const documentHandlers = new Map();
@@ -48,6 +61,24 @@ const deepLink = process.argv.includes("--deep-link");
 // from the API, and 400 is a throw, not «no such issue». Before the calendar
 // check the banner re-asked the same address every fifteen seconds for ever.
 const deadLink = process.argv.includes("--dead-link");
+// The gazette section: the archive, the header line and the frame all come from
+// /api/gazettes now, and not one line of that code ran in any smoke before.
+const gazetteRun = process.argv.includes("--gazette");
+
+/** The archive row the module has just rendered, as the delegation sees it.
+ *
+ *  The module writes the rows as markup, so this reads them back out of it the
+ *  way a browser would: the dataset the handlers use, and nothing else. */
+function currentGazetteRow() {
+  const html = elements.get("gazetteArchiveRows").innerHTML;
+  const block = html.split("<button").find(part => part.includes("is-current"));
+  if (!block) return null;
+  const dataset = {};
+  for (const [, name, value] of block.matchAll(/data-gazette-([a-z]+)="([^"]*)"/g)) {
+    dataset[`gazette${name[0].toUpperCase()}${name.slice(1)}`] = value;
+  }
+  return { dataset, classList: { toggle() {} }, setAttribute() {} };
+}
 // A link whose date is real but was never published: the reader gets the latest
 // issue and the address that names it, not a blank screen with no explanation.
 const absentLink = process.argv.includes("--absent-link");
@@ -73,7 +104,13 @@ globalThis.document = {
   body: new FakeElement("body"),
   addEventListener(event, handler) { documentHandlers.set(event, handler); },
   getElementById(id) { return elements.get(id) || null; },
-  querySelector(selector) { return selector.startsWith("#") ? elements.get(selector.slice(1)) || null : null; },
+  querySelector(selector) {
+    if (selector === "#gazetteIssue b") return gazetteMonthButton;
+    if (selector === ".gazette-frame") return gazetteFrame;
+    if (selector === "[data-gazette-issue].is-current") return currentGazetteRow();
+    if (selector.startsWith("#")) return elements.get(selector.slice(1)) || null;
+    return null;
+  },
   querySelectorAll() { return []; },
 };
 globalThis.localStorage = { getItem() { return null; }, setItem() {} };
@@ -189,6 +226,23 @@ globalThis.fetch = async raw => {
   else if (path.startsWith("/api/issues?") || path === "/api/issues") payload = { items: [], nextCursor: null };
   else if (path === `/api/issues/${LINKED_DATE}`) payload = { ...issue, issueDate: LINKED_DATE, title: "Выпуск по ссылке" };
   else if (path === "/api/issues/2019-01-01") return { ok: false, status: 404, async json() { return {}; } };
+  else if (path.startsWith("/api/gazettes")) {
+    payload = {
+      items: [
+        {
+          id: "gaz_september", period: "2026-09", publishedAt: "2026-09-01T00:00:00Z",
+          title: "Новости Агентного управления — Вторник, 1 сентября 2026",
+          url: "/gazettes/2026-09/index-f2c01bd05f84.html",
+        },
+        {
+          id: "gaz_august", period: "2026-08", publishedAt: "2026-08-03T00:00:00Z",
+          title: "Новости Агентного управления — Понедельник, 3 августа 2026",
+          url: "/gazettes/2026-08/index-924fc60f06c8.html",
+        },
+      ],
+      nextCursor: null,
+    };
+  }
   else if (path === "/api/stats?period=7d") payload = { adjacent: 5, core: 7, cut: 109, far: 4, included: 12, mid: 5, near: 3, viewed: 121 };
   else if (path.startsWith("/api/materials") || path.startsWith("/api/search")) {
     const cursor = new URL(`https://radar.test${path}`).searchParams.get("cursor");
@@ -208,6 +262,53 @@ if (unhandled.length || !elements.get("issueDate").textContent || !elements.get(
 
 if (requests.some(path => path.includes("period=7d"))) {
   throw new Error("7d requests occurred before the period was selected");
+}
+
+if (gazetteRun) {
+  // Reading the section is what loads it: the frame carried a `src` in the
+  // markup before, so three hundred kilobytes reached readers who never opened
+  // the gazette.
+  if (requests.some(path => path.startsWith("/api/gazettes"))) {
+    throw new Error("the archive was fetched before the section was opened");
+  }
+  const modeButton = { dataset: { viewMode: "gazette" }, classList: { toggle() {} } };
+  documentHandlers.get("click")({ target: { closest() { return modeButton; } } });
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  if (!requests.some(path => path.startsWith("/api/gazettes"))) {
+    throw new Error("opening the gazette did not ask the API for the archive");
+  }
+  const archive = elements.get("gazetteArchiveRows").innerHTML;
+  if (!archive.includes("Сентябрь 2026") || !archive.includes("Август 2026")) {
+    throw new Error(`the archive did not render both issues: ${archive.slice(0, 200)}`);
+  }
+  if (!archive.includes("1 сен · Том I · № 2") || !archive.includes("3 авг · Том I · № 1")) {
+    throw new Error("the archive rows lost their date, volume or number");
+  }
+  if (!archive.includes('data-gazette-url="/gazettes/2026-09/index-f2c01bd05f84.html"')) {
+    throw new Error("the archive row does not carry the address the API gave");
+  }
+  if (gazetteFrame.getAttribute("src") !== "/gazettes/2026-09/index-f2c01bd05f84.html") {
+    throw new Error(`the frame opened ${gazetteFrame.getAttribute("src")}`);
+  }
+  // The header names the current issue and the month after it, in the nominative:
+  // «СЛЕДУЮЩИЙ — ОКТЯБРЕ» was what one list for two grammatical cases produced.
+  const status = elements.get("gazetteTopStatus").textContent;
+  if (status !== "ТЕКУЩИЙ НОМЕР: № 2 · СЕНТЯБРЬ 2026 · СЛЕДУЮЩИЙ — ОКТЯБРЬ") {
+    throw new Error(`the header line reads "${status}"`);
+  }
+  if (gazetteMonthButton.textContent !== "Сентябрь 2026") {
+    throw new Error(`the archive button reads "${gazetteMonthButton.textContent}"`);
+  }
+  const foot = elements.get("gazetteArchiveFoot").textContent;
+  if (!foot.includes("следующий выпуск в октябре")) {
+    throw new Error(`the archive foot reads "${foot}"`);
+  }
+  if (unhandled.length) {
+    throw new Error(`gazette smoke failed: ${unhandled.map(String).join("; ")}`);
+  }
+  process.stdout.write("Frontend console smoke: PASS (the gazette comes from the API)\n");
+  process.exit(0);
 }
 
 if (deadLink) {

@@ -2,6 +2,14 @@
 handle @radar_v2_api {
     reverse_proxy 127.0.0.1:8765
 }
+# Номера газеты — опубликованное содержимое: служба отдаёт их из
+# /var/lib/radar-v2/gazettes/releases, сверяя каждый байт с базой. Без этого
+# маршрута финальный `try_files … /index.html` ответил бы на адрес номера
+# двухсоткой с самим приложением, и рамка вложила бы сайт сам в себя.
+@radar_v2_gazettes path /gazettes/*
+handle @radar_v2_gazettes {
+    reverse_proxy 127.0.0.1:8765
+}
 @radar_v2_social_assets path /favicon.svg /og-image-20260803.png
 handle @radar_v2_social_assets {
     root * @WEB_CURRENT@/apps/web

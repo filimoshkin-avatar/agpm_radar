@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -887,7 +888,7 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "Рубрикатор" in html
     # The archive and the frame come from /api/gazettes now: no issue is named in
     # the markup, and the module has to be the only place that knows the address.
-    assert "gazette-2026" not in html
+    assert re.search(r"gazette-\d{8}", html) is None
     assert 'id="gazetteArchiveRows"' in html
     assert "loadGazettes" in script
     assert "@media (max-width: 1100px)" in styles

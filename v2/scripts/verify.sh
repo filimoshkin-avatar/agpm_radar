@@ -59,6 +59,9 @@ node tools/frontend_console_smoke.mjs --deep-link
 # a blank screen.
 node tools/frontend_console_smoke.mjs --dead-link
 node tools/frontend_console_smoke.mjs --absent-link
+# And the gazette: the archive, the header line and the frame come from
+# /api/gazettes, and none of that code ran in any smoke before.
+node tools/frontend_console_smoke.mjs --gazette
 
 step "agent view console smoke"
 node tools/agent_console_smoke.mjs

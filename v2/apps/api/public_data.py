@@ -578,34 +578,56 @@ class PublicDataRepository:
             for row in rows
         ]
 
-    def _gazette_entrypoint(self, gazette_id: str, period: str) -> str:
+    def _gazette_entrypoints(self, gazette_ids: list[str]) -> dict[str, list[str]]:
+        """HTML asset paths of these gazettes, in one query, ordered by path."""
+        if not gazette_ids:
+            return {}
+        placeholders = ",".join("?" for _identifier in gazette_ids)
+        rows = self.connection.execute(
+            f"""
+            SELECT gazette_id, relative_path
+            FROM pub_gazette_assets_v1
+            WHERE media_type = 'text/html' AND gazette_id IN ({placeholders})
+            ORDER BY gazette_id, relative_path
+            """,  # noqa: S608 -- placeholders are generated, never user-controlled
+            gazette_ids,
+        ).fetchall()
+        found: dict[str, list[str]] = {}
+        for row in rows:
+            found.setdefault(str(row[0]), []).append(str(row[1]))
+        return found
+
+    def _gazette_url(self, period: str, paths: list[str]) -> str:
         """The URL of the issue itself, not of the directory it lives in.
 
-        A gazette is one HTML file plus whatever it embeds, and its asset path
-        carries the digest of its bytes, because the route is served immutable
-        for a year. So the address of an issue changes exactly when the issue
-        does, and the reader who has the old one cached is not shown it as new.
+        An issue's asset path carries the digest of its bytes, because the route
+        is served immutable for a year: the address changes exactly when the
+        issue does, and a reader holding the old one cached is not shown it as
+        new.
+
+        Nothing upstream enforces one HTML file per gazette - not the validator,
+        not the candidate contract, and the `gazettes` table has no column for
+        an entrypoint - so this picks one and never refuses. A published issue
+        with a second HTML file (a print version, a correction sheet) used to
+        answer 503 for the whole endpoint, which would have taken the readable
+        issues down with it.
         """
-        rows = self.connection.execute(
-            """
-            SELECT relative_path
-            FROM pub_gazette_assets_v1
-            WHERE gazette_id = ? AND media_type = 'text/html'
-            ORDER BY relative_path
-            """,
-            (gazette_id,),
-        ).fetchall()
-        if len(rows) != 1:
-            raise PublicDataError("published gazette does not have exactly one HTML entrypoint")
-        path = _public_text(rows[0][0], "gazette asset path", maximum=512)
-        # Two shapes live in the database: the Stage 11 seed wrote
-        # `gazettes/<period>/index.html`, the fixtures write a bare `index.html`.
-        # `_gazette_asset` in apps/api/application.py already looks a route up by
-        # all three forms; this is the same tolerance on the way out.
-        name = path.removeprefix(f"gazettes/{period}/").removeprefix(f"{period}/")
-        if not name or "/" in name:
-            raise PublicDataError("published gazette entrypoint is outside its period")
-        return f"/gazettes/{period}/{name}"
+        # `index.html` when it is there, because that is the historical name and
+        # what the directory URL resolves to; otherwise the first path, which is
+        # deterministic because the query orders them.
+        names = []
+        for path in paths:
+            # Two shapes live in the database: the Stage 11 seed wrote
+            # `gazettes/<period>/index.html`, the fixtures write a bare
+            # `index.html`. `_gazette_asset` in apps/api/application.py looks a
+            # route up by all three forms; this is the same tolerance outbound.
+            name = path.removeprefix(f"gazettes/{period}/").removeprefix(f"{period}/")
+            if name and "/" not in name:
+                names.append(name)
+        if not names:
+            return f"/gazettes/{period}/"
+        chosen = "index.html" if "index.html" in names else names[0]
+        return f"/gazettes/{period}/{chosen}"
 
     def gazettes(
         self,
@@ -624,19 +646,27 @@ class PublicDataRepository:
             """,
             (before_period, before_period, before_period, before_id, limit + 1),
         ).fetchall()
+        page = rows[:limit]
+        entrypoints = self._gazette_entrypoints(
+            [_public_text(row[0], "gazette id", maximum=128) for row in page]
+        )
         items: list[JsonObject] = []
-        for row in rows[:limit]:
+        for row in page:
             period = str(row[1])
             if _GAZETTE_PERIOD.fullmatch(period) is None:
                 raise PublicDataError("published gazette period is unsafe")
             gazette_id = _public_text(row[0], "gazette id", maximum=128)
+            paths = [
+                _public_text(path, "gazette asset path", maximum=512)
+                for path in entrypoints.get(gazette_id, [])
+            ]
             items.append(
                 {
                     "id": gazette_id,
                     "period": period,
                     "publishedAt": _normalize_timestamp(row[3]),
                     "title": _public_text(row[2], "gazette title", maximum=1_000),
-                    "url": self._gazette_entrypoint(gazette_id, period),
+                    "url": self._gazette_url(period, paths),
                 }
             )
         next_value = (

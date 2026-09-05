@@ -1406,6 +1406,15 @@ button.gazette-archive__row:hover { background: var(--sub); }
   line-height: 1.45;
 }
 
+/* То же, но без линейки: заглушка стоит сразу под шапкой архива, и
+   заимствованный у подвала бордюр давал вторую черту под первой. */
+.gazette-archive__note {
+  padding: 9px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .gazette-stage {
   flex-grow: 1;
   padding: 26px 30px;
