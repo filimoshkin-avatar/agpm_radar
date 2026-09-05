@@ -20,7 +20,7 @@ from packages.domain.candidate_package import verify_candidate_package
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.publisher.project_manager import build_project_manager_report
 from packages.publisher.remote_activation import replace_pointer
-from packages.storage.content_pointer import read_content_pointer
+from packages.storage.content_pointer import parse_content_pointer, read_content_pointer
 from packages.storage.mutation_lock import acquire_mutation_lock, release_mutation_lock
 from packages.storage.safe_files import (
     atomic_write_new,
@@ -180,7 +180,16 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
 
         source_pointer_path = inputs.source_root / "active.json"
         source_pointer_content = read_regular_file(source_pointer_path, expected_mode=0o600)
+        observed_source_pointer = source_pointer_content
         source = read_content_pointer(inputs.source_root)
+        # A crash can also occur after the local pointer commit and before saving
+        # the PM result. Retain the exact base pointer before any transport call;
+        # replay the same request against that base, never derive a fresh delta
+        # from an already advanced source. A different newer source still fails.
+        base_path = inputs.work_root / "requests" / f"{candidate_id}.base-pointer.json"
+        if source.release_id == release_id and base_path.exists():
+            source_pointer_content = read_regular_file(base_path, expected_mode=0o600)
+            source = parse_content_pointer(inputs.source_root, source_pointer_content)
         source_report = inspect_release_database(source.database_path)
         if (
             source.release_id != expected["releaseId"]
@@ -188,6 +197,7 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
             or source_report.release.sequence != expected["sequence"]
         ):
             raise RemoteOrchestrationError("candidate expected base differs from source pointer")
+        _save_exact(base_path, source_pointer_content)
 
         metadata = json.loads(
             read_regular_file(inputs.package / "payload/package-metadata.json", expected_mode=0o400)
@@ -274,7 +284,7 @@ def publish_candidate(inputs: PublishInputs, transport: Transport) -> JsonObject
             target_pointer,
             uid=source_stat.st_uid,
             gid=source_stat.st_gid,
-            expected=source_pointer_content,
+            expected=observed_source_pointer,
         )
         committed = read_content_pointer(inputs.source_root)
         if (

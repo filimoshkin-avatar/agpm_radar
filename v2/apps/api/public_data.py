@@ -260,7 +260,7 @@ def _date_label(item: JsonObject) -> str:
 
 
 def _card_search_text(item: JsonObject, rubric_titles: Mapping[str, str]) -> str:
-    """Everything the card shows as text, casefolded: cardSearchText() in apps/web/app.mjs.
+    """Everything the card shows as text, lowercased: cardSearchText() in apps/web/app.mjs.
 
     Signal label, source host, date line, title, description, takeaway and the names of
     the first three rubric tags. Nothing the card does not show, so a hit is always visible.
@@ -287,7 +287,7 @@ def _card_search_text(item: JsonObject, rubric_titles: Mapping[str, str]) -> str
             takeaway,
             *rubrics,
         )
-    ).casefold()
+    ).lower()
 
 
 class PublicDataRepository:
@@ -387,7 +387,8 @@ class PublicDataRepository:
                 item for item in materials if rubric in cast(list[JsonValue], item["rubrics"])
             ]
         if query is not None:
-            tokens = tuple(part.casefold() for part in query.split() if part)
+            # ADR-0015: every fragment, in any order, in the visible card text.
+            tokens = tuple(part.lower() for part in query.split() if part)
             rubric_titles = {
                 str(row[0]): str(row[1])
                 for row in self.connection.execute(

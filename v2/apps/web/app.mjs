@@ -147,6 +147,10 @@ const periodStats = new Map();
 const issueCache = new Map();
 let ringTimer = null;
 let reloadGeneration = 0;
+let reloadTimer = null;
+let radarHasResults = false;
+let radarDataCurrent = false;
+const RELOAD_RETRY_DELAYS_MS = [2000, 5000, 15000];
 
 const TIMESERIES_RETRY_DELAYS_MS = [0, 800, 2000];
 
@@ -1167,9 +1171,12 @@ function safeExternalUrl(value) {
 function currentStats(materials) {
   if (["issue", "yesterday"].includes(state.period)) {
     const issueDate = activeIssueDate();
+    const selected = issueCache.get(issueDate);
+    if (selected?.issue_stats) return selected.issue_stats;
+    if (issueDate === latest?.issue?.issue_date && latest.issue_stats) return latest.issue_stats;
     const row = timeseries.find(item => item.stat_date === issueDate);
     if (row) return row;
-    return latest.issue_stats || latest.stats?.day || countMaterials(materials);
+    return countMaterials(materials);
   }
   return periodStats.get(state.period) || countMaterials(materials.filter(materialMatches));
 }
@@ -1212,7 +1219,9 @@ function updateSummary(stats, materials) {
 /** Методика в подвале — числами выпуска, как в макете: сколько посмотрели,
  *  сколько включили, сколько отсекли. Те же данные, что и в тикере. */
 function renderFooterMethod(stats) {
-  const issueNumber = latest?.issue?.issue_number;
+  const issueNumber = ["issue", "yesterday"].includes(state.period)
+    ? issueCache.get(activeIssueDate())?.issue?.issue_number
+    : null;
   setText("footerMethodLabel", issueNumber ? `МЕТОДИКА ВЫПУСКА ${issueNumber}` : "МЕТОДИКА ОТБОРА");
   const node = document.getElementById("footerMethod");
   if (!node) return;
@@ -1643,7 +1652,8 @@ function materialMatches(item) {
     // Search looks at everything the card shows as text and nothing else, so a hit
     // is always visible on the card that produced it. The server-side search of the
     // period modes applies the same rule in apps/api/public_data.py.
-    if (!cardSearchText(item).includes(state.q.toLowerCase())) return false;
+    const text = cardSearchText(item);
+    if (!state.q.toLowerCase().split(/\s+/u).filter(Boolean).every(word => text.includes(word))) return false;
   }
   return true;
 }
@@ -1945,14 +1955,14 @@ async function loadIssueMaterials(request) {
 
 async function loadPeriodStats(period) {
   if (!["7d", "30d"].includes(period)) return;
-  periodStats.set(period, await getJson(`/api/stats?period=${period}`));
+  return getJson(`/api/stats?period=${period}`);
 }
 
 async function loadIssuePayload(issueDate) {
   if (issueCache.has(issueDate)) return issueCache.get(issueDate);
   const response = await fetch(`${API}/api/issues/${issueDate}`);
   if (response.status === 404) {
-    const empty = { absent: true, issue: { issue_date: issueDate, theses: [] }, materials: [] };
+    const empty = { absent: true, issue: { issue_date: issueDate, theses: [] }, issue_stats: countMaterials([]), materials: [] };
     issueCache.set(issueDate, empty);
     return empty;
   }
@@ -1962,8 +1972,26 @@ async function loadIssuePayload(issueDate) {
   return payload;
 }
 
-async function reload() {
-  const generation = ++reloadGeneration;
+function invalidateReload() {
+  clearTimeout(reloadTimer);
+  reloadTimer = null;
+  radarDataCurrent = false;
+  return ++reloadGeneration;
+}
+
+function radarLoadNotice(message = "") {
+  const notice = document.getElementById("radarLoadNotice");
+  if (notice) notice.hidden = !message;
+  setText("radarLoadMessage", message);
+}
+
+function columnsLoading(loading) {
+  document.getElementById("columns")?.classList.toggle("loading", loading);
+  document.getElementById("radarViz")?.classList.toggle("is-loading", loading);
+}
+
+async function reload({ attempt = 0 } = {}) {
+  const generation = invalidateReload();
   const request = {
     period: state.period,
     perimeter: state.perimeter,
@@ -1971,15 +1999,21 @@ async function reload() {
     issueDate: activeIssueDate(),
   };
   state.loading = true;
-  renderColumns(state.materials);
+  if (radarHasResults) {
+    columnsLoading(true);
+    radarLoadNotice("Обновляю данные — пока показаны предыдущие результаты.");
+  } else {
+    renderColumns(state.materials);
+  }
   let materials;
+  let nextStats;
   // `rubrics` живёт на уровне модуля, поэтому пишется только после проверки
   // поколения: опоздавший reload иначе оставлял бы свой период в общем состоянии,
   // не перерисовав экран. Отказ рубрик — не отказ выпуска: панель просто
   // остаётся прежней, а страница рисуется.
   let nextRubrics = null;
   try {
-    [materials, , nextRubrics] = await Promise.all([
+    [materials, nextStats, nextRubrics] = await Promise.all([
       loadIssueMaterials(request),
       loadPeriodStats(request.period),
       loadRubrics(request.period, request.issueDate).catch(error => {
@@ -1990,12 +2024,27 @@ async function reload() {
   } catch (error) {
     if (generation !== reloadGeneration) return;
     state.loading = false;
-    throw error;
+    columnsLoading(false);
+    if (!radarHasResults) document.getElementById("columns").innerHTML = "";
+    const wait = RELOAD_RETRY_DELAYS_MS[attempt];
+    const message = radarHasResults
+      ? "Новые данные не загрузились — показаны предыдущие результаты."
+      : "Данные не загрузились.";
+    radarLoadNotice(message + (wait ? ` Повторю через ${wait / 1000} с.` : " Нажмите «Повторить», чтобы попробовать снова."));
+    if (wait) reloadTimer = setTimeout(() => {
+      if (generation === reloadGeneration) void reload({ attempt: attempt + 1 });
+    }, wait);
+    console.warn("Radar reload unavailable", error);
+    return;
   }
   if (generation !== reloadGeneration) return;
+  if (nextStats) periodStats.set(request.period, nextStats);
   if (nextRubrics) rubrics = nextRubrics;
   state.materials = materials;
   state.loading = false;
+  radarDataCurrent = true;
+  radarHasResults = true;
+  radarLoadNotice();
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;
   if (["issue", "yesterday"].includes(state.period)) {
     setText("issueDate", issueLabel(activeIssueDate(), issue?.issue_number));
@@ -2010,6 +2059,8 @@ async function reload() {
   renderRubricator();
 }
 
+document.getElementById("radarLoadRetry")?.addEventListener("click", () => { void reload(); });
+
 async function loadRubrics(period, issueDate) {
   const apiPeriod = ["issue", "yesterday"].includes(period) ? "day" : period;
   const params = { period: apiPeriod, anchor: issueDate };
@@ -2019,12 +2070,7 @@ async function loadRubrics(period, issueDate) {
 
 async function init() {
   latest = await getJson("/api/issue/latest");
-  issueCache.set(latest.issue.issue_date, {
-    issue: latest.issue,
-    daily_analysis: latest.daily_analysis,
-    issue_llm_theses: latest.issue_llm_theses,
-    materials: latest.materials || [],
-  });
+  issueCache.set(latest.issue.issue_date, latest);
   const wanted = routeIssueDate();
   if (wanted && wanted !== latest.issue?.issue_date) {
     state.period = "issue";
@@ -2072,6 +2118,7 @@ function fallbackIssueTimeseries() {
 }
 
 function renderTimeseriesPanels() {
+  if (!radarDataCurrent) return;
   updateSummary(currentStats(state.materials), state.materials);
   renderTrendPanels();
 }
@@ -2110,10 +2157,11 @@ async function loadSecondaryData() {
     return { ...issue, materials: payload.materials || [] };
   }));
   issues = issueResults.filter(result => result.status === "fulfilled").map(result => result.value);
+  renderFooterSources();
+  if (!radarDataCurrent) return;
   renderBars("rubrics", rubrics, "title", "count");
   renderTrendPanels();
   renderRubricator();
-  renderFooterSources();
   renderTheses(state.materials);
 }
 
@@ -2240,6 +2288,7 @@ document.addEventListener("click", event => {
 let searchTimer = null;
 document.getElementById("search").addEventListener("input", event => {
   clearTimeout(searchTimer);
+  invalidateReload();
   state.q = event.target.value.trim();
   searchTimer = setTimeout(reload, 180);
 });
@@ -2254,34 +2303,32 @@ kbLoadCounts();
 /* Баннер отказа висел до перезагрузки страницы. Между тем API возвращается сам,
  * и читателю нечего было делать с этой строкой, кроме как перезагрузиться
  * вручную. Теперь он считает вслух и пробует снова, а закрыть его можно. */
-const API_RETRY_SECONDS = 15;
-
-function apiError(message) {
+function apiError(message, attempt = 0) {
   document.querySelector(".api-error")?.remove();
+  columnsLoading(false);
+  if (!radarHasResults) document.getElementById("columns").innerHTML = "";
   const banner = document.createElement("div");
   banner.className = "api-error";
-  banner.innerHTML = `<span class="api-error__text">API недоступен: ${escapeHtml(message)}</span>
+  banner.setAttribute("role", "status");
+  banner.innerHTML = `<span class="api-error__text">Данные сейчас не загрузились.</span>
     <span class="api-error__wait mono"></span>
     <button class="api-error__retry" type="button" data-api-retry>повторить сейчас</button>
     <button class="api-error__close" type="button" data-api-close aria-label="Закрыть">✕</button>`;
   document.body.insertAdjacentElement?.("afterbegin", banner);
-  let left = API_RETRY_SECONDS;
+  console.warn("Radar initial load unavailable", message);
+  const pause = RELOAD_RETRY_DELAYS_MS[attempt];
   const wait = banner.querySelector(".api-error__wait");
-  const retry = () => {
-    clearInterval(timer);
+  const retry = (nextAttempt = 0) => {
+    clearTimeout(timer);
     banner.remove();
-    init().catch(again => apiError(again.message));
+    return init().catch(again => apiError(again.message, nextAttempt));
   };
-  const timer = setInterval(() => {
-    left -= 1;
-    if (wait) wait.textContent = `повтор через ${left} с`;
-    if (left <= 0) retry();
-  }, 1000);
-  if (wait) wait.textContent = `повтор через ${left} с`;
+  const timer = pause ? setTimeout(() => retry(attempt + 1), pause) : null;
+  if (wait) wait.textContent = pause ? `Повторю через ${pause / 1000} с.` : "Автоматические попытки закончились.";
   banner.addEventListener("click", event => {
     if (event.target?.closest?.("[data-api-retry]")) retry();
     if (event.target?.closest?.("[data-api-close]")) {
-      clearInterval(timer);
+      clearTimeout(timer);
       banner.remove();
     }
   });
@@ -4139,16 +4186,21 @@ async function agentLoadTopicOptions() {
  * ten questions per five minutes; finding a quotation is free and unmetered, and
  * making the reader spend the first to do the second was the gap.
  */
+let agentFindGeneration = 0;
+
 async function agentFind() {
+  const generation = ++agentFindGeneration;
   const box = document.getElementById("agentFindResults");
   const query = document.getElementById("agentFindQuery")?.value.trim();
-  if (!box || !query) return;
+  if (!box) return;
+  if (!query) { box.innerHTML = ""; return; }
   box.innerHTML = agentLoadingHtml("Ищу по словам и по смыслу…");
   const parameters = agentFindFilters();
   parameters.set("q", query);
   parameters.set("limit", "25");
   try {
     const data = await kbFetch(`/search?${parameters.toString()}`);
+    if (generation !== agentFindGeneration) return;
     if (data.error) {
       box.innerHTML = `<p class="agent-waiting">${escapeHtml(data.error)}</p>`;
       return;
@@ -4163,6 +4215,7 @@ async function agentFind() {
       Рядом с каждым видно, какая рука его нашла: по словам, по смыслу или обеими.</p>
       ${hits.map((row, index) => agentStatementCard(row, index + 1)).join("")}`;
   } catch (error) {
+    if (generation !== agentFindGeneration) return;
     box.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;
   }
 }

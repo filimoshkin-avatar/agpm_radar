@@ -325,6 +325,98 @@ def _install_database(target: Path, source: Path, *, uid: int, gid: int) -> str:
     return _sha256(content)
 
 
+def _save_result(audit_root: Path, result: RemoteActivationResult) -> None:
+    audit_path = audit_root / f"{result.request_id}.result.json"
+    result_bytes = canonical_json_line(asdict(result))
+    if audit_path.exists():
+        if read_regular_file(audit_path, expected_mode=0o600) != result_bytes:
+            raise RemoteActivationError("saved result differs from successful replay")
+    else:
+        atomic_write_new(audit_path, result_bytes, mode=0o600)
+
+
+def _rollback_marker(audit_root: Path, release_id: str) -> Path:
+    return audit_root / f"rolled-back-{_sha256(release_id.encode())}.json"
+
+
+def _check_not_rolled_back(audit_root: Path, release_id: str) -> None:
+    marker = _rollback_marker(audit_root, release_id)
+    if marker.exists():
+        read_regular_file(marker, expected_mode=0o600)
+        raise RemoteActivationError("publication was explicitly rolled back; use a new candidate")
+
+
+def _recover_publication(
+    request: JsonObject,
+    *,
+    content_root: Path,
+    audit_root: Path,
+    base_pointer_path: Path,
+    mutation_root: Path,
+    gazette_root: Path,
+    uid: int,
+    gid: int,
+    loopback_url: str,
+    public_url: str,
+) -> RemoteActivationResult:
+    """Prove an exact request already active, including a crash before its audit save.
+
+    Never activate an old target during recovery: a later publication or an explicit
+    rollback must make this replay fail. Hold the publisher lock through the health
+    checks and audit save so another publication cannot change that conclusion.
+    """
+    delta = validate_delta(cast(dict[str, object], request["delta"]))
+    target_bytes = _pointer_bytes(cast(str, delta["releaseId"]), cast(str, delta["afterStateHash"]))
+    lock = acquire_mutation_lock(mutation_root)
+    try:
+        if (audit_root / "NEEDS_RECONCILIATION").exists():
+            raise RemoteActivationError("publisher is blocked by NEEDS_RECONCILIATION")
+        _check_not_rolled_back(audit_root, cast(str, delta["releaseId"]))
+        if not base_pointer_path.exists():
+            raise RemoteActivationError("retained base pointer is missing; reconciliation required")
+        base_bytes = read_regular_file(base_pointer_path, expected_mode=0o600)
+        base = parse_content_pointer(content_root, base_bytes)
+        if (base.release_id, base.state_hash) != (
+            delta["baseReleaseId"],
+            delta["beforeStateHash"],
+        ):
+            raise RemoteActivationError("retained base pointer differs from delta")
+        current = _pointer_metadata(content_root / "active.json", uid=uid, gid=gid)
+        if (
+            current != target_bytes
+            or _sha256(base_bytes) != request["expectedCurrentPointerSha256"]
+        ):
+            raise RemoteActivationError("active pointer SHA-256 differs from request fence")
+        pointer = parse_content_pointer(content_root, current)
+        report = inspect_release_database(pointer.database_path)
+        if (
+            report.release.release_id != delta["releaseId"]
+            or report.release.sequence != delta["targetSequence"]
+            or report.digest.state_hash != delta["afterStateHash"]
+        ):
+            raise RemoteActivationError("active release differs from preserved request")
+        for relative, content in _asset_payloads(request, delta).items():
+            if read_regular_file(gazette_root / relative, expected_mode=0o600) != content:
+                raise RemoteActivationError("active asset differs from preserved request")
+        _health(loopback_url, pointer.release_id, pointer.state_hash)
+        _health(public_url, pointer.release_id, pointer.state_hash)
+        result = RemoteActivationResult(
+            request_id=cast(str, request["requestId"]),
+            status="published",
+            release_id=pointer.release_id,
+            state_hash=pointer.state_hash,
+            previous_release_id=cast(str, delta["baseReleaseId"]),
+            previous_state_hash=cast(str, delta["beforeStateHash"]),
+            database_sha256=report.file_sha256,
+            pointer_sha256=_sha256(current),
+            loopback_verified=True,
+        )
+        _save_result(audit_root, result)
+        return result
+    finally:
+        release_mutation_lock(lock)
+
+
 def activate_request(
     request: JsonObject,
     *,
@@ -351,17 +443,45 @@ def activate_request(
     if reconciliation_marker.exists():
         read_regular_file(reconciliation_marker, expected_mode=0o600)
         raise RemoteActivationError("publisher is blocked by NEEDS_RECONCILIATION")
+    if request["action"] == "publish":
+        checked_delta = validate_delta(cast(dict[str, object], request["delta"]))
+        _check_not_rolled_back(audit_root, cast(str, checked_delta["releaseId"]))
     request_bytes = canonical_json_line(request)
     quarantine = incoming_root / f"{request_id}.json"
-    if quarantine.exists():
-        if read_regular_file(quarantine, expected_mode=0o600) != request_bytes:
-            raise RemoteActivationError("request id already exists with different bytes")
-    else:
-        atomic_write_new(quarantine, request_bytes, mode=0o600)
+    base_pointer_path = incoming_root / f"{request_id}.base-pointer.json"
+    retained = quarantine.exists()
+    if retained and read_regular_file(quarantine, expected_mode=0o600) != request_bytes:
+        raise RemoteActivationError("request id already exists with different bytes")
     pointer_path = content_root / "active.json"
     previous_bytes = _pointer_metadata(pointer_path, uid=uid, gid=gid)
-    if _sha256(previous_bytes) != request["expectedCurrentPointerSha256"]:
+    completed = (audit_root / f"{request_id}.result.json").exists()
+    if _sha256(previous_bytes) != request["expectedCurrentPointerSha256"] or (
+        retained and request["action"] == "publish" and completed
+    ):
+        if retained and request["action"] == "publish":
+            return _recover_publication(
+                request,
+                content_root=content_root,
+                audit_root=audit_root,
+                base_pointer_path=base_pointer_path,
+                mutation_root=mutation_root,
+                gazette_root=gazette_root,
+                uid=uid,
+                gid=gid,
+                loopback_url=loopback_url,
+                public_url=public_url,
+            )
         raise RemoteActivationError("active pointer SHA-256 differs from request fence")
+    if not retained:
+        atomic_write_new(quarantine, request_bytes, mode=0o600)
+    if request["action"] == "publish":
+        # Application migrations may rename a DB without changing its release id.
+        # Retain the actual pointer, including that pathname and serialization.
+        if base_pointer_path.exists():
+            if read_regular_file(base_pointer_path, expected_mode=0o600) != previous_bytes:
+                raise RemoteActivationError("retained base pointer contains different bytes")
+        else:
+            atomic_write_new(base_pointer_path, previous_bytes, mode=0o600)
     previous = parse_content_pointer(content_root, previous_bytes)
     if request["action"] == "status":
         report = inspect_release_database(previous.database_path)
@@ -388,6 +508,20 @@ def activate_request(
         rollback_lock: int | None = None
         try:
             rollback_lock = acquire_mutation_lock(mutation_root)
+            # Persist explicit cancellation before switching the pointer: even
+            # a prior crash before the publication audit must not let its replay
+            # undo this operator decision. Automatic health rollback below does
+            # not set this marker and remains retryable.
+            if previous.release_id != rollback.release_id:
+                cancellation_marker = _rollback_marker(audit_root, previous.release_id)
+                if not cancellation_marker.exists():
+                    atomic_write_new(
+                        cancellation_marker,
+                        canonical_json_line(
+                            {"requestId": request_id, "cancelledReleaseId": previous.release_id}
+                        ),
+                        mode=0o600,
+                    )
             replace_pointer(
                 content_root,
                 rollback_bytes,
@@ -429,6 +563,7 @@ def activate_request(
     target = content_root / cast(str, json.loads(target_pointer)["database"])
     try:
         lock = acquire_mutation_lock(mutation_root)
+        _check_not_rolled_back(audit_root, cast(str, delta["releaseId"]))
         _install_assets(gazette_root, assets, uid=uid, gid=gid)
         if not target.exists():
             if staging.exists():
@@ -500,13 +635,7 @@ def activate_request(
     finally:
         if lock is not None:
             release_mutation_lock(lock)
-    audit_path = audit_root / f"{request_id}.result.json"
-    result_bytes = canonical_json_line(asdict(result))
-    if audit_path.exists():
-        if read_regular_file(audit_path, expected_mode=0o600) != result_bytes:
-            raise RemoteActivationError("saved result differs from successful replay")
-    else:
-        atomic_write_new(audit_path, result_bytes, mode=0o600)
+    _save_result(audit_root, result)
     return result
 
 

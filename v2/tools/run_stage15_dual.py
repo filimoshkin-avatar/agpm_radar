@@ -359,6 +359,65 @@ def _publish(args: argparse.Namespace, build: JsonObject, run_root: Path) -> Jso
     return result
 
 
+def _publication_for_attempt(
+    args: argparse.Namespace, attempt_root: Path
+) -> tuple[JsonObject, argparse.Namespace] | None:
+    """Resume the original package and timestamps before considering a new build.
+
+    The daily launcher supplies new timestamps on every invocation. Rebuilding an
+    LLM candidate after a lost SSH response would create different bytes under the
+    same candidate id, which the publisher correctly refuses. An unfinished local
+    result also needs replay even when the source already contains the issue.
+    """
+    retained_paths = sorted(attempt_root.parent.glob("attempt-*/publication-input.json"))
+    publish_args = argparse.Namespace(**vars(args))
+    legacy_sha = _sha256(read_regular_file(args.legacy_json, expected_mode=0o644))
+    if retained_paths:
+        retained = _load_json(retained_paths[0], expected_mode=0o600)
+        if (
+            retained.get("format") != "radar-stage15-publication/v1"
+            or retained.get("issueDate") != args.issue_date
+            or retained.get("sourceRoot") != str(args.source_root.resolve())
+            or retained.get("publisherRoot") != str(args.publisher_root.resolve())
+            or retained.get("legacyPublicSha256") != legacy_sha
+            or not isinstance(retained.get("build"), dict)
+            or not all(
+                isinstance(retained.get(key), str)
+                for key in ("applicationReleaseId", "startedAt", "finishedAt")
+            )
+            or type(retained.get("durationMs")) is not int
+        ):
+            raise Stage15DualRunError("retained publication input differs from this daily run")
+        build = cast(JsonObject, retained["build"])
+        publish_args.application_release_id = retained["applicationReleaseId"]
+        publish_args.started_at = retained["startedAt"]
+        publish_args.finished_at = retained["finishedAt"]
+        publish_args.duration_ms = retained["durationMs"]
+    else:
+        if _source_has_issue(args.source_root, args.issue_date):
+            return None
+        publish_args.application_release_id = (
+            args.application_release_id or _application_release_id(args.v2_public_base)
+        )
+        build = _build_candidate(publish_args, args.legacy_json, attempt_root)
+        retained = {
+            "format": "radar-stage15-publication/v1",
+            "issueDate": args.issue_date,
+            "sourceRoot": str(args.source_root.resolve()),
+            "publisherRoot": str(args.publisher_root.resolve()),
+            "legacyPublicSha256": legacy_sha,
+            "build": build,
+            "applicationReleaseId": publish_args.application_release_id,
+            "startedAt": args.started_at,
+            "finishedAt": args.finished_at,
+            "durationMs": args.duration_ms,
+        }
+    atomic_write_new(
+        attempt_root / "publication-input.json", canonical_json_line(retained), mode=0o600
+    )
+    return build, publish_args
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--issue-date", required=True)
@@ -414,12 +473,10 @@ def main() -> int:
     publication: JsonObject | None = None
     build: JsonObject | None = None
     disposition = "already_published"
-    if not _source_has_issue(args.source_root, args.issue_date):
-        args.application_release_id = args.application_release_id or _application_release_id(
-            args.v2_public_base
-        )
-        build = _build_candidate(args, args.legacy_json, attempt_root)
-        publication = _publish(args, build, attempt_root)
+    prepared = _publication_for_attempt(args, attempt_root)
+    if prepared is not None:
+        build, publish_args = prepared
+        publication = _publish(publish_args, build, attempt_root)
         disposition = cast(str, publication["status"])
 
     v2, v2_bytes = _fetch_json(f"{args.v2_public_base.rstrip('/')}/api/issues/{args.issue_date}")

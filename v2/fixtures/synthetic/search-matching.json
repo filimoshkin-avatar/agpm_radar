@@ -1,0 +1,26 @@
+{
+  "fixtureKind": "synthetic",
+  "containsProductionData": false,
+  "card": {
+    "title": "Контроль действий агентов",
+    "url": "https://example.test/search-fixture",
+    "brief": "Проверка процессов в Straße",
+    "summary": "Скрытый запасной текст",
+    "agpmTakeaway": "Проверить границы полномочий",
+    "perimeter": "near",
+    "verdict": "core",
+    "rubrics": [],
+    "llm": { "status": "fallback" }
+  },
+  "queries": [
+    { "q": "контроль агентов", "matches": true },
+    { "q": "агентов контроль", "matches": true },
+    { "q": "  АГЕНТОВ   КОНТРОЛЬ  ", "matches": true },
+    { "q": "контроль\tполномочий", "matches": true },
+    { "q": "контр границ", "matches": true },
+    { "q": "контроль несуществующее", "matches": false },
+    { "q": "Скрытый запасной", "matches": false },
+    { "q": "straße проверка", "matches": true },
+    { "q": "strasse", "matches": false }
+  ]
+}

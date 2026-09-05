@@ -1237,7 +1237,7 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .skeleton.small { width: 55%; }
 .skeleton.card-skel { height: 74px; }
 
-.api-error {
+.api-error, .radar-load-notice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1250,6 +1250,8 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 }
 
 .api-error__text { min-width: 0; }
+.radar-load-notice[hidden] { display: none; }
+.radar-load-notice .api-error__retry { min-height: 40px; }
 .api-error__wait { color: var(--muted); }
 
 .api-error__retry {

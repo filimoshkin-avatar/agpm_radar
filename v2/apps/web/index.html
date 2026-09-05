@@ -21,7 +21,7 @@
   <meta name="twitter:image" content="https://radar.agpm.space/og-image-20260803.png">
   <meta name="twitter:image:alt" content="AgPM Radar — ежедневно отбираем лучшее из мира агентного управления">
   <link rel="icon" href="/favicon.svg?v=20260729-1734">
-  <link rel="stylesheet" href="/assets/styles.css?v=e8a4fa4f236e">
+  <link rel="stylesheet" href="/assets/styles.css?v=06eadc2aa6a3">
 </head>
 <body>
   <!-- Тикер: та же сводка выпуска, что раньше жила плиткой, — строкой на графите. -->
@@ -126,6 +126,10 @@
     </section>
 
     <div class="shell">
+      <div id="radarLoadNotice" class="radar-load-notice" role="status" aria-live="polite" hidden>
+        <span id="radarLoadMessage" class="api-error__text"></span>
+        <button id="radarLoadRetry" class="api-error__retry" type="button">Повторить</button>
+      </div>
       <section class="hero" aria-label="Главное в выпуске">
         <div class="hero__theses">
           <div class="hero__head">
@@ -525,6 +529,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.mjs?v=be293d117f42"></script>
+  <script src="/assets/app.mjs?v=3467db779a86"></script>
 </body>
 </html>

@@ -863,7 +863,9 @@ def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> No
     assert "/api/latest" in script
     assert "getJson(`/api/stats?period=${period}`)" in script
     assert "let reloadGeneration = 0" in script
-    assert "const generation = ++reloadGeneration" in script
+    # Actual stale-response behaviour is exercised by both console race smokes;
+    # the counter may also advance when a query is invalidated before debounce.
+    assert "frontend_recovery_smoke.mjs" in (V2_ROOT / "scripts/verify.sh").read_text()
     assert "if (generation !== reloadGeneration) return" in script
     assert "loadIssueMaterials(request)" in script
     assert "loadPeriodStats(request.period)" in script

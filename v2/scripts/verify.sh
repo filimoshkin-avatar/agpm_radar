@@ -66,6 +66,9 @@ node tools/frontend_console_smoke.mjs --gazette
 step "agent view console smoke"
 node tools/agent_console_smoke.mjs
 
+step "review regressions: history, search and recovery"
+node tools/frontend_recovery_smoke.mjs
+
 step "Legacy and V2 out-of-order reload regression"
 node "${repository_root}/tools/frontend_period_switch_race_smoke.mjs"
 
