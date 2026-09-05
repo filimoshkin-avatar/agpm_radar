@@ -578,6 +578,35 @@ class PublicDataRepository:
             for row in rows
         ]
 
+    def _gazette_entrypoint(self, gazette_id: str, period: str) -> str:
+        """The URL of the issue itself, not of the directory it lives in.
+
+        A gazette is one HTML file plus whatever it embeds, and its asset path
+        carries the digest of its bytes, because the route is served immutable
+        for a year. So the address of an issue changes exactly when the issue
+        does, and the reader who has the old one cached is not shown it as new.
+        """
+        rows = self.connection.execute(
+            """
+            SELECT relative_path
+            FROM pub_gazette_assets_v1
+            WHERE gazette_id = ? AND media_type = 'text/html'
+            ORDER BY relative_path
+            """,
+            (gazette_id,),
+        ).fetchall()
+        if len(rows) != 1:
+            raise PublicDataError("published gazette does not have exactly one HTML entrypoint")
+        path = _public_text(rows[0][0], "gazette asset path", maximum=512)
+        # Two shapes live in the database: the Stage 11 seed wrote
+        # `gazettes/<period>/index.html`, the fixtures write a bare `index.html`.
+        # `_gazette_asset` in apps/api/application.py already looks a route up by
+        # all three forms; this is the same tolerance on the way out.
+        name = path.removeprefix(f"gazettes/{period}/").removeprefix(f"{period}/")
+        if not name or "/" in name:
+            raise PublicDataError("published gazette entrypoint is outside its period")
+        return f"/gazettes/{period}/{name}"
+
     def gazettes(
         self,
         *,
@@ -600,13 +629,14 @@ class PublicDataRepository:
             period = str(row[1])
             if _GAZETTE_PERIOD.fullmatch(period) is None:
                 raise PublicDataError("published gazette period is unsafe")
+            gazette_id = _public_text(row[0], "gazette id", maximum=128)
             items.append(
                 {
-                    "id": _public_text(row[0], "gazette id", maximum=128),
+                    "id": gazette_id,
                     "period": period,
                     "publishedAt": _normalize_timestamp(row[3]),
                     "title": _public_text(row[2], "gazette title", maximum=1_000),
-                    "url": f"/gazettes/{period}/",
+                    "url": self._gazette_entrypoint(gazette_id, period),
                 }
             )
         next_value = (

@@ -129,17 +129,11 @@ WEB_PATHS: Final = (
     "apps/web/favicon.svg",
     "apps/web/fonts/GolosText[wght].ttf",
     "apps/web/fonts/PTMono-Regular.ttf",
-    # Every gazette issue is named here one by one, and that already cost a
-    # release: the September issue sat in apps/web and was linked from
-    # index.html, and the web role shipped without it because this list did not
-    # know about it. The other place that moves with this one is
-    # _BUNDLED_GAZETTE_ISSUES in apps/api/application.py. Caddy is no longer a
-    # third: its matcher takes /gazette-*.html now.
-    "apps/web/gazette-20260803.html",
-    "apps/web/gazette-20260803-r2.html",
-    "apps/web/gazette-20260901.html",
-    "apps/web/gazette-20260901-r2.html",
-    "apps/web/gazette-20260901-r3.html",
+    # Gazette issues used to be listed here one by one, and naming an issue in
+    # one list and not another cost two releases. They are published content
+    # now: `/gazettes/<period>/<file>` with every byte checked against the
+    # database, and `/api/gazettes` tells the frontend which issue is current.
+    # A new issue is a publication, not a release of the application.
     "apps/web/index.html",
     "apps/web/og-image-20260803.png",
     "apps/web/styles.css",

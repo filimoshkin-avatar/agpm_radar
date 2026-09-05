@@ -772,6 +772,120 @@ document.getElementById("headerAsk")?.addEventListener("keydown", event => {
 });
 
 /* Архив номеров газеты: один номер сегодня, поповер — на вырост. */
+/* ── Газета приходит из базы, а не из разметки ──────────────────────────
+ *
+ * До 05.09.2026 номера были файлами внутри приложения: пять штук к сентябрю,
+ * и каждый новый требовал правки в трёх списках — разметке, матчере Caddy и
+ * `_BUNDLED_GAZETTE_ISSUES` — плюс выката всего приложения. Издательский путь
+ * для этого и существует: номер публикуется кандидатом, его файлы лежат под
+ * `/gazettes/<период>/` с проверкой хэша каждого по базе, а `/api/gazettes`
+ * говорит, какие номера есть и какой из них последний.
+ *
+ * Номер грузится при первом входе в раздел, а не у каждого читателя на старте:
+ * `src` в разметке означал, что триста килобайт газеты качает и тот, кто её не
+ * открывает. */
+const GAZETTE_MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+const GAZETTE_MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн",
+  "июл", "авг", "сен", "окт", "ноя", "дек"];
+const GAZETTE_MONTHS_IN = ["январе", "феврале", "марте", "апреле", "мае", "июне",
+  "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"];
+let gazetteIssues = null;
+let gazetteLoading = null;
+
+function gazetteMonthIndex(period) {
+  const month = Number(String(period || "").slice(5, 7));
+  return month >= 1 && month <= 12 ? month - 1 : -1;
+}
+
+function gazetteMonthLabel(period) {
+  const index = gazetteMonthIndex(period);
+  return index < 0 ? String(period || "") : `${GAZETTE_MONTHS[index]} ${String(period).slice(0, 4)}`;
+}
+
+function gazetteShortDate(publishedAt) {
+  const when = dateUtc(publishedAt);
+  if (!when) return "";
+  return `${when.getUTCDate()} ${GAZETTE_MONTHS_SHORT[when.getUTCMonth()]}`;
+}
+
+/** Следующий номер — месяц после последнего, включая переход через год. */
+function gazetteNextMonth(period) {
+  const index = gazetteMonthIndex(period);
+  return index < 0 ? "" : GAZETTE_MONTHS_IN[(index + 1) % 12];
+}
+
+function gazetteRowHtml(item, ordinal, current) {
+  const month = gazetteMonthLabel(item.period);
+  const short = gazetteShortDate(item.publishedAt);
+  const sub = [short, "Том I", `№ ${ordinal}`].filter(Boolean).join(" · ");
+  return `<button class="gazette-archive__row${current ? " is-current is-viewed" : ""}" type="button"
+          aria-pressed="${current ? "true" : "false"}"
+          data-gazette-issue="${escapeHtml(item.period)}"
+          data-gazette-url="${escapeHtml(item.url)}"
+          data-gazette-month="${escapeHtml(month)}"
+          data-gazette-number="№ ${ordinal}"
+          data-gazette-title="${escapeHtml(item.title || "")}">
+      <span class="gazette-archive__names">
+        <span class="gazette-archive__month">${escapeHtml(month)}</span>
+        <span class="gazette-archive__sub mono">${escapeHtml(sub)}</span>
+      </span>
+      ${current ? `<span class="gazette-archive__tag mono">ТЕКУЩИЙ</span>` : ""}
+    </button>`;
+}
+
+function renderGazetteArchive(items) {
+  const rows = document.getElementById("gazetteArchiveRows");
+  const foot = document.getElementById("gazetteArchiveFoot");
+  if (!rows) return;
+  if (!items.length) {
+    rows.innerHTML = `<div class="gazette-archive__foot">Опубликованных номеров пока нет.</div>`;
+    if (foot) foot.textContent = "";
+    return;
+  }
+  // Список приходит от новых к старым, поэтому номер выпуска считается с конца.
+  rows.innerHTML = items
+    .map((item, index) => gazetteRowHtml(item, items.length - index, index === 0))
+    .join("");
+  if (foot) {
+    const next = gazetteNextMonth(items[0].period);
+    foot.textContent = next
+      ? `Архив пополняется по мере выхода номеров — следующий выпуск в ${next}.`
+      : "Архив пополняется по мере выхода номеров.";
+  }
+  const frame = document.querySelector(".gazette-frame");
+  const first = items[0];
+  if (frame && first.url && frame.getAttribute("src") !== first.url) {
+    frame.setAttribute("src", first.url);
+    if (first.title) frame.setAttribute("title", first.title);
+  }
+  syncGazetteTopStatus();
+}
+
+async function loadGazettes() {
+  if (gazetteIssues) return gazetteIssues;
+  if (gazetteLoading) return gazetteLoading;
+  gazetteLoading = (async () => {
+    const rows = document.getElementById("gazetteArchiveRows");
+    if (rows) rows.innerHTML = `<div class="gazette-archive__foot">Загружаю архив…</div>`;
+    try {
+      const payload = await getJson("/api/gazettes?limit=100");
+      gazetteIssues = Array.isArray(payload.items) ? payload.items : [];
+      renderGazetteArchive(gazetteIssues);
+      return gazetteIssues;
+    } catch (error) {
+      gazetteLoading = null;
+      if (rows) {
+        rows.innerHTML = `<div class="gazette-archive__foot">Архив недоступен: ${escapeHtml(error.message)}</div>`;
+      }
+      const status = document.getElementById("gazetteTopStatus");
+      if (status) status.textContent = "АРХИВ НЕДОСТУПЕН";
+      return [];
+    }
+  })();
+  return gazetteLoading;
+}
+
 function gazetteArchive(open) {
   const archive = document.getElementById("gazetteArchive");
   const button = document.getElementById("gazetteIssue");
@@ -787,12 +901,12 @@ document.getElementById("gazetteIssue")?.addEventListener("click", () => gazette
 /* Выбор выпуска из архива: рамка перезагружается, шапка называет выбранный номер.
  * «ТЕКУЩИЙ» — свойство последнего выпуска, оно не переезжает вместе с просмотром. */
 function openGazetteIssue(row) {
-  const issue = row.dataset.gazetteIssue;
+  const url = row.dataset.gazetteUrl;
   const frame = document.querySelector(".gazette-frame");
-  if (frame && issue && !frame.src.includes(`/gazette-${issue}.html`)) {
-    frame.src = `/gazette-${issue}.html`;
-    if (row.dataset.gazetteDate) {
-      frame.setAttribute("title", `Новости Агентного управления — выпуск от ${row.dataset.gazetteDate}`);
+  if (frame && url && frame.getAttribute("src") !== url) {
+    frame.setAttribute("src", url);
+    if (row.dataset.gazetteTitle) {
+      frame.setAttribute("title", row.dataset.gazetteTitle);
     }
     const month = document.querySelector("#gazetteIssue b");
     if (month) month.textContent = row.dataset.gazetteMonth || "";
@@ -813,13 +927,16 @@ function syncGazetteTopStatus() {
   const row = document.querySelector("[data-gazette-issue].is-current");
   const status = document.getElementById("gazetteTopStatus");
   if (!row || !status) return;
+  const button = document.querySelector("#gazetteIssue b");
+  if (button && !button.textContent) button.textContent = row.dataset.gazetteMonth || "";
+  const next = gazetteNextMonth(row.dataset.gazetteIssue);
   const parts = [
     "ТЕКУЩИЙ НОМЕР:",
     row.dataset.gazetteNumber || "",
     "·",
     (row.dataset.gazetteMonth || "").toUpperCase(),
   ];
-  if (row.dataset.gazetteNext) parts.push("· СЛЕДУЮЩИЙ —", row.dataset.gazetteNext);
+  if (next) parts.push("· СЛЕДУЮЩИЙ —", next.toUpperCase());
   status.textContent = parts.filter(Boolean).join(" ");
 }
 
@@ -829,7 +946,6 @@ document.querySelector(".brand")?.addEventListener("click", event => {
   window.scrollTo?.(0, 0);
 });
 
-syncGazetteTopStatus();
 
 document.getElementById("agentSubEnter")?.addEventListener("click", () => {
   accessEnter(
@@ -888,7 +1004,10 @@ function setViewMode(mode) {
   document.getElementById("agentView")?.toggleAttribute("hidden", state.viewMode !== "agent");
   // Кадр газеты мог загрузиться, пока раздел был скрыт: событие `load` тогда
   // прошло до подписки, и высоту надо взять сейчас.
-  if (state.viewMode === "gazette") fitGazetteFrame();
+  if (state.viewMode === "gazette") {
+    loadGazettes().catch(error => console.warn("Radar gazettes unavailable", error));
+    fitGazetteFrame();
+  }
   document.querySelectorAll("[data-view-mode]").forEach(button => {
     const active = button.dataset.viewMode === state.viewMode;
     button.classList.toggle("is-active", active);
@@ -928,8 +1047,9 @@ function printGazette() {
   const fallback = () => {
     // Печатается открытый номер, а не тот, с которого страница начиналась:
     // архив меняет `src` рамки, и запасной путь обязан идти за ним.
-    const source = frame?.getAttribute("src") || "/gazette-20260803.html";
-    const printWindow = window.open(source, "_blank", "noopener");
+    // Печатается открытый номер; если ни одного не открыто, печатать нечего.
+    const source = frame?.getAttribute("src");
+    const printWindow = source ? window.open(source, "_blank", "noopener") : null;
     if (!printWindow) return;
     printWindow.addEventListener("load", () => {
       printWindow.focus();

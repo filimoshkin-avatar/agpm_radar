@@ -85,7 +85,7 @@
     </div>
 
     <div class="topbar__right topbar__right--gazette">
-      <span class="topbar__status mono" id="gazetteTopStatus">ТЕКУЩИЙ НОМЕР: № 2 · СЕНТЯБРЬ 2026 · СЛЕДУЮЩИЙ — ОКТЯБРЬ</span>
+      <span class="topbar__status mono" id="gazetteTopStatus"></span>
       <button class="button button--ghost" id="printGazetteTop" type="button">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 6V2h8v4M4 12H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-1M4 10h8v4H4z"></path></svg>
         Печать / PDF
@@ -501,32 +501,15 @@
         </button>
         <div class="gazette-archive" id="gazetteArchive" hidden aria-label="Архив выпусков">
           <div class="gazette-archive__head mono">Архив выпусков</div>
-          <button class="gazette-archive__row is-current is-viewed" type="button" aria-pressed="true"
-                  data-gazette-issue="20260901-r3" data-gazette-month="Сентябрь 2026" data-gazette-number="№ 2"
-                  data-gazette-date="1 сентября 2026" data-gazette-next="ОКТЯБРЬ">
-            <span class="gazette-archive__names">
-              <span class="gazette-archive__month">Сентябрь 2026</span>
-              <span class="gazette-archive__sub mono">1 сен · Том I · № 2</span>
-            </span>
-            <span class="gazette-archive__tag mono">ТЕКУЩИЙ</span>
-          </button>
-          <button class="gazette-archive__row" type="button" aria-pressed="false"
-                  data-gazette-issue="20260803-r2" data-gazette-month="Август 2026" data-gazette-number="№ 1"
-                  data-gazette-date="3 августа 2026">
-            <span class="gazette-archive__names">
-              <span class="gazette-archive__month">Август 2026</span>
-              <span class="gazette-archive__sub mono">3 авг · Том I · № 1</span>
-            </span>
-          </button>
-          <div class="gazette-archive__foot">Архив пополняется по мере выхода номеров — следующий выпуск в октябре.</div>
+          <div id="gazetteArchiveRows"></div>
+          <div class="gazette-archive__foot" id="gazetteArchiveFoot"></div>
         </div>
       </div>
     </div>
     <div class="gazette-stage">
       <iframe
         class="gazette-frame"
-        src="/gazette-20260901-r3.html"
-        title="Новости Агентного управления — выпуск от 1 сентября 2026"
+        title="Новости Агентного управления"
         sandbox="allow-same-origin allow-modals">
       </iframe>
     </div>
@@ -542,6 +525,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.mjs?v=1d170f0d8c45"></script>
+  <script src="/assets/app.mjs?v=be30ff08d15a"></script>
 </body>
 </html>

@@ -29,31 +29,24 @@ def test_external_output_directory_is_supported(
     assert f"Manifest: {manifest_path}" in capsys.readouterr().out
 
 
-def test_every_gazette_issue_is_shipped_routed_and_linked() -> None:
-    """The three places a gazette issue has to be named, checked against each other.
+def test_no_gazette_issue_is_shipped_with_the_application() -> None:
+    """An issue is published content, and nothing about it lives in a release.
 
-    Naming an issue in one list and not the other has now cost two releases: the
-    file sits in apps/web, index.html links it, and the web role ships without it,
-    so the reader gets a 404 while every test stays green - the tests read the
-    checkout, not the artifact. A comment above the list asked twice; this asks in
-    the gate.
+    It used to live in three lists at once - `apps/web`, `WEB_PATHS` and
+    `_BUNDLED_GAZETTE_ISSUES` - and naming it in one and not another cost two
+    releases: the file sat in the checkout, index.html linked it, the web role
+    shipped without it, and every test stayed green because the tests read the
+    checkout and the reader reads the artifact. Since 2026-09-05 an issue is
+    published like any other content, `/api/gazettes` says which one is current,
+    and there is no list to disagree with another. This is the gate that keeps
+    one from growing back.
     """
-    import re
-
-    from apps.api.application import _BUNDLED_GAZETTE_ISSUES
     from packages.deployment.artifacts import WEB_PATHS
 
     web = Path(__file__).resolve().parents[1] / "apps/web"
-    on_disk = {path.name for path in web.glob("gazette-*.html")}
-    shipped = {path.rsplit("/", 1)[-1] for path in WEB_PATHS if "/gazette-" in path}
-    routed = {path.removeprefix("/") for path in _BUNDLED_GAZETTE_ISSUES}
-    html = (web / "index.html").read_text(encoding="utf-8")
-    linked = set(re.findall(r"gazette-[0-9A-Za-z-]+\.html", html)) | {
-        f"gazette-{issue}.html" for issue in re.findall(r'data-gazette-issue="([^"]+)"', html)
-    }
-
-    assert shipped == on_disk, "WEB_PATHS and apps/web disagree about which issues exist"
-    assert routed == on_disk, "_BUNDLED_GAZETTE_ISSUES and apps/web disagree"
-    assert linked <= shipped, (
-        f"index.html links issues the web role does not ship: {linked - shipped}"
+    assert not list(web.glob("gazette-*.html")), "a gazette issue is back in apps/web"
+    assert not [path for path in WEB_PATHS if "/gazette-" in path], (
+        "a gazette issue is back in the web role"
     )
+    html = (web / "index.html").read_text(encoding="utf-8")
+    assert "gazette-2026" not in html, "index.html names an issue instead of asking the API"
