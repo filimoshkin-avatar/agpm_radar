@@ -1,23 +1,108 @@
-@radar_v2_api path /api/*
-handle @radar_v2_api {
-    reverse_proxy 127.0.0.1:8765
-}
-# Номера газеты — опубликованное содержимое: служба отдаёт их из
-# /var/lib/radar-v2/gazettes/releases, сверяя каждый байт с базой. Без этого
-# маршрута финальный `try_files … /index.html` ответил бы на адрес номера
-# двухсоткой с самим приложением, и рамка вложила бы сайт сам в себя.
-@radar_v2_gazettes path /gazettes/*
-handle @radar_v2_gazettes {
-    reverse_proxy 127.0.0.1:8765
-}
-@radar_v2_social_assets path /favicon.svg /og-image-20260803.png
-handle @radar_v2_social_assets {
-    root * @WEB_CURRENT@/apps/web
-    header Cache-Control "public, max-age=86400"
-    file_server
-}
-handle {
-    root * @WEB_CURRENT@/apps/web
-    try_files {path} /index.html
-    file_server
+# Радар V2, публичный контур: копия блока `radar.agpm.space` из
+# /etc/caddy/Caddyfile на Local Ru, снятая 05.09.2026.
+#
+# Копия, а не набор плейсхолдеров, потому что это единственная запись прод-
+# конфига в репозитории, и держат её ради восстановления хоста. Единственное,
+# что скрыто, — bcrypt-хэш пароля к стене владельца (`@PO_BCRYPT@`): он живёт
+# только на хосте, в /etc/caddy/Caddyfile.
+#
+# Почему заголовки стоят в общем блоке, а не внутри `handle`: общий `header`
+# оборачивает маршрут и переписывает ответ на выходе, поэтому заголовок внутри
+# `handle` проигрывает — проверено дважды 26.08.2026. Из этого же следует, что
+# CSP, который видит браузер, пишет Caddy, а не приложение: константы
+# `_SPA_CSP` и `_GAZETTE_CSP` в apps/api/application.py строже и до читателя не
+# доходят. Менять политику надо здесь.
+radar.agpm.space {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/radar-v2-access.log
+		format json
+	}
+
+	header {
+		-Server
+		# Ни одного внешнего источника: шрифты свои, картинок нет вовсе, а газета
+		# вшивает свои начертания как `data:` (12 штук на номер). Google Fonts
+		# стояли ради августовской ревизии газеты, которая их тянула; 05.09.2026
+		# она заменена на самодостаточную.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
+		Cross-Origin-Resource-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		# SAMEORIGIN, а не DENY: газета показывается на главной в собственном
+		# `<iframe>`, и работало это лишь потому, что браузер при наличии
+		# `frame-ancestors` игнорирует этот заголовок.
+		X-Frame-Options "SAMEORIGIN"
+	}
+
+	# Radar KX editor: the queue of everything waiting for the owner.
+	# The service binds to loopback and checks these credentials itself as well;
+	# a service that trusts its proxy is open the moment somebody reaches it
+	# another way. Requested by the owner 2026-08-23; P21 anticipated an editor
+	# mode on the public domain behind a login.
+	redir /po /po/ 301
+
+	handle /po/* {
+		basic_auth {
+			helen @PO_BCRYPT@
+		}
+		uri strip_prefix /po
+		reverse_proxy 127.0.0.1:19702 {
+			header_down -Server
+		}
+	}
+
+	# Radar KX knowledge base, read-only, behind the third position of the mode
+	# switcher. No login: the agent mode is public by the owner's decision of
+	# 2026-08-23. The service binds to loopback and connects to PostgreSQL as a
+	# role that can read six views and nothing else in kx (migration 024), so a
+	# bug here cannot return anybody's article.
+	handle /kb/* {
+		uri strip_prefix /kb
+		reverse_proxy 127.0.0.1:19703 {
+			header_down -Server
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8765 {
+			header_down -Server
+		}
+	}
+
+	handle /gazettes/* {
+		reverse_proxy 127.0.0.1:8765 {
+			header_down -Server
+		}
+	}
+
+	@assets path /assets/styles.css /assets/app.mjs /assets/fonts/* /assets/vendor/*
+	handle @assets {
+		root * /srv/radar-v2.aipractice.space/current/apps/web
+		uri strip_prefix /assets
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	@social_assets path /favicon.svg /og-image-20260803.png
+	handle @social_assets {
+		root * /srv/radar-v2.aipractice.space/current/apps/web
+		header Cache-Control "public, max-age=86400"
+		file_server
+	}
+
+	@spa path / /issues /issues/* /search /gazettes /agent
+	handle @spa {
+		root * /srv/radar-v2.aipractice.space/current/apps/web
+		header Cache-Control "no-store"
+		rewrite * /index.html
+		file_server
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
 }
