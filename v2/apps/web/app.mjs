@@ -1471,7 +1471,7 @@ function renderCard(item) {
   const { host, date, signal, description, takeaway } = view;
   const tags = view.tags.map(tag => {
     const tagClass = rubricTagClasses[tag.id] || "tag-default";
-    return `<span class="tag ${tagClass}">${tag.name}</span>`;
+    return `<span class="tag ${tagClass}">${escapeHtml(tag.name)}</span>`;
   }).join("");
   return `<article class="card">
     <div class="card__meta">

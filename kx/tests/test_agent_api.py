@@ -742,3 +742,12 @@ def test_the_chain_travels_with_the_counts_so_the_reader_can_check() -> None:
     served = service(agent_counts=COUNTS, agent_sync=rows).counts()
     assert served["chain"][3]["failures_since"] == 2
     assert served["syncedAt"] == "2026-08-24T06:07:00+00:00"
+
+
+def test_a_client_that_stops_talking_does_not_hold_a_thread_for_ever() -> None:
+    """The stdlib handler waits without limit unless a timeout is named."""
+    from radar_kx.agent_api import AgentService, make_handler
+
+    handler = make_handler(cast(AgentService, object()))
+
+    assert handler.timeout == 30.0

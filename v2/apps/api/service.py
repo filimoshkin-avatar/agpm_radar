@@ -16,9 +16,10 @@ from datetime import date
 from typing import Final
 from urllib.parse import parse_qsl, urlsplit
 
+from packages.contracts.json_types import JsonObject
 from packages.validation.public_issue import PublicIssueValidationError
 
-from apps.api.database import ActiveDatabaseManager, PublicDatabaseError
+from apps.api.database import ActiveDatabaseManager, DatabaseIdentity, PublicDatabaseError
 from apps.api.public_data import (
     PublicDataError,
     PublicDataInputError,
@@ -291,6 +292,27 @@ class RadarApi:
             raise ValueError("application release id is invalid")
         self.application_release_id = application_release_id
         self.search_limiter = search_limiter or SearchRateLimiter()
+        #: The issue documents built from the active release, keyed by its state
+        #: hash: see `_repository`.
+        self._issue_cache: tuple[str, dict[str, JsonObject]] = ("", {})
+
+    def _repository(
+        self, connection: sqlite3.Connection, identity: DatabaseIdentity
+    ) -> PublicDataRepository:
+        """The repository over this connection, with the issues this release has built.
+
+        Building one IssueDetail from the views costs about 6 ms and validates the
+        whole document. The 30-day material list built thirty of them on every
+        request, under the manager's lock: 170 ms measured on 2026-09-05 against the
+        production seed, search the same, the archive list 130 ms. A release never
+        changes, so the documents are kept by state hash and dropped with it. This
+        runs inside the manager's lock, which is what makes a plain dict enough.
+        """
+        state_hash, cache = self._issue_cache
+        if state_hash != identity.state_hash:
+            cache = {}
+            self._issue_cache = (identity.state_hash, cache)
+        return PublicDataRepository(connection, issue_cache=cache)
 
     def _dispatch(self, path: str, values: dict[str, str], remote_key: str) -> object:
         if path == "/api/health":
@@ -307,14 +329,14 @@ class RadarApi:
         if path == "/api/latest":
             _only(values, set())
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).latest_issue()
+                lambda connection, identity: self._repository(connection, identity).latest_issue()
             )
         if path == "/api/issues":
             _only(values, {"cursor", "limit"})
             limit = _integer(values, "limit", default=20, minimum=1, maximum=100)
             before_issue_date = _issue_cursor(values.get("cursor"))
             items, next_date = self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).issues(
+                lambda connection, identity: self._repository(connection, identity).issues(
                     limit=limit,
                     before_date=before_issue_date,
                 )
@@ -330,7 +352,9 @@ class RadarApi:
                 raise RequestInputError("issue path is invalid")
             issue_date = _date_value(raw_date, "issueDate")
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).issue(issue_date)
+                lambda connection, identity: self._repository(connection, identity).issue(
+                    issue_date
+                )
             )
         if path in {"/api/materials", "/api/search"}:
             allowed = {"cursor", "limit", "period"}
@@ -364,7 +388,7 @@ class RadarApi:
             if query is not None:
                 self.search_limiter.check(remote_key)
             items, next_offset = self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).materials(
+                lambda connection, identity: self._repository(connection, identity).materials(
                     period=period,
                     perimeter=perimeter,
                     rubric=rubric,
@@ -385,7 +409,7 @@ class RadarApi:
             _only(values, {"period"})
             period = _period(values, required=True)
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).stats(period)
+                lambda connection, identity: self._repository(connection, identity).stats(period)
             )
         if path == "/api/timeseries":
             _only(values, {"basis", "days"})
@@ -394,7 +418,7 @@ class RadarApi:
             if basis not in {"issue", "publication"}:
                 raise RequestInputError("basis is invalid")
             items = self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).timeseries(
+                lambda connection, identity: self._repository(connection, identity).timeseries(
                     days=days,
                     basis=basis,
                 )
@@ -405,7 +429,7 @@ class RadarApi:
             period = _period(values)
             anchor = _date_value(values["anchor"], "anchor") if "anchor" in values else None
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).rubrics(
+                lambda connection, identity: self._repository(connection, identity).rubrics(
                     period, anchor
                 )
             )
@@ -413,14 +437,14 @@ class RadarApi:
             _only(values, {"period"})
             period = _period(values)
             return self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).sources(period)
+                lambda connection, identity: self._repository(connection, identity).sources(period)
             )
         if path == "/api/gazettes":
             _only(values, {"cursor", "limit"})
             limit = _integer(values, "limit", default=20, minimum=1, maximum=100)
             gazette_before = _gazette_cursor(values.get("cursor"))
             items, next_value = self.manager.execute(
-                lambda connection, _identity: PublicDataRepository(connection).gazettes(
+                lambda connection, identity: self._repository(connection, identity).gazettes(
                     limit=limit,
                     before=gazette_before,
                 )

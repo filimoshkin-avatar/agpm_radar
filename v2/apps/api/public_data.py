@@ -292,14 +292,31 @@ def _card_search_text(item: JsonObject, rubric_titles: Mapping[str, str]) -> str
 class PublicDataRepository:
     """Map allowlisted published views to exact public DTOs."""
 
-    def __init__(self, connection: sqlite3.Connection) -> None:
+    def __init__(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        issue_cache: dict[str, JsonObject] | None = None,
+    ) -> None:
         self.connection = connection
+        #: Issue documents already built from this release, by date. A release
+        #: never changes, so a built document is a fact about it; the dict is the
+        #: caller's and must die with the release it was built from. A cached
+        #: document is served as it is, never edited.
+        self.issue_cache = issue_cache if issue_cache is not None else {}
+
+    def _issue(self, issue_date: str) -> JsonObject:
+        cached = self.issue_cache.get(issue_date)
+        if cached is None:
+            cached = build_public_issue_from_views(self.connection, issue_date=issue_date)
+            self.issue_cache[issue_date] = cached
+        return cached
 
     def latest_issue(self) -> JsonObject:
         latest = _latest_date(self.connection)
         if latest is None:
             raise PublishedResourceNotFoundError("no published issue exists")
-        return build_public_issue_from_views(self.connection, issue_date=latest.isoformat())
+        return self._issue(latest.isoformat())
 
     def issue(self, issue_date: str) -> JsonObject:
         row = self.connection.execute(
@@ -308,7 +325,7 @@ class PublicDataRepository:
         ).fetchone()
         if row is None:
             raise PublishedResourceNotFoundError("published issue not found")
-        return build_public_issue_from_views(self.connection, issue_date=issue_date)
+        return self._issue(issue_date)
 
     def issues(
         self,
@@ -328,7 +345,7 @@ class PublicDataRepository:
         ).fetchall()
         items: list[JsonObject] = []
         for row in rows[:limit]:
-            issue = build_public_issue_from_views(self.connection, issue_date=str(row[0]))
+            issue = self._issue(str(row[0]))
             items.append(
                 {
                     "brief": issue["brief"],
@@ -346,7 +363,7 @@ class PublicDataRepository:
     def _period_materials(self, period: str) -> list[JsonObject]:
         materials: list[JsonObject] = []
         for issue_date in _period_dates(self.connection, period):
-            issue = build_public_issue_from_views(self.connection, issue_date=issue_date)
+            issue = self._issue(issue_date)
             issue_materials = cast(list[JsonValue], issue["materials"])
             materials.extend(cast(JsonObject, item) for item in issue_materials)
         return materials

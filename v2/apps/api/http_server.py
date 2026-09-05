@@ -10,6 +10,20 @@ from apps.api.application import RadarApplication
 _LOOPBACK_HOSTS: Final = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
+def remote_key(forwarded_for: str | None, client_address: str) -> str:
+    """The reader behind Caddy, for the search allowance.
+
+    Every request arrives from 127.0.0.1, so keying the allowance on the socket
+    address gave the whole site one shared window: thirty searches a minute
+    between every reader, and any one of them could spend it for the rest. Caddy
+    sets X-Forwarded-For itself and ignores whatever the client sent (its default
+    without trusted_proxies), so the first entry is the reader. Without the header
+    - a loopback smoke, a test - the socket address is what there is.
+    """
+    forwarded = (forwarded_for or "").split(",")[0].strip()
+    return forwarded or client_address
+
+
 class RadarHttpServer(ThreadingHTTPServer):
     """HTTP server carrying one explicit application instance."""
 
@@ -25,17 +39,24 @@ class RadarRequestHandler(BaseHTTPRequestHandler):
     """Translate GET requests without logging query or material content."""
 
     protocol_version = "HTTP/1.1"
+    # The stdlib announces itself as "BaseHTTP/0.6 Python/3.12.3". Caddy hides it
+    # today; the process should not say it in the first place.
+    server_version = "radar-v2"
+    sys_version = ""
+
+    def version_string(self) -> str:
+        return self.server_version
 
     def setup(self) -> None:
         super().setup()
         self.connection.settimeout(10.0)
 
-    def _respond(self, method: str) -> None:
+    def _respond(self, method: str, *, head: bool = False) -> None:
         server = cast(RadarHttpServer, self.server)
         response = server.application.handle(
             method,
             self.path,
-            remote_key=str(self.client_address[0]),
+            remote_key=remote_key(self.headers.get("X-Forwarded-For"), str(self.client_address[0])),
         )
         if method != "GET":
             self.close_connection = True
@@ -44,10 +65,15 @@ class RadarRequestHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(response.body)))
         self.end_headers()
-        self.wfile.write(response.body)
+        if not head:
+            self.wfile.write(response.body)
 
     def do_GET(self) -> None:
         self._respond("GET")
+
+    def do_HEAD(self) -> None:
+        """The GET answer without its body: the stdlib's default was a 501 HTML page."""
+        self._respond("GET", head=True)
 
     def do_POST(self) -> None:
         self._respond("POST")
@@ -75,4 +101,4 @@ def serve(application: RadarApplication, *, host: str, port: int) -> None:
         server.serve_forever(poll_interval=0.25)
 
 
-__all__ = ["RadarHttpServer", "RadarRequestHandler", "serve"]
+__all__ = ["RadarHttpServer", "RadarRequestHandler", "remote_key", "serve"]

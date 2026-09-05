@@ -68,6 +68,27 @@ class StaticRouteError(RuntimeError):
     """A static route is invalid, absent or outside its immutable root."""
 
 
+def _signature(descriptor: int) -> tuple[int, int, int, int, int, int, int]:
+    """What may not change while a static file is read - and atime is not in it.
+
+    The check used to compare whole `os.stat_result`s, which include the access
+    time. On a `relatime` mount the first read after a write updates atime, so the
+    first request for every freshly deployed asset was a 404 and the second was
+    fine: the gate went red on 2026-09-05 for exactly one run after `index.html`
+    changed. The same seven fields the database manager pins.
+    """
+    metadata = os.fstat(descriptor)
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
 def _read_static(root: Path, relative: str) -> bytes:
     try:
         parts = relative_parts(relative)
@@ -94,12 +115,13 @@ def _read_static(root: Path, relative: str) -> bytes:
             dir_fd=current,
         )
         try:
-            before = os.fstat(descriptor)
+            before = _signature(descriptor)
+            _device, _inode, mode, links, size, _mtime, _ctime = before
             if (
-                not stat.S_ISREG(before.st_mode)
-                or before.st_nlink != 1
-                or before.st_size > _MAX_STATIC_BYTES
-                or stat.S_IMODE(before.st_mode) & 0o022
+                not stat.S_ISREG(mode)
+                or links != 1
+                or size > _MAX_STATIC_BYTES
+                or stat.S_IMODE(mode) & 0o022
             ):
                 raise StaticRouteError("static file invariants failed")
             chunks: list[bytes] = []
@@ -110,7 +132,7 @@ def _read_static(root: Path, relative: str) -> bytes:
                     break
                 chunks.append(chunk)
                 remaining -= len(chunk)
-            after = os.fstat(descriptor)
+            after = _signature(descriptor)
             if before != after or remaining <= 0:
                 raise StaticRouteError("static file changed or exceeded its size bound")
             return b"".join(chunks)

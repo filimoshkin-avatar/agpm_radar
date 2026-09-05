@@ -28,7 +28,7 @@ from apps.api import (
     SearchRateLimiter,
 )
 from apps.api.__main__ import _application_release_id
-from apps.api.http_server import RadarHttpServer
+from apps.api.http_server import RadarHttpServer, remote_key
 from apps.api.public_data import _card_search_text, _date_label, _shown_texts
 from packages.domain.snapshot import JsonObject
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
@@ -594,6 +594,13 @@ def test_atomic_pointer_switch_reopens_expected_release_and_inode(
     _manager, api, active_root = stage8_runtime
     first = cast(dict[str, object], _payload(api.handle("GET", "/api/health")))
     assert first["releaseId"] == "release_stage8_a"
+    # Built once and kept: the same document object answers the next request.
+    before = cast(dict[str, object], _payload(api.handle("GET", "/api/latest")))
+    cached_hash, cached = api._issue_cache
+    assert cached_hash == first["databaseStateHash"]
+    assert cached[cast(str, before["issueDate"])] is not None
+    api.handle("GET", "/api/latest")
+    assert api._issue_cache[1] is cached
 
     replacement_database = tmp_path / "replacement.sqlite"
     _build_release(
@@ -617,6 +624,9 @@ def test_atomic_pointer_switch_reopens_expected_release_and_inode(
     latest = cast(dict[str, object], _payload(api.handle("GET", "/api/latest")))
     assert latest["title"] == "Пустой выпуск после переключения"
     assert read_active_pointer(active_root).release_id == "release_stage8_b"
+    # The documents of release A went with it: the cache is keyed by the new hash.
+    assert api._issue_cache[0] == second["databaseStateHash"]
+    assert api._issue_cache[1] is not cached
 
 
 def test_health_exposes_explicit_runtime_application_release(
@@ -742,6 +752,88 @@ def test_loopback_http_transport_serves_json_and_security_headers(
             server.shutdown()
             thread.join(timeout=5)
             assert not thread.is_alive()
+
+
+def test_a_freshly_written_asset_is_served_on_its_first_read(tmp_path: Path) -> None:
+    """On a relatime mount the first read after a write moves atime.
+
+    The stat comparison around the read included it, so every freshly deployed
+    asset answered 404 once and 200 from then on. Seen 2026-09-05: the gate went
+    red for one run after `index.html` changed, and green when run again.
+    """
+    from apps.api.application import _read_static
+
+    web_root = tmp_path / "web"
+    web_root.mkdir(mode=0o700)
+    asset = web_root / "app.mjs"
+    asset.write_text("export const fresh = true;\n", encoding="utf-8")
+    asset.chmod(0o644)
+    written = asset.stat()
+    # A read older than the write is what relatime updates on the next read.
+    os.utime(asset, ns=(written.st_mtime_ns - 10**11, written.st_mtime_ns))
+
+    assert _read_static(web_root, "app.mjs") == b"export const fresh = true;\n"
+    assert _read_static(web_root, "app.mjs") == b"export const fresh = true;\n"
+
+
+def test_search_allowance_is_per_reader_behind_the_proxy_and_head_is_answered(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    tmp_path: Path,
+) -> None:
+    """Every request reaches the process from 127.0.0.1: Caddy is the only client.
+
+    Keyed on the socket address, the search window was one window for the whole
+    site, and thirty searches by anyone closed search for everyone for a minute.
+    Caddy sets X-Forwarded-For itself, so that is the reader.
+    """
+    manager, _api, _root = stage8_runtime
+    api = RadarApi(
+        manager,
+        application_release_id="app_release_forwarded_test",
+        search_limiter=SearchRateLimiter(requests=1, window_seconds=60),
+    )
+    gazette_root = tmp_path / "forwarded-gazettes"
+    gazette_root.mkdir(mode=0o700)
+    application = RadarApplication(api, web_root=WEB_ROOT, gazette_root=gazette_root)
+    with RadarHttpServer(("127.0.0.1", 0), application) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        port = int(server.server_address[1])
+
+        def search(reader: str | None) -> int:
+            request = urllib.request.Request(f"http://127.0.0.1:{port}/api/search?q=agent")
+            if reader is not None:
+                request.add_header("X-Forwarded-For", reader)
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
+                    return int(response.status)
+            except urllib.error.HTTPError as error:
+                return int(error.code)
+
+        try:
+            assert search("203.0.113.5") == 200
+            assert search("203.0.113.6") == 200
+            assert search("203.0.113.5") == 429
+            # Without the header - a loopback smoke - the socket address is the key.
+            assert search(None) == 200
+            assert search(None) == 429
+
+            head = urllib.request.Request(f"http://127.0.0.1:{port}/api/health", method="HEAD")
+            with urllib.request.urlopen(head, timeout=5) as response:  # noqa: S310
+                assert response.status == 200
+                assert response.read() == b""
+                head_length = int(response.headers["Content-Length"])
+                assert response.headers["Server"] == "radar-v2"
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/health", timeout=5
+            ) as response:
+                assert len(response.read()) == head_length
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            assert not thread.is_alive()
+    assert remote_key("198.51.100.7, 127.0.0.1", "127.0.0.1") == "198.51.100.7"
+    assert remote_key(None, "127.0.0.1") == "127.0.0.1"
 
 
 def test_frontend_has_mobile_empty_no_llm_and_dom_only_security_contract() -> None:

@@ -23,6 +23,14 @@ ATTEMPT_TIMEOUT_SECONDS = 180
 #: from here rather than remembering a number. Its former 300 seconds were less than
 #: 3 x 180, and the run died on a `TimeoutExpired` nobody caught.
 WORST_CASE_SECONDS = MAX_ATTEMPTS * ATTEMPT_TIMEOUT_SECONDS
+#: The prompt travels to `openclaw infer` as one argv string, and Linux caps a
+#: single argument at MAX_ARG_STRLEN, 32 pages = 131 072 bytes. Measured
+#: 2026-09-05 on the retained requests: the 30-day period prompt was 109 725 and
+#: 111 759 bytes on two consecutive days, 85 % of the ceiling. Past it,
+#: `subprocess.run` raises OSError(E2BIG) before the model is asked, and nothing
+#: caught it: the day would have ended in a traceback, not in the fallback. The
+#: period module shares this constant rather than restating it.
+MAX_PROMPT_ARGV_BYTES = 131_072 - 1
 MIN_ANALYTIC_PARAGRAPHS = 3
 MAX_ANALYTIC_PARAGRAPHS = 5
 MIN_ANALYTIC_CHARS = 1_200
@@ -149,6 +157,18 @@ def _thesis_violations(raw: object, *, materials: list[JsonObject]) -> list[str]
         if unsupported:
             violations.append(f"analysis theses[{index}] cites absent V2 perimeters: {unsupported}")
     return violations
+
+
+def prompt_argv_overflow(prompt: str) -> str | None:
+    """Why this prompt cannot be handed to the model as one argument, or None.
+
+    A repair prompt only adds text, so an over-long first attempt is the whole
+    run failing, not one attempt of three.
+    """
+    size = len(prompt.encode("utf-8"))
+    if size > MAX_PROMPT_ARGV_BYTES:
+        return f"prompt is {size} bytes, above the {MAX_PROMPT_ARGV_BYTES}-byte argv limit"
+    return None
 
 
 def _clean_theses(raw: object) -> list[JsonObject]:
@@ -302,6 +322,10 @@ def generate_v2_analysis(
                 + "\n- ".join(failures[-1].split("; "))
             )
         prompt = base_prompt + repair
+        overflow = prompt_argv_overflow(prompt)
+        if overflow is not None:
+            failures.append(overflow)
+            break
         request = canonical_json_line(
             {
                 "attempt": attempt,
@@ -341,6 +365,17 @@ def generate_v2_analysis(
                 mode=0o600,
             )
             continue
+        except OSError as error:
+            # The process could not be started at all - a missing binary, an
+            # argument the kernel refuses. Same rule as a hung model: one attempt,
+            # recorded, and the fallback below rather than a traceback.
+            failures.append(f"OpenClaw could not be started: {error}")
+            atomic_write_new(
+                artifacts_root / f"response-attempt-{attempt}.json",
+                canonical_json_line({"attempt": attempt, "startError": str(error)}),
+                mode=0o600,
+            )
+            continue
         response = canonical_json_line(
             {
                 "attempt": attempt,
@@ -361,4 +396,6 @@ def generate_v2_analysis(
             )
         except (V2AnalysisError, json.JSONDecodeError) as exc:
             failures.append(str(exc))
-    raise V2AnalysisError(f"analysis failed after {MAX_ATTEMPTS} attempts: " + " | ".join(failures))
+    raise V2AnalysisError(
+        f"analysis failed after {len(failures)} attempts: " + " | ".join(failures)
+    )

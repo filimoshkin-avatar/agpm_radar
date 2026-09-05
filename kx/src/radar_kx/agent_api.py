@@ -903,6 +903,10 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         server_version = "radar-kb"
         sys_version = ""
+        #: A client that stops talking mid-request held its thread for ever: the
+        #: stdlib handler sets no socket timeout unless one is named. Caddy bounds
+        #: its own side; this bounds ours, for whatever reaches loopback without it.
+        timeout = 30.0
 
         def _json(self, status: HTTPStatus, payload: Any) -> None:
             body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
@@ -1082,7 +1086,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "слишком много проверок"})
                 return
             try:
-                length = min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES)
+                length = max(0, min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES))
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, TypeError):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "тело запроса не JSON"})
@@ -1128,7 +1132,7 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 )
                 return
             try:
-                length = min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES)
+                length = max(0, min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES))
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, TypeError):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "тело запроса не JSON"})

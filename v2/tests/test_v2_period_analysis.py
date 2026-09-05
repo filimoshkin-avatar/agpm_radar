@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import pytest
 from packages.domain.snapshot import JsonObject
+from tools import v2_period_analysis
 from tools.v2_period_analysis import (
     PeriodAnalysisError,
     _validate,
+    generate_period,
     period_blocks,
     strip_period_blocks,
 )
@@ -65,3 +70,31 @@ def test_period_blocks_round_trip_and_replace_old_periods() -> None:
     assert sum(str(block["title"]).endswith("метаданные") for block in blocks) == 2
     daily: JsonObject = {"kind": "overview", "title": "Сигнал", "text": "Дневной текст"}
     assert strip_period_blocks([daily, *blocks]) == [daily]
+
+
+def test_an_over_long_prompt_falls_back_without_a_model_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Measured 2026-09-05: the 30-day prompt stood at 85 % of the argv ceiling.
+
+    Past it the kernel refuses the argument before the model sees it; that is the
+    period's fallback, recorded as one attempt, not a traceback ending the day.
+    """
+
+    def never(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("the model must not be asked with a prompt the kernel refuses")
+
+    monkeypatch.setattr(subprocess, "run", never)
+    monkeypatch.setattr(v2_period_analysis, "_window_documents", lambda *args, **kwargs: [])
+    monkeypatch.setattr(v2_period_analysis, "_prompt", lambda *args, **kwargs: "ы" * 70_000)
+    result = generate_period(
+        database=tmp_path / "absent.sqlite",
+        anchor="2026-09-05",
+        period="7d",
+        artifacts_root=tmp_path / "period",
+    )
+
+    assert result["status"] == "fallback"
+    assert result["attempts"] == 1
+    assert "argv limit" in str(result["error"])

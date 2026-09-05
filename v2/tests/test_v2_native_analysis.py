@@ -355,6 +355,30 @@ def test_a_hung_attempt_costs_one_attempt_not_the_run(
     assert (tmp_path / "llm-analysis" / "response-attempt-1.json").exists()
 
 
+def test_an_over_long_prompt_fails_before_the_model_is_asked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The prompt is one argv string; past MAX_ARG_STRLEN the kernel refuses it.
+
+    The refusal used to be an OSError nobody caught. A repair prompt only adds
+    text, so this is the run failing once, not three attempts burning.
+    """
+
+    def never(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("the model must not be asked with a prompt the kernel refuses")
+
+    monkeypatch.setattr(subprocess, "run", never)
+    materials = _materials()
+    materials[0]["summary"] = "ы" * 70_000  # two bytes each: 140 000 bytes in the prompt
+    with pytest.raises(V2AnalysisError, match="after 1 attempts.*argv limit"):
+        generate_v2_analysis(
+            issue_date="2026-08-28",
+            materials=materials,
+            artifacts_root=tmp_path / "llm-analysis",
+        )
+
+
 def test_every_attempt_timing_out_is_a_bounded_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

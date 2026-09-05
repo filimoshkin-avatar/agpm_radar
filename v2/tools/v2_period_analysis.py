@@ -18,6 +18,8 @@ from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
 
+from tools.generate_v2_analysis import prompt_argv_overflow
+
 PRIMARY_MODEL = "openai/gpt-5.5"
 FALLBACK_MODEL = "openai/gpt-5.4"
 PROMPT_VERSION = "v2-period-analysis-ru-v1"
@@ -96,7 +98,10 @@ def _window_documents(
     days = 7 if period == "7d" else 30
     start = (anchor_day - timedelta(days=days - 1)).isoformat()
     documents: list[JsonObject] = []
-    with sqlite3.connect(database) as connection:
+    # The source release is read, never touched: the same read-only URI the daily
+    # builder uses for Legacy, so a stray statement cannot reach the pinned bytes.
+    with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as connection:
+        connection.execute("PRAGMA query_only=ON")
         dates = [
             str(row[0])
             for row in connection.execute(
@@ -174,7 +179,7 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
     )
 
 
-def _fallback(period: str, context: JsonObject, error: str) -> JsonObject:
+def _fallback(period: str, context: JsonObject, error: str, *, attempts: int) -> JsonObject:
     count = int(cast(int, context["materialCount"]))
     label = "7 дней" if period == "7d" else "30 дней"
     leads = [
@@ -193,7 +198,7 @@ def _fallback(period: str, context: JsonObject, error: str) -> JsonObject:
     return cast(
         JsonObject,
         {
-            "attempts": MAX_ATTEMPTS,
+            "attempts": attempts,
             "error": error,
             "model": "rules-period-v2",
             "period": period,
@@ -227,6 +232,10 @@ def generate_period(
             f"\nПредыдущий ответ отклонён: {failures[-1]}. Перепиши полностью." if failures else ""
         )
         prompt = _prompt(context, period, previous) + repair
+        overflow = prompt_argv_overflow(prompt)
+        if overflow is not None:
+            failures.append(overflow)
+            break
         atomic_write_new(
             root / f"request-attempt-{attempt}.json",
             canonical_json_line(
@@ -296,9 +305,14 @@ def generate_period(
             )
             atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
             return result
-        except (json.JSONDecodeError, PeriodAnalysisError, subprocess.TimeoutExpired) as error:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            PeriodAnalysisError,
+            subprocess.TimeoutExpired,
+        ) as error:
             failures.append(str(error))
-    result = _fallback(period, context, " | ".join(failures))
+    result = _fallback(period, context, " | ".join(failures), attempts=len(failures))
     atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
     return result
 
