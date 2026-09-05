@@ -270,16 +270,6 @@ def _verify_read_only(connection: sqlite3.Connection) -> DatabaseDigest:
     violations = tuple(connection.execute("PRAGMA foreign_key_check"))
     if violations:
         raise DeltaValidationError(f"SQLite foreign keys failed: {violations!r}")
-    source_count = int(
-        connection.execute("SELECT COUNT(*) FROM pub_search_documents_v1").fetchone()[0]
-    )
-    fts_count = int(
-        connection.execute("SELECT COUNT(*) FROM published_materials_fts").fetchone()[0]
-    )
-    if source_count != fts_count:
-        raise DeltaValidationError(
-            f"FTS projection count mismatch: source={source_count}, fts={fts_count}"
-        )
     return database_digest(connection)
 
 

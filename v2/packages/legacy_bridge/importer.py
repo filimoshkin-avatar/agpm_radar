@@ -17,7 +17,6 @@ from packages.storage.hashing import (
     database_digest,
     file_sha256,
     logical_state_hash,
-    rebuild_and_check_fts,
     verify_database,
 )
 from packages.storage.migrations import EMPTY_SHA256, configure_staging_connection
@@ -1334,7 +1333,6 @@ def import_legacy(
                 imported_at,
             ),
         )
-        rebuild_and_check_fts(target)
         after_hash = logical_state_hash(target)
         release_id = deterministic_id("release", source_sha256)
         target.execute(

@@ -33,7 +33,7 @@ from apps.api.http_server import RadarHttpServer, remote_key
 from apps.api.public_data import _card_search_text, _date_label, _shown_texts
 from packages.domain.snapshot import JsonObject
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
-from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts, verify_database
+from packages.storage.hashing import logical_state_hash, verify_database
 from packages.storage.migrations import create_database
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -236,7 +236,6 @@ def _build_release(path: Path, *, release_id: str, latest_title: str) -> None:
             """,
             (hashlib.sha256(gazette_html).hexdigest(), len(gazette_html)),
         )
-        rebuild_and_check_fts(connection)
         state_hash = logical_state_hash(connection)
         connection.execute(
             """
@@ -252,7 +251,6 @@ def _build_release(path: Path, *, release_id: str, latest_title: str) -> None:
 
 
 def _refresh_release_state(connection: sqlite3.Connection) -> None:
-    rebuild_and_check_fts(connection)
     state_hash = logical_state_hash(connection)
     connection.execute(
         "UPDATE content_releases SET after_state_hash = ?",

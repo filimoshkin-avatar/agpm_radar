@@ -42,7 +42,7 @@ from packages.publisher.project_manager import (
     ProjectManagerReportError,
     build_project_manager_report,
 )
-from packages.storage.hashing import logical_state_hash, rebuild_and_check_fts
+from packages.storage.hashing import logical_state_hash
 from packages.storage.migrations import create_database
 from packages.storage.replication_mutations import (
     MutationValidationError,
@@ -356,7 +356,6 @@ def _seed_database(path: Path) -> str:
                 "2026-08-19T02:00:00Z",
             ),
         )
-        rebuild_and_check_fts(connection)
         connection.commit()
         state_hash = logical_state_hash(connection)
         connection.execute(

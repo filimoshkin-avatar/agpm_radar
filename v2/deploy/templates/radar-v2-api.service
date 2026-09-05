@@ -40,6 +40,14 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RemoveIPC=true
 SystemCallArchitectures=native
+# What the process may ask the kernel for at all. Every radar-kx unit on this
+# host has carried this pair since August against the same relocatable CPython;
+# the published-only API was the one service still without it.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+PrivateIPC=true
+PrivateMounts=true
+KeyringMode=private
 CapabilityBoundingSet=
 AmbientCapabilities=
 DevicePolicy=closed
@@ -47,6 +55,11 @@ ReadOnlyPaths=@API_CURRENT@ @CONTENT_ROOT@ @GAZETTE_ROOT@
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 IPAddressDeny=any
 IPAddressAllow=localhost
+# One socket, named. `--host 127.0.0.1 --port 8765` is an argument and an
+# argument can be changed; this is the unit's own answer to what the service is
+# allowed to listen on.
+SocketBindDeny=any
+SocketBindAllow=ipv4:tcp:8765
 LimitNOFILE=4096
 TasksMax=128
 MemoryMax=512M

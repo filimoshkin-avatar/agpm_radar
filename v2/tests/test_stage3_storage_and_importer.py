@@ -315,12 +315,13 @@ def test_schema_matches_every_contract_table_column_fk_view_and_fts(tmp_path: Pa
             for row in connection.execute("SELECT name FROM sqlite_schema WHERE type = 'view'")
         }
         assert actual_views == set(views)
-        fts_sql = str(
+        # Migration 0004 took the search index and its source view out: nothing
+        # queried them, and the contract no longer names a derived table.
+        assert not tuple(
             connection.execute(
-                "SELECT sql FROM sqlite_schema WHERE name = 'published_materials_fts'"
-            ).fetchone()[0]
+                "SELECT name FROM sqlite_schema WHERE name LIKE 'published_materials_fts%'"
+            )
         )
-        assert "unicode61 remove_diacritics 2" in fts_sql
         migration_sql = (V2_ROOT / "packages/storage/migrations/0001_initial.sql").read_text()
         assert "AUTOINCREMENT" not in migration_sql
         assert "datetime('now')" not in migration_sql
@@ -353,13 +354,6 @@ def test_synthetic_import_infers_publication_preserves_draft_and_seals(tmp_path:
         )
         assert connection.execute("SELECT COUNT(*) FROM pub_issues_v1").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM pub_issue_materials_v1").fetchone()[0] == 1
-        assert connection.execute("SELECT COUNT(*) FROM published_materials_fts").fetchone()[0] == 1
-        assert (
-            connection.execute(
-                "SELECT COUNT(*) FROM published_materials_fts WHERE published_materials_fts MATCH 'material'"
-            ).fetchone()[0]
-            == 1
-        )
         assert (
             connection.execute(
                 "SELECT public_api_version FROM application_compatibility"
@@ -447,25 +441,8 @@ def test_logical_hash_and_equivalence_ignore_file_layout(tmp_path: Path) -> None
     assert equivalent
     assert report["count_mismatches"] == {}
     assert report["table_hash_mismatches"] == {}
-    fts_hashes = cast(dict[str, str], report["fts_projection_hashes"])
-    assert fts_hashes["source"] == fts_hashes["replica"]
     with sqlite3.connect(target_path) as first, sqlite3.connect(replica) as second:
         assert database_digest(first) == database_digest(second)
-
-
-def test_equivalence_rejects_same_count_fts_content_drift(tmp_path: Path) -> None:
-    target_path, _ = _import_synthetic(tmp_path)
-    replica = tmp_path / "replica.sqlite"
-    with sqlite3.connect(target_path) as source, sqlite3.connect(replica) as destination:
-        source.backup(destination)
-    with sqlite3.connect(replica) as connection:
-        connection.execute(
-            "UPDATE published_materials_fts SET title = 'corrupted index content' WHERE rowid = 1"
-        )
-        connection.commit()
-
-    with pytest.raises(RuntimeError, match="FTS projection content mismatch"):
-        compare(target_path, replica)
 
 
 def test_migrations_are_idempotent_and_checksum_fail_closed(tmp_path: Path) -> None:

@@ -201,7 +201,8 @@ def _shown_texts(item: JsonObject) -> tuple[str, str]:
     """The description and takeaway a card shows, so search hits are always visible.
 
     The model's texts when its analysis succeeded, the rule-based ones otherwise: the same
-    rule as cardView() in apps/web/app.mjs and pub_search_documents_v1.
+    rule as cardView() in apps/web/app.mjs. The database used to carry a third copy of it,
+    in the view behind a search index nothing queried; migration 0004 removed both.
     """
     llm = item.get("llm")
     succeeded = isinstance(llm, dict) and llm.get("status") == "success"

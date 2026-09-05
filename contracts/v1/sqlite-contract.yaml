@@ -38,7 +38,6 @@ sqlite:
       - foreign_key_check
       - schema_version
       - logical_state_hash
-      - fts_rebuild_and_parity
 writers:
   project_manager:
     directSql: false
@@ -85,7 +84,6 @@ hashing:
     text: unicode-nfc
     jsonTextColumns: parse-sort-keys-compact
   excludes:
-    - derived FTS5 virtual/internal tables
     - host-local journals
     - SQLite page layout and freelist
     - schema_migrations metadata table
@@ -472,7 +470,6 @@ publicViews:
   pub_gazette_assets_v1: {publishedOnly: true, source: gazette_assets}
   pub_material_rubrics_v1: {publishedOnly: true, source: material_rubrics_join_rubrics}
   pub_material_quality_v1: {publishedOnly: true, source: material_quality}
-  pub_search_documents_v1: {publishedOnly: true, source: issue_materials_join_materials_and_analysis}
 apiReadAllowlist:
   - pub_health_v1
   - pub_issues_v1
@@ -484,18 +481,13 @@ apiReadAllowlist:
   - pub_gazette_assets_v1
   - pub_material_rubrics_v1
   - pub_material_quality_v1
-  - pub_search_documents_v1
-  - published_materials_fts
-derivedTables:
-  published_materials_fts:
-    engine: fts5
-    source: pub_search_documents_v1
-    tokenize: "unicode61 remove_diacritics 2"
-    triggersAllowed: false
-    replicatedByDelta: false
-    includedInLogicalStateHash: false
-    rebuildAfterApply: true
-    parityChecks:
-      - source_projection_count_equals_fts_count
-      - fts_integrity_check
-      - fixture_search_results_match
+# Производных таблиц в схеме нет. Миграция 0004 убрала `published_materials_fts`
+# и представление `pub_search_documents_v1`, ради которого он существовал: поиск
+# идёт по тексту карточки в приложении, подстрокой, по тем же полям, которые
+# карточка показывает (`_card_search_text` в apps/api/public_data.py и
+# `cardSearchText` в apps/web/app.mjs — одно правило в двух местах).
+#
+# Ключ остаётся объявленным пустым, а не исчезает: `ENABLE_FTS5` по-прежнему
+# требуется от рантайма, потому что миграция 0001 создаёт виртуальную таблицу,
+# и свежая база проходит через её создание, прежде чем 0004 её уберёт.
+derivedTables: {}

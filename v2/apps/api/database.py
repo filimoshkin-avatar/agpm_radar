@@ -27,9 +27,7 @@ PUBLIC_READ_OBJECTS: Final = frozenset(
         "pub_material_analysis_v1",
         "pub_material_quality_v1",
         "pub_material_rubrics_v1",
-        "pub_search_documents_v1",
         "pub_stats_v1",
-        "published_materials_fts",
     }
 )
 _ACTIVE_POINTER_MODE: Final = 0o600
@@ -142,14 +140,6 @@ def _connect_pointer(pointer: ContentPointer, pointer_bytes: bytes) -> _OpenedDa
             or state_hash != pointer.state_hash
         ):
             raise PublicDatabaseError("active pointer and pinned database markers differ")
-        source_count = int(
-            connection.execute("SELECT COUNT(*) FROM pub_search_documents_v1").fetchone()[0]
-        )
-        fts_count = int(
-            connection.execute("SELECT COUNT(*) FROM published_materials_fts").fetchone()[0]
-        )
-        if source_count != fts_count:
-            raise PublicDatabaseError("published search projection parity failed")
         if _signature(descriptor) != before:
             raise PublicDatabaseError("active database changed during verification")
         connection.set_authorizer(_public_authorizer)

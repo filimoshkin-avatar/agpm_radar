@@ -172,37 +172,13 @@ def database_digest(connection: sqlite3.Connection) -> DatabaseDigest:
     )
 
 
-def rebuild_and_check_fts(connection: sqlite3.Connection) -> int:
-    """Rebuild the published-only FTS projection and run contract parity checks."""
-    connection.execute("DELETE FROM published_materials_fts")
-    connection.execute(
-        """
-        INSERT INTO published_materials_fts(
-          document_id, issue_id, issue_date, material_id, title, summary,
-          agpm_takeaway, source_name, url
-        )
-        SELECT document_id, issue_id, issue_date, material_id, title, summary,
-               agpm_takeaway, source_name, url
-        FROM pub_search_documents_v1
-        ORDER BY issue_date, issue_id, material_id
-        """
-    )
-    source_count = int(
-        connection.execute("SELECT COUNT(*) FROM pub_search_documents_v1").fetchone()[0]
-    )
-    fts_count = int(
-        connection.execute("SELECT COUNT(*) FROM published_materials_fts").fetchone()[0]
-    )
-    if source_count != fts_count:
-        raise RuntimeError(f"FTS projection mismatch: source={source_count}, fts={fts_count}")
-    connection.execute(
-        "INSERT INTO published_materials_fts(published_materials_fts) VALUES ('integrity-check')"
-    )
-    return fts_count
-
-
 def verify_database(connection: sqlite3.Connection) -> None:
-    """Fail closed unless schema identity, integrity, FKs and FTS are all valid."""
+    """Fail closed unless schema identity, integrity and foreign keys are all valid.
+
+    The search index used to be rebuilt and checked here too. Migration 0004
+    removed it: nothing read it, and a rebuild on every verification was work
+    plus one more way for the whole site to answer 503.
+    """
     application_id = int(connection.execute("PRAGMA application_id").fetchone()[0])
     user_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if application_id != REQUIRED_SQLITE_PROFILE.application_id:
@@ -215,7 +191,6 @@ def verify_database(connection: sqlite3.Connection) -> None:
     foreign_key_rows = tuple(connection.execute("PRAGMA foreign_key_check"))
     if foreign_key_rows:
         raise RuntimeError(f"SQLite foreign key check failed: {foreign_key_rows!r}")
-    rebuild_and_check_fts(connection)
 
 
 def file_sha256(path: Path) -> str:
@@ -236,7 +211,6 @@ __all__ = [
     "database_digest",
     "file_sha256",
     "logical_state_hash",
-    "rebuild_and_check_fts",
     "table_hash",
     "verify_database",
 ]
