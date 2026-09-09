@@ -139,7 +139,6 @@ const state = {
 
 let latest = null;
 let rubrics = [];
-let sources = [];
 let timeseries = [];
 let publicationTimeseries = [];
 let issues = [];
@@ -147,6 +146,7 @@ const periodStats = new Map();
 const issueCache = new Map();
 let ringTimer = null;
 let reloadGeneration = 0;
+let renderedRadarGeneration = 0;
 let reloadTimer = null;
 let radarHasResults = false;
 let radarDataCurrent = false;
@@ -391,19 +391,6 @@ function sourceHost(url) {
   } catch (_) {
     return "";
   }
-}
-
-function sourceLabel(value) {
-  const name = String(value || "");
-  if (name.startsWith("AI Agents Directory")) return "AI Agents Directory";
-  if (name.startsWith("OpenClaw web research")) return "OpenClaw · близкий";
-  if (name.startsWith("Perplexity fresh web research")) {
-    if (name.includes(": near")) return "Perplexity · близкий";
-    if (name.includes(": middle")) return "Perplexity · средний";
-    if (name.includes(": far")) return "Perplexity · дальний";
-    return "Perplexity";
-  }
-  return name;
 }
 
 function materialDateLabel(item, compact = true) {
@@ -1926,10 +1913,36 @@ function rubricTrendDetails(row) {
   return `Было ${row.previousCount || 0}, стало ${row.currentCount || 0}; доля ${previousShare}% → ${currentShare}%; индекс ${Number(row.index || 0).toFixed(1)}; надёжность: ${confidence}.`;
 }
 
-function renderFooterSources() {
-  const shown = sources.slice(0, 12);
-  const rest = Math.max(0, sources.length - shown.length);
-  document.getElementById("footerSources").innerHTML = `${shown.map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("")}${rest ? `<span>+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}`;
+function renderFooterSources(rows, request, status = "ready") {
+  const label = request.period === "7d" ? "ИСТОЧНИКИ ЗА 7 ДНЕЙ"
+    : request.period === "30d" ? "ИСТОЧНИКИ ЗА 30 ДНЕЙ"
+    : `ИСТОЧНИКИ ВЫПУСКА · ${fmtDate(request.issueDate)}`;
+  setText("footerSourcesLabel", label);
+  const node = document.getElementById("footerSources");
+  if (status !== "ready") {
+    node.textContent = status === "loading" ? "Загрузка источников…" : "Источники не загрузились.";
+    return;
+  }
+  const shown = rows.slice(0, 12);
+  const rest = Math.max(0, rows.length - shown.length);
+  node.innerHTML = shown.length ? `${shown.map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(row.name)}</b><i class="mono">${row.included || 0}</i></span>`).join("")}${rest ? `<span>+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}` : "В выбранном периоде источников нет.";
+}
+
+async function loadSources(request) {
+  const isIssue = ["issue", "yesterday"].includes(request.period);
+  const params = isIssue ? { period: "day", date: request.issueDate } : { period: request.period };
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 2500) : null;
+  try {
+    const payload = await getJson(`/api/sources?${qs(params)}`, controller ? { signal: controller.signal } : undefined);
+    if (!Array.isArray(payload.sources)) throw new Error("Invalid sources response");
+    return payload.sources;
+  } catch (error) {
+    console.warn("Radar sources unavailable", error);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function focusFilterResults() {
@@ -2064,6 +2077,7 @@ async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   } else {
     renderColumns(state.materials);
   }
+  const sourceResult = loadSources(request);
   let materials;
   let nextStats;
   // `rubrics` живёт на уровне модуля, поэтому пишется только после проверки
@@ -2106,6 +2120,7 @@ async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   state.materials = materials;
   state.loading = false;
   radarDataCurrent = true;
+  renderedRadarGeneration = generation;
   radarHasResults = true;
   radarLoadNotice();
   const issue = ["issue", "yesterday"].includes(state.period) ? issueCache.get(activeIssueDate())?.issue : null;
@@ -2121,6 +2136,13 @@ async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   renderBars("rubrics", rubrics, "title", "count");
   renderRubricator();
   restoreRubricFocus();
+  renderFooterSources([], request, "loading");
+  // Secondary data never blocks the news. Commit only for the generation that
+  // actually rendered those news; old replies cannot replace the new footer.
+  void sourceResult.then(rows => {
+    if (generation !== renderedRadarGeneration) return;
+    renderFooterSources(rows || [], request, rows === null ? "error" : "ready");
+  });
 }
 
 document.getElementById("radarLoadRetry")?.addEventListener("click", () => { void reload(); });
@@ -2201,12 +2223,10 @@ async function loadTimeseriesData() {
 }
 
 async function loadSecondaryData() {
-  const [sourcesResult, publicationTimeseriesResult, issuesResult] = await Promise.allSettled([
-    getJson("/api/sources?period=30d"),
+  const [publicationTimeseriesResult, issuesResult] = await Promise.allSettled([
     getJson("/api/timeseries?days=30&basis=publication"),
     getJson("/api/issues?limit=5"),
   ]);
-  if (sourcesResult.status === "fulfilled") sources = sourcesResult.value.sources || [];
   if (publicationTimeseriesResult.status === "fulfilled") publicationTimeseries = publicationTimeseriesResult.value.timeseries || [];
   const issueList = issuesResult.status === "fulfilled" ? issuesResult.value.issues || [] : [];
   const issueResults = await Promise.allSettled(issueList.map(async issue => {
@@ -2218,7 +2238,6 @@ async function loadSecondaryData() {
     return { ...issue, materials: payload.materials || [] };
   }));
   issues = issueResults.filter(result => result.status === "fulfilled").map(result => result.value);
-  renderFooterSources();
   if (!radarDataCurrent) return;
   renderBars("rubrics", rubrics, "title", "count");
   renderTrendPanels();

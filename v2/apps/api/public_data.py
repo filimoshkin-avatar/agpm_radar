@@ -43,6 +43,32 @@ class PublicDataInputError(PublicDataError):
     """A bounded request value the caller can correct: the boundary answers 400, not 503."""
 
 
+def _source_identity(name: str) -> tuple[str, str]:
+    """Resolve known collection channels without treating digest titles as sources.
+
+    Unrecognized names retain their identity. In particular, different feeds on
+    the same host must not be merged merely because their publisher matches.
+    """
+    name = name.strip()
+    if name == "AI Agents Directory" or name.startswith("AI Agents Directory:"):
+        return "ai-agents-directory", "AI Agents Directory"
+    scopes = {"near": "близкий", "middle": "средний", "far": "дальний"}
+    for prefix, label in (
+        ("Perplexity fresh web research", "Perplexity"),
+        ("OpenClaw web research", "OpenClaw"),
+    ):
+        if name in {prefix, label}:
+            return prefix, label
+        for scope, scope_label in scopes.items():
+            if name == f"{label} · {scope_label}":
+                return f"{prefix}:{scope}", name
+        if name.startswith(prefix + ":"):
+            scope = name.removeprefix(prefix + ":").strip()
+            if scope in scopes:
+                return f"{prefix}:{scope}", f"{label} · {scopes[scope]}"
+    return f"raw:{name}", name
+
+
 def _public_text(value: object, label: str, *, maximum: int) -> str:
     if (
         not isinstance(value, str)
@@ -557,8 +583,10 @@ class PublicDataRepository:
             ),
         )
 
-    def sources(self, period: str) -> list[JsonObject]:
-        dates = _period_dates(self.connection, period)
+    def sources(self, period: str, issue_date: str | None = None) -> list[JsonObject]:
+        # A saved issue can sit outside the latest 30 days. A missing/empty day
+        # stays empty rather than silently borrowing a neighbouring issue.
+        dates = (issue_date,) if issue_date is not None else _period_dates(self.connection, period)
         if not dates:
             return []
         placeholders = ",".join("?" for _date_value in dates)
@@ -574,12 +602,16 @@ class PublicDataRepository:
             """,  # noqa: S608 -- placeholders are generated, never user-controlled
             dates,
         ).fetchall()
+        grouped: dict[str, tuple[str, int]] = {}
+        for raw_name, count in rows:
+            key, name = _source_identity(_public_text(raw_name, "source name", maximum=500))
+            if not name:
+                continue
+            previous = grouped.get(key, (name, 0))[1]
+            grouped[key] = (name, previous + int(count))
         return [
-            {
-                "included": int(row[1]),
-                "name": _public_text(row[0], "source name", maximum=500),
-            }
-            for row in rows
+            {"included": count, "name": name}
+            for name, count in sorted(grouped.values(), key=lambda row: (-row[1], row[0]))
         ]
 
     def _gazette_entrypoints(self, gazette_ids: list[str]) -> dict[str, list[str]]:

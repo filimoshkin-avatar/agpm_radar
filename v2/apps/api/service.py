@@ -438,10 +438,15 @@ class RadarApi:
                 )
             )
         if path == "/api/sources":
-            _only(values, {"period"})
+            _only(values, {"period", "date"})
             period = _period(values)
+            source_date = _date_value(values["date"], "date") if "date" in values else None
+            if source_date is not None and period != "day":
+                raise RequestInputError("source date requires period=day")
             return self.manager.execute(
-                lambda connection, identity: self._repository(connection, identity).sources(period)
+                lambda connection, identity: self._repository(connection, identity).sources(
+                    period, source_date
+                )
             )
         if path == "/api/gazettes":
             _only(values, {"cursor", "limit"})

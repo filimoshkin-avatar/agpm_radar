@@ -41,7 +41,7 @@ try {
         payload = { items: rows.slice(offset, offset + 100), nextCursor: offset + 100 < rows.length ? String(offset + 100) : null };
       } else if (u.pathname === '/api/stats') payload = counts(periodCards);
       else if (u.pathname === '/api/timeseries') payload = { items: [{ date: issue.issueDate, ...issue.stats }] };
-      else if (u.pathname === '/api/sources') payload = [];
+      else if (u.pathname === '/api/sources') payload = [{ name: u.searchParams.get('date') ? `Issue ${u.searchParams.get('date')}` : `Sources ${u.searchParams.get('period')}`, included: u.searchParams.get('date') ? 4 : 105 }];
       else if (u.pathname === '/api/issues') payload = { items: [] };
       return route.fulfill({ json: payload });
     }
@@ -57,6 +57,9 @@ try {
   const rubric = id => page.locator(`#rubricator [data-rubric="${id}"]`);
   await page.goto('https://radar.test/'); await ready();
   await cardCount(4);
+  await page.waitForFunction(() => document.querySelector('#footerSources').textContent.includes('Issue 2026-09-09'));
+  assert.match(await page.locator('#footerSourcesLabel').innerText(), /9 сен/i);
+  assert.ok(!requests.includes('/api/sources?period=30d'), 'latest issue must not load 30-day sources');
   assert.equal(await page.locator('#rubricator [data-rubric]').count(), 11, 'zero-count rubrics remain available');
   assert.equal(await rubric(W).locator('strong').innerText(), 'Оркестрация');
   const before = requests.filter(p => p.startsWith('/api/')).length;
@@ -85,6 +88,8 @@ try {
   await page.locator('#resetFilters').click(); await cardCount(4);
   await page.locator('[data-period="30d"]').click(); await cardCount(105);
   assert.ok(requests.some(p => p.includes('cursor=100')), 'all period pages fetched');
+  await page.waitForFunction(() => document.querySelector('#footerSources').textContent.includes('Sources 30d'));
+  assert.equal(await page.locator('#footerSourcesLabel').innerText(), 'ИСТОЧНИКИ ЗА 30 ДНЕЙ');
   await rubric(S).click(); await cardCount(1);
   assert.match(await page.locator('#columns').innerText(), /Last page/);
   const url = page.url(); await page.reload(); await cardCount(1); assert.equal(page.url(), url);
@@ -99,6 +104,8 @@ try {
   assert.equal(page.url(), 'https://radar.test/');
   await page.goto('https://radar.test/issues/2026-09-08?rubrics=workflow_orchestration'); await cardCount(2);
   assert.match(page.url(), /issues\/2026-09-08/);
+  await page.waitForFunction(() => document.querySelector('#footerSources').textContent.includes('Issue 2026-09-08'));
+  assert.match(await page.locator('#footerSourcesLabel').innerText(), /8 сен/i);
   await page.goto('https://radar.test/issues/2026-09-07?period=yesterday&rubrics=workflow_orchestration'); await cardCount(2);
   assert.ok(!page.url().includes('period=yesterday'));
   assert.equal(await page.locator('[data-period="issue"]').getAttribute('class'), 'segment is-active');

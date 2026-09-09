@@ -136,9 +136,13 @@ paths:
       operationId: listSources
       parameters:
         - {$ref: "#/components/parameters/Period"}
+        - name: date
+          in: query
+          description: Exact issue date; allowed only with period=day. Missing issues return an empty list.
+          schema: {type: string, format: date}
       responses:
         "200":
-          description: Sources for published materials
+          description: Canonical collection sources for published materials, merged before sorting by count
           content:
             application/json:
               schema: {type: array, items: {$ref: "#/components/schemas/Source"}}

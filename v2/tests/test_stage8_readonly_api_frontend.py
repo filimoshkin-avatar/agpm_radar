@@ -1049,3 +1049,21 @@ def test_card_search_text_is_everything_the_card_shows() -> None:
         assert hidden not in text, hidden
     assert _date_label({"issueDate": "2026-09-02"}) == "дата публикации не найдена · выпуск 2 сент"
     assert _date_label({}) == "дата публикации не найдена"
+
+
+def test_sources_accept_an_exact_issue_date_and_reject_ambiguous_windows(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    _manager, api, _root = stage8_runtime
+    response = api.handle("GET", "/api/sources?period=day&date=2026-08-20")
+    assert response.status == 200
+    assert _payload(response) == [{"name": "Synthetic Journal", "included": 1}]
+    assert _payload(api.handle("GET", "/api/sources?period=day&date=2020-01-01")) == []
+    for target in (
+        "/api/sources?period=day&date=2026-02-31",
+        "/api/sources?period=7d&date=2026-08-20",
+        "/api/sources?period=30d&date=2026-08-20",
+        "/api/sources?period=yesterday&date=2026-08-20",
+        "/api/sources?period=day&date=2026-08-20&date=2026-08-21",
+    ):
+        assert api.handle("GET", target).status == 400, target

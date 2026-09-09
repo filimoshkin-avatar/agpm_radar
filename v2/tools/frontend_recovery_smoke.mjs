@@ -325,3 +325,55 @@ console.log("Frontend recovery smoke: PASS (historical stats, search, retained r
   assert.equal(h.run('state.q'), 'retained');
 }
 console.log('Rubric regressions: PASS (shared OR selection, scoped reset, empty result, stable catalogue, URL validation)');
+
+// Footer sources follow the exact selected issue or period. An independently
+// loading archive, stale source reply or failed news request cannot relabel it.
+{
+  const h = await harness();
+  const old = deferred();
+  h.override(url => {
+    if (url.pathname !== '/api/sources') return null;
+    if (url.searchParams.get('period') === '7d') return old.promise;
+    const date = url.searchParams.get('date');
+    return h.response([{ name: date ? `Issue ${date}` : 'Thirty days', included: 2 }]);
+  });
+  await h.run("state.issueDate = '2026-07-01'; reload()"); await turn();
+  assert.match(h.elements.get('footerSources').innerHTML, /Issue 2026-07-01/);
+  assert.match(h.elements.get('footerSourcesLabel').textContent, /1 июл/);
+  assert.ok(h.requests.some(url => url.includes('/api/sources?period=day&date=2026-07-01')));
+  await h.run("state.period = '7d'; reload()"); await turn();
+  assert.equal(h.elements.get('footerSources').textContent, 'Загрузка источников…');
+  await h.run("state.period = '30d'; reload()"); await turn();
+  assert.equal(h.elements.get('footerSourcesLabel').textContent, 'ИСТОЧНИКИ ЗА 30 ДНЕЙ');
+  assert.match(h.elements.get('footerSources').innerHTML, /Thirty days/);
+  old.resolve(h.response([{name:'Stale seven days',included:99}])); await turn();
+  assert.doesNotMatch(h.elements.get('footerSources').innerHTML, /Stale/);
+  await h.run('loadSecondaryData()'); await turn();
+  assert.match(h.elements.get('footerSources').innerHTML, /Thirty days/);
+  h.override(url => url.pathname === '/api/sources' ? h.response({},503) : null);
+  await h.run("state.period = '7d'; reload()"); await turn();
+  assert.equal(h.elements.get('footerSourcesLabel').textContent, 'ИСТОЧНИКИ ЗА 7 ДНЕЙ');
+  assert.equal(h.elements.get('footerSources').textContent, 'Источники не загрузились.');
+  assert.match(h.elements.get('columns').innerHTML, /Материал периода/);
+  h.override(url => url.pathname === '/api/sources' ? h.response([]) : null);
+  await h.run("state.period = 'issue'; reload()"); await turn();
+  assert.equal(h.elements.get('footerSources').innerHTML, 'В выбранном периоде источников нет.');
+}
+console.log('Source regressions: PASS (issue date, period, stale reply, independent footer, failure and empty state)');
+
+// A failed newer news request retains the previous issue. Its still-pending
+// sources must be allowed to settle, rather than leave a permanent loader.
+{
+  const h = await harness();
+  const pending = deferred();
+  h.override(url => url.pathname === '/api/sources' && url.searchParams.get('period') === '7d'
+    ? pending.promise : null);
+  await h.run("state.period = '7d'; reload()"); await turn();
+  assert.equal(h.elements.get('footerSources').textContent, 'Загрузка источников…');
+  h.override(url => url.pathname === '/api/materials' ? h.response({}, 503) : null);
+  await h.run("state.period = '30d'; reload()"); await turn();
+  pending.resolve(h.response([{name:'Retained seven days',included:3}])); await turn();
+  assert.equal(h.elements.get('footerSourcesLabel').textContent, 'ИСТОЧНИКИ ЗА 7 ДНЕЙ');
+  assert.match(h.elements.get('footerSources').innerHTML, /Retained seven days/);
+}
+console.log('Retained sources regression: PASS (pending footer settles after newer news failure)');
