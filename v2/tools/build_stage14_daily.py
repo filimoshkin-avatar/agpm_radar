@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import cast
 
 from packages.contracts.analysis import clean_evidence_titles
+from packages.contracts.title_quality import (
+    TitleQualityError,
+    require_title,
+    title_diagnostic,
+    title_reference_problem,
+)
 from packages.delta.engine import inspect_release_database
 from packages.domain.candidate_package import build_candidate_package
 from packages.domain.dual_run import consume_snapshot_for_branch
@@ -34,6 +40,9 @@ def _timestamp(value: object) -> str | None:
 
 
 def _material(raw: dict[str, object], position: int) -> JsonObject:
+    require_title(raw.get("title"), raw.get("url"))
+    if reason := title_reference_problem(raw):
+        raise TitleQualityError(title_diagnostic(raw.get("title"), raw.get("url"), reason))
     summary = cast(dict[str, object] | None, raw.get("llm_summary"))
     llm_status = "unavailable"
     short_text = None

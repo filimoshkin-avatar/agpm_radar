@@ -10,6 +10,7 @@ FILES = (
     "agpm_radar_collect.py",
     "agpm_radar_daily.sh",
     "agpm_radar_report.py",
+    "radar_title_quality.py",
 )
 
 
@@ -31,7 +32,7 @@ def main() -> int:
     ]
     if differences:
         raise SystemExit("Legacy runtime mirror drift: " + ", ".join(differences))
-    print("Legacy runtime mirror: PASS (3 files)")
+    print(f"Legacy runtime mirror: PASS ({len(FILES)} files)")
     return 0
 
 

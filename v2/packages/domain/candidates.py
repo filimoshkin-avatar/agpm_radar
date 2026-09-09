@@ -11,6 +11,11 @@ from typing import Final, cast
 from urllib.parse import urlsplit
 
 from packages.contracts.analysis import issue_content_hash
+from packages.contracts.title_quality import (
+    title_diagnostic,
+    title_problem,
+    title_reference_problem,
+)
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import SafeFilesystemError, relative_parts
 
@@ -331,6 +336,10 @@ def _validate_analysis(value: object, materials: list[object]) -> None:
     if not isinstance(titles, list) or len(titles) > 40:
         raise CandidateValidationError("analysis.evidenceTitles must contain at most 40 titles")
     for index, raw_title in enumerate(titles):
+        if reason := title_problem(raw_title):
+            raise CandidateValidationError(
+                title_diagnostic(raw_title, "analysis.evidenceTitles", reason)
+            )
         _text(
             raw_title,
             f"analysis.evidenceTitles[{index}]",
@@ -414,6 +423,8 @@ def _validate_material(value: object, index: int, global_llm: JsonObject) -> tup
     material_id = _id(material["materialId"], "materialId")
     position = _integer(material["position"], "material position", minimum=1)
     _text(material["title"], "material title", minimum=1, maximum=2_000)
+    if reason := title_problem(material["title"]) or title_reference_problem(material):
+        raise CandidateValidationError(title_diagnostic(material["title"], material["url"], reason))
     _http_uri(material["url"], "material URL")
     if material["canonicalUrl"] is not None:
         _http_uri(material["canonicalUrl"], "material canonical URL")
@@ -488,6 +499,8 @@ def _validate_desired_issue(value: object, global_llm: JsonObject) -> dict[str, 
         "stats",
     }
     issue = _exact(value, keys, "desiredIssue")
+    if reason := title_reference_problem(issue):
+        raise CandidateValidationError(title_diagnostic("issue prose", "", reason))
     _id(issue["issueId"], "desiredIssue.issueId")
     _date(issue["issueDate"], "desiredIssue.issueDate")
     if issue["issueNumber"] is not None:

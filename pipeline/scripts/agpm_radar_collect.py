@@ -18,7 +18,7 @@ import time
 import urllib.parse
 import warnings
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -26,6 +26,7 @@ from typing import Any, Iterable
 import requests
 import yaml
 from bs4 import BeautifulSoup
+from radar_title_quality import apply_title_markup, recover_web_title, require_title, title_problem
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,6 +121,7 @@ class Candidate:
     summary: str | None = None
     raw_excerpt: str | None = None
     query: str | None = None
+    title_quality: dict[str, Any] | None = None
 
 
 def utc_now() -> str:
@@ -681,7 +683,7 @@ def collect_brave(query: str, perimeter: str, config: dict[str, Any]) -> tuple[l
     data = response.json()
     items: list[Candidate] = []
     for row in data.get("web", {}).get("results", []):
-        title = strip_text(row.get("title") or query, 220)
+        title = row.get("title") or ""
         items.append(
             Candidate(
                 title=title,
@@ -691,7 +693,7 @@ def collect_brave(query: str, perimeter: str, config: dict[str, Any]) -> tuple[l
                 source_url="https://search.brave.com/",
                 provider="brave",
                 published_at=parse_web_research_published_at(row.get("age")),
-                summary=make_summary(title, row.get("description") or ""),
+                summary=row.get("description") or "",
                 raw_excerpt=strip_text(row.get("description") or "", 1000),
                 query=query,
             )
@@ -767,7 +769,7 @@ def collect_perplexity(query: str, perimeter: str, config: dict[str, Any]) -> tu
     for index, row in enumerate(rows):
         if not isinstance(row, dict):
             continue
-        title = strip_text(row.get("title") or query, 220)
+        title = row.get("title") or ""
         url = row.get("url") or row.get("source") or row.get("link") or ""
         if not url and index < len(citations):
             citation = citations[index]
@@ -789,7 +791,7 @@ def collect_perplexity(query: str, perimeter: str, config: dict[str, Any]) -> tu
                 source_url=base_url,
                 provider="perplexity",
                 published_at=published_at,
-                summary=make_summary(title, summary),
+                summary=summary,
                 raw_excerpt=strip_text(summary, 1000),
                 query=query,
             )
@@ -822,7 +824,7 @@ def collect_openclaw_cli(query: str, perimeter: str, config: dict[str, Any]) -> 
 
     items: list[Candidate] = []
     for row in results:
-        title = strip_text(row.get("title") or query, 220)
+        title = row.get("title") or ""
         items.append(
             Candidate(
                 title=title,
@@ -832,7 +834,7 @@ def collect_openclaw_cli(query: str, perimeter: str, config: dict[str, Any]) -> 
                 source_url="openclaw infer web search",
                 provider="openclaw_cli",
                 published_at=parse_web_research_published_at(row.get("published") or row.get("date")),
-                summary=make_summary(title, row.get("description") or ""),
+                summary=row.get("description") or "",
                 raw_excerpt=strip_text(row.get("description") or "", 1000),
                 query=query,
             )
@@ -933,8 +935,15 @@ def update_materials(candidates: list[Candidate], materials: dict[str, dict[str,
     updated_ids: list[str] = []
     created_this_run: set[str] = set()
     for candidate in candidates:
-        if not candidate.title and not candidate.url:
-            continue
+        markup = ""
+        if candidate.provider in {"brave", "perplexity", "openclaw_cli"} or title_problem(candidate.title):
+            resolved = asdict(candidate)
+            markup = recover_web_title(resolved)
+            candidate.title = resolved["title"]
+            candidate.summary = make_summary(candidate.title, resolved["summary"])
+            candidate.raw_excerpt = resolved["raw_excerpt"]
+            candidate.title_quality = resolved.get("title_quality")
+        require_title(candidate.title, candidate.url)
         mid = material_id(candidate.title, candidate.url, candidate.published_at)
         canonical = canonicalize_url(candidate.url)
         hit = {
@@ -946,11 +955,14 @@ def update_materials(candidates: list[Candidate], materials: dict[str, dict[str,
             "query": candidate.query,
             "seen_at": now,
         }
+        if candidate.title_quality:
+            hit["title_quality"] = candidate.title_quality
         if mid not in materials:
             summary = candidate.summary or make_summary(candidate.title, candidate.raw_excerpt)
             materials[mid] = {
                 "id": mid,
                 "title": candidate.title,
+                "title_quality": candidate.title_quality,
                 "url": candidate.url,
                 "canonical_url": canonical,
                 "published_at": candidate.published_at,
@@ -968,6 +980,7 @@ def update_materials(candidates: list[Candidate], materials: dict[str, dict[str,
             continue
 
         item = materials[mid]
+        apply_title_markup(item, markup)
         item["last_seen_at"] = now
         item.setdefault("source_hits", []).append(hit)
         unique_sources = sorted({row.get("source_id") for row in item["source_hits"] if row.get("source_id")})

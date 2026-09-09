@@ -12,6 +12,11 @@ from urllib.parse import urlsplit, urlunsplit
 
 from packages.contracts.analysis import clean_evidence_titles
 from packages.contracts.json_types import JsonObject, JsonValue
+from packages.contracts.title_quality import (
+    title_diagnostic,
+    title_problem,
+    title_reference_problem,
+)
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE, assert_sqlite_runtime
 
 _PUBLIC_ISSUE_KEYS: Final = {
@@ -250,6 +255,8 @@ def validate_public_value(value: JsonValue, *, label: str = "public value") -> N
 def validate_public_issue_document(value: object) -> JsonObject:
     """Validate the exact deterministic IssueDetail projection used by renderers."""
     issue = _exact(value, _PUBLIC_ISSUE_KEYS, "public issue")
+    if reason := title_reference_problem(issue):
+        raise PublicIssueValidationError(title_diagnostic("issue prose", "", reason))
     issue_date = _date(issue["issueDate"], "issueDate")
     if issue["issueNumber"] is not None:
         _integer(issue["issueNumber"], "issueNumber", minimum=1)
@@ -268,6 +275,10 @@ def validate_public_issue_document(value: object) -> JsonObject:
     if not isinstance(evidence_titles, list) or len(evidence_titles) > 40:
         raise PublicIssueValidationError("analysis.evidenceTitles must contain at most 40 titles")
     for index, raw_title in enumerate(evidence_titles):
+        if reason := title_problem(raw_title):
+            raise PublicIssueValidationError(
+                title_diagnostic(raw_title, "analysis.evidenceTitles", reason)
+            )
         _text(
             raw_title,
             f"analysis.evidenceTitles[{index}]",
@@ -314,6 +325,10 @@ def validate_public_issue_document(value: object) -> JsonObject:
         if _date(material["issueDate"], "material issueDate") != issue_date:
             raise PublicIssueValidationError("material issueDate differs from issueDate")
         _text(material["title"], "material title", minimum=1, maximum=2_000)
+        if reason := title_problem(material["title"]) or title_reference_problem(material):
+            raise PublicIssueValidationError(
+                title_diagnostic(material["title"], material["url"], reason)
+            )
         url = _url(material["url"], "material URL")
         canonical_url = _optional_url(material["canonicalUrl"], "material canonical URL")
         duplicate_key = _canonical_url_key(canonical_url or url)

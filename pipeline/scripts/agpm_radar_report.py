@@ -12,12 +12,18 @@ import re
 import sys
 import urllib.parse
 from collections import Counter, defaultdict
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
+from radar_title_quality import (
+    TitleQualityError, apply_cached_title, apply_title_markup, recover_web_title, require_title,
+    extract_title_candidates as shared_title_candidates, reliable_page_title,
+    title_problem,
+)
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.opc.constants import RELATIONSHIP_TYPE
@@ -725,69 +731,14 @@ def hard_missing_url(url: str | None) -> tuple[bool, int | None]:
     return status in {404, 410}, status
 
 
-TITLE_TOKEN_STOPWORDS = {
-    "the",
-    "and",
-    "for",
-    "with",
-    "from",
-    "into",
-    "about",
-    "news",
-    "для",
-    "или",
-    "как",
-    "что",
-    "это",
-    "уже",
-    "еще",
-    "ещё",
-    "при",
-    "про",
-    "без",
-    "новости",
-    "материал",
-    "страница",
-}
-
-
-def title_tokens(value: str | None) -> set[str]:
-    normalized = re.sub(r"[^0-9a-zа-яё]+", " ", clean(html.unescape(value or "")).lower())
-    return {token for token in normalized.split() if len(token) > 1 and token not in TITLE_TOKEN_STOPWORDS}
-
-
 def extract_title_candidates(page_text: str) -> list[str]:
-    candidates: list[str] = []
-    patterns = [
-        r"<title[^>]*>(.*?)</title>",
-        r"<meta[^>]+property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']",
-        r"<meta[^>]+content=[\"']([^\"']+)[\"'][^>]+property=[\"']og:title[\"']",
-        r"<h1[^>]*>(.*?)</h1>",
-    ]
-    for pattern in patterns:
-        for match in re.finditer(pattern, page_text[:300_000], flags=re.IGNORECASE | re.DOTALL):
-            text = re.sub(r"<[^>]+>", " ", match.group(1))
-            text = clean(html.unescape(text))
-            if text:
-                candidates.append(text)
-    return candidates
+    return [candidate.title for candidate in shared_title_candidates(page_text)]
 
 
 def page_title_mismatch(item_title: str | None, page_text: str) -> tuple[bool, str | None]:
-    item_tokens = title_tokens(item_title)
-    if len(item_tokens) < 4:
-        return False, None
-    candidates = extract_title_candidates(page_text)
-    if not candidates:
-        return False, None
-    page_tokens = set().union(*(title_tokens(candidate) for candidate in candidates))
-    if not page_tokens:
-        return False, None
-    overlap = item_tokens & page_tokens
-    required = max(2, min(4, round(len(item_tokens) * 0.45)))
-    if len(overlap) >= required:
-        return False, None
-    return True, candidates[0]
+    candidate = reliable_page_title(page_text)
+    reason = title_problem(item_title, candidate.title if candidate else None)
+    return reason is not None, candidate.title if candidate else None
 
 
 def invalid_web_url(item: dict[str, Any]) -> tuple[bool, str | int | None]:
@@ -807,13 +758,15 @@ def invalid_web_url(item: dict[str, Any]) -> tuple[bool, str | int | None]:
             return True, status
         content_type = response.headers.get("content-type", "")
         if "text/html" in content_type.lower():
-            mismatch, page_title = page_title_mismatch(item.get("title"), response.text)
-            if mismatch:
-                response.close()
-                return True, f"title_mismatch:{page_title}"
+            if response.ok:
+                apply_title_markup(item, response.text)
         response.close()
-    except Exception:
+    except TitleQualityError:
+        raise
+    except requests.RequestException:
+        require_title(item.get("title"), url)
         return False, None
+    require_title(item.get("title"), url)
     return False, None
 
 
@@ -821,7 +774,10 @@ def filter_hard_missing_web_links(items: list[dict[str, Any]]) -> tuple[list[dic
     fresh: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     for item in items:
+        if title_problem(item.get("title")):
+            recover_web_title(item)
         if not has_web_research_hit(item):
+            require_title(item.get("title"), item.get("url"))
             fresh.append(item)
             continue
         invalid, status = invalid_web_url(item)
@@ -888,7 +844,12 @@ def fetch_fulltext(item: dict[str, Any], wiki: Path) -> dict[str, Any] | None:
     cache = fulltext_cache_path(wiki, url)
     if cache.exists():
         try:
-            return json.loads(cache.read_text(encoding="utf-8"))
+            cached = json.loads(cache.read_text(encoding="utf-8"))
+            if cached.get("title_quality_version") == 1:
+                apply_cached_title(item, cached)
+                return cached
+        except TitleQualityError:
+            raise
         except Exception:
             pass
     payload: dict[str, Any] = {
@@ -910,11 +871,19 @@ def fetch_fulltext(item: dict[str, Any], wiki: Path) -> dict[str, Any] | None:
         if "text/html" not in payload["content_type"].lower():
             payload["status"] = "unsupported_content_type"
         else:
+            # Store only title evidence; old body-only caches must be refreshed.
+            chosen = reliable_page_title(response.text)
+            payload["page_title"] = asdict(chosen) if chosen else None
+            payload["title_quality_version"] = 1
+            apply_title_markup(item, response.text)
             text = extract_main_text(response.text)
             payload["text"] = text[:20000]
             payload["excerpt"] = relevant_sentences(text)
             payload["status"] = "resolved" if len(text) >= 300 else "weak_text"
+    except TitleQualityError:
+        raise
     except Exception as exc:
+        require_title(item.get("title"), url)
         payload["error"] = str(exc)
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -934,6 +903,9 @@ def enrich_with_fulltext_second_pass(items: list[dict[str, Any]], wiki: Path) ->
     enriched: list[dict[str, Any]] = []
     for original in items:
         item = dict(original)
+        if title_problem(item.get("title")):
+            fetch_fulltext(item, wiki)
+            require_title(item.get("title"), item.get("url"))
         first_review = relevance_review(item)
         if not should_fulltext_review(item, first_review):
             enriched.append(item)
@@ -1868,6 +1840,7 @@ def render_markdown(
         included, excluded = included_override, excluded_override
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in included:
+        require_title(item.get("title"), item.get("url"))
         grouped[item["_radar_review"]["perimeter"]].append(item)
 
     counts = Counter(item["_radar_review"]["perimeter"] for item in included)
@@ -2124,14 +2097,15 @@ def main() -> int:
     if args.output_prefix == "daily":
         queue_path = deferred_queue_path(args.wiki)
         period_items = merge_deferred_with_period(load_deferred_queue(queue_path), period_items)
-        period_items, skipped_previous = filter_previously_reported(period_items, args.wiki / "reports", until)
         period_items, skipped_dead_links = filter_hard_missing_web_links(period_items)
+        period_items, skipped_previous = filter_previously_reported(period_items, args.wiki / "reports", until)
         period_items, fulltext_stats = enrich_with_fulltext_second_pass(period_items, args.wiki)
         included, excluded = filter_for_report(period_items)
         included, deferred_items = select_daily_batch(included, DAILY_REPORT_LIMIT, until)
         write_deferred_queue(queue_path, deferred_items)
         deferred_written = len(deferred_items)
     else:
+        period_items, skipped_dead_links = filter_hard_missing_web_links(period_items)
         fulltext_stats = {"checked": 0, "resolved": 0, "changed": 0}
         included = None
         excluded = None
@@ -2143,6 +2117,10 @@ def main() -> int:
     prefix = args.output_prefix
     md_path = output_dir / f"AgPM_{prefix}_radar_{stamp}.md"
     docx_path = output_dir / f"AgPM_{prefix}_radar_{stamp}.docx"
+    quality_path = output_dir / f"AgPM_{prefix}_radar_{stamp}.title-quality.json"
+    quality_path.write_text(json.dumps([
+        item["title_quality"] for item in period_items if item.get("title_quality")
+    ], ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(markdown, encoding="utf-8")
     add_markdown_to_docx(markdown, docx_path)
     print(json.dumps({"ok": True, "markdown": str(md_path), "docx": str(docx_path), "items": len(period_items), "included": len(included) if included is not None else None, "deferred_next_issue": deferred_written, "skipped_previous_issues": len(skipped_previous), "skipped_dead_links": len(skipped_dead_links), "fulltext_second_pass": fulltext_stats}, ensure_ascii=False, indent=2))
