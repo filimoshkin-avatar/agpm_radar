@@ -11,6 +11,7 @@ from math import log
 from typing import Final, cast
 
 from packages.contracts.json_types import JsonObject, JsonValue
+from packages.contracts.rubrics import RUBRIC_LABELS
 from packages.validation.public_issue import (
     PublicIssueValidationError,
     build_public_issue_from_views,
@@ -274,7 +275,7 @@ def _card_search_text(item: JsonObject, rubric_titles: Mapping[str, str]) -> str
         _source_host(str(item.get("url") or "")) or str(item.get("sourceName") or "") or "источник"
     )
     rubrics = [
-        rubric_titles.get(str(rubric), str(rubric))
+        RUBRIC_LABELS.get(str(rubric), rubric_titles.get(str(rubric), str(rubric)))
         for rubric in cast(list[JsonValue], item.get("rubrics") or [])[:3]
     ]
     return " ".join(
@@ -536,6 +537,7 @@ class PublicDataRepository:
                     "currentTotal": current_total,
                     "direction": direction,
                     "id": rubric_id,
+                    "label": RUBRIC_LABELS.get(rubric_id, str(raw_title)),
                     "index": round(index, 2),
                     "period": "day" if period in {"day", "yesterday"} else period,
                     "previousCount": previous_count,

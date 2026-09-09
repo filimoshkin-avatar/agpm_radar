@@ -105,6 +105,17 @@ paths:
                 properties:
                   items: {type: array, maxItems: 90, items: {$ref: "#/components/schemas/TimeseriesPoint"}}
         "400": {$ref: "#/components/responses/BadRequest"}
+  /api/rubric-catalog:
+    get:
+      operationId: listRubricCatalog
+      description: Stable presentation vocabulary, independent of issue and trend counts.
+      responses:
+        "200":
+          description: All rubric IDs with shared compact labels and explanatory titles
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/RubricMetadata"}}
+        "400": {$ref: "#/components/responses/BadRequest"}
   /api/rubrics:
     get:
       operationId: listRubrics
@@ -320,6 +331,16 @@ components:
         far: {type: integer, minimum: 0}
         core: {type: integer, minimum: 0}
         adjacent: {type: integer, minimum: 0}
+    RubricMetadata:
+      type: object
+      additionalProperties: false
+      required: [id, label, title, group, order]
+      properties:
+        id: {type: string, maxLength: 80}
+        label: {type: string, maxLength: 100}
+        title: {type: string, maxLength: 500}
+        group: {type: string, enum: [near, mid, far]}
+        order: {type: integer, minimum: 0}
     Rubric:
       type: object
       additionalProperties: false
@@ -327,6 +348,7 @@ components:
       properties:
         id: {type: string}
         title: {type: string}
+        label: {type: string, maxLength: 500}
         count: {type: integer, minimum: 0}
         currentCount: {type: integer, minimum: 0}
         previousCount: {type: integer, minimum: 0}

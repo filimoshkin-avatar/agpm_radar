@@ -270,3 +270,58 @@ for (const obsolete of ["success", "empty", "error"]) {
 }
 
 console.log("Frontend recovery smoke: PASS (historical stats, search, retained results, bounded retries, stale replies)");
+
+// Card tags and the rubricator share one OR selection; changing it cannot
+// refetch a partial page or discard the search/perimeter scope.
+{
+  const h = await harness();
+  h.run(`rubricCatalog = [
+    { id: 'workflow_orchestration', label: 'Оркестрация', title: 'Процессы и оркестрация', group: 'mid' },
+    { id: 'security_access', label: 'Безопасность', title: 'Безопасность и доступ', group: 'mid' },
+    { id: 'funding_ma', label: 'Инвестиции', title: 'Инвестиции и сделки', group: 'far' }
+  ];
+  state.materials = [
+    { id: 'a', title: 'Alpha', perimeter: 'near', rubrics: ['workflow_orchestration'] },
+    { id: 'b', title: 'Beta', perimeter: 'mid', rubrics: ['security_access'] },
+    { id: 'c', title: 'Gamma', perimeter: 'near', rubrics: ['workflow_orchestration', 'security_access'] }
+  ]; renderColumns(state.materials);`);
+  const requests = h.requests.length;
+  h.run("toggleRubric('workflow_orchestration')");
+  assert.equal(h.run('state.materials.filter(materialMatches).length'), 2);
+  assert.match(h.elements.get('columns').innerHTML, /aria-pressed="true"/);
+  h.run("toggleRubric('security_access')");
+  assert.equal(h.run('state.materials.filter(materialMatches).length'), 3);
+  h.run("toggleRubric('workflow_orchestration')");
+  assert.equal(h.run('state.materials.filter(materialMatches).length'), 2);
+  h.run("state.perimeter = 'near'; state.q = 'Gamma'; refreshRubricSelection()");
+  assert.equal(h.run('state.materials.filter(materialMatches).length'), 1);
+  h.run("state.rubrics = []; refreshRubricSelection()");
+  assert.equal(h.run('state.q'), 'Gamma');
+  assert.equal(h.run('state.perimeter'), 'near');
+  assert.equal(h.requests.length, requests);
+  assert.match(h.elements.get('rubricator').innerHTML, /Инвестиции/);
+  h.run("toggleRubric('funding_ma')");
+  assert.equal(h.elements.get('filterEmpty').hidden, false);
+}
+
+// A copied URL restores the complete scope; malformed IDs and prototype keys
+// cannot select a perimeter. Non-radar routes remain owned by their own view.
+{
+  const h = await harness();
+  h.run(`rubricCatalog = [{id:'security_access',label:'Безопасность'}];
+    window.location.pathname = '/issues/2026-09-01';
+    window.location.search = '?period=30d&perimeter=near&rubrics=security_access,unknown,security_access&q=Alpha';
+    readRadarAddress();`);
+  assert.equal(h.run('state.period'), '30d');
+  assert.equal(h.run('state.issueDate'), null);
+  assert.equal(h.run('state.perimeter'), 'near');
+  assert.equal(h.run('state.rubrics.join(",")'), 'security_access');
+  assert.equal(h.run('state.q'), 'Alpha');
+  h.run("window.location.search = '?period=bad&perimeter=__proto__&rubrics=%3Cscript%3E'; readRadarAddress()");
+  assert.equal(h.run('state.period'), 'issue');
+  assert.equal(h.run('state.perimeter'), 'all');
+  assert.equal(h.run('state.rubrics.length'), 0);
+  h.run("window.location.pathname = '/agent'; state.q = 'retained'; readRadarAddress()");
+  assert.equal(h.run('state.q'), 'retained');
+}
+console.log('Rubric regressions: PASS (shared OR selection, scoped reset, empty result, stable catalogue, URL validation)');

@@ -280,6 +280,28 @@ def _payload(response: ApiResponse) -> object:
     return json.loads(response.body)
 
 
+def test_rubric_catalog_is_independent_of_current_materials(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+) -> None:
+    _manager, api, _root = stage8_runtime
+    response = api.handle("GET", "/api/rubric-catalog")
+    assert response.status == 200
+    rows = json.loads(response.body)
+    assert len(rows) == 11
+    assert len({row["id"] for row in rows}) == 11
+    assert rows[0] == {
+        "id": "agpm_pmo_portfolio",
+        "label": "AgPM / PMO",
+        "title": "AgPM, PMO и портфели",
+        "group": "near",
+        "order": 0,
+    }
+    for row in rows:
+        _assert_schema("RubricMetadata", row)
+    assert rows[-1]["id"] == "funding_ma"
+    assert api.handle("GET", "/api/rubric-catalog?period=30d").status == 400
+
+
 def _execute_sql(
     manager: ActiveDatabaseManager,
     statement: str,
@@ -386,6 +408,7 @@ def test_all_openapi_endpoints_are_published_only_and_schema_valid(
             "currentTotal": 1,
             "direction": "flat",
             "id": "orchestration",
+            "label": "Оркестрация",
             "index": 0.0,
             "period": "30d",
             "previousCount": 0,

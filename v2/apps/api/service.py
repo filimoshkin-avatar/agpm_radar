@@ -17,6 +17,7 @@ from typing import Final
 from urllib.parse import parse_qsl, urlsplit
 
 from packages.contracts.json_types import JsonObject
+from packages.contracts.rubrics import rubric_catalog
 from packages.validation.public_issue import PublicIssueValidationError
 
 from apps.api.database import ActiveDatabaseManager, DatabaseIdentity, PublicDatabaseError
@@ -424,6 +425,9 @@ class RadarApi:
                 )
             )
             return {"items": items}
+        if path == "/api/rubric-catalog":
+            _only(values, set())
+            return rubric_catalog()
         if path == "/api/rubrics":
             _only(values, {"anchor", "period"})
             period = _period(values)

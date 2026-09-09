@@ -8,8 +8,22 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from apps.api.public_data import PublicDataRepository
+from apps.api.public_data import PublicDataRepository, _card_search_text
 from packages.contracts.json_types import JsonObject
+
+
+def test_search_matches_compact_rubric_labels_instead_of_hidden_full_titles() -> None:
+    card: JsonObject = {"rubrics": ["agpm_pmo_portfolio", "mcp_gateways_infra"]}
+    text = _card_search_text(
+        card,
+        {
+            "agpm_pmo_portfolio": "AgPM, PMO и портфели",
+            "mcp_gateways_infra": "Инфраструктура агентов и MCP",
+        },
+    )
+    assert "agpm / pmo" in text
+    assert "mcp / инфраструктура" in text
+    assert "портфели" not in text
 
 
 def test_all_query_fragments_match_only_visible_card_text(monkeypatch: pytest.MonkeyPatch) -> None:

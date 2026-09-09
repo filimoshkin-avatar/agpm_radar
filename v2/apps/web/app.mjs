@@ -160,58 +160,45 @@ const perimeters = {
   far: { title: "Дальний периметр", color: "var(--far)", desc: "Инфраструктура агентов, внедрение, вендоры, исследования и сделки." },
 };
 
-const rubricNames = {
-  agpm_pmo_portfolio: "AgPM / PMO",
-  isup_coordination: "ИСУП",
-  governance_control: "Governance",
-  human_responsibility: "Ответственность",
-  workflow_orchestration: "Оркестрация",
-  security_access: "Безопасность",
-  mcp_gateways_infra: "MCP / инфраструктура",
-  enterprise_adoption: "Внедрение",
-  vendors_releases: "Вендоры",
-  research_methodology: "Исследования",
-  funding_ma: "Инвестиции",
+// Presentation comes from the same catalogue as server-side card search.
+let rubricCatalog = [];
+let rubricCatalogRequest = null;
+const rubricGroupTitles = {
+  near: "Близкий управленческий контур",
+  mid: "Механизмы контроля и исполнения",
+  far: "Инфраструктура и рынок",
 };
 
-const rubricGroups = [
-  { title: "Близкий управленческий контур", ids: ["agpm_pmo_portfolio", "isup_coordination"] },
-  { title: "Механизмы контроля и исполнения", ids: ["governance_control", "human_responsibility", "workflow_orchestration", "security_access"] },
-  { title: "Инфраструктура и рынок", ids: ["mcp_gateways_infra", "enterprise_adoption", "vendors_releases", "research_methodology", "funding_ma"] },
-];
+function rubricMeta(id) {
+  return rubricCatalog.find(row => row.id === id) || rubrics.find(row => row.id === id) || { id, title: id };
+}
 
-const rubricBlockClasses = {
-  agpm_pmo_portfolio: "near",
-  isup_coordination: "near",
-  governance_control: "mid",
-  human_responsibility: "mid",
-  workflow_orchestration: "mid",
-  security_access: "mid",
-  mcp_gateways_infra: "far",
-  enterprise_adoption: "far",
-  vendors_releases: "far",
-  research_methodology: "far",
-  funding_ma: "far",
-};
+function rubricLabel(id) {
+  const row = rubricMeta(id);
+  return row.label || row.title || id;
+}
 
-const rubricTagClasses = {
-  agpm_pmo_portfolio: "tag-agpm",
-  isup_coordination: "tag-isup",
-  governance_control: "tag-governance",
-  human_responsibility: "tag-human",
-  workflow_orchestration: "tag-workflow",
-  security_access: "tag-security",
-  mcp_gateways_infra: "tag-mcp",
-  enterprise_adoption: "tag-enterprise",
-  vendors_releases: "tag-vendors",
-  research_methodology: "tag-research",
-  funding_ma: "tag-funding",
-};
+async function loadRubricCatalog() {
+  if (rubricCatalog.length) return;
+  if (!rubricCatalogRequest) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 2500) : null;
+    rubricCatalogRequest = getJson("/api/rubric-catalog", controller ? { signal: controller.signal } : undefined).then(rows => {
+      if (!Array.isArray(rows) || !rows.length) throw new Error("Rubric catalogue unavailable");
+      rubricCatalog = rows;
+    }).catch(error => {
+      // A secondary endpoint cannot take away the reader's issue. The period
+      // rows still supply canonical labels; the next reload retries the catalogue.
+      console.warn("Radar rubric catalogue unavailable", error);
+    }).finally(() => { clearTimeout(timer); rubricCatalogRequest = null; });
+  }
+  await rubricCatalogRequest;
+}
 
 const weekday = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
 
-async function getJson(path) {
-  const response = await fetch(API + v2Path(path));
+async function getJson(path, options) {
+  const response = await fetch(API + v2Path(path), options);
   if (!response.ok) throw new Error(`${response.status} ${path}`);
   return legacyPayload(path, await response.json());
 }
@@ -285,7 +272,7 @@ function activeIssueDate() {
  * было нечем — календарь менял экран, не адрес.
  *
  * Последний выпуск живёт по `/`, без собственного адреса: ссылка на «сегодня»
- * не должна завтра вести во вчера. Периоды 7 и 30 дней адреса тоже не имеют. */
+ * не должна завтра вести во вчера. Периоды и фильтры сохраняются в query-параметрах. */
 const ISSUE_PATH = /^\/issues\/(\d{4}-\d{2}-\d{2})\/?$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Последний адрес, который эта страница показала сама. Хэша в нём нет: «#top»
@@ -324,10 +311,31 @@ function routeIssueDate() {
  *  экрана. Своими считаются только «/», «/?date=…» и «/issues/…». */
 function ownedAddress() {
   const pathname = String(window.location.pathname || "");
-  if (ISSUE_PATH.test(pathname)) return true;
-  if (pathname !== "/") return false;
+  if (pathname !== "/" && !ISSUE_PATH.test(pathname)) return false;
   const keys = [...new URLSearchParams(String(window.location.search || "")).keys()];
-  return keys.length === 0 || (keys.length === 1 && keys[0] === "date");
+  return keys.every(key => ["date", "period", "perimeter", "rubrics", "q"].includes(key));
+}
+
+function readRadarAddress() {
+  if (!ownedAddress()) return;
+  const params = new URLSearchParams(String(window.location.search || ""));
+  const period = params.get("period");
+  state.period = ["7d", "30d", "yesterday"].includes(period) ? period : "issue";
+  const wanted = routeIssueDate();
+  if (state.period === "yesterday" && wanted && wanted !== yesterdayIssueDate()) state.period = "issue";
+  state.issueDate = ["7d", "30d"].includes(state.period) ? null
+    : wanted || (state.period === "yesterday" ? yesterdayIssueDate() : null);
+  state.perimeter = Object.hasOwn(perimeters, params.get("perimeter")) ? params.get("perimeter") : "all";
+  state.q = (params.get("q") || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 200);
+  state.rubrics = [...new Set((params.get("rubrics") || "").slice(0, 2000).split(","))]
+    .filter(id => /^[a-zA-Z0-9_-]{1,80}$/.test(id) && (!rubricCatalog.length || rubricCatalog.some(row => row.id === id))).slice(0, 20);
+  syncFilterControls();
+}
+
+function syncFilterControls() {
+  document.getElementById("search").value = state.q;
+  document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === state.period));
+  document.querySelectorAll("[data-perimeter]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.perimeter === state.perimeter));
 }
 
 // «Вчера» тоже называет точный выпуск, и адрес у неё выпускный: иначе на экране
@@ -340,7 +348,13 @@ function issuePath() {
 function syncIssueAddress(replace = false) {
   try {
     if (!ownedAddress()) return;
-    const target = issuePath();
+    const params = new URLSearchParams();
+    if (state.period !== "issue") params.set("period", state.period);
+    if (state.perimeter !== "all") params.set("perimeter", state.perimeter);
+    if (state.rubrics.length) params.set("rubrics", [...state.rubrics].sort().join(","));
+    if (state.q) params.set("q", state.q);
+    const query = params.toString();
+    const target = issuePath() + (query ? `?${query}` : "");
     if (target === currentAddress()) {
       shownAddress = target;
       return;
@@ -356,10 +370,8 @@ function syncIssueAddress(replace = false) {
 window.addEventListener?.("popstate", () => {
   if (!ownedAddress() || currentAddress() === shownAddress) return;
   shownAddress = currentAddress();
-  const wanted = routeIssueDate();
-  state.period = "issue";
-  state.issueDate = wanted && wanted !== latest?.issue?.issue_date ? wanted : null;
-  document.querySelectorAll("[data-period]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.period === "issue"));
+  clearTimeout(searchTimer);
+  readRadarAddress();
   if (state.viewMode !== "radar") setViewMode("radar");
   reload().catch(error => apiError(error.message));
 });
@@ -1669,7 +1681,7 @@ function cardView(item) {
     signal: signalMeta(item),
     description: (llmSucceeded ? item.llm_summary.short_text : "") || item.brief || item.summary || "",
     takeaway: (llmSucceeded ? item.llm_summary.agpm_angle : "") || item.agpm_takeaway || "",
-    tags: (item.rubrics || []).slice(0, 3).map(id => ({ id, name: rubricNames[id] || id })),
+    tags: (item.rubrics || []).slice(0, 3).map(id => ({ id, name: rubricLabel(id) })),
   };
 }
 
@@ -1711,10 +1723,11 @@ function renderCard(item) {
   const view = cardView(item);
   const { host, date, signal, description, takeaway } = view;
   const tags = view.tags.map(tag => {
-    const tagClass = rubricTagClasses[tag.id] || "tag-default";
-    return `<span class="tag ${tagClass}">${escapeHtml(tag.name)}</span>`;
+    const tagClass = `tag-${rubricMeta(tag.id).group || "default"}`;
+    const active = state.rubrics.includes(tag.id);
+    return `<button type="button" class="tag ${tagClass} ${active ? "is-active" : ""}" data-rubric="${escapeHtml(tag.id)}" aria-pressed="${active}" title="${escapeHtml(rubricMeta(tag.id).title)}" aria-description="Нажмите, чтобы включить или выключить фильтр рубрики">${escapeHtml(tag.name)}</button>`;
   }).join("");
-  return `<article class="card">
+  return `<article class="card" data-material-key="${escapeHtml(`${item.radar_issue_date || ""}:${item.id || item.url}`)}">
     <div class="card__meta">
       <span class="signal ${signal.className}" title="${escapeHtml(signal.title)}">${signal.mark} ${escapeHtml(signal.label)}</span>
       <span>${escapeHtml(host)}</span>
@@ -1753,16 +1766,23 @@ function signalMeta(item) {
 
 function renderActiveFilter() {
   const parts = [];
-  if (state.perimeter !== "all") parts.push(perimeters[state.perimeter].title);
-  if (state.rubrics.length) {
-    const labels = state.rubrics.map(id => rubricNames[id] || id);
-    parts.push(`рубрики: ${labels.join(", ")}`);
+  if (state.perimeter !== "all") parts.push(`<button type="button" class="filter-token" data-clear-filter="perimeter" aria-label="Снять фильтр: ${escapeHtml(perimeters[state.perimeter].title)}">${escapeHtml(perimeters[state.perimeter].title)} <span aria-hidden="true">×</span></button>`);
+  for (const id of state.rubrics) {
+    parts.push(`<button type="button" class="filter-token" data-rubric="${escapeHtml(id)}" aria-label="Снять рубрику: ${escapeHtml(rubricLabel(id))}">${escapeHtml(rubricLabel(id))} <span aria-hidden="true">×</span></button>`);
   }
-  if (state.q) parts.push(`поиск: ${state.q}`);
-  const node = document.getElementById("activeFilter");
+  if (state.q) parts.push(`<button type="button" class="filter-token" data-clear-filter="search" aria-label="Очистить поиск">Поиск: ${escapeHtml(state.q)} <span aria-hidden="true">×</span></button>`);
   document.getElementById("resetFilters").disabled = !parts.length;
+  const node = document.getElementById("activeFilter");
   node.hidden = !parts.length;
-  node.textContent = parts.length ? `Фильтр: ${parts.join(" · ")}` : "";
+  node.innerHTML = parts.length ? `<span>Фильтры:</span>${parts.join("")}${state.rubrics.length ? '<button type="button" class="reset mono" data-clear-filter="rubrics">Сбросить рубрики</button><span class="filter-hint">Показаны материалы хотя бы одной выбранной рубрики.</span>' : ""}` : "";
+  const count = state.materials.filter(materialMatches).length;
+  const total = currentStats(state.materials).included || 0;
+  setText("filterResultsCount", `Показано ${count} из ${total} материалов за выбранный период`);
+  const empty = document.getElementById("filterEmpty");
+  if (empty) {
+    empty.hidden = count > 0 || !parts.length;
+    empty.innerHTML = `<p>По выбранным фильтрам материалов нет.</p><div class="filter-empty__actions">${state.rubrics.length ? '<button type="button" class="button" data-clear-filter="rubrics">Снять рубрики</button>' : ""}${state.q ? '<button type="button" class="button" data-clear-filter="search">Очистить поиск</button>' : ""}${state.perimeter !== "all" ? '<button type="button" class="button" data-clear-filter="perimeter">Все периметры</button>' : ""}<button type="button" class="button" data-choose-period>Выбрать другой период</button></div>`;
+  }
 }
 
 function renderBars(id, rows, labelKey, valueKey) {
@@ -1771,7 +1791,7 @@ function renderBars(id, rows, labelKey, valueKey) {
   if (!node) return;
   node.innerHTML = rows.map(row => {
     const value = Number(row[valueKey]) || 0;
-    const blockClass = rubricBlockClasses[row.id] || "default";
+    const blockClass = rubricMeta(row.id).group || "default";
     const isActive = state.rubrics.includes(row.id);
     const arrow = trendArrow(row);
     // Низкая надёжность гасит стрелку до цвета «ровно»: направление показано,
@@ -1780,9 +1800,9 @@ function renderBars(id, rows, labelKey, valueKey) {
       arrow === "↘" ? "is-down" : arrow === "→" ? "is-flat" : "",
       row.confidence === "low" ? "is-weak" : "",
     ].filter(Boolean).join(" ");
-    const details = rubricTrendDetails(row);
+    const details = `${rubricMeta(row.id).title} · ${rubricTrendDetails(row)}`;
     return `<button class="bar-row bar-row-${blockClass} ${isActive ? "is-active" : ""}" data-rubric-bar="${row.id || ""}" aria-pressed="${isActive ? "true" : "false"}" title="${escapeHtml(details)}">
-      <span>${escapeHtml(row[labelKey] || "")}</span>
+      <span>${escapeHtml(id === "rubrics" ? rubricLabel(row.id) : row[labelKey] || "")}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${Math.max(3, value / max * 100)}%"></span></span>
       <span class="bar-count">${value}</span>
       <span class="bar-delta ${deltaClass}">${arrow}</span>
@@ -1868,30 +1888,26 @@ function countPerimeters(materials) {
 
 function renderRubricator() {
   const byId = new Map(rubrics.map(row => [row.id, row]));
+  const catalog = [...rubricCatalog, ...rubrics.filter(row => !rubricCatalog.some(meta => meta.id === row.id))];
   const cells = [];
-  rubricGroups.forEach(group => {
-    cells.push(`<div class="rubric-group-title">${escapeHtml(group.title)}</div>`);
-    group.ids.forEach(id => {
-      const row = byId.get(id);
-      if (!row) return;
-      cells.push(rubricCell(row));
-    });
-  });
-  rubrics.filter(row => !rubricGroups.some(group => group.ids.includes(row.id))).forEach(row => {
-    cells.push(rubricCell(row));
-  });
-  cells.push(`<div class="rubric-cell rubric-help"><strong>Множественный выбор</strong><span>Рубрики сужают выдачу по принципу «хотя бы одна из выбранных».</span></div>`);
+  for (const group of [...Object.keys(rubricGroupTitles), "other"]) {
+    const rows = catalog.filter(row => (row.group || "other") === group);
+    if (!rows.length) continue;
+    cells.push(`<div class="rubric-group-title">${escapeHtml(rubricGroupTitles[group] || "Другие рубрики")}</div>`);
+    for (const row of rows) cells.push(rubricCell({ ...row, count: byId.get(row.id)?.count || 0 }));
+  }
+  cells.push(`<div class="rubric-cell rubric-help"><strong>Множественный выбор</strong><span>Показаны материалы хотя бы одной выбранной рубрики. Числа — за весь выбранный период.</span></div>`);
   document.getElementById("rubricator").innerHTML = cells.join("");
   const countLabel = state.period === "7d"
     ? "счёт за 7 дней"
     : state.period === "30d" ? "счёт за 30 дней" : "счёт по выпуску";
-  setText("rubricatorNote", rubrics.length ? `${rubrics.length} ${pluralRu(rubrics.length, "рубрика", "рубрики", "рубрик")} · ${countLabel}` : "");
+  setText("rubricatorNote", catalog.length ? `${catalog.length} ${pluralRu(catalog.length, "рубрика", "рубрики", "рубрик")} · ${countLabel}` : "");
 }
 
 function rubricCell(row) {
   const isActive = state.rubrics.includes(row.id);
-  return `<button class="rubric-cell ${isActive ? "is-active" : ""}" type="button" data-rubric="${row.id}" aria-pressed="${isActive ? "true" : "false"}">
-    <strong>${escapeHtml(row.title)}</strong>
+  return `<button class="rubric-cell ${isActive ? "is-active" : ""}" type="button" data-rubric="${escapeHtml(row.id)}" aria-pressed="${isActive}" title="${escapeHtml(rubricMeta(row.id).title)}">
+    <strong>${escapeHtml(rubricLabel(row.id))}</strong>
     <b class="mono">${row.count || 0}</b>
   </button>`;
 }
@@ -1916,12 +1932,55 @@ function renderFooterSources() {
   document.getElementById("footerSources").innerHTML = `${shown.map(row => `<span><b title="${escapeHtml(row.name || "")}">${escapeHtml(sourceLabel(row.name))}</b><i class="mono">${row.included || 0}</i></span>`).join("")}${rest ? `<span>+ ${rest} ${pluralRu(rest, "источник", "источника", "источников")}</span>` : ""}`;
 }
 
-function toggleRubric(id) {
-  if (!id) return;
+function focusFilterResults() {
+  const node = document.getElementById("filterResults");
+  node?.focus?.({ preventScroll: true });
+  scrollToNode(node);
+}
+
+let rubricFocusIntent = null;
+
+function refreshRubricSelection(origin) {
+  const card = origin?.closest?.(".card");
+  const key = card?.dataset.materialKey;
+  const top = card?.getBoundingClientRect?.().top;
+  const rubricId = origin?.dataset.rubric;
+  const resultsOrigin = origin?.closest?.("#filterResults");
+  const fromPanel = origin?.closest?.("#rubricator, #rubrics");
+  rubricFocusIntent = { key, top, rubricId, resultsOrigin: Boolean(resultsOrigin), fromPanel: Boolean(fromPanel), active: document.activeElement };
+  syncIssueAddress();
+  // Rubrics never change the loaded data scope. A pending period/search load
+  // will render the newest selection when it finishes; do not refetch it.
+  if (state.loading || !radarDataCurrent) return;
+  renderColumns(state.materials);
+  renderRadarWidget(state.materials);
+  renderBars("rubrics", rubrics, "title", "count");
+  renderRubricator();
+  restoreRubricFocus();
+}
+
+function restoreRubricFocus() {
+  if (!rubricFocusIntent) return;
+  const { key, top, rubricId, resultsOrigin, fromPanel, active } = rubricFocusIntent;
+  rubricFocusIntent = null;
+  if (document.activeElement && document.activeElement !== document.body && document.activeElement !== active) return;
+  if (key) {
+    const replacement = [...document.querySelectorAll("[data-material-key]")].find(node => node.dataset.materialKey === key);
+    if (replacement) {
+      const button = [...replacement.querySelectorAll("[data-rubric]")].find(node => node.dataset.rubric === rubricId);
+      button?.focus?.({ preventScroll: true });
+      const nextTop = replacement.getBoundingClientRect().top;
+      window.scrollTo?.({ top: Math.max(0, window.scrollY + nextTop - top), behavior: "instant" });
+    } else focusFilterResults();
+  } else if (fromPanel || resultsOrigin) focusFilterResults();
+}
+
+function toggleRubric(id, origin) {
+  if (!id || !/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return;
   state.rubrics = state.rubrics.includes(id)
     ? state.rubrics.filter(item => item !== id)
     : [...state.rubrics, id];
-  reload();
+  refreshRubricSelection(origin);
 }
 
 async function loadIssueMaterials(request) {
@@ -1990,7 +2049,7 @@ function columnsLoading(loading) {
   document.getElementById("radarViz")?.classList.toggle("is-loading", loading);
 }
 
-async function reload({ attempt = 0 } = {}) {
+async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   const generation = invalidateReload();
   const request = {
     period: state.period,
@@ -2020,6 +2079,7 @@ async function reload({ attempt = 0 } = {}) {
         console.warn("Radar rubrics unavailable", error);
         return null;
       }),
+      refreshCatalog ? loadRubricCatalog() : null,
     ]);
   } catch (error) {
     if (generation !== reloadGeneration) return;
@@ -2040,6 +2100,9 @@ async function reload({ attempt = 0 } = {}) {
   if (generation !== reloadGeneration) return;
   if (nextStats) periodStats.set(request.period, nextStats);
   if (nextRubrics) rubrics = nextRubrics;
+  // Check before replacing nodes: a newly focused source link is also removed
+  // by renderColumns, after which activeElement alone can no longer tell us.
+  if (rubricFocusIntent && document.activeElement !== rubricFocusIntent.active) rubricFocusIntent = null;
   state.materials = materials;
   state.loading = false;
   radarDataCurrent = true;
@@ -2057,6 +2120,7 @@ async function reload({ attempt = 0 } = {}) {
   renderColumns(materials);
   renderBars("rubrics", rubrics, "title", "count");
   renderRubricator();
+  restoreRubricFocus();
 }
 
 document.getElementById("radarLoadRetry")?.addEventListener("click", () => { void reload(); });
@@ -2071,13 +2135,10 @@ async function loadRubrics(period, issueDate) {
 async function init() {
   latest = await getJson("/api/issue/latest");
   issueCache.set(latest.issue.issue_date, latest);
-  const wanted = routeIssueDate();
-  if (wanted && wanted !== latest.issue?.issue_date) {
-    state.period = "issue";
-    state.issueDate = wanted;
-  }
+  await loadRubricCatalog();
+  readRadarAddress();
   setText("issueDate", issueLabel(activeIssueDate()));
-  await reload();
+  await reload({ refreshCatalog: false });
   // Ссылка на выпуск, которого нет: показываем последний и приводим адрес к
   // нему. Пустой экран без единого слова о том, почему он пуст, — хуже.
   if (state.issueDate && issueCache.get(state.issueDate)?.absent) {
@@ -2258,12 +2319,13 @@ document.addEventListener("click", event => {
     state.perimeter = button.dataset.perimeter;
     document.querySelectorAll("[data-perimeter]").forEach(btn => btn.classList.toggle("is-active", btn === button));
     reload();
+    syncIssueAddress();
   }
   if (button.dataset.rubric !== undefined) {
-    toggleRubric(button.dataset.rubric);
+    toggleRubric(button.dataset.rubric, button);
   }
   if (button.dataset.rubricBar !== undefined) {
-    toggleRubric(button.dataset.rubricBar);
+    toggleRubric(button.dataset.rubricBar, button);
   }
   if (button.dataset.issueDay) {
     state.period = "issue";
@@ -2275,22 +2337,44 @@ document.addEventListener("click", event => {
     syncIssueAddress();
     scrollToNode(document.getElementById("columns"));
   }
-  if (button.id === "resetFilters") {
-    state.perimeter = "all";
-    state.rubrics = [];
-    state.q = "";
-    document.getElementById("search").value = "";
-    document.querySelectorAll("[data-perimeter]").forEach(btn => btn.classList.toggle("is-active", btn.dataset.perimeter === "all"));
-    reload();
+  if (button.dataset.clearFilter || button.id === "resetFilters") {
+    const kind = button.dataset.clearFilter || "all";
+    if (kind === "rubrics") {
+      state.rubrics = [];
+      refreshRubricSelection(button);
+    } else {
+      clearTimeout(searchTimer);
+      if (kind === "perimeter" || kind === "all") state.perimeter = "all";
+      if (kind === "search" || kind === "all") state.q = "";
+      if (kind === "all") state.rubrics = [];
+      syncFilterControls();
+      syncIssueAddress();
+      const active = document.activeElement;
+      const loading = reload();
+      const generation = reloadGeneration;
+      loading.then(() => {
+        if (button.dataset.clearFilter && generation === reloadGeneration && radarDataCurrent
+            && (document.activeElement === active || document.activeElement === document.body)) focusFilterResults();
+      });
+    }
   }
+  if (button.dataset.choosePeriod !== undefined) {
+    const period = document.querySelector("[data-period]");
+    period?.focus?.({ preventScroll: true });
+    scrollToNode(period);
+  }
+
 });
 
 let searchTimer = null;
 document.getElementById("search").addEventListener("input", event => {
   clearTimeout(searchTimer);
   invalidateReload();
-  state.q = event.target.value.trim();
-  searchTimer = setTimeout(reload, 180);
+  state.q = event.target.value.trim().slice(0, 200);
+  searchTimer = setTimeout(() => {
+    syncIssueAddress(true);
+    reload();
+  }, 180);
 });
 
 initViewMode();
