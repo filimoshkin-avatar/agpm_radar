@@ -1252,6 +1252,16 @@ body.is-gazette .topbar__right--gazette { display: flex; }
 .api-error__text { min-width: 0; }
 .radar-load-notice[hidden] { display: none; }
 .radar-load-notice .api-error__retry { min-height: 40px; }
+.radar-load-notice[data-state="loading"] {
+  background: var(--sub);
+  color: var(--text-2);
+  border-block: 1px solid var(--line);
+}
+.radar-load-notice[data-state="loading"] .api-error__retry {
+  background: var(--field);
+  border-color: var(--line-2);
+  color: var(--text-2);
+}
 .api-error__wait { color: var(--muted); }
 
 .api-error__retry {

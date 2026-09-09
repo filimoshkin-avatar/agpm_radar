@@ -2189,9 +2189,12 @@ function invalidateReload() {
   return ++reloadGeneration;
 }
 
-function radarLoadNotice(message = "") {
+function radarLoadNotice(message = "", state = "error") {
   const notice = document.getElementById("radarLoadNotice");
-  if (notice) notice.hidden = !message;
+  if (notice) {
+    notice.hidden = !message;
+    notice.setAttribute("data-state", state);
+  }
   setText("radarLoadMessage", message);
 }
 
@@ -2211,7 +2214,7 @@ async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   state.loading = true;
   if (radarHasResults) {
     columnsLoading(true);
-    radarLoadNotice("Обновляю данные — пока показаны предыдущие результаты.");
+    radarLoadNotice("Обновляю данные — пока показаны предыдущие результаты.", "loading");
   } else {
     renderColumns(state.materials);
   }
