@@ -538,6 +538,7 @@ const LAYERS = [
   { node: "agentSubPanel", opener: "agentSubButton", close: () => accessPanel(false) },
   { node: "gazetteArchive", opener: "gazetteIssue", close: () => gazetteArchive(false) },
   { node: "chatHistoryList", opener: "chatHistoryToggle", close: () => chatHistoryToggleOpen(false) },
+  { node: "issueNavMenu", opener: "issueNavToggle", close: () => issueNavMenu(false) },
 ];
 
 function layerOpen(node) {
@@ -999,6 +1000,8 @@ function setViewMode(mode) {
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
+  if (state.viewMode !== "radar") issueNavMenu(false);
+  syncIssueNav();
   // Кольцо обходит дни только на «Радаре»: в других режимах его никто не
   // видит, а таймер продолжал идти.
   if (state.viewMode !== "radar" && ringTimer) {
@@ -1154,6 +1157,140 @@ function scrollToNode(node, place = "start") {
   }
 }
 
+/* The issue outline follows rendered sections, including the optional analysis.
+ * Keep both presentations on the same targets; navigation never changes filters
+ * or the issue URL. All scrolling goes through the shared sticky-header helper. */
+let issueNavigator = null;
+
+function issueNavMenu(open) {
+  const menu = document.getElementById("issueNavMenu");
+  const toggle = document.getElementById("issueNavToggle");
+  if (!menu) return;
+  const opening = open === undefined ? menu.hidden : open;
+  if (opening) closeLayers("issueNavMenu");
+  if (!opening && menu.contains?.(document.activeElement)) toggle?.focus?.({ preventScroll: true });
+  menu.hidden = !opening;
+  toggle?.setAttribute("aria-expanded", String(opening));
+  if (opening) {
+    const current = menu.querySelector('[aria-current="location"]');
+    (current || menu.querySelector("li:not([hidden]) button"))?.focus({ preventScroll: true });
+  }
+}
+
+function syncIssueNav() {
+  issueNavigator?.schedule();
+}
+
+function initIssueNav() {
+  const nav = document.getElementById("issueNav");
+  if (!nav || typeof requestAnimationFrame !== "function") return;
+  const rail = document.getElementById("issueNavRail");
+  const list = document.getElementById("issueNavList");
+  const compact = window.matchMedia("(max-width: 940px), (hover: none), (pointer: coarse)");
+  const sections = [...document.querySelectorAll("[data-issue-section]")].map(target => {
+    const buttons = [rail, list].map(container => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "issue-nav__item";
+      button.dataset.issueTarget = target.id;
+      button.innerHTML = `<span class="issue-nav__label">${escapeHtml(target.dataset.issueSection)}</span><span class="issue-nav__dash" data-anim aria-hidden="true"></span>`;
+      item.appendChild(button);
+      container.appendChild(item);
+      return button;
+    });
+    return { target, buttons };
+  });
+  let pending = false;
+  let active = null;
+  const update = () => {
+    pending = false;
+    const shown = state.viewMode === "radar" && radarHasResults;
+    nav.hidden = !shown;
+    document.body.classList.toggle("has-issue-nav", shown);
+    if (!shown) return;
+    const top = stickyBottom();
+    nav.style.setProperty("--issue-nav-top", `${top}px`);
+    const visible = sections.filter(section => {
+      const shown = !section.target.hidden && section.target.getClientRects().length > 0;
+      section.buttons.forEach(button => { button.parentElement.hidden = !shown; });
+      return shown;
+    });
+    if (!visible.length) return;
+    // Use the reading line below the sticky header; the final anchor must also
+    // be reachable when its heading cannot scroll all the way up from the footer.
+    const anchor = top + Math.min(100, (window.innerHeight - top) * .2);
+    let current = visible[0];
+    for (const section of visible) {
+      if (section.target.getBoundingClientRect().top <= anchor) current = section;
+    }
+    if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) current = visible.at(-1);
+    if (active !== current) {
+      active = current;
+      sections.forEach(section => section.buttons.forEach(button => {
+        if (section === current) button.setAttribute("aria-current", "location");
+        else button.removeAttribute("aria-current");
+      }));
+    }
+  };
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(update);
+  };
+  issueNavigator = { schedule };
+  nav.addEventListener("click", event => {
+    const button = event.target.closest("[data-issue-target]");
+    if (!button) return;
+    const target = document.getElementById(button.dataset.issueTarget);
+    if (!target || target.hidden) return;
+    if (target.tagName === "DETAILS") target.open = true;
+    issueNavMenu(false);
+    const focus = target.tagName === "DETAILS" ? target.querySelector("summary") : target;
+    focus?.focus({ preventScroll: true });
+    scrollToNode(target);
+    schedule();
+  });
+  nav.addEventListener("keydown", event => {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const button = event.target.closest("[data-issue-target]");
+    if (!button) return;
+    const buttons = [...button.closest("ol").querySelectorAll("li:not([hidden]) button")];
+    const index = buttons.indexOf(button);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    event.preventDefault();
+    buttons[next]?.focus({ preventScroll: true });
+  });
+  const resetProximity = () => sections.forEach(({ buttons }) => buttons[0].style.removeProperty("--issue-proximity"));
+  rail.addEventListener("pointermove", event => {
+    if (compact.matches || event.pointerType === "touch") return;
+    sections.forEach(({ buttons }) => {
+      const button = buttons[0];
+      if (button.parentElement.hidden) return;
+      const box = button.getBoundingClientRect();
+      const distance = Math.hypot(event.clientY - box.top - box.height / 2, event.clientX - box.right);
+      button.style.setProperty("--issue-proximity", String(1 + Math.max(0, 1 - distance / 90) * 1.4));
+    });
+  });
+  rail.addEventListener("pointerleave", resetProximity);
+  document.getElementById("issueNavToggle").addEventListener("click", () => issueNavMenu());
+  compact.addEventListener("change", () => {
+    issueNavMenu(false);
+    resetProximity();
+    schedule();
+  });
+  window.addEventListener("scroll", schedule, { passive: true });
+  window.addEventListener("resize", schedule, { passive: true });
+  // Cards, expanded analysis and late-loading fonts can all move the anchors.
+  if (typeof ResizeObserver === "function") {
+    const observer = new ResizeObserver(schedule);
+    [document.getElementById("top"), document.querySelector(".footer"), document.querySelector(".topbar")]
+      .forEach(node => { if (node) observer.observe(node); });
+  }
+  schedule();
+}
+
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
 }
@@ -1277,6 +1414,7 @@ function renderTheses(materials) {
   }).join("");
   renderDailyAnalysis();
   renderRadarWidget(materials);
+  syncIssueNav();
 }
 
 function renderDailyAnalysis() {
@@ -2396,6 +2534,7 @@ document.getElementById("search").addEventListener("input", event => {
   }, 180);
 });
 
+initIssueNav();
 initViewMode();
 
 // Тикер показывает размер базы в любом режиме, поэтому счёт спрашивается сразу,
