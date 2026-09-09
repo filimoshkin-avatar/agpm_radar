@@ -156,3 +156,72 @@ Verified before application activation:
 - Retained correction review/package:
   `/tmp/radar-title-coherence-correction/reviewed-changes.json` and `packages/`.
   All 95 public issue projections / 405 cards validate in the staged result.
+
+## Verified production result
+
+Application release: **`app_release_20260909_13fb540`**, commit
+`13fb540bb399f816c4a26910318597b554f41a73`, application archive SHA-256
+`d241d553978eee6f65c0bc2fc08d02742f3a45451682194db054f7372a7d87c7`.
+API and web were installed through `scripts/deploy_application_release.sh`.
+The matching 46-file activator was installed under mutation lock; archive SHA-256
+`1176f07bd2b38a0e363932ff2c20de6e2c02e8fcc6e1866eecb40ace48646eb8`.
+The four-file Legacy runtime mirror gate and live Python imports pass.
+
+Additional coherence correction: **`rel_38e987359567b2993d5895ba`**,
+candidate `cand_correct_20260909_title_references_v1`.
+The public before/after JSON differs at exactly `/materials/6/brief` and
+`/materials/6/summary`. The existing corrected title, URL, dates, order, perimeters,
+all LLM texts, issue analytics and the nine-card composition are unchanged.
+The application deployment did not alter the corrected content state.
+
+Final source/production state hash:
+`8dd95c1ace60e23551da45df59472512b2d6f82494759916773851e91a0ddbee`.
+Both active-pointer byte hashes:
+`297ac12ee9a76eda32a7d269e45e607b5ae5d4a13cdb7d29150fe1fe01c5860f`.
+
+All **95 live public API issue documents / 405 cards** passed the new validator
+and compare exactly with source projections. No suspect published title or stale
+explicit title reference remains. Public server search and browser search find
+Cora; the issue deep link renders correctly, assets have verified hashes/cache
+headers, and no browser page errors occurred. Service `active/running`,
+`NRestarts=0`; publisher is unblocked.
+
+A fresh V2 DOCX rendered from the live issue passes the same title/reference
+checks; SHA-256 `c77ed358d11c6dca8a81a27d4c4329f88f4cf192d5133d235dabaf34cfb68669`.
+Existing immutable historical documents and Legacy corpus inputs were retained.
+
+Retained evidence:
+
+- `/tmp/radar-title-v2-verify.log`, `/tmp/radar-title-kx-verify.log`,
+  `/tmp/radar-title-migrations-verify.log` — mandatory gate exit results.
+- `/tmp/radar-title-audit.json` — pre-change corpus findings.
+- `/tmp/radar-title-coherence-correction/` — reviewed change set, canonical
+  candidate/package, staged database, publisher result, public before/after diff,
+  and `issue-2026-09-09.docx`.
+- `/tmp/radar-title-application-deploy.log`, `/tmp/radar-title-support-deploy.log`
+  — application/activator/Legacy deployment evidence.
+- `/tmp/radar-title-browser-result.json`, `/tmp/radar-title-production.png`,
+  `/tmp/radar-title-final-parity.json`, `/tmp/radar-title-final-remote.log`
+  — public, source parity, service, manifest and rollback checks.
+
+Rollback targets were verified file-by-file against their manifests:
+
+- API: `/opt/radar-v2-api/releases/app_release_20260905_b02dd73`.
+- Web: `/srv/radar-v2.aipractice.space/releases/app_release_20260905_b02dd73`.
+- Activator: `/opt/radar-v2-activator/releases/review-fixes-b02dd73`.
+- Previous content: `rel_dc39044376c9b7d9834a285a`, retained immutable database
+  matches the verified backup. If rolling back the coherence correction too,
+  restore the old API/activator first: the new gate intentionally rejects that
+  old release's stale references. Use the standard optimistic content rollback,
+  never overwrite an active SQLite database. A live rollback was unnecessary;
+  target availability/integrity and existing automated rollback regressions were
+  verified without interrupting readers.
+
+Changed implementation files: `pipeline/scripts/agpm_radar_collect.py`,
+`pipeline/scripts/agpm_radar_report.py`, new `pipeline/scripts/radar_title_quality.py`,
+`v2/packages/contracts/title_quality.py`, `v2/packages/domain/candidates.py`,
+`v2/packages/validation/public_issue.py`, `v2/packages/deployment/artifacts.py`,
+`v2/tools/build_stage14_daily.py`, `v2/tools/check_legacy_mirror.py`.
+Regression files: `pipeline/tests/test_title_quality.py`,
+`v2/tests/test_title_quality.py`, `v2/tests/data/title-cora.html`.
+The thirteenth changed file is this report. Unrelated user documents were untouched.
