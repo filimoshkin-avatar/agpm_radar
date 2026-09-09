@@ -74,7 +74,8 @@ try {
   const cardsBox = await page.locator('#columns').boundingBox();
   assert.ok(cardsBox.x + cardsBox.width <= navBox.x, 'rail has its own gutter');
   await railButton('dailyAnalysis').focus();
-  assert.equal(await railButton('dailyAnalysis').locator('.issue-nav__label').evaluate(node => getComputedStyle(node).opacity), '1');
+  assert.equal(await page.locator('#issueNavTooltip').isVisible(), true);
+  assert.equal(await page.locator('#issueNavTooltip').innerText(), 'Аналитический разбор');
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('#dailyAnalysis').getAttribute('open'), '');
   await aligned('dailyAnalysis'); await active('dailyAnalysis');
@@ -90,13 +91,13 @@ try {
   await page.keyboard.press('End');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.issueTarget), 'issueSources');
   await page.locator('[data-period="7d"]').click(); await ready();
-  await page.waitForFunction(() => document.querySelector('#issueNavRail [data-issue-target="dailyAnalysis"]').parentElement.hidden);
+  await page.waitForFunction(() => !document.querySelector('#issueNavRail [data-issue-target="dailyAnalysis"]'));
   assert.equal(await page.locator('#issueNavRail li:visible').count(), 5);
   await page.locator('[data-period="issue"]').click(); await ready();
-  await page.waitForFunction(() => !document.querySelector('#issueNavRail [data-issue-target="dailyAnalysis"]').parentElement.hidden);
+  await page.waitForFunction(() => document.querySelector('#issueNavRail [data-issue-target="dailyAnalysis"]'));
   for (const mode of ['gazette', 'agent', 'radar']) {
     await page.locator(`.topbar [data-view-mode="${mode}"]`).click();
-    await page.waitForFunction(mode => document.querySelector('#issueNav').hidden === (mode !== 'radar'), mode);
+    await page.waitForFunction(mode => document.querySelector('#issueNav').hidden === (mode === 'gazette'), mode);
   }
   await railButton('issueOverview').click(); await aligned('issueOverview');
   await page.emulateMedia({ reducedMotion: 'no-preference' });

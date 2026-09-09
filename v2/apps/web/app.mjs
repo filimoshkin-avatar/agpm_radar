@@ -997,10 +997,10 @@ document.getElementById("agentSubOut")?.addEventListener("click", () => {
 });
 
 function setViewMode(mode) {
+  issueNavMenu(false);
   state.viewMode = VIEW_MODES.includes(mode) ? mode : "radar";
   document.body.classList.toggle("is-gazette", state.viewMode === "gazette");
   document.body.classList.toggle("is-agent", state.viewMode === "agent");
-  if (state.viewMode !== "radar") issueNavMenu(false);
   syncIssueNav();
   // Кольцо обходит дни только на «Радаре»: в других режимах его никто не
   // видит, а таймер продолжал идти.
@@ -1059,8 +1059,14 @@ function fitGazetteFrame() {
   const frame = document.querySelector(".gazette-frame");
   if (!frame) return;
   try {
-    const height = frame.contentDocument?.documentElement?.scrollHeight;
-    if (height) frame.style.height = `${height + 8}px`;
+    const body = frame.contentDocument?.body;
+    if (!body) return;
+    const style = frame.contentWindow.getComputedStyle(body);
+    // Measure content, not the iframe viewport: otherwise every resize adds
+    // eight pixels to its previous height and it can never shrink on desktop.
+    const height = Math.ceil(body.getBoundingClientRect().height
+      + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
+    if (height && frame.style.height !== `${height + 8}px`) frame.style.height = `${height + 8}px`;
   } catch {
     /* чужой origin высоту не отдаёт - пусть работает CSS */
   }
@@ -1115,7 +1121,7 @@ function printGazette() {
  *  была одна, и «в начало» уводило вопрос под вторую шапку. */
 function stickyBottom() {
   let bottom = 0;
-  for (const selector of [".topbar", ".agent-main__head"]) {
+  for (const selector of [".topbar", ".gazette-bar", ".agent-main__head"]) {
     const head = document.querySelector(selector);
     // Скрытый раздел не занимает места: `offsetParent` у него пуст.
     if (!head || head.offsetParent === null) continue;
@@ -1147,7 +1153,9 @@ function scrollToNode(node, place = "start") {
     const inset = place === "end" && composer && !composer.hidden
       ? (composer.getBoundingClientRect?.().height || 0)
       : 0;
-    const top = box.top + (window.scrollY || 0);
+    const frame = node?.ownerDocument?.defaultView?.frameElement;
+    const top = box.top + (window.scrollY || 0)
+      + (frame ? frame.getBoundingClientRect().top + frame.clientTop : 0);
     const target = place === "end" ? top + box.height - height + inset + 16
       : place === "center" ? top - height / 2 + box.height / 2
       : top - stickyBottom() - 19;
@@ -1157,9 +1165,8 @@ function scrollToNode(node, place = "start") {
   }
 }
 
-/* The issue outline follows rendered sections, including the optional analysis.
- * Keep both presentations on the same targets; navigation never changes filters
- * or the issue URL. All scrolling goes through the shared sticky-header helper. */
+/* One outline for all reading surfaces: the issue, the sandboxed newspaper and
+ * the active agent panel. Targets are DOM nodes, never guessed links or actions. */
 let issueNavigator = null;
 
 function issueNavMenu(open) {
@@ -1173,8 +1180,17 @@ function issueNavMenu(open) {
   toggle?.setAttribute("aria-expanded", String(opening));
   if (opening) {
     const current = menu.querySelector('[aria-current="location"]');
-    (current || menu.querySelector("li:not([hidden]) button"))?.focus({ preventScroll: true });
+    const button = current || menu.querySelector("button");
+    button?.focus({ preventScroll: true });
+    issueNavReveal(button, menu);
   }
+}
+
+function issueNavReveal(button, container) {
+  if (!button || !container) return;
+  const box = button.getBoundingClientRect(), viewport = container.getBoundingClientRect();
+  if (box.top < viewport.top) container.scrollTop += box.top - viewport.top;
+  else if (box.bottom > viewport.bottom) container.scrollTop += box.bottom - viewport.bottom;
 }
 
 function syncIssueNav() {
@@ -1186,68 +1202,174 @@ function initIssueNav() {
   if (!nav || typeof requestAnimationFrame !== "function") return;
   const rail = document.getElementById("issueNavRail");
   const list = document.getElementById("issueNavList");
+  const tooltip = document.getElementById("issueNavTooltip");
+  const frame = document.querySelector(".gazette-frame");
   const compact = window.matchMedia("(max-width: 940px), (hover: none), (pointer: coarse)");
-  const sections = [...document.querySelectorAll("[data-issue-section]")].map(target => {
-    const buttons = [rail, list].map(container => {
-      const item = document.createElement("li");
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "issue-nav__item";
-      button.dataset.issueTarget = target.id;
-      button.innerHTML = `<span class="issue-nav__label">${escapeHtml(target.dataset.issueSection)}</span><span class="issue-nav__dash" data-anim aria-hidden="true"></span>`;
-      item.appendChild(button);
-      container.appendChild(item);
-      return button;
+  const entries = new WeakMap();
+  let serial = 0, sections = [], active = null, selected = null, scope = "";
+  let pending = false, frameReady = false, frameObserver = null;
+  const text = node => String(node?.textContent || "").replace(/\s+/g, " ").trim();
+  const visible = node => Boolean(node && !node.closest("[hidden]") && node.getClientRects().length);
+  const heading = node => node.querySelector(".agent-statement__text, .agent-gap__statement, h3, h4");
+  const collect = () => {
+    const result = [];
+    const add = (target, label, depth = 1, ownerFrame = null) => {
+      if (visible(target) && label) result.push({ target, label, depth, frame: ownerFrame });
+    };
+    if (state.viewMode === "radar") {
+      if (radarHasResults) document.querySelectorAll("[data-issue-section]")
+        .forEach(node => add(node, node.dataset.issueSection));
+    } else if (state.viewMode === "gazette") {
+      if (!frameReady) return result;
+      try {
+        frame.contentDocument?.querySelectorAll("h1, h2, h3, h4").forEach(node => {
+          add(node, node.tagName === "H1" ? "Начало номера" : text(node), node.tagName === "H4" ? 2 : 1, frame);
+        });
+      } catch { /* A foreign or unavailable document offers no dead anchors. */ }
+    } else if (agentState.tab === "ask") {
+      if (visible(document.getElementById("agentWelcome"))) {
+        add(document.querySelector(".agent-welcome__lead"), "Об агенте");
+        add(document.getElementById("promptGrid"), "Примеры вопросов");
+      } else {
+        document.querySelectorAll("#agentThread [data-turn]").forEach((node, index) => {
+          add(node, `${index + 1}. ${text(node.querySelector(".agent-q__bubble")) || "Вопрос"}`);
+        });
+      }
+    } else {
+      const panel = document.querySelector(".agent-panel:not([hidden])");
+      if (!panel) return result;
+      const names = { find: "Поиск и фильтры", observatory: "Хроника рынка", graph: "Карта связей",
+        contradictions: "Противоречия", topics: "Список тем", wiki: "Список страниц", gaps: "Карта пробелов" };
+      add(panel, names[agentState.tab]);
+      // Lists of topics/pages are controls. Their opened content gets anchors;
+      // navigating an outline must never trigger a search or a paid action.
+      panel.querySelectorAll(".agent-section, [data-agent-page-section], .agent-column__head, .agent-clash, .agent-gap, .agent-statement").forEach(node => {
+        if (node.matches(".agent-statement") && node.closest(".agent-clash")) return;
+        const label = node.dataset.agentPageSection || text(heading(node) || node);
+        add(node, label, node.matches(".agent-statement, .agent-gap, [data-agent-page-section]") ? 2 : 1);
+      });
+    }
+    // Newspaper columns share vertical coordinates. Follow visual rows, then
+    // left-to-right order; recalculate when the newspaper becomes one column.
+    if (state.viewMode === "gazette") result.sort((a, b) => {
+      const aa = a.target.getBoundingClientRect(), bb = b.target.getBoundingClientRect();
+      return Math.abs(aa.top - bb.top) > 4 ? aa.top - bb.top : aa.left - bb.left;
     });
-    return { target, buttons };
-  });
-  let pending = false;
-  let active = null;
+    return result;
+  };
+  const entryFor = data => {
+    let entry = entries.get(data.target);
+    if (!entry) {
+      const key = state.viewMode === "radar" ? data.target.id : `outline-${++serial}`;
+      const buttons = [rail, list].map(() => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "issue-nav__item";
+        button.dataset.issueTarget = key;
+        button.innerHTML = '<span class="issue-nav__label"></span><span class="issue-nav__dash" data-anim aria-hidden="true"></span>';
+        item.appendChild(button);
+        return button;
+      });
+      entry = { ...data, key, buttons };
+      entries.set(data.target, entry);
+    }
+    if (entry.label !== data.label || !entry.buttons[0].textContent) entry.buttons.forEach(button => {
+      button.querySelector(".issue-nav__label").textContent = data.label.length > 140 ? `${data.label.slice(0, 139)}…` : data.label;
+      button.setAttribute("aria-label", data.label);
+    });
+    Object.assign(entry, data);
+    entry.buttons.forEach(button => { button.dataset.depth = String(data.depth); });
+    return entry;
+  };
+  const bounds = entry => {
+    const box = entry.target.getBoundingClientRect();
+    const offset = entry.frame ? entry.frame.getBoundingClientRect().top + entry.frame.clientTop : 0;
+    return { top: box.top + offset, bottom: box.bottom + offset };
+  };
+  const hideTooltip = () => { tooltip.hidden = true; };
+  const showTooltip = button => {
+    if (compact.matches || !button || !rail.contains(button)) return hideTooltip();
+    const box = button.getBoundingClientRect(), view = rail.getBoundingClientRect();
+    if (box.bottom <= view.top || box.top >= view.bottom) return hideTooltip();
+    tooltip.textContent = button.textContent;
+    tooltip.style.top = `${box.top + box.height / 2 - nav.getBoundingClientRect().top}px`;
+    tooltip.hidden = false;
+  };
   const update = () => {
     pending = false;
-    const shown = state.viewMode === "radar" && radarHasResults;
+    const nextScope = `${state.viewMode}:${state.viewMode === "agent" ? agentState.tab : ""}`;
+    if (scope !== nextScope) {
+      issueNavMenu(false);
+      hideTooltip();
+      selected = null;
+      scope = nextScope;
+    }
+    const next = collect().map(entryFor);
+    if (next.length !== sections.length || next.some((entry, i) => entry !== sections[i])) {
+      const focused = document.activeElement;
+      [rail, list].forEach((container, i) => container.replaceChildren(...next.map(entry => entry.buttons[i].parentElement)));
+      if (nav.contains(focused)) focused.focus({ preventScroll: true });
+      sections = next;
+      active = null;
+      hideTooltip();
+    }
+    const shown = sections.length > 0;
+    if (!shown) issueNavMenu(false);
     nav.hidden = !shown;
     document.body.classList.toggle("has-issue-nav", shown);
+    const composer = state.viewMode === "agent" ? document.getElementById("agentComposer") : null;
+    const inset = visible(composer) ? composer.getBoundingClientRect().height : 0;
+    document.body.style.setProperty("--issue-nav-bottom", `${inset}px`);
     if (!shown) return;
+    const label = state.viewMode === "radar" ? "По выпуску" : state.viewMode === "gazette" ? "По газете"
+      : agentState.tab === "ask" ? "По диалогу" : "По разделу";
+    nav.setAttribute("aria-label", label);
+    setText("issueNavTitle", label);
+    setText("issueNavHeading", label);
     const top = stickyBottom();
     nav.style.setProperty("--issue-nav-top", `${top}px`);
-    const visible = sections.filter(section => {
-      const shown = !section.target.hidden && section.target.getClientRects().length > 0;
-      section.buttons.forEach(button => { button.parentElement.hidden = !shown; });
-      return shown;
-    });
-    if (!visible.length) return;
-    // Use the reading line below the sticky header; the final anchor must also
-    // be reachable when its heading cannot scroll all the way up from the footer.
-    const anchor = top + Math.min(100, (window.innerHeight - top) * .2);
-    let current = visible[0];
-    for (const section of visible) {
-      if (section.target.getBoundingClientRect().top <= anchor) current = section;
+    const anchor = top + Math.max(0, Math.min(100, (window.innerHeight - top - inset) * .2));
+    let current = sections[0], nearest = -Infinity;
+    for (const entry of sections) {
+      const position = bounds(entry).top;
+      if (position <= anchor && position > nearest + 4) { current = entry; nearest = position; }
+      else if (position <= anchor && Math.abs(position - nearest) <= 4 && entry === selected) current = entry;
     }
-    if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) current = visible.at(-1);
+    if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+      current = sections.at(-1);
+      if (sections.includes(selected) && bounds(selected).top >= top && bounds(selected).top < window.innerHeight - inset) current = selected;
+    }
     if (active !== current) {
       active = current;
-      sections.forEach(section => section.buttons.forEach(button => {
-        if (section === current) button.setAttribute("aria-current", "location");
+      sections.forEach(entry => entry.buttons.forEach(button => {
+        if (entry === current) button.setAttribute("aria-current", "location");
         else button.removeAttribute("aria-current");
       }));
+      if (!rail.matches(":hover, :focus-within")) issueNavReveal(current.buttons[0], rail);
+      if (state.viewMode === "agent" && agentState.tab === "ask") chatUpdatePosition();
     }
+    if (!tooltip.hidden) showTooltip(rail.querySelector("button:hover, button:focus-visible"));
   };
   const schedule = () => {
     if (pending) return;
     pending = true;
     requestAnimationFrame(update);
   };
-  issueNavigator = { schedule };
+  issueNavigator = { schedule, currentTarget: () => active?.target };
   nav.addEventListener("click", event => {
     const button = event.target.closest("[data-issue-target]");
     if (!button) return;
-    const target = document.getElementById(button.dataset.issueTarget);
-    if (!target || target.hidden) return;
+    const entry = sections.find(entry => entry.key === button.dataset.issueTarget);
+    if (!entry || !visible(entry.target)) return;
+    selected = entry;
+    const target = entry.target;
     if (target.tagName === "DETAILS") target.open = true;
     issueNavMenu(false);
+    hideTooltip();
     const focus = target.tagName === "DETAILS" ? target.querySelector("summary") : target;
-    focus?.focus({ preventScroll: true });
+    if (!focus.hasAttribute("tabindex")) focus.setAttribute("tabindex", "-1");
+    focus.focus({ preventScroll: true });
     scrollToNode(target);
     schedule();
   });
@@ -1255,38 +1377,79 @@ function initIssueNav() {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     const button = event.target.closest("[data-issue-target]");
     if (!button) return;
-    const buttons = [...button.closest("ol").querySelectorAll("li:not([hidden]) button")];
+    const buttons = [...button.closest("ol").querySelectorAll("button")];
     const index = buttons.indexOf(button);
     const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
       : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     event.preventDefault();
     buttons[next]?.focus({ preventScroll: true });
+    issueNavReveal(buttons[next], compact.matches ? document.getElementById("issueNavMenu") : rail);
+    showTooltip(buttons[next]);
   });
-  const resetProximity = () => sections.forEach(({ buttons }) => buttons[0].style.removeProperty("--issue-proximity"));
+  const resetProximity = () => {
+    sections.forEach(({ buttons }) => buttons[0].style.removeProperty("--issue-proximity"));
+    hideTooltip();
+  };
   rail.addEventListener("pointermove", event => {
     if (compact.matches || event.pointerType === "touch") return;
     sections.forEach(({ buttons }) => {
-      const button = buttons[0];
-      if (button.parentElement.hidden) return;
-      const box = button.getBoundingClientRect();
+      const box = buttons[0].getBoundingClientRect();
       const distance = Math.hypot(event.clientY - box.top - box.height / 2, event.clientX - box.right);
-      button.style.setProperty("--issue-proximity", String(1 + Math.max(0, 1 - distance / 90) * 1.4));
+      buttons[0].style.setProperty("--issue-proximity", String(1 + Math.max(0, 1 - distance / 90) * 1.4));
     });
+    showTooltip(event.target.closest("button"));
   });
   rail.addEventListener("pointerleave", resetProximity);
+  rail.addEventListener("focusin", event => showTooltip(event.target.closest("button")));
+  rail.addEventListener("focusout", hideTooltip);
+  rail.addEventListener("scroll", () => showTooltip(rail.querySelector("button:focus-visible")), { passive: true });
   document.getElementById("issueNavToggle").addEventListener("click", () => issueNavMenu());
   compact.addEventListener("change", () => {
+    const focused = nav.contains(document.activeElement);
     issueNavMenu(false);
     resetProximity();
+    if (focused) (compact.matches ? document.getElementById("issueNavToggle") : active?.buttons[0])?.focus({ preventScroll: true });
     schedule();
   });
+  const reading = event => { if (!nav.contains(event.target)) { selected = null; schedule(); } };
+  document.addEventListener("wheel", reading, { passive: true });
+  document.addEventListener("touchstart", reading, { passive: true });
   window.addEventListener("scroll", schedule, { passive: true });
-  window.addEventListener("resize", schedule, { passive: true });
-  // Cards, expanded analysis and late-loading fonts can all move the anchors.
+  window.addEventListener("resize", () => { fitGazetteFrame(); schedule(); }, { passive: true });
+  const bindFrame = () => {
+    frameObserver?.disconnect();
+    frameReady = false;
+    try {
+      const doc = frame.contentDocument;
+      if (!frame.getAttribute("src") || !doc?.body || doc.URL === "about:blank") return;
+      frameReady = true;
+      if (typeof ResizeObserver === "function") {
+        frameObserver = new ResizeObserver(() => { fitGazetteFrame(); schedule(); });
+        frameObserver.observe(doc.body);
+      }
+      doc.addEventListener("pointerdown", () => { closeLayers(); selected = null; });
+      doc.addEventListener("wheel", () => { selected = null; }, { passive: true });
+      doc.addEventListener("keydown", event => {
+        if (event.key === "Escape") issueNavMenu(false);
+      });
+    } catch { /* Preserve the iframe sandbox and origin boundary. */ }
+    finally { schedule(); }
+  };
+  frame?.addEventListener("load", bindFrame);
+  if (frame) bindFrame();
+  if (typeof MutationObserver === "function") {
+    const observer = new MutationObserver(schedule);
+    const agent = document.getElementById("agentView");
+    if (agent) observer.observe(agent, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["hidden"] });
+    if (frame) new MutationObserver(() => { frameReady = false; frameObserver?.disconnect(); schedule(); })
+      .observe(frame, { attributes: true, attributeFilter: ["src"] });
+  }
   if (typeof ResizeObserver === "function") {
     const observer = new ResizeObserver(schedule);
-    [document.getElementById("top"), document.querySelector(".footer"), document.querySelector(".topbar")]
-      .forEach(node => { if (node) observer.observe(node); });
+    ["#top", ".footer", ".topbar", "#agentView", "#agentComposer", "#gazetteView"].forEach(selector => {
+      const node = document.querySelector(selector);
+      if (node) observer.observe(node);
+    });
   }
   schedule();
 }
@@ -3040,6 +3203,8 @@ function chatUpdatePosition() {
   // The chip answers two things - which turn, and whether the reader is above
   // the bottom - and only the first is `current`. Leaving on an unchanged turn
   // left it showing «вопрос 3 из 5» to somebody already back at the foot.
+  const outlined = Number(issueNavigator?.currentTarget()?.dataset.turn);
+  if (Number.isInteger(outlined) && outlined >= 0 && outlined < chatTurns.length) current = outlined;
   const pos = document.getElementById("chatHistoryPos");
   if (pos) {
     const show = !chatNearBottom() && chatTurns.length > 1;
@@ -4945,6 +5110,23 @@ async function agentLoadWiki() {
   }
 }
 
+function agentPageBody(body) {
+  let fence = "";
+  return String(body || "").split(/(?<=\n)/).map(line => {
+    const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (marker) {
+      if (!fence) fence = marker[1];
+      else if (marker[1][0] === fence[0] && marker[1].length >= fence.length) fence = "";
+    }
+    const heading = !fence && /^ {0,3}#{1,6}[ \t]+(.+?)[ \t]*\r?\n?$/.exec(line);
+    if (!heading) return escapeHtml(line);
+    const label = heading[1].replace(/[ \t]+#+$/, "");
+    // Preserve the original plain text and line breaks; the span adds only a
+    // focusable target, not a second Markdown renderer or executable HTML.
+    return `<span data-agent-page-section="${escapeHtml(label)}" tabindex="-1">${escapeHtml(line)}</span>`;
+  }).join("");
+}
+
 async function agentOpenPage(path) {
   const card = document.getElementById("agentPage");
   if (!card) return;
@@ -4958,7 +5140,7 @@ async function agentOpenPage(path) {
     card.innerHTML = `
       <h3 class="agent-section">${escapeHtml(data.title || path)}</h3>
       <p class="agent-intro mono">${escapeHtml(data.signature || "")}</p>
-      <article class="card agent-page">${escapeHtml(data.body || "")}</article>`;
+      <article class="card agent-page">${agentPageBody(data.body)}</article>`;
     scrollToNode(card);
   } catch (error) {
     card.innerHTML = `<p class="agent-waiting">${escapeHtml(error.message)}</p>`;

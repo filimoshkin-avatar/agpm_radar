@@ -3366,21 +3366,28 @@ body:not(.is-chat) .chat-up { display: none; }
 .chat-turn.is-fresh .agent-tool { animation: agIn .38s ease .5s backwards; }
 .chat-turn.is-fresh .agent-evidence > div { animation: agIn .34s ease calc(.08s * var(--j, 0)) backwards; }
 
-/* ── Навигатор выпуска ──────────────────────────────────────────────────── */
+/* ── Общий навигатор радара, газеты и агента ─────────────────────────────── */
 
 .issue-nav {
   position: fixed;
   z-index: 35;
   right: 8px;
-  top: calc(var(--issue-nav-top, 80px) + (100dvh - var(--issue-nav-top, 80px)) / 2);
+  top: calc(var(--issue-nav-top, 80px) + (100dvh - var(--issue-nav-top, 80px) - var(--issue-nav-bottom, 0px)) / 2);
   transform: translateY(-50%);
   font-size: 11px;
 }
-.issue-nav[hidden], .issue-nav li[hidden], .issue-nav__menu[hidden] { display: none; }
-.has-issue-nav .page { padding-right: 48px; }
+.issue-nav[hidden], .issue-nav li[hidden], .issue-nav__menu[hidden], .issue-nav__tooltip[hidden] { display: none; }
+.has-issue-nav .page, .has-issue-nav .agent-view, .has-issue-nav .gazette-view { padding-right: 48px; }
 .has-issue-nav .footer { margin-right: 48px; }
 .issue-nav ol { list-style: none; margin: 0; padding: 0; }
-.issue-nav__rail { width: 40px; }
+.issue-nav__rail {
+  width: 40px;
+  max-height: max(56px, calc(100dvh - var(--issue-nav-top, 80px) - var(--issue-nav-bottom, 0px) - 32px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.issue-nav__rail::-webkit-scrollbar { display: none; }
 .issue-nav__item {
   position: relative;
   display: flex;
@@ -3405,36 +3412,57 @@ body:not(.is-chat) .chat-up { display: none; }
   transition: transform 140ms ease-out;
 }
 .issue-nav__item[aria-current="location"] { color: var(--accent); }
+.issue-nav__item[data-depth="2"] .issue-nav__dash { width: 8px; }
 .issue-nav__item[aria-current="location"] .issue-nav__dash { animation: issueNavPulse 450ms ease-out; }
 .issue-nav__item:focus-visible { outline: 2px solid var(--near); outline-offset: 2px; }
 .issue-nav__item:focus-visible .issue-nav__dash { transform: scaleX(2.4); }
 .issue-nav__rail .issue-nav__label {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.issue-nav__tooltip {
+  position: absolute;
   right: 48px;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: min(340px, calc(100vw - 80px));
   padding: 7px 10px;
   border-radius: 6px;
   background: var(--graphite);
   color: var(--on-dark);
   box-shadow: var(--shadow-tip);
-  white-space: nowrap;
-  opacity: 0;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
-.issue-nav__item:hover .issue-nav__label,
-.issue-nav__item:focus-visible .issue-nav__label { opacity: 1; }
 .issue-nav__toggle, .issue-nav__menu { display: none; }
-[data-issue-section]:focus-visible { outline: 2px solid var(--near); outline-offset: -2px; }
+[data-issue-section]:focus-visible, .chat-turn:focus-visible, [data-agent-page-section]:focus-visible { outline: 2px solid var(--near); outline-offset: -2px; }
 @keyframes issueNavPulse {
   from { transform: scaleX(2.4); }
   to { transform: scaleX(var(--issue-proximity, 1)); }
 }
 
 @media (max-width: 940px), (hover: none), (pointer: coarse) {
-  .has-issue-nav .page { padding-right: 0; }
+  .has-issue-nav .page, .has-issue-nav .agent-view, .has-issue-nav .gazette-view { padding-right: 0; }
   .has-issue-nav .footer { margin-right: 0; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .has-issue-nav .gazette-view { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .has-issue-nav .agent-main__body { padding-bottom: 80px; }
+  .has-issue-nav .chat-up { display: none; }
+  .has-issue-nav .chat-down {
+    left: 14px;
+    bottom: calc(var(--issue-nav-bottom, 0px) + 16px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    max-width: calc(50vw - 24px);
+    min-height: 44px;
+    height: auto;
+    padding: 8px 12px;
+  }
   .issue-nav {
     top: auto;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--issue-nav-bottom, 0px) + 16px + env(safe-area-inset-bottom, 0px));
     right: 16px;
     transform: none;
   }
@@ -3459,7 +3487,7 @@ body:not(.is-chat) .chat-up { display: none; }
     bottom: 54px;
     right: 0;
     width: min(280px, calc(100vw - 32px));
-    max-height: calc(100dvh - var(--issue-nav-top, 80px) - 100px - env(safe-area-inset-bottom, 0px));
+    max-height: max(44px, calc(100dvh - var(--issue-nav-top, 80px) - var(--issue-nav-bottom, 0px) - 100px - env(safe-area-inset-bottom, 0px)));
     overflow-y: auto;
     padding: 8px;
     border: 1px solid var(--line-2);
@@ -3468,7 +3496,7 @@ body:not(.is-chat) .chat-up { display: none; }
     box-shadow: var(--shadow-pop);
   }
   .issue-nav__heading { display: block; padding: 8px 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
-  .issue-nav__menu .issue-nav__item { justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px; text-align: left; color: var(--text-2); }
+  .issue-nav__menu .issue-nav__item { justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px; text-align: left; color: var(--text-2); overflow-wrap: anywhere; }
   .issue-nav__menu .issue-nav__item:hover { background: var(--sub); }
   .issue-nav__menu .issue-nav__item[aria-current="location"] { color: var(--accent); background: var(--sub); }
   .issue-nav__menu .issue-nav__dash { animation: none; transform: none; }
@@ -3554,7 +3582,7 @@ body:not(.is-chat) .chat-up { display: none; }
 
 @media print {
   .ticker, .topbar, .gazette-bar, .footer, .chat-down, .chat-up, .issue-nav { display: none; }
-  .has-issue-nav .page { padding-right: 0; }
+  .has-issue-nav .page, .has-issue-nav .agent-view, .has-issue-nav .gazette-view { padding-right: 0; padding-bottom: 0; }
   .gazette-stage { padding: 0; background: none; }
   .gazette-frame { box-shadow: none; }
 }
