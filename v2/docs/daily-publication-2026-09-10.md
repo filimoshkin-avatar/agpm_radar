@@ -48,6 +48,11 @@ The daily shell script and scheduler configuration were not changed.
   report/candidate/publication rejection checks.
 - Independent review found no blockers or material risks.
 - Four-file Legacy runtime mirror check passes.
+- All three mandatory gates completed with exit code 0: V2 verification
+  (305 tests, Ruff, mypy, contracts, frontend smokes, design/cache checks,
+  isolation, and production artifact), KX verification (575 passed, 202
+  expected skips), and KX migration verification (all 777 tests on temporary
+  local databases).
 
 Backups, preconditions, and cron evidence are retained under
 `/tmp/radar-sep10-fix/`. Full verification logs are
@@ -60,3 +65,26 @@ the already published Legacy JSON. Notification variables are unset for the
 manual run. The publisher retains its normal validation, transport, atomic
 activation, and comparison steps. The source database and active pointer were
 backed up before publication; the backup passes SQLite integrity checking.
+
+Completed at **2026-09-10T07:18:35Z**. The daily runner exited 0.
+
+- Content release: `rel_e84b807ec8f57ffce308dc4f`.
+- Candidate: `cand_stage15_daily_20260910_01`.
+- Source and production state hash:
+  `0b6833c42e3674f337c58d6057af15cf187d11ba3c43f24f6fc6ec360af1a218`.
+- Legacy and V2 both contain five materials. Comparison is `matched`, with
+  no URL differences and no shared material field differences.
+- Daily, 7-day, and 30-day analysis each succeeded on the first attempt using
+  `openai/gpt-5.5`; no deterministic fallback or publisher warning occurred.
+- Public `/api/latest` and `/api/issues/2026-09-10` return September 10.
+  Chromium verified the home page and issue deep link, all five card titles,
+  the count, source/public state parity, and no page errors.
+- Public title/reference validation, complete source/API issue projection
+  equality, SQLite integrity, and foreign-key checks pass.
+- The application remains `app_release_20260909_1f45fb2`; content publication
+  did not require an application deployment.
+
+The canonical run report is
+`/root/.openclaw-projectmanager/workspace/state/radar-v2/dual-run-cron/2026-09-10/combined-report.json`.
+Public JSON, browser result, screenshot, and publication log are retained under
+`/tmp/radar-sep10-fix/`. Collector fix commit: `c3a6cb2`.
