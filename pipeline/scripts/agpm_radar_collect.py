@@ -26,7 +26,7 @@ from typing import Any, Iterable
 import requests
 import yaml
 from bs4 import BeautifulSoup
-from radar_title_quality import apply_title_markup, recover_web_title, require_title, title_problem
+from radar_title_quality import TitleQualityError, apply_title_markup, recover_web_title, require_title, title_problem
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -930,20 +930,31 @@ def save_materials(path: Path, materials: dict[str, dict[str, Any]]) -> None:
     os.replace(tmp_name, path)
 
 
-def update_materials(candidates: list[Candidate], materials: dict[str, dict[str, Any]], now: str) -> tuple[list[str], list[str]]:
+def update_materials(candidates: list[Candidate], materials: dict[str, dict[str, Any]], now: str, *, notes: list[str] | None = None) -> tuple[list[str], list[str]]:
+    """Reject unrecoverable candidates individually; retain diagnostics in the run log."""
+    def reject(exc: TitleQualityError) -> None:
+        diagnostic = f"TITLE_QUALITY_REJECTED {exc}"
+        print(diagnostic, file=sys.stderr)
+        if notes is not None:
+            notes.append(diagnostic)
+
     new_ids: list[str] = []
     updated_ids: list[str] = []
     created_this_run: set[str] = set()
     for candidate in candidates:
         markup = ""
-        if candidate.provider in {"brave", "perplexity", "openclaw_cli"} or title_problem(candidate.title):
-            resolved = asdict(candidate)
-            markup = recover_web_title(resolved)
-            candidate.title = resolved["title"]
-            candidate.summary = make_summary(candidate.title, resolved["summary"])
-            candidate.raw_excerpt = resolved["raw_excerpt"]
-            candidate.title_quality = resolved.get("title_quality")
-        require_title(candidate.title, candidate.url)
+        try:
+            if candidate.provider in {"brave", "perplexity", "openclaw_cli"} or title_problem(candidate.title):
+                resolved = asdict(candidate)
+                markup = recover_web_title(resolved)
+                candidate.title = resolved["title"]
+                candidate.summary = make_summary(candidate.title, resolved["summary"])
+                candidate.raw_excerpt = resolved["raw_excerpt"]
+                candidate.title_quality = resolved.get("title_quality")
+            require_title(candidate.title, candidate.url)
+        except TitleQualityError as exc:
+            reject(exc)
+            continue
         mid = material_id(candidate.title, candidate.url, candidate.published_at)
         canonical = canonicalize_url(candidate.url)
         hit = {
@@ -980,7 +991,11 @@ def update_materials(candidates: list[Candidate], materials: dict[str, dict[str,
             continue
 
         item = materials[mid]
-        apply_title_markup(item, markup)
+        try:
+            apply_title_markup(item, markup)
+        except TitleQualityError as exc:
+            reject(exc)
+            continue
         item["last_seen_at"] = now
         item.setdefault("source_hits", []).append(hit)
         unique_sources = sorted({row.get("source_id") for row in item["source_hits"] if row.get("source_id")})
@@ -1117,7 +1132,7 @@ def main() -> int:
     candidates.extend(filter_by_lookback(web_items, config))
     notes.extend(web_notes)
 
-    new_ids, updated_ids = update_materials(candidates, materials, started_at)
+    new_ids, updated_ids = update_materials(candidates, materials, started_at, notes=notes)
     save_materials(materials_path, materials)
     if args.auxiliary_run:
         state.update(

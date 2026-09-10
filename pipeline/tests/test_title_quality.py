@@ -1,9 +1,11 @@
 """Legacy title recovery tests, run by the mandatory V2 pytest gate."""
 import copy
 import json
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -55,11 +57,58 @@ class TitlePipelineTests(unittest.TestCase):
         self.assertEqual(store[mid]['brief'],f'Материал „{CORA}“ описывает PMO.')
         self.assertEqual(store[mid]['llm_summary']['short_text'],'Качественный текст.')
 
-    def test_collector_quality_error_cannot_be_swallowed_by_provider_fallback(self):
-        candidate = collect.Candidate(title='Assistant', url=URL, source_id='web_test', source_title='search', source_url='https://example.org', provider='perplexity')
-        with patch('radar_title_quality.requests.get', return_value=response('<html>unavailable</html>')):
-            with self.assertRaisesRegex(TitleQualityError, 'no_reliable_html_title'):
-                collect.update_materials([candidate], {}, '2026-09-09T05:00:00Z')
+    def test_collector_rejects_invalid_candidate_and_keeps_valid_neighbors(self):
+        for title, provider in [('No title', 'rss'), ('Assistant', 'perplexity')]:
+            with self.subTest(title=title):
+                rows = [collect.Candidate(title=t, url=u, source_id='feed', source_title='feed', source_url='https://example.org', provider=p) for t,u,p in [
+                    ('Portfolio risks', 'https://example.org/before', 'rss'),
+                    (title, URL, provider),
+                    ('AI governance', 'https://example.org/after', 'rss')]]
+                store, notes, stderr = {}, [], io.StringIO()
+                with patch('radar_title_quality.requests.get', return_value=response('<html>unavailable</html>')), redirect_stderr(stderr):
+                    new, updated = collect.update_materials(rows, store, '2026-09-10T05:00:00Z', notes=notes)
+                self.assertEqual([store[mid]['title'] for mid in new], ['Portfolio risks', 'AI governance'])
+                self.assertEqual(updated, [])
+                self.assertEqual(len(store), 2)
+                self.assertEqual(len(notes), 1)
+                self.assertIn('TITLE_QUALITY_REJECTED TITLE_QUALITY_GATE', notes[0])
+                self.assertIn('no_reliable_html_title', notes[0])
+                self.assertIn(URL, notes[0])
+                self.assertEqual(stderr.getvalue(), notes[0] + '\n')
+
+    def test_existing_bad_title_without_recovery_is_not_mutated(self):
+        candidate = collect.Candidate(title='Portfolio intelligence', url=URL, source_id='feed', source_title='feed', source_url=URL, provider='rss')
+        mid = collect.material_id('User', URL)
+        store = {mid: self.item()}
+        before = copy.deepcopy(store)
+        notes = []
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(collect.update_materials([candidate], store, '2026-09-10T05:00:00Z', notes=notes), ([], []))
+        self.assertEqual(store, before)
+        self.assertEqual(len(notes), 1)
+
+    def test_collector_does_not_swallow_unexpected_errors(self):
+        candidate = collect.Candidate(title='No title', url=URL, source_id='feed', source_title='feed', source_url=URL, provider='rss')
+        with patch.object(collect, 'recover_web_title', side_effect=RuntimeError('unexpected')):
+            with self.assertRaisesRegex(RuntimeError, 'unexpected'):
+                collect.update_materials([candidate], {}, '2026-09-10T05:00:00Z')
+
+    def test_collection_persists_rejection_in_run_log(self):
+        with tempfile.TemporaryDirectory() as temp:
+            wiki = Path(temp)
+            config = wiki / 'config.yaml'
+            config.write_text('sources: []\n')
+            bad = collect.Candidate(title='No title', url=URL, source_id='feed', source_title='feed', source_url=URL, provider='rss')
+            good = collect.Candidate(title='AI governance', url='https://example.org/good', source_id='feed', source_title='feed', source_url=URL, provider='rss')
+            stdout = io.StringIO()
+            with patch.object(sys, 'argv', ['collect', '--config', str(config), '--wiki', str(wiki), '--run-id', '2026-09-10']), patch.object(collect, 'collect_web_research', return_value=([bad, good], [])), patch('radar_title_quality.requests.get', return_value=response('<html>unavailable</html>')), redirect_stderr(io.StringIO()), redirect_stdout(stdout):
+                self.assertEqual(collect.main(), 0)
+            stats = json.loads(stdout.getvalue())
+            self.assertEqual(stats['new_count'], 1)
+            self.assertEqual(stats['note_count'], 1)
+            self.assertIn('TITLE_QUALITY_REJECTED', Path(stats['run_log']).read_text())
+            store = collect.load_materials(wiki / 'data/materials.jsonl')
+            self.assertEqual([row['title'] for row in store.values()], ['AI governance'])
 
     def test_report_recovers_without_dropping_or_reordering(self):
         rows = [self.item(), dict(self.item(), id='other', title='AI PMO', url='https://example.org/pmo', source_hits=[])]
