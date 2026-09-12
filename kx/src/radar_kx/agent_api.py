@@ -61,8 +61,19 @@ from radar_kx.agent_chat import (
     welcome_prompts,
 )
 from radar_kx.config import Settings
+from radar_kx.conversation import (
+    MAX_QUESTION_CHARS as MAX_QUESTION_CHARS,
+)
+from radar_kx.conversation import (
+    SOURCE_LABELS,
+    cache_context,
+    context_prompt,
+    explicit_source_scope,
+    normalize_history,
+    source_scope,
+)
 from radar_kx.database import ACCESS_KEY_ENTROPY_BYTES, ACCESS_KEY_PREFIX, Database
-from radar_kx.orchestrator import RESEARCH_ANSWER, ModelGateway, OrchestratorError
+from radar_kx.orchestrator import CHAT_CONTEXT, RESEARCH_ANSWER, ModelGateway, OrchestratorError
 from radar_kx.research import (
     PACKAGE_SIZE,
     build_answer_prompt,
@@ -73,7 +84,7 @@ from radar_kx.research import (
 )
 from radar_kx.research import parse_answer as parse_research_answer
 
-MAX_BODY_BYTES = 8 * 1024
+MAX_BODY_BYTES = 48 * 1024
 
 #: How many model-backed answers one client may ask for in a window, and how many
 #: the service may produce in a day for everyone together. `/kb/ask` reaches a
@@ -90,7 +101,6 @@ DAILY_ASK_BUDGET = 0
 
 #: Longest question accepted. A question is one question; a page of text pasted
 #: into the box is a way to spend the model budget, not a way to ask.
-MAX_QUESTION_CHARS = 500
 
 #: How many hits a search returns at most. The reader is looking for evidence,
 #: not browsing a corpus.
@@ -466,6 +476,8 @@ class AgentService:
         """Evidential search: what was found, and why each thing was found."""
         if not question.strip():
             return {"error": "пустой запрос"}
+        question = question.strip()[:MAX_QUESTION_CHARS]
+        corpus = source_scope(question, [])
         # With no vector the meaning arm excludes itself - `WHERE
         # question_vector IS NOT NULL` - and the whole of UC-01's "three arms"
         # collapses to two lexical ones. `ask` passed one from the start and
@@ -474,11 +486,17 @@ class AgentService:
         # `search`, "слова" and whatever shared a word stem.
         hits = self.database.agent_search(
             question[:MAX_QUESTION_CHARS],
-            filters=filters,
+            filters={**filters, "corpus": corpus},
             limit=min(limit, MAX_HITS),
             question_vector=self._vector(question[:MAX_QUESTION_CHARS]),
         )
-        return {"query": question[:MAX_QUESTION_CHARS], "hits": hits, "licence": LICENCE}
+        return {
+            "query": question,
+            "hits": hits,
+            "licence": LICENCE,
+            "sourceScope": corpus,
+            "sourceScopeLabel": SOURCE_LABELS[corpus],
+        }
 
     def ask(
         self,
@@ -514,6 +532,62 @@ class AgentService:
         admission: str,
         asks_per_client: int | None = None,
         key_digest: str | None = None,
+        history: Any = None,
+        scope_request: str = "",
+    ) -> Iterator[tuple[str, dict[str, Any]]]:
+        question = question.strip()[:MAX_QUESTION_CHARS]
+        try:
+            turns = normalize_history(history)
+        except ValueError as error:
+            yield "result", {"error": str(error)}
+            return
+        if not isinstance(scope_request, str) or len(scope_request) > MAX_QUESTION_CHARS:
+            yield "result", {"error": "недопустимый запрос области источников"}
+            return
+        corpus = (
+            explicit_source_scope(question)
+            or explicit_source_scope(scope_request)
+            or source_scope(question, turns)
+        )
+        selected_request = question if explicit_source_scope(question) else scope_request
+        if not selected_request:
+            selected_request = next(
+                (
+                    turn["question"]
+                    for turn in reversed(turns)
+                    if explicit_source_scope(turn["question"])
+                ),
+                "",
+            )
+        for event, payload in self._draft_flow(
+            question,
+            client=client,
+            admission=admission,
+            asks_per_client=asks_per_client,
+            key_digest=key_digest,
+            history=turns,
+            corpus=corpus,
+        ):
+            if event == "result" and "error" not in payload:
+                payload = {
+                    **payload,
+                    "sourceScope": corpus,
+                    "sourceScopeLabel": SOURCE_LABELS[corpus],
+                    "historyTurns": len(turns),
+                    "sourceRequest": selected_request,
+                }
+            yield event, payload
+
+    def _draft_flow(
+        self,
+        question: str,
+        *,
+        client: str,
+        admission: str,
+        asks_per_client: int | None = None,
+        key_digest: str | None = None,
+        history: list[dict[str, str]],
+        corpus: str,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """The verified pipeline as a stream of stages with the answer last.
 
@@ -539,20 +613,18 @@ class AgentService:
         if admission not in ADMISSION_SCOPES:
             admission = "knowledge"
 
-        # The shelf the reader picked SHOULD be part of the cache key, by ADR-0006
-        # §10's own reasoning: a cache without scope in the key moves content
-        # between access levels silently, and "что нового" aimed at knowledge and
-        # aimed at the chronicle are two questions with two right answers.
-        #
-        # It is not, and cannot be from here. `kx.research_answers` carries
-        # CHECK (scope IN ('public','research','editor')), so "public:knowledge"
-        # is rejected by the database, not by policy - and widening that check is
-        # a migration against production, which is the owner's call. ADR-0012
-        # records the debt: until then, the first shelf asked wins the cache for
-        # a given question, which is the behaviour that was already here.
+        # ADR-0016: use the existing key column, with raw question preserved for audit.
+        # No schema widening: public remains public. Old context-free entries cannot match.
         scope = "public"
+        context_key = cache_context(
+            history=history,
+            admission=admission,
+            corpus=corpus,
+            revision=self.database.agent_sync(),
+            epoch=int(time.time() // 300),
+        )
 
-        cached = self.database.cached_answer(question, scope=scope)
+        cached = self.database.cached_answer(question, scope=scope, cache_context=context_key)
         # A refusal is not an answer, and replaying one forever freezes a failure.
         # Measured 2026-08-25: 24 of 49 cached public rows were refusals, and every
         # reader who had ever hit one would go on hitting it - through a changed
@@ -594,47 +666,73 @@ class AgentService:
             yield "result", self._as_answer(question, refusal_reason=f"rate_limited_{refused}")
             return
 
-        # A question that names a subject the base has a place for is answered
-        # from that place. Phrase search cannot find it: «Расскажи про «X»» is
-        # almost entirely a topic title, and the lexical arm matches quotation
-        # text, which rarely repeats the title of the shelf it sits on.
-        #
-        # Measured 2026-08-25 over the whole welcome pool: 29 of the 100 topic
-        # prompts retrieved not one statement of their own topic. «Поперечные
-        # карты классических предметов управления» holds 193 statements and the
-        # search surfaced none of them; the same search filtered by topic_key
-        # reached eight, for all 29. The base knew where the answer was.
+        gateway = ModelGateway(self.database, self.settings)
+        query = question
+        if history:
+            try:
+                rewritten = gateway.run(CHAT_CONTEXT, context_prompt(question, history))
+                parsed = json.loads(rewritten.content)
+                value = parsed.get("query") if isinstance(parsed, dict) else None
+                if isinstance(value, str) and value.strip():
+                    query = value.strip()[:MAX_QUESTION_CHARS]
+                else:
+                    raise ValueError("context query is empty")
+            except (OrchestratorError, ValueError):
+                # The answer still sees history if the optional query rewrite fails.
+                query = f"{question} {history[-1]['question']} {history[-1]['answer'][:300]}"
+            yield "stage", {"step": "context", "done": True}
+
         filters: dict[str, str | None] = {
-            # `all` is the absence of the filter, which is what widens it; the
-            # view underneath has already dropped what was never admitted.
-            "admission": None if admission == "all" else admission
+            "admission": None if admission == "all" else admission,
+            "corpus": corpus,
         }
-        vector = self._vector(question)
-        named = select_tool(question, self.database.agent_topics())
+        vector = self._vector(query)
+        named = select_tool(query, self.database.agent_topics())
+
+        def retrieve(selected: dict[str, str | None]) -> list[dict[str, Any]]:
+            extra = (
+                "canon" if corpus == "radar_canon" else "non_radar" if corpus == "all" else corpus
+            )
+            hits = self.database.agent_search(
+                query,
+                filters={**selected, "corpus": extra},
+                limit=PACKAGE_SIZE,
+                question_vector=vector,
+            )
+            if corpus in ("radar_canon", "all"):
+                # Reserve space for requested non-Radar sources while leading with articles.
+                radar = self.database.agent_search(
+                    query,
+                    filters={**selected, "corpus": "radar"},
+                    limit=5,
+                    question_vector=vector,
+                )
+                seen = {str(hit["claim_id"]) for hit in radar}
+                hits = radar + [hit for hit in hits if str(hit["claim_id"]) not in seen]
+            return hits
+
         hits: list[dict[str, Any]] = []
         if named.tool == TOOL_CONCEPT and named.topic_key:
-            hits = self.database.agent_search(
-                question,
-                filters={**filters, "topic_key": named.topic_key},
-                limit=PACKAGE_SIZE,
-                question_vector=vector,
-            )
-        # A topic that turns out to hold nothing with an exact quotation must not
-        # answer worse than it did before it was recognised.
+            hits = retrieve({**filters, "topic_key": named.topic_key})
         if not hits:
-            hits = self.database.agent_search(
-                question,
-                filters=filters,
-                limit=PACKAGE_SIZE,
-                question_vector=vector,
-            )
+            hits = retrieve(filters)
         package = build_package(hits, size=PACKAGE_SIZE)
+        prompt = build_answer_prompt(
+            question, package, history=history, source_label=SOURCE_LABELS[corpus]
+        )
+        # History must never make a normal question exceed the model gateway's payload bound.
+        while package and len(prompt) > RESEARCH_ANSWER.max_payload_chars:
+            package = package[:-1]
+            prompt = build_answer_prompt(
+                question, package, history=history, source_label=SOURCE_LABELS[corpus]
+            )
         yield "stage", {"step": "search", "done": True, "hits": len(package), "cache": False}
         if not package:
             refusal = refuse("no_evidence", "в базе нет подходящих подтверждений")
             self.database.record_answer(
                 question=question,
                 scope=scope,
+                cache_context=context_key,
                 mode="strict",
                 package=(),
                 refusal=refusal,
@@ -643,8 +741,7 @@ class AgentService:
             yield "result", self._as_answer(question, refusal_reason=refusal.reason, package=[])
             return
 
-        gateway = ModelGateway(self.database, self.settings)
-        result = gateway.run(RESEARCH_ANSWER, build_answer_prompt(question, package))
+        result = gateway.run(RESEARCH_ANSWER, prompt)
         clauses = parse_research_answer(result.content)
         yield "stage", {"step": "draft", "done": True}
         checked = verify(clauses, package, mode="strict")
@@ -658,6 +755,7 @@ class AgentService:
             self.database.record_answer(
                 question=question,
                 scope=scope,
+                cache_context=context_key,
                 mode="strict",
                 package=package,
                 refusal=refusal,
@@ -680,6 +778,7 @@ class AgentService:
         self.database.record_answer(
             question=question,
             scope=scope,
+            cache_context=context_key,
             mode="strict",
             package=package,
             answer_text=answer_text,
@@ -728,6 +827,8 @@ class AgentService:
         client: str = "unknown",
         admission: str = "knowledge",
         session: str = "",
+        history: Any = None,
+        scope_request: str = "",
         asks_per_client: int | None = None,
         key_digest: str | None = None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -752,6 +853,8 @@ class AgentService:
             admission=admission,
             asks_per_client=asks_per_client,
             key_digest=key_digest,
+            history=history,
+            scope_request=scope_request,
         ):
             if event == "stage":
                 stages.append(payload)
@@ -759,7 +862,11 @@ class AgentService:
                 result = payload
         if "error" in result:
             return stages, result
-        cards = self._tool_cards(choice, limit=tool_card_limit(question))
+        cards = (
+            self._tool_cards(choice, limit=tool_card_limit(question))
+            if result.get("sourceScope") == "all"
+            else []
+        )
         return stages, {
             **result,
             "session": session,
@@ -776,6 +883,8 @@ class AgentService:
         client: str = "unknown",
         admission: str = "knowledge",
         session: str = "",
+        history: Any = None,
+        scope_request: str = "",
         asks_per_client: int | None = None,
         key_digest: str | None = None,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
@@ -792,6 +901,8 @@ class AgentService:
             admission=admission,
             asks_per_client=asks_per_client,
             key_digest=key_digest,
+            history=history,
+            scope_request=scope_request,
         ):
             if event == "stage":
                 stages.append(payload)
@@ -800,7 +911,11 @@ class AgentService:
                 if "error" in payload:
                     yield "result", payload
                     return
-                cards = self._tool_cards(choice, limit=tool_card_limit(question))
+                cards = (
+                    self._tool_cards(choice, limit=tool_card_limit(question))
+                    if payload.get("sourceScope") == "all"
+                    else []
+                )
                 yield (
                     "result",
                     {
@@ -1132,7 +1247,12 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                 )
                 return
             try:
-                length = max(0, min(int(self.headers.get("Content-Length") or 0), MAX_BODY_BYTES))
+                length = int(self.headers.get("Content-Length") or 0)
+                if length < 0 or length > MAX_BODY_BYTES:
+                    self._json(
+                        HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "слишком большой запрос"}
+                    )
+                    return
                 payload = json.loads(self.rfile.read(length) or b"{}")
             except (ValueError, TypeError):
                 self._json(HTTPStatus.BAD_REQUEST, {"error": "тело запроса не JSON"})
@@ -1141,6 +1261,12 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
             question = str(asked.get("question", ""))
             admission = str(asked.get("admission", "knowledge"))
             session = str(asked.get("session", ""))
+            scope_request = asked.get("scopeRequest", "")
+            try:
+                history = normalize_history(asked.get("history")) if path != "/ask" else []
+            except ValueError as error:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+                return
             # A live key widens this client's conversation window. Free calls and
             # keyed calls share one window per client, so alternating keys does
             # not multiply anybody's reach.
@@ -1189,6 +1315,8 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                         client=self._client(),
                         admission=admission,
                         session=session,
+                        history=history,
+                        scope_request=scope_request,
                         asks_per_client=asks,
                         key_digest=digest,
                     )
@@ -1218,6 +1346,8 @@ def make_handler(service: AgentService) -> type[BaseHTTPRequestHandler]:
                     client=self._client(),
                     admission=admission,
                     session=session,
+                    history=history,
+                    scope_request=scope_request,
                     asks_per_client=asks,
                     key_digest=digest,
                 ):

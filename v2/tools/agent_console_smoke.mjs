@@ -233,6 +233,7 @@ const CONTRADICTIONS = {
 };
 
 const ANSWER = {
+  sourceScope: "radar", sourceScopeLabel: "Статьи выпусков Радара", sourceRequest: "Только статьи Радара",
   question: "что такое порог автономии",
   answer: "Порог автономии — решение организации.",
   refusalReason: null,
@@ -285,6 +286,7 @@ const sseBody = payload => {
   };
 };
 
+let failChatStream = false;
 globalThis.fetch = async (raw, options) => {
   const path = String(raw).replace("https://radar.test", "");
   requests.push(path);
@@ -292,6 +294,7 @@ globalThis.fetch = async (raw, options) => {
   // reader picked travels in the body, and that is where it went wrong before.
   if (options?.body) sentBodies.set(path, JSON.parse(options.body));
   if (path === "/kb/chat/stream") {
+    if (failChatStream) return { ok: false, status: 503 };
     return { ok: true, status: 200, body: sseBody(ANSWER) };
   }
   if (path === "/kb/chat") {
@@ -407,11 +410,25 @@ const pressed = name => chips[name].attributes.get("aria-pressed");
 click({ dataset: { agentAdmission: "observatory" }, classList: { toggle() {} }, setAttribute() {} });
 if (pressed("observatory") !== "false") fail("an unset chip still reads as pressed");
 if (pressed("knowledge") !== "true") fail("the remaining chip stopped reading as pressed");
+failChatStream = true;
 elements.get("agentQuestion").value = "второй вопрос, одна полка";
 await elements.get("agentForm").handler({ preventDefault() {} });
 await settle();
 if (sentBodies.get("/kb/chat/stream")?.admission !== "knowledge")
   fail("one lit chip did not reach the base as its own name");
+
+const followupBody = sentBodies.get("/kb/chat/stream");
+if (JSON.stringify(sentBodies.get("/kb/chat")) !== JSON.stringify(followupBody))
+  fail("JSON fallback sent a different transcript or source request");
+failChatStream = false;
+if (followupBody?.history?.length !== 1 ||
+    followupBody.history[0].question !== "что такое порог автономии" ||
+    followupBody.history[0].answer !== ANSWER.answer)
+  fail("follow-up lost the previous question or answer");
+if (followupBody.scopeRequest !== "Только статьи Радара")
+  fail("follow-up lost the explicit source request");
+if (askedWith.history.length !== 0 || askedWith.scopeRequest !== "")
+  fail("a new conversation reused previous context");
 
 // The last one does not come off: «искать нигде» is not a question.
 click({ dataset: { agentAdmission: "knowledge" }, classList: { toggle() {} }, setAttribute() {} });

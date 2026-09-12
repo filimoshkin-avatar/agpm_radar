@@ -171,7 +171,11 @@ def test_a_turn_carries_its_stages_its_card_and_the_session_untouched() -> None:
         cached_answer=CACHED,
         agent_topics=TOPICS,
         agent_concept={"topicKey": "t-autonomy", "statements": []},
-    ).chat("что говорят пороги автономии?", client="tester", session="s-42")
+    ).chat(
+        "что говорят пороги автономии во всех документах базы знаний?",
+        client="tester",
+        session="s-42",
+    )
     assert stages == [{"step": "search", "done": True, "hits": 0, "cache": True}]
     assert payload["session"] == "s-42"
     assert payload["stages"] == stages

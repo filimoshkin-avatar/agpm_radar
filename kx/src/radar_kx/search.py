@@ -314,7 +314,7 @@ FILTERS = ("admission", "material_kind", "status", "topic_key")
 #: editor has no use for it. Decision 11 makes expiry a review queue rather than
 #: a verdict, so the default shows everything and the filter is the reader's to
 #: apply.
-AGENT_FILTERS = (*FILTERS, "fresh")
+AGENT_FILTERS = (*FILTERS, "fresh", "corpus")
 
 #: The three ways a quotation can be found. Kept as names rather than as booleans
 #: because they are shown to the reader - "why was this found" is UC-01's own
@@ -489,6 +489,18 @@ scoped AS (
     SELECT statement.*
     FROM agent.statement AS statement
     WHERE (
+          %(corpus)s::text IS NULL OR %(corpus)s::text = 'all'
+          OR (%(corpus)s::text IN ('radar', 'radar_canon') AND EXISTS (
+              SELECT 1 FROM agent.statement_trail AS trail
+              WHERE trail.claim_id = statement.claim_id
+          ))
+          OR (%(corpus)s::text = 'non_radar' AND NOT EXISTS (
+              SELECT 1 FROM agent.statement_trail AS trail
+              WHERE trail.claim_id = statement.claim_id
+          ))
+          OR (%(corpus)s::text IN ('canon', 'radar_canon')
+              AND statement.source_url ~ '^agpm-canon:/')
+      ) AND (
           %(fresh)s::text IS NULL
           OR statement.valid_until IS NULL
           OR statement.valid_until >= clock_timestamp()

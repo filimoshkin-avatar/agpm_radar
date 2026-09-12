@@ -19,6 +19,7 @@ from psycopg.types.json import Jsonb
 
 from radar_kx.acquisition import ESCALATION_HINT, HostProfile, next_step, profile_for
 from radar_kx.config import Settings
+from radar_kx.conversation import answer_cache_key
 from radar_kx.dates import ResolvedDate
 from radar_kx.dates import resolve as resolve_date
 from radar_kx.duplicates import DocumentText, DuplicateProposal
@@ -76,7 +77,6 @@ from radar_kx.research import (
     Refusal,
     Verification,
     build_package,
-    normalize_question,
 )
 from radar_kx.search import (
     AGENT_FILTERS,
@@ -4194,6 +4194,7 @@ class Database:
         prompt_sha256: str | None = None,
         answered_by: str,
         release_id: str | None = None,
+        cache_context: str | None = None,
     ) -> dict[str, Any]:
         """Record one answer or one refusal, under the cache key ADR-0006 §10 fixes."""
         if (answer_text is None) == (refusal is None):
@@ -4218,7 +4219,7 @@ class Database:
                     RETURNING answer_id
                     """,
                     (
-                        normalize_question(question),
+                        answer_cache_key(question, cache_context),
                         scope,
                         release_id,
                         question,
@@ -4246,7 +4247,12 @@ class Database:
         }
 
     def cached_answer(
-        self, question: str, *, scope: str, release_id: str | None = None
+        self,
+        question: str,
+        *,
+        scope: str,
+        release_id: str | None = None,
+        cache_context: str | None = None,
     ) -> dict[str, Any] | None:
         """Read an answer by the key ADR-0006 §10 fixes: question, scope, release."""
         with self.connect() as connection, connection.cursor() as cursor:
@@ -4263,7 +4269,7 @@ class Database:
                 # what the caller does with it is the caller's rule.
                 " ORDER BY (answer_text IS NULL), answered_at DESC"
                 " LIMIT 1",
-                (normalize_question(question), scope, release_id),
+                (answer_cache_key(question, cache_context), scope, release_id),
             )
             row = cursor.fetchone()
         return dict(row) if row else None

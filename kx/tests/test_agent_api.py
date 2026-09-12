@@ -170,7 +170,11 @@ def test_an_empty_question_is_refused_before_any_retrieval() -> None:
 def test_a_pasted_page_is_cut_to_a_question() -> None:
     talking = service(cached_answer=None, agent_search=[])
     talking.ask("я" * (MAX_QUESTION_CHARS * 3))
-    question = talking.database.asked[0][1]["question"]  # type: ignore[attr-defined]
+    question = next(
+        kwargs["question"]
+        for name, kwargs in cast(FakeDatabase, talking.database).asked
+        if name == "cached_answer"
+    )
     assert len(question) == MAX_QUESTION_CHARS
 
 
@@ -301,7 +305,12 @@ def test_a_client_asking_too_fast_is_refused_without_a_model_call() -> None:
     assert answered["refusalReason"] == "rate_limited_client"
     assert answered["machineNotice"] == MACHINE_NOTICE
     # And it cost nothing: no retrieval, so no model call behind it.
-    assert len(talking.database.asked) == calls_before + 1  # type: ignore[attr-defined]
+    assert [
+        name for name, _kwargs in cast(FakeDatabase, talking.database).asked[calls_before:]
+    ] == [
+        "agent_sync",
+        "cached_answer",
+    ]
 
 
 def test_another_client_is_not_punished_for_the_first_one() -> None:

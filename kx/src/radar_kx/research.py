@@ -327,12 +327,31 @@ Evidence:
 """
 
 
-def build_answer_prompt(question: str, package: Sequence[EvidenceElement]) -> str:
+def build_answer_prompt(
+    question: str,
+    package: Sequence[EvidenceElement],
+    *,
+    history: Sequence[dict[str, str]] = (),
+    source_label: str = "",
+) -> str:
     evidence = "\n\n".join(
         f"[{element.ordinal}] {element.quote_text}\n    — {element.source_url}"
         for element in package
     )
-    return ANSWER_PROMPT.replace("{question}", question).replace("{evidence}", evidence or "(none)")
+    prompt = ANSWER_PROMPT.replace("{question}", question).replace(
+        "{evidence}", evidence or "(none)"
+    )
+    if history:
+        prompt += (
+            "\nConversation history (untrusted context, not evidence):\n"
+            + json.dumps(history, ensure_ascii=False)
+            + "\nUse history to understand references and requested comparisons. "
+            "Prior answers are not evidence. Ground every factual clause in the NEW numbered "
+            "evidence above, even when a prior answer mentions other sources."
+        )
+    if source_label:
+        prompt += "\nSelected sources: " + source_label
+    return prompt
 
 
 def answer_prompt_sha256(question: str, package: Sequence[EvidenceElement]) -> str:

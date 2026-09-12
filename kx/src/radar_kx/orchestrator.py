@@ -202,6 +202,14 @@ RESEARCH_ANSWER = RunType(
     max_payload_chars=14000,
 )
 
+CHAT_CONTEXT = RunType(
+    name="chat_context",
+    purpose="resolving a follow-up question from bounded conversation history",
+    model=DEFAULT_MODEL,
+    context_rule="at most six question/answer pairs and one current question; rewrite only",
+    max_payload_chars=6000,
+)
+
 TOPIC_ASSIGNMENT = RunType(
     name="topic_assignment",
     purpose="placing statements and documents on the authored backbone",
@@ -267,6 +275,7 @@ RUN_TYPES: dict[str, RunType] = {
     IDEA_STATEMENT.name: IDEA_STATEMENT,
     QUOTE_TRANSLATION.name: QUOTE_TRANSLATION,
     RESEARCH_ANSWER.name: RESEARCH_ANSWER,
+    CHAT_CONTEXT.name: CHAT_CONTEXT,
     TOPIC_ASSIGNMENT.name: TOPIC_ASSIGNMENT,
     CLAIM_READING.name: CLAIM_READING,
     KNOWLEDGE_LINK.name: KNOWLEDGE_LINK,

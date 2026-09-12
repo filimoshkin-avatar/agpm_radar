@@ -3405,6 +3405,7 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
           <span class="agent-when">${escapeHtml(answered.machineNotice || "")}</span>
         </div>
         <p class="agent-answer__text agent-answer__text--refused"${step(0)}>${escapeHtml(chatRefusalText(answered, evidence))}</p>
+        ${answered.sourceScopeLabel ? `<p class="agent-when">Источники: ${escapeHtml(answered.sourceScopeLabel)}</p>` : ""}
         <p class="agent-answer__text agent-answer__text--rule"${step(1)}>Агент не достраивает ответ догадками — это правило работы, а не ошибка.</p>
         ${evidence.length ? `
           <div class="agent-answer__near">
@@ -3430,6 +3431,7 @@ function chatTurnHtml(turn, index, fresh = false, previousDate = null) {
           <span>${escapeHtml(answered.machineNotice || "")}</span>
           <span class="agent-when">${evidence.length} ${plural(evidence.length, "утверждение", "утверждения", "утверждений")}</span>
         </div>
+        ${answered.sourceScopeLabel ? `<p class="agent-when">Источники: ${escapeHtml(answered.sourceScopeLabel)}</p>` : ""}
         ${body}
         ${chatTopicsRow(evidence)}
         ${chatToolCardsHtml(answered)}
@@ -3604,11 +3606,25 @@ function admissionScope() {
   return agentState.admission.length === 1 ? agentState.admission[0] : "all";
 }
 
+/** Send recent turns as context; the server validates and bounds them independently. */
+function chatRequest(question) {
+  return {
+    question,
+    admission: admissionScope(),
+    session: chatSession,
+    history: chatTurns.slice(-6).map(turn => ({
+      question: String(turn.question || "").slice(0, CHAT_MAX_QUESTION),
+      answer: String(turn.answered?.answer || "").slice(0, 1000)
+    })),
+    scopeRequest: String(chatTurns[chatTurns.length - 1]?.answered?.sourceRequest || "")
+  };
+}
+
 async function chatStreamTurn(question, work, signal) {
   const response = await fetch(`${KB}/chat/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
+    headers: { "Content-Type": "application/json", ...(agentAccess.key ? { Authorization: `Bearer ${agentAccess.key}` } : {}) },
+    body: JSON.stringify(chatRequest(question)),
     signal
   });
   if (!response.ok || !response.body) throw new Error(`служба базы знаний ответила ${response.status}`);
@@ -3647,7 +3663,7 @@ async function chatJsonTurn(question, work, signal) {
   const answered = await kbFetch("/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, admission: admissionScope(), session: chatSession }),
+    body: JSON.stringify(chatRequest(question)),
     signal
   });
   (answered.stages || []).forEach(stage => chatWorkAdvance(work, stage));
