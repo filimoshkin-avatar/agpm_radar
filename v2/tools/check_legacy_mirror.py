@@ -11,6 +11,7 @@ FILES = (
     "agpm_radar_daily.sh",
     "agpm_radar_report.py",
     "radar_title_quality.py",
+    "radar_language_quality.py",
 )
 
 

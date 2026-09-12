@@ -24,20 +24,22 @@ from agpm_radar_issue_theses import (
     normalize_daily_analysis,
     normalize_theses,
 )
+from radar_language_quality import (
+    RUSSIAN_PROSE_PROMPT, require_russian_script, require_russian_prose,
+    brand_words as card_brand_words, foreign_latin_words as card_foreign_words,
+)
 from radar_paths import DB_PATH, LLM_CLASSIFICATION_DIR, WORKSPACE_CORPUS, ensure_dirs
 
 
-OPENCLAW_DAILY_PROMPT_VERSION = "openclaw-daily-analysis-ru-v1"
-OPENCLAW_ISSUE_THESES_PROMPT_VERSION = "openclaw-issue-theses-ru-v1"
-OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v4"
+OPENCLAW_DAILY_PROMPT_VERSION = "openclaw-daily-analysis-ru-v2"
+OPENCLAW_ISSUE_THESES_PROMPT_VERSION = "openclaw-issue-theses-ru-v2"
+OPENCLAW_CARD_SUMMARY_PROMPT_VERSION = "openclaw-card-summary-ru-v5"
 CARD_SIMILARITY_THRESHOLD = 0.72
 CARD_LEADING_WORDS = 8
 CARD_SOURCE_TEXT_CHARS = 12000
 CARD_MIN_TEXT_CHARS = 80
 # The prompt asks for 600 and 500 characters; the check leaves room for a long sentence.
 CARD_MAX_TEXT_CHARS = {"short_text": 720, "agpm_angle": 600}
-# Lowercase Latin words that legitimately sit inside a proper name («Center for AI Safety»).
-CARD_LATIN_NAME_WORDS = frozenset({"and", "for", "the", "von", "van", "der", "del", "des", "of"})
 # Openings of the rule-based card texts, normalised the way card_text_words() does it.
 # A model that was shown the article and still writes one of these is paraphrasing
 # the template, not the source.
@@ -227,6 +229,7 @@ def generate_daily_analysis(
         "signal и why_agpm должны быть развёрнутыми: 3-5 связных абзацев каждый, с управленческим смыслом для AgPM, PMO, ИСУП, governance, рисков и операционной модели.\n"
         "watch_next: 2-4 предложения о том, что отслеживать в следующих выпусках.\n"
         "evidence_titles: 5-10 названий материалов из выпуска.\n\n"
+        f"{RUSSIAN_PROSE_PROMPT}"
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
     )
     parsed, request_path, response_path = openclaw_json(
@@ -238,6 +241,8 @@ def generate_daily_analysis(
     analysis = normalize_daily_analysis(parsed)
     if not analysis:
         raise RuntimeError("OpenClaw daily analysis JSON failed validation")
+    for field in ("headline", "signal", "why_agpm", "watch_next"):
+        require_russian_prose(str(analysis.get(field) or ""), field, card_brand_words(json.dumps(context)))
     conn.execute(
         """
         INSERT INTO issue_daily_analysis(
@@ -284,6 +289,7 @@ def generate_issue_llm_theses(
         "Каждый тезис должен быть управленческим выводом для AgPM, а не пересказом одной новости.\n"
         "Верни только JSON вида {\"brief\":\"одна фраза\", \"theses\":[{\"lead\":\"короткий тезис\", \"rest\":\"обоснование 1-2 предложения\"}]}.\n"
         "Тезисов должно быть ровно 4. Опирайся только на данные выпуска.\n\n"
+        f"{RUSSIAN_PROSE_PROMPT}"
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
     )
     parsed, request_path, response_path = openclaw_json(
@@ -296,6 +302,10 @@ def generate_issue_llm_theses(
     if len(theses) != 4:
         raise RuntimeError("OpenClaw issue theses JSON must contain exactly 4 valid theses")
     brief = str(parsed.get("brief") or "").strip() if isinstance(parsed, dict) else ""
+    require_russian_prose(brief, "brief", card_brand_words(json.dumps(context)))
+    for thesis in theses:
+        for field in ("lead", "rest"):
+            require_russian_prose(str(thesis.get(field) or ""), field, card_brand_words(json.dumps(context)))
     conn.execute(
         """
         INSERT INTO issue_llm_theses(
@@ -363,45 +373,6 @@ def card_template_phrase(text: str) -> str | None:
     return None
 
 
-DOMAIN_PATTERN = r"\b([\w-]+)(?:\.[\w-]+)*\.(?:com|ai|io|org|net|ru|dev)\b"
-
-
-def card_brand_words(*texts: str) -> frozenset[str]:
-    """Lowercase brands the source itself spells as a domain: «monday.com» allows «monday»."""
-    return frozenset(
-        match.group(1).lower() for text in texts for match in re.finditer(DOMAIN_PATTERN, text)
-    )
-
-
-def card_foreign_words(text: str, allowed: frozenset[str] = frozenset()) -> list[str]:
-    """English words the reader should not meet: all-lowercase Latin words outside names and domains.
-
-    Proper names and abbreviations carry a capital (Salesforce, NIST, iPhone, AgPM) and pass;
-    «end-to-end workflows», «lift» or «legacy-системах» do not. Domain names are skipped, and so
-    are the lowercase brands in `allowed`.
-    """
-    stripped = re.sub(DOMAIN_PATTERN, " ", text)
-    found: list[str] = []
-    previous_is_brand = False
-    previous_end = 0
-    for match in re.finditer(r"[A-Za-z][A-Za-z'’-]*", stripped):
-        word = match.group().strip("-'’")
-        # «monday sidekick», «monday vibe»: a product the brand itself spells in lowercase.
-        follows_brand = previous_is_brand and stripped[previous_end : match.start()].isspace()
-        if (
-            len(word) >= 3
-            and word.islower()
-            and word not in CARD_LATIN_NAME_WORDS
-            and word not in allowed
-            and not follows_brand
-            and word not in found
-        ):
-            found.append(word)
-        previous_is_brand = word in allowed or follows_brand
-        previous_end = match.end()
-    return found
-
-
 def card_texts_repeat(left: str, right: str) -> tuple[bool, float]:
     same_lead = (
         card_text_words(left)[:CARD_LEADING_WORDS] == card_text_words(right)[:CARD_LEADING_WORDS]
@@ -435,6 +406,10 @@ def validate_card_text(card: dict[str, str], *, source_text: str, title: str, ur
     # The source's own address counts: monday.com's blog says «monday» and never spells the domain.
     brands = card_brand_words(title, source_text, url)
     for field in ("short_text", "agpm_angle"):
+        try:
+            require_russian_script(card[field], field)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
         if len(card[field]) < CARD_MIN_TEXT_CHARS:
             raise RuntimeError(f"{field} is too short: {len(card[field])} chars")
         if len(card[field]) > CARD_MAX_TEXT_CHARS[field]:
@@ -513,17 +488,7 @@ def card_prompt(material: dict[str, Any], source_text: str, feedback: list[str])
         "управляемости и governance. Начинай его с сути, а не с «Для PMO» или «Для AgPM».\n"
         "Запрещено: универсальные заготовки («для AgPM это важно», «усиливает governance-линию», "
         "«переход от помощников к агентным workflow»), факты не из статьи, повтор одного текста в другом.\n"
-        "Язык: оба текста целиком по-русски, для читателя, который не знает английского. Латиницей "
-        "пишутся только имена собственные и аббревиатуры: компании, продукты, стандарты, документы, "
-        "люди (Salesforce, Slack, NIST, Winter ’27, GPT-5.5), а также CRM, API, KPI, ROI. Все остальные "
-        "слова переводи: не «end-to-end workflows», а «сквозные рабочие процессы»; не «lift», а "
-        "«прирост»; не «legacy-системы», а «унаследованные системы»; не «identity и authorization», а "
-        "«идентификация и права доступа»; не «non-human traffic», а «трафик не от людей»; не "
-        "«onboarding», а «подключение»; не «triage», а «разбор». Английское слово строчными буквами "
-        "вне имени собственного отклоняет ответ.\n"
-        "Ответ будет отклонён, если short_text не содержит ни одного названия, числа или термина "
-        "из текста статьи, если любой из текстов состоит из заготовок или содержит английские слова "
-        "вне имён собственных.\n"
+        f"{RUSSIAN_PROSE_PROMPT}"
         'Верни только JSON вида {"short_text": "...", "agpm_angle": "..."}.'
         f"{repair}\n\nСтатья: {json.dumps(article, ensure_ascii=False)}"
     )

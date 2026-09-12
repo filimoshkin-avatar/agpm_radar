@@ -11,11 +11,16 @@ from pathlib import Path
 from typing import cast
 
 from packages.contracts.analysis import clean_evidence_material_ids, issue_content_hash
+from packages.contracts.russian_prose import (
+    RUSSIAN_PROSE_PROMPT,
+    brand_words,
+    require_russian_prose,
+)
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 
 MODEL = "openai/gpt-5.5"
-PROMPT_VERSION = "v2-daily-analysis-ru-v5"
+PROMPT_VERSION = "v2-daily-analysis-ru-v6"
 MAX_ATTEMPTS = 3
 ATTEMPT_TIMEOUT_SECONDS = 180
 #: This module's worst case: every attempt runs to its own ceiling. The caller must
@@ -59,7 +64,7 @@ def _quality_violations(raw: JsonObject) -> list[str]:
         if identifiers:
             violations.append(
                 f"{key}: технические material_id запрещены в пользовательском тексте; "
-                f"замени их точными названиями материалов: {', '.join(identifiers)}"
+                f"замени их русским описанием события: {', '.join(identifiers)}"
             )
     for key in ("signal", "why_agpm"):
         text = str(raw.get(key) or "").strip()
@@ -110,6 +115,10 @@ def _thesis_violations(raw: object, *, materials: list[JsonObject]) -> list[str]
             violations.append(f"analysis theses[{index}] has an empty lead or rest")
             continue
         text = f"{lead} {rest}"
+        try:
+            require_russian_prose(text, f"theses[{index}]", brand_words(json.dumps(materials)))
+        except ValueError as exc:
+            violations.append(str(exc))
         if len(rest) < MIN_THESIS_REST_CHARS:
             violations.append(
                 f"analysis theses[{index}] rest is too short: {len(rest)} < {MIN_THESIS_REST_CHARS}"
@@ -122,7 +131,15 @@ def _thesis_violations(raw: object, *, materials: list[JsonObject]) -> list[str]
             )
         folded_rest = rest.casefold()
         evidence_gap = folded_rest.startswith("материалы выпуска не отвечают на вопрос")
-        if not evidence_gap and not any(title in folded_rest for title in titles):
+        references = clean_evidence_material_ids(item.get("evidence_material_ids"))
+        included_ids = {str(material["materialId"]) for material in materials}
+        if references and not set(references) <= included_ids:
+            violations.append(f"analysis theses[{index}] cites an unknown material")
+        if (
+            not evidence_gap
+            and not references
+            and not any(title in folded_rest for title in titles)
+        ):
             violations.append(
                 f"analysis theses[{index}] must cite an included title or state an evidence gap"
             )
@@ -172,6 +189,7 @@ def prompt_argv_overflow(prompt: str) -> str | None:
 
 
 def _clean_theses(raw: object) -> list[JsonObject]:
+    """Keep the public lead/rest shape; per-thesis grounding stays in the raw response artifact."""
     return [
         cast(JsonObject, {"lead": str(item["lead"]).strip(), "rest": str(item["rest"]).strip()})
         for item in cast(list[dict[str, object]], raw)
@@ -238,6 +256,11 @@ def validate_v2_analysis(
     quality_violations = _quality_violations(raw) + _thesis_violations(
         raw.get("theses"), materials=materials
     )
+    for key in required_text:
+        try:
+            require_russian_prose(str(raw[key]), key, brand_words(json.dumps(materials)))
+        except ValueError as exc:
+            quality_violations.append(str(exc))
     if quality_violations:
         raise V2AnalysisError("analysis quality gate failed: " + "; ".join(quality_violations))
     return cast(
@@ -294,7 +317,9 @@ def generate_v2_analysis(
         "watch_next: 2–4 предложения о том, что проверять в следующих выпусках. "
         "theses: массив ровно из четырёх объектов с непустыми полями lead и rest. "
         "lead — конкретный вывод, rest — 3–5 предложений и не менее 320 знаков. "
-        "В каждом rest назови точный заголовок хотя бы одного входного материала и приведи "
+        "В каждом объекте тезиса укажи evidence_material_ids хотя бы одного входного материала. "
+        "Эти ссылки остаются в исходном ответе для проверки и не выводятся читателю. "
+        "В rest приведи "
         "проверяемую конкретную фактологию прежде всего из llm_short_text и llm_agpm_angle: "
         "продукт, действие, число, срок, интеграцию или ограничение. Поля summary и agpm_takeaway "
         "используй только как резервный контекст и не пересказывай их общими фразами. Затем отдели "
@@ -307,9 +332,11 @@ def generate_v2_analysis(
         "как десятичный разделитель. "
         "evidence_material_ids: 2–10 идентификаторов только из входного списка. "
         "Технические идентификаторы mat_* используй только в evidence_material_ids. "
-        "В signal, why_agpm и watch_next называй материалы только по их точным "
-        "человекочитаемым заголовкам из поля title; не показывай material_id читателю. "
+        "В signal, why_agpm и watch_next ссылайся на материалы по компаниям, продуктам "
+        "и русскому описанию события; не копируй иностранный заголовок "
+        "и не показывай material_id читателю. "
         "input_content_hash верни без изменений.\n\n"
+        f"{RUSSIAN_PROSE_PROMPT}"
         f"Данные выпуска: {json.dumps(context, ensure_ascii=False)}"
     )
     artifacts_root.mkdir(mode=0o700, parents=True, exist_ok=False)

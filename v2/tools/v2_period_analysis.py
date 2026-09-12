@@ -14,6 +14,11 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
+from packages.contracts.russian_prose import (
+    RUSSIAN_PROSE_PROMPT,
+    brand_words,
+    require_russian_prose,
+)
 from packages.domain.snapshot import JsonObject, canonical_json_line
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
@@ -22,7 +27,7 @@ from tools.generate_v2_analysis import MAX_PROMPT_ARGV_BYTES, prompt_argv_overfl
 
 PRIMARY_MODEL = "openai/gpt-5.5"
 FALLBACK_MODEL = "openai/gpt-5.4"
-PROMPT_VERSION = "v2-period-analysis-ru-v2"
+PROMPT_VERSION = "v2-period-analysis-ru-v3"
 MAX_ATTEMPTS = 3
 TIMEOUT_SECONDS = 240
 PERIODS = ("7d", "30d")
@@ -101,7 +106,7 @@ def _similarity(left: str, right: str) -> float:
     return SequenceMatcher(None, _normalize(left), _normalize(right)).ratio()
 
 
-def _validate(raw: JsonObject) -> list[JsonObject]:
+def _validate(raw: JsonObject, allowed: frozenset[str] = frozenset()) -> list[JsonObject]:
     theses = raw.get("theses")
     if not isinstance(theses, list) or len(theses) != 4:
         raise PeriodAnalysisError("требуется ровно четыре тезиса")
@@ -111,6 +116,10 @@ def _validate(raw: JsonObject) -> list[JsonObject]:
             raise PeriodAnalysisError(f"тезис {index + 1} не является объектом")
         lead = str(value.get("lead") or "").strip()
         rest = str(value.get("rest") or "").strip()
+        try:
+            require_russian_prose(f"{lead} {rest}", f"theses[{index}]", allowed)
+        except ValueError as exc:
+            raise PeriodAnalysisError(str(exc)) from exc
         if len(lead) < 35 or len(rest) < 100:
             raise PeriodAnalysisError(f"тезис {index + 1} недостаточно содержателен")
         result.append({"lead": lead, "rest": rest})
@@ -324,6 +333,7 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
         )
     return (
         "Ты аналитик AgPM Radar V2. Подготовь четыре доказательных управленческих тезиса на русском языке.\n"
+        f"{RUSSIAN_PROSE_PROMPT}"
         f"{task}\n"
         f"{carried}"
         "Опирайся только на входные данные. Не перечисляй новости по одной, не добавляй внешние факты и "
@@ -452,7 +462,7 @@ def generate_period(
             )
             if completed.returncode != 0:
                 raise PeriodAnalysisError(f"OpenClaw завершился с кодом {completed.returncode}")
-            theses = _validate(_model_payload(completed.stdout))
+            theses = _validate(_model_payload(completed.stdout), brand_words(json.dumps(context)))
             if previous:
                 left = " ".join(f"{x['lead']} {x['rest']}" for x in previous)
                 right = " ".join(f"{x['lead']} {x['rest']}" for x in theses)

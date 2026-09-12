@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from packages.contracts.analysis import clean_evidence_titles
+from packages.contracts.russian_prose import require_russian_script
 from packages.contracts.title_quality import (
     TitleQualityError,
     require_title,
@@ -94,6 +95,8 @@ def _material(raw: dict[str, object], position: int) -> JsonObject:
         "url": raw["url"],
         "verdict": raw.get("verdict") if raw.get("verdict") in {"core", "adjacent"} else "adjacent",
     }
+    for field in ("summary", "brief", "agpmTakeaway", "llmShortText", "llmAgpmAngle"):
+        require_russian_script(str(result.get(field) or ""), field)
     return cast(JsonObject, result)
 
 
