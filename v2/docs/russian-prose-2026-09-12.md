@@ -51,3 +51,28 @@ Delivery uses the standard immutable correction package and optimistic publisher
 with source database/pointer backups. Collection receives the matching report and
 language adapter; card generation and V2 analysis execute repository code directly.
 No API/web release, service configuration or production migration is needed.
+
+## Verified delivery
+
+Code commit: `8561bfd`. Published correction:
+`rel_ab4b90e01f9347f9386d09d8`, candidate
+`cand_correct_20260912_russian_prose_v5`.
+Source and production state hashes both equal
+`28c20cb9cb88c2e832b2ae3449a86be26a7ab0ee1af39b1ed27253fffa6b12e6`.
+Publisher package, source database, production activation and public smoke checks
+passed; publishing is unblocked. Public JSON equals the reviewed staged document
+exactly. No untranslated non-Latin script remains anywhere in the issue outside
+article titles and evidence titles.
+
+The five-file collection mirror check passes, and the active mirrored report
+imports successfully and rejects both the mixed Japanese/Russian regression and
+ordinary untranslated lowercase Latin terms. Card generation runs directly from
+`pipeline/scripts`, so its file does not need an unused workspace mirror.
+
+All three mandatory verification commands completed with exit code zero, including
+KX migration verification. After final prompt wording, 52 targeted tests passed.
+Rollback content target remains `rel_9737f63fb55e92043cbb056b`; source DB, pointer and
+previous mirrored report are retained under the correction artifact's `backup/`.
+Public before/after, exact eight-path diff, staged JSON, row diff and publisher
+result are retained alongside it. Older exploratory packages v1-v4 were never
+published.
