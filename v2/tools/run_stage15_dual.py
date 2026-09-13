@@ -27,13 +27,19 @@ from packages.storage.safe_files import (
 )
 
 from tools.generate_v2_analysis import WORST_CASE_SECONDS as ANALYSIS_WORST_CASE_SECONDS
+from tools.v2_period_analysis import PERIODS
+from tools.v2_period_analysis import WORST_CASE_SECONDS as PERIOD_WORST_CASE_SECONDS
 
-#: A candidate build is the worst-case analysis plus the snapshot, the database
-#: inspection and the packaging. The analysis term is imported rather than restated:
+#: A candidate runs daily analysis and both periods sequentially, then packages
+#: the snapshot and database. Retry budgets are imported rather than restated:
 #: the retry policy lives in one place, and changing it must not require remembering
 #: this ceiling.
 _CANDIDATE_BUILD_OVERHEAD_SECONDS = 120
-_CANDIDATE_BUILD_TIMEOUT_SECONDS = ANALYSIS_WORST_CASE_SECONDS + _CANDIDATE_BUILD_OVERHEAD_SECONDS
+_CANDIDATE_BUILD_TIMEOUT_SECONDS = (
+    ANALYSIS_WORST_CASE_SECONDS
+    + len(PERIODS) * PERIOD_WORST_CASE_SECONDS
+    + _CANDIDATE_BUILD_OVERHEAD_SECONDS
+)
 
 
 class Stage15DualRunError(RuntimeError):

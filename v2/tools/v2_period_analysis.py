@@ -14,6 +14,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import cast
 
+from packages.contracts.json_types import JsonValue
 from packages.contracts.russian_prose import (
     RUSSIAN_PROSE_PROMPT,
     brand_words,
@@ -26,11 +27,15 @@ from packages.validation.public_issue import build_public_issue_from_views
 from tools.generate_v2_analysis import MAX_PROMPT_ARGV_BYTES, prompt_argv_overflow
 
 PRIMARY_MODEL = "openai/gpt-5.5"
-# 2026-09-13: gpt-5.4 returned HTTP 400 on this account's transport.
-# A prose rejection needs an editorial retry on the working route.
-PROMPT_VERSION = "v2-period-analysis-ru-v4"
-MAX_ATTEMPTS = 3
-TIMEOUT_SECONDS = 240
+# All three routes passed live OpenClaw probes on 2026-09-13. Providers differ
+# so one provider's outage does not consume the whole recovery policy.
+MODEL_CHAIN = (PRIMARY_MODEL, "minimax/MiniMax-M3", "zai/glm-5.2")
+ATTEMPTS_PER_MODEL = 2
+ATTEMPT_MODELS = tuple(model for model in MODEL_CHAIN for _ in range(ATTEMPTS_PER_MODEL))
+PROMPT_VERSION = "v2-period-analysis-ru-v5"
+MAX_ATTEMPTS = len(ATTEMPT_MODELS)
+TIMEOUT_SECONDS = 180
+WORST_CASE_SECONDS = MAX_ATTEMPTS * TIMEOUT_SECONDS
 PERIODS = ("7d", "30d")
 MARKER = "Период AgPM"
 
@@ -407,13 +412,13 @@ def generate_period(
     root = artifacts_root / period
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     failures: list[str] = []
+    attempted_models: list[str] = []
     rejected: JsonObject | None = None
     #: How many times the model was asked. Not the attempt number: an attempt
     #: burnt on the argv ceiling never reaches the model, and "1 attempt" in the
     #: owner's report would name a paid call that was never made.
     calls = 0
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        model = PRIMARY_MODEL
+    for attempt, model in enumerate(ATTEMPT_MODELS, 1):
         repair = (
             "\nИсправь ответ с учётом всех замечаний предыдущих попыток: "
             + " | ".join(failures)
@@ -449,6 +454,7 @@ def generate_period(
         )
         try:
             calls += 1
+            attempted_models.append(model)
             try:
                 completed = subprocess.run(
                     [
@@ -467,12 +473,28 @@ def generate_period(
                     text=True,
                     timeout=TIMEOUT_SECONDS,
                 )
+            except subprocess.TimeoutExpired as error:
+                # str(TimeoutExpired) contains the entire argv, including the
+                # corpus. Keep it out of notifications and bounded metadata.
+                atomic_write_new(
+                    root / f"response-attempt-{attempt}.json",
+                    canonical_json_line({"timedOutAfterSeconds": TIMEOUT_SECONDS}),
+                    mode=0o600,
+                )
+                raise PeriodAnalysisError(
+                    f"OpenClaw превысил время ожидания {TIMEOUT_SECONDS} с"
+                ) from error
             except OSError as error:
                 # The process could not be started: a missing binary, an argument
                 # the kernel refused. One failed attempt, like a hung model.
                 # Narrow, around this one call: in the broad `except` this also
                 # caught the artifact write, so a full disk after a good answer
                 # threw the finished theses away and bought two more.
+                atomic_write_new(
+                    root / f"response-attempt-{attempt}.json",
+                    canonical_json_line({"startError": str(error)}),
+                    mode=0o600,
+                )
                 raise PeriodAnalysisError(f"OpenClaw не удалось запустить: {error}") from error
             atomic_write_new(
                 root / f"response-attempt-{attempt}.json",
@@ -498,6 +520,7 @@ def generate_period(
                 JsonObject,
                 {
                     "attempts": calls,
+                    "attemptModels": cast(list[object], attempted_models),
                     "error": None,
                     "evidenceTitles": [
                         str(item["title"]) for item in cast(list[JsonObject], context["materials"])
@@ -507,7 +530,7 @@ def generate_period(
                     "model": model,
                     "period": period,
                     "promptVersion": PROMPT_VERSION,
-                    "provider": "openai",
+                    "provider": model.split("/", 1)[0],
                     "angleCap": context["angleCap"],
                     "shownMaterialCount": context["shownMaterialCount"],
                     "status": "success",
@@ -517,13 +540,18 @@ def generate_period(
             )
             atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
             return result
-        except (
-            json.JSONDecodeError,
-            PeriodAnalysisError,
-            subprocess.TimeoutExpired,
-        ) as error:
-            failures.append(str(error))
+        except (json.JSONDecodeError, PeriodAnalysisError) as error:
+            diagnostic = f"{model}: {error}"
+            atomic_write_new(
+                root / f"rejection-attempt-{attempt}.json",
+                canonical_json_line({"attempt": attempt, "model": model, "error": diagnostic}),
+                mode=0o600,
+            )
+            # Six errors must fit the 10 KB metadata block contract. Full
+            # diagnostics remain in the private per-attempt artifacts above.
+            failures.append(diagnostic[:600])
     result = _fallback(period, context, " | ".join(failures), attempts=calls)
+    result["attemptModels"] = cast(list[JsonValue], attempted_models)
     atomic_write_new(root / "result.json", canonical_json_line(result), mode=0o600)
     return result
 

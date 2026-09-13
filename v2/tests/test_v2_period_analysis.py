@@ -63,7 +63,7 @@ def test_language_feedback_includes_every_thesis() -> None:
 
 
 @pytest.mark.parametrize("recovered", [True, False])
-def test_editorial_retries_keep_the_draft_and_use_the_working_model(
+def test_editorial_retries_keep_the_draft_across_model_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recovered: bool
 ) -> None:
     from packages.contracts.russian_prose import require_russian_prose
@@ -77,7 +77,7 @@ def test_editorial_retries_keep_the_draft_and_use_the_working_model(
     def infer(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(command)
         attempt = len(calls)
-        if attempt == 3 and not recovered:
+        if attempt >= 3 and not recovered:
             return subprocess.CompletedProcess(command, 1, "", "provider unavailable")
         draft = first if attempt == 1 else second if attempt == 2 else _theses("Месяц")
         stdout = json.dumps({"outputs": [{"text": json.dumps({"theses": draft})}]})
@@ -91,14 +91,23 @@ def test_editorial_retries_keep_the_draft_and_use_the_working_model(
         period="30d",
         artifacts_root=tmp_path / "period",
     )
-    assert len(calls) == 3
-    assert all(call[call.index("--model") + 1] == "openai/gpt-5.5" for call in calls)
+    expected_models = [
+        "openai/gpt-5.5",
+        "openai/gpt-5.5",
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M3",
+        "zai/glm-5.2",
+        "zai/glm-5.2",
+    ][: 3 if recovered else 6]
+    assert [call[call.index("--model") + 1] for call in calls] == expected_models
+    assert result["attemptModels"] == expected_models
     second_prompt = calls[1][-1]
     third_prompt = calls[2][-1]
     assert json.dumps({"theses": first}, ensure_ascii=False) in second_prompt
     assert json.dumps({"theses": second}, ensure_ascii=False) in third_prompt
     assert "theses[2]" in third_prompt and "theses[3]" in third_prompt
-    assert result["attempts"] == 3
+    assert result["attempts"] == len(expected_models)
+    assert result["provider"] == ("minimax" if recovered else "fallback")
     assert result["status"] == ("success" if recovered else "fallback")
     assert json.loads((tmp_path / "period/30d/result.json").read_text()) == result
     if not recovered:
@@ -114,6 +123,107 @@ def test_editorial_retries_keep_the_draft_and_use_the_working_model(
                 assert "OpenClaw" not in prose
                 assert "fallback" not in prose
                 require_russian_prose(prose, "fallback")
+
+
+@pytest.mark.parametrize("accepted_attempt", [1, 2, 3, 4, 5, 6])
+def test_first_valid_answer_stops_the_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, accepted_attempt: int
+) -> None:
+    calls: list[str] = []
+
+    def infer(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command[command.index("--model") + 1])
+        if len(calls) < accepted_attempt:
+            return subprocess.CompletedProcess(command, 1, "", "unavailable")
+        stdout = json.dumps({"outputs": [{"text": json.dumps({"theses": _theses("Месяц")})}]})
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    monkeypatch.setattr(subprocess, "run", infer)
+    monkeypatch.setattr(v2_period_analysis, "_window_documents", lambda *args, **kwargs: [])
+    result = generate_period(
+        database=tmp_path / "absent",
+        anchor="2026-09-13",
+        period="30d",
+        artifacts_root=tmp_path / "run",
+    )
+    expected = [
+        "openai/gpt-5.5",
+        "openai/gpt-5.5",
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M3",
+        "zai/glm-5.2",
+        "zai/glm-5.2",
+    ]
+    assert calls == expected[:accepted_attempt]
+    assert result["status"] == "success"
+    assert result["model"] == calls[-1]
+    assert result["provider"] == calls[-1].split("/")[0]
+    assert result["error"] is None
+
+
+@pytest.mark.parametrize("failure", ["timeout", "start", "json", "provider", "prose"])
+def test_all_routes_are_exhausted_before_the_notice_and_failures_are_retained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    calls: list[str] = []
+    timeouts: list[int] = []
+
+    def infer(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command[command.index("--model") + 1])
+        timeouts.append(cast(int, kwargs["timeout"]))
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(command, cast(int, kwargs["timeout"]))
+        if failure == "start":
+            raise FileNotFoundError("binary unavailable")
+        if failure == "json":
+            return subprocess.CompletedProcess(command, 0, "not json", "")
+        if failure == "provider":
+            return subprocess.CompletedProcess(command, 1, "", "HTTP 503")
+        theses = _theses("Месяц")
+        theses[0]["rest"] += " " + "untranslated" * 2000
+        return subprocess.CompletedProcess(
+            command, 0, json.dumps({"outputs": [{"text": json.dumps({"theses": theses})}]}), ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", infer)
+    monkeypatch.setattr(v2_period_analysis, "_window_documents", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        v2_period_analysis, "_prompt", lambda *args, **kwargs: "CORPUS_NOT_A_DIAGNOSTIC"
+    )
+    result = generate_period(
+        database=tmp_path / "absent",
+        anchor="2026-09-13",
+        period="30d",
+        artifacts_root=tmp_path / "run",
+    )
+    assert calls == [
+        "openai/gpt-5.5",
+        "openai/gpt-5.5",
+        "minimax/MiniMax-M3",
+        "minimax/MiniMax-M3",
+        "zai/glm-5.2",
+        "zai/glm-5.2",
+    ]
+    assert timeouts == [180] * 6
+    assert result["attempts"] == 6
+    assert result["status"] == "fallback"
+    assert "CORPUS_NOT_A_DIAGNOSTIC" not in str(result["error"])
+    for attempt in range(1, 7):
+        assert (tmp_path / f"run/30d/response-attempt-{attempt}.json").is_file()
+        rejection = json.loads((tmp_path / f"run/30d/rejection-attempt-{attempt}.json").read_text())
+        assert rejection["model"] == calls[attempt - 1]
+    for block in period_blocks({"7d": result, "30d": result}):
+        assert len(str(block["text"])) <= 10_000
+        if block["kind"] == "signals":
+            assert "OpenClaw" not in str(block["text"])
+
+
+def test_candidate_budget_covers_daily_and_both_exhausted_periods() -> None:
+    from tools.run_stage15_dual import _CANDIDATE_BUILD_TIMEOUT_SECONDS
+
+    # Three daily calls and six calls for EACH of the two periods, all 180 s,
+    # plus 120 s packaging. Previously only the daily term reached this limit.
+    assert _CANDIDATE_BUILD_TIMEOUT_SECONDS >= 3 * 180 + 2 * 6 * 180 + 120
 
 
 def test_period_blocks_round_trip_and_replace_old_periods() -> None:
