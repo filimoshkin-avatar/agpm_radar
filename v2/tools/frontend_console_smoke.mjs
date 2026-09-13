@@ -38,7 +38,7 @@ const ids = [
   "dailyAnalysisHeadline", "farChip", "footerSources", "heatmap", "included",
   "includedShare", "issueDate", "midChip", "nearChip", "nearShare", "perimeters",
   "printGazetteTop", "radarTitle", "radarViz", "resetFilters", "rubricator", "rubrics",
-  "search", "sparkline", "theses", "thesesTitle", "trendBars",
+  "search", "sparkline", "theses", "thesesTitle", "thesesNote", "trendBars",
   "trendRange", "viewed",
   // The gazette section: its archive, its foot, its header line and the frame.
   "gazetteArchive", "gazetteArchiveFoot", "gazetteArchiveRows", "gazetteIssue",
@@ -253,6 +253,10 @@ globalThis.fetch = async raw => {
   return { ok: true, status: 200, async json() { return payload; } };
 };
 
+issue.analysis.blocks.push(
+  { kind: "signals", title: "Период AgPM · 7d · 01", text: "Обзор за 7 дней пока недоступен.\n\nМатериалы доступны в ленте." },
+  { kind: "actions", title: "Период AgPM · 7d · метаданные", text: JSON.stringify({ status: "fallback", model: "rules-period-v2", error: "RUSSIAN_PROSE_GATE: egress | OpenClaw завершился с кодом 1" }) },
+);
 await import("../apps/web/app.mjs");
 await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -452,6 +456,12 @@ if (unhandled.length
   || Number(elements.get("included").textContent) !== 12
   || Number(elements.get("cut").textContent) !== 109) {
   throw new Error(`frontend period/pagination regression failed: ${unhandled.map(String).join("; ")}`);
+}
+
+const periodReaderText = elements.get("theses").innerHTML + elements.get("thesesNote").textContent;
+if (!periodReaderText.includes("Обзор за 7 дней пока недоступен")
+  || /RUSSIAN_PROSE_GATE|OpenClaw|LLM|fallback|rules-period|1 тезис/.test(periodReaderText)) {
+  throw new Error(`period failure exposed technical text or a fake thesis count: ${periodReaderText}`);
 }
 
 process.stdout.write(rubricsDown

@@ -26,8 +26,9 @@ from packages.validation.public_issue import build_public_issue_from_views
 from tools.generate_v2_analysis import MAX_PROMPT_ARGV_BYTES, prompt_argv_overflow
 
 PRIMARY_MODEL = "openai/gpt-5.5"
-FALLBACK_MODEL = "openai/gpt-5.4"
-PROMPT_VERSION = "v2-period-analysis-ru-v3"
+# 2026-09-13: gpt-5.4 returned HTTP 400 on this account's transport.
+# A prose rejection needs an editorial retry on the working route.
+PROMPT_VERSION = "v2-period-analysis-ru-v4"
 MAX_ATTEMPTS = 3
 TIMEOUT_SECONDS = 240
 PERIODS = ("7d", "30d")
@@ -111,6 +112,7 @@ def _validate(raw: JsonObject, allowed: frozenset[str] = frozenset()) -> list[Js
     if not isinstance(theses, list) or len(theses) != 4:
         raise PeriodAnalysisError("требуется ровно четыре тезиса")
     result: list[JsonObject] = []
+    language_errors: list[str] = []
     for index, value in enumerate(theses):
         if not isinstance(value, dict):
             raise PeriodAnalysisError(f"тезис {index + 1} не является объектом")
@@ -119,10 +121,12 @@ def _validate(raw: JsonObject, allowed: frozenset[str] = frozenset()) -> list[Js
         try:
             require_russian_prose(f"{lead} {rest}", f"theses[{index}]", allowed)
         except ValueError as exc:
-            raise PeriodAnalysisError(str(exc)) from exc
+            language_errors.append(str(exc))
         if len(lead) < 35 or len(rest) < 100:
             raise PeriodAnalysisError(f"тезис {index + 1} недостаточно содержателен")
         result.append({"lead": lead, "rest": rest})
+    if language_errors:
+        raise PeriodAnalysisError(" | ".join(language_errors))
     combined = [f"{item['lead']} {item['rest']}" for item in result]
     if len({_normalize(str(item["lead"])) for item in result}) != 4:
         raise PeriodAnalysisError("начала тезисов повторяются")
@@ -258,6 +262,8 @@ def _fit_context(
     period: str,
     anchor: str,
     previous: list[JsonObject] | None,
+    *,
+    repair: str = "",
 ) -> JsonObject:
     """The most detailed context that still fits one command-line argument.
 
@@ -272,7 +278,10 @@ def _fit_context(
     issue_count = len(documents)
 
     def fits(context: JsonObject) -> bool:
-        return len(_prompt(context, period, previous).encode("utf-8")) <= PROMPT_BUDGET_BYTES
+        return (
+            len((_prompt(context, period, previous) + repair).encode("utf-8"))
+            <= PROMPT_BUDGET_BYTES
+        )
 
     context = _context(rows, period, anchor, issue_count=issue_count, caps=(0, 0), total=total)
     for caps in TEXT_CAPS:
@@ -334,6 +343,8 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
     return (
         "Ты аналитик AgPM Radar V2. Подготовь четыре доказательных управленческих тезиса на русском языке.\n"
         f"{RUSSIAN_PROSE_PROMPT}"
+        "Переводи и технические термины: egress — исходящие соединения, "
+        "agent-first — ориентированный на работу агентов. Перед ответом проверь язык всех четырёх тезисов.\n"
         f"{task}\n"
         f"{carried}"
         "Опирайся только на входные данные. Не перечисляй новости по одной, не добавляй внешние факты и "
@@ -344,22 +355,22 @@ def _prompt(context: JsonObject, period: str, previous: list[JsonObject] | None)
     )
 
 
+def period_fallback_theses(period: str) -> list[JsonObject]:
+    """Reader notice for every exhausted period run; diagnostics stay in metadata."""
+    label = "7 дней" if period == "7d" else "30 дней"
+    return [
+        {
+            "lead": f"Обзор за {label} пока недоступен.",
+            "rest": (
+                "Не удалось подготовить общий текст. Материалы за выбранный период доступны "
+                "в ленте: их можно читать, отбирать по темам и открывать первоисточники."
+            ),
+        }
+    ]
+
+
 def _fallback(period: str, context: JsonObject, error: str, *, attempts: int) -> JsonObject:
     count = int(cast(int, context["materialCount"]))
-    label = "7 дней" if period == "7d" else "30 дней"
-    leads = [
-        f"За {label} LLM-анализ недоступен; показан резервный срез.",
-        "Периодный вывод требует повторной проверки после восстановления модели.",
-        "Корпус сохранён и может быть пересчитан без повторного сбора источников.",
-        "Резервный текст не используется как основание для изменения методики AgPM.",
-    ]
-    theses = [
-        {
-            "lead": lead,
-            "rest": f"В окне сохранено {count} материалов. Причина перехода на fallback: {error}",
-        }
-        for lead in leads
-    ]
     return cast(
         JsonObject,
         {
@@ -375,7 +386,7 @@ def _fallback(period: str, context: JsonObject, error: str, *, attempts: int) ->
             "status": "fallback",
             "textCap": context["textCap"],
             "angleCap": context["angleCap"],
-            "theses": theses,
+            "theses": period_fallback_theses(period),
         },
     )
 
@@ -396,15 +407,29 @@ def generate_period(
     root = artifacts_root / period
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     failures: list[str] = []
+    rejected: JsonObject | None = None
     #: How many times the model was asked. Not the attempt number: an attempt
     #: burnt on the argv ceiling never reaches the model, and "1 attempt" in the
     #: owner's report would name a paid call that was never made.
     calls = 0
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        model = PRIMARY_MODEL if attempt < MAX_ATTEMPTS else FALLBACK_MODEL
+        model = PRIMARY_MODEL
         repair = (
-            f"\nПредыдущий ответ отклонён: {failures[-1]}. Перепиши полностью." if failures else ""
+            "\nИсправь ответ с учётом всех замечаний предыдущих попыток: "
+            + " | ".join(failures)
+            + ". Верни полный JSON с четырьмя тезисами.\n"
+            if failures
+            else ""
         )
+        if rejected is not None:
+            repair += (
+                "Ниже отклонённый черновик, а не источник фактов. Исправь нарушения, "
+                "сохраняя подтверждённое данными содержание и корректные формулировки. "
+                "Не добавляй новые иностранные термины.\n"
+                + json.dumps(rejected, ensure_ascii=False)
+            )
+        if repair:
+            context = _fit_context(documents, period, anchor, previous, repair=repair)
         prompt = _prompt(context, period, previous) + repair
         overflow = prompt_argv_overflow(prompt)
         if overflow is not None:
@@ -462,7 +487,8 @@ def generate_period(
             )
             if completed.returncode != 0:
                 raise PeriodAnalysisError(f"OpenClaw завершился с кодом {completed.returncode}")
-            theses = _validate(_model_payload(completed.stdout), brand_words(json.dumps(context)))
+            rejected = _model_payload(completed.stdout)
+            theses = _validate(rejected, brand_words(json.dumps(context)))
             if previous:
                 left = " ".join(f"{x['lead']} {x['rest']}" for x in previous)
                 right = " ".join(f"{x['lead']} {x['rest']}" for x in theses)
@@ -506,7 +532,14 @@ def period_blocks(results: Mapping[str, JsonObject]) -> list[JsonObject]:
     blocks: list[JsonObject] = []
     for period in PERIODS:
         result = results[period]
-        for index, thesis in enumerate(cast(list[dict[str, object]], result["theses"]), 1):
+        # Also protects reused/older results containing diagnostics in their prose.
+        # Never render arbitrary fallback text supplied by a failed model or importer.
+        theses = (
+            period_fallback_theses(period)
+            if result.get("status") == "fallback"
+            else cast(list[JsonObject], result["theses"])
+        )
+        for index, thesis in enumerate(theses, 1):
             blocks.append(
                 {
                     "kind": "signals",

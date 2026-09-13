@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from datetime import date, timedelta
 from pathlib import Path
@@ -49,6 +50,72 @@ def test_validate_requires_four_non_duplicate_substantive_theses() -> None:
         _validate({"theses": _theses("Оперативный сигнал")[:3]})  # type: ignore[dict-item]
 
 
+def test_language_feedback_includes_every_thesis() -> None:
+    theses = _theses("Месяц")
+    theses[0]["rest"] += " Контроль egress."
+    theses[3]["rest"] += " Подход agent-first."
+    with pytest.raises(PeriodAnalysisError) as caught:
+        _validate(cast(JsonObject, {"theses": theses}))
+    assert "theses[0]" in str(caught.value)
+    assert "egress" in str(caught.value)
+    assert "theses[3]" in str(caught.value)
+    assert "agent-first" in str(caught.value)
+
+
+@pytest.mark.parametrize("recovered", [True, False])
+def test_editorial_retries_keep_the_draft_and_use_the_working_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recovered: bool
+) -> None:
+    from packages.contracts.russian_prose import require_russian_prose
+
+    calls: list[list[str]] = []
+    first = _theses("Месяц")
+    first[2]["rest"] += " Контроль egress."
+    second = _theses("Месяц")
+    second[3]["rest"] += " Подход agent-first."
+
+    def infer(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        attempt = len(calls)
+        if attempt == 3 and not recovered:
+            return subprocess.CompletedProcess(command, 1, "", "provider unavailable")
+        draft = first if attempt == 1 else second if attempt == 2 else _theses("Месяц")
+        stdout = json.dumps({"outputs": [{"text": json.dumps({"theses": draft})}]})
+        return subprocess.CompletedProcess(command, 0, stdout, "")
+
+    monkeypatch.setattr(subprocess, "run", infer)
+    monkeypatch.setattr(v2_period_analysis, "_window_documents", lambda *args, **kwargs: [])
+    result = generate_period(
+        database=tmp_path / "absent.sqlite",
+        anchor="2026-09-13",
+        period="30d",
+        artifacts_root=tmp_path / "period",
+    )
+    assert len(calls) == 3
+    assert all(call[call.index("--model") + 1] == "openai/gpt-5.5" for call in calls)
+    second_prompt = calls[1][-1]
+    third_prompt = calls[2][-1]
+    assert json.dumps({"theses": first}, ensure_ascii=False) in second_prompt
+    assert json.dumps({"theses": second}, ensure_ascii=False) in third_prompt
+    assert "theses[2]" in third_prompt and "theses[3]" in third_prompt
+    assert result["attempts"] == 3
+    assert result["status"] == ("success" if recovered else "fallback")
+    assert json.loads((tmp_path / "period/30d/result.json").read_text()) == result
+    if not recovered:
+        error = str(result["error"])
+        assert "egress" in error and "agent-first" in error and "кодом 1" in error
+        blocks = period_blocks({"7d": result, "30d": result})
+        for block in blocks:
+            if str(block["title"]).endswith("метаданные"):
+                assert json.loads(str(block["text"]))["error"] == error
+            else:
+                prose = str(block["text"])
+                assert "RUSSIAN_PROSE_GATE" not in prose
+                assert "OpenClaw" not in prose
+                assert "fallback" not in prose
+                require_russian_prose(prose, "fallback")
+
+
 def test_period_blocks_round_trip_and_replace_old_periods() -> None:
     results = {
         "7d": {
@@ -77,6 +144,36 @@ def test_period_blocks_round_trip_and_replace_old_periods() -> None:
     assert sum(str(block["title"]).endswith("метаданные") for block in blocks) == 2
     daily: JsonObject = {"kind": "overview", "title": "Сигнал", "text": "Дневной текст"}
     assert strip_period_blocks([daily, *blocks]) == [daily]
+
+
+def test_retained_fallback_diagnostics_never_become_reader_text() -> None:
+    from tools.run_stage15_dual import _period_statuses
+
+    error = "RUSSIAN_PROSE_GATE: theses[2]: egress | OpenClaw завершился с кодом 1"  # noqa: RUF001
+    result: JsonObject = {
+        "status": "fallback",
+        "error": error,
+        "attempts": 3,
+        "model": "rules-period-v2",
+        "materialCount": 211,
+        "theses": [{"lead": "Причина перехода на fallback", "rest": error}],
+    }
+    blocks = period_blocks({"7d": result, "30d": result})
+    notices = [block for block in blocks if block["kind"] == "signals"]
+    assert len(notices) == 2
+    for period, notice in zip(("7", "30"), notices, strict=True):
+        text = str(notice["text"])
+        assert f"Обзор за {period} дней пока недоступен." in text
+        assert "Материалы за выбранный период доступны" in text
+        assert "RUSSIAN_PROSE_GATE" not in text
+        assert "OpenClaw" not in text
+        assert "fallback" not in text
+    # This is the very projection consumed by the daily OpenClaw notification.
+    statuses = _period_statuses(cast(JsonObject, {"analysis": {"blocks": blocks}}))
+    assert statuses == {
+        period: {"attempts": 3, "error": error, "model": "rules-period-v2", "status": "fallback"}
+        for period in ("7d", "30d")
+    }
 
 
 def test_an_over_long_prompt_falls_back_without_a_model_call(
@@ -176,6 +273,15 @@ def test_the_seven_day_theses_travel_inside_the_same_ceiling() -> None:
 
     assert context["shownMaterialCount"] == 210
     assert len(_prompt(context, "30d", previous).encode("utf-8")) <= PROMPT_BUDGET_BYTES
+
+
+def test_repair_draft_shares_the_prompt_budget_with_the_full_window() -> None:
+    documents = _window(issues=30, per_issue=7, text_chars=900)
+    repair = "Исправь черновик: " + "Текст для исправления. " * 900
+    context = _fit_context(documents, "30d", "2026-06-30", None, repair=repair)
+    prompt = _prompt(context, "30d", None) + repair
+    assert context["shownMaterialCount"] == 210
+    assert len(prompt.encode("utf-8")) <= PROMPT_BUDGET_BYTES
 
 
 def test_a_window_too_large_even_for_titles_says_what_it_dropped() -> None:

@@ -1563,12 +1563,9 @@ function renderTheses(materials) {
   const issueNumber = selectedIssue?.issue_number;
   setText("thesesNote", [
     issueNumber ? `выпуск ${issueNumber}` : "",
-    `${shown.length} ${pluralRu(shown.length, "тезис", "тезиса", "тезисов")}`,
     periodResult?.status === "fallback"
-      ? "резервный текст: LLM недоступна"
-      : periodResult?.model
-        ? `LLM: ${periodResult.model}`
-        : "",
+      ? "Материалы доступны в ленте"
+      : `${shown.length} ${pluralRu(shown.length, "тезис", "тезиса", "тезисов")}`,
   ].filter(Boolean).join(" · "));
   document.getElementById("theses").innerHTML = shown.map((item, index) => {
     const lead = item.lead || item[0] || "";
