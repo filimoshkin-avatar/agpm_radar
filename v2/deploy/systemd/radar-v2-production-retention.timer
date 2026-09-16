@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Radar V2 production release retention
+
+[Timer]
+OnCalendar=*-*-* 06:40:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=radar-v2-production-retention.service
+
+[Install]
+WantedBy=timers.target

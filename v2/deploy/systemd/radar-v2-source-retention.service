@@ -1,0 +1,16 @@
+[Unit]
+Description=Radar V2 source release retention
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/libexec/radar-v2-retention.py --retention-days 7 --minimum-releases 7 --apply source --source-root /root/.openclaw-projectmanager/workspace/state/radar-v2/source --publisher-root /root/.openclaw-projectmanager/workspace/state/radar-v2/publisher
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/root/.openclaw-projectmanager/workspace/state/radar-v2/source /root/.openclaw-projectmanager/workspace/state/radar-v2/publisher

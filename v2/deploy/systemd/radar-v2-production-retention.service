@@ -1,0 +1,17 @@
+[Unit]
+Description=Radar V2 production release retention
+After=network-online.target radar-v2-api.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /usr/local/libexec/radar-v2-retention.py --retention-days 7 --minimum-releases 7 --apply remote --content-root /var/lib/radar-v2/content --incoming-root /var/lib/radar-v2/incoming/content --audit-root /var/lib/radar-v2/audit/content --mutation-root /var/lib/radar-v2/mutation
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/radar-v2/content /var/lib/radar-v2/incoming/content /var/lib/radar-v2/mutation
+ReadOnlyPaths=/var/lib/radar-v2/audit/content

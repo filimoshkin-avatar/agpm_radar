@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Radar V2 source release retention
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=radar-v2-source-retention.service
+
+[Install]
+WantedBy=timers.target
