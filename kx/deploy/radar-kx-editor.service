@@ -34,6 +34,8 @@ ExecStart=/opt/radar-kx/runtime/current/bin/python -m radar_kx editor \
 Restart=on-failure
 RestartSec=5s
 UMask=0077
+StateDirectory=radar-kx/issue-reviews
+StateDirectoryMode=0700
 
 # It reads full text out of KX and talks to nothing else.
 IPAddressDeny=any

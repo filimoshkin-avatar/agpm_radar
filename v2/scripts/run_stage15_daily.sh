@@ -79,6 +79,7 @@ printf '%s\n' "$summary"
 notify_message="$(${v2_root}/.venv/bin/python - "$report" <<'PY'
 import json
 import sys
+from tools.observation_summary import summary_lines
 
 x = json.loads(sys.argv[1])
 legacy = x["legacy"]
@@ -133,6 +134,8 @@ lines = [
     f"Выпуск: https://radar.agpm.space/issues/{issue_date}",
     f"API: https://radar.agpm.space/api/issues/{issue_date}",
 ]
+
+lines.extend(["", *summary_lines(x.get("eventObservation", {"status": "pending", "reviewUrl": f"https://radar.agpm.space/po/?issue={issue_date}#event-observations"}))])
 
 for label, key in (("7 дней", "7d"), ("30 дней", "30d")):
     period = periods.get(key, {})

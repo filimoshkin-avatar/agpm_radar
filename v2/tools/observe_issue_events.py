@@ -39,6 +39,7 @@ from packages.storage.content_pointer import read_content_pointer
 from packages.validation.public_issue import build_public_issue
 
 from tools.event_pipeline import MODEL, infer
+from tools.observation_summary import notification_pending, notify_result
 
 MAX_PAIRS = 100
 BATCH_SIZE = 6
@@ -262,7 +263,9 @@ def launch_observation(args: argparse.Namespace) -> None:
                 report = validate_report(json.loads(path.read_bytes()))
                 uploaded = root / "receipts" / f"{report['reportId']}.json"
                 if since <= report["issueDate"] < args.issue_date and (
-                    report["status"] != "complete" or not uploaded.exists()
+                    report["status"] != "complete"
+                    or not uploaded.exists()
+                    or notification_pending(root, report)
                 ):
                     backlog.add(report["issueDate"])
             except (OSError, ValueError, TypeError):
@@ -393,6 +396,7 @@ def main() -> int:
                 and retained["promptVersion"] == PROMPT_VERSION
             ):
                 save(retained)
+                notify_result(args.root, retained)
                 return 0
         base: dict[str, Any] = {
             "format": FORMAT,
@@ -414,6 +418,7 @@ def main() -> int:
         }
         base["reportId"] = digest(base)
         save(validate_report(base))
+        report = base
         try:
             history = history_cards(
                 read_content_pointer(args.source_root).database_path, args.issue_date
@@ -425,13 +430,14 @@ def main() -> int:
                     break
         except Exception as error:
             report = {
-                **base,
+                **report,
                 "status": "error",
                 "errors": [f"Анализ не завершён: {type(error).__name__}."],
             }
             report.pop("reportId")
             report["reportId"] = digest(report)
         save(validate_report(report))
+        notify_result(args.root, report)
         print(
             json.dumps(
                 {

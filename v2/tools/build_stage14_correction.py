@@ -17,7 +17,8 @@ from packages.storage.replication_mutations import row_after_sha256
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
 
-from tools.build_stage14_daily import _reconcile_narrative
+from tools.build_stage14_daily import _native_analysis, _reconcile_narrative
+from tools.generate_v2_analysis import generate_v2_analysis
 
 
 def _json(value: object) -> object:
@@ -221,6 +222,7 @@ def main() -> int:
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--remove-material-id", action="append", default=[])
     parser.add_argument("--no-llm", action="store_true")
+    parser.add_argument("--regenerate-analysis", action="store_true")
     parser.add_argument("--llm-success-model")
     parser.add_argument("--llm-success-provider")
     parser.add_argument("--reconcile-legacy-count", type=int)
@@ -234,6 +236,10 @@ def main() -> int:
         help="Replace only the analysis headline while preserving its verified content binding",
     )
     args = parser.parse_args()
+    if args.regenerate_analysis and (
+        args.no_llm or args.analysis_candidate or args.analysis_headline or args.llm_success_model
+    ):
+        parser.error("--regenerate-analysis cannot be combined with analysis overrides")
     if bool(args.llm_success_model) != bool(args.llm_success_provider):
         parser.error("--llm-success-model and --llm-success-provider must be provided together")
     if args.no_llm and args.llm_success_model:
@@ -253,6 +259,19 @@ def main() -> int:
             no_llm=args.no_llm,
             reconcile_legacy_count=args.reconcile_legacy_count,
         )
+    if args.regenerate_analysis:
+        generated = generate_v2_analysis(
+            issue_date=args.issue_date,
+            materials=cast(list[JsonObject], desired["materials"]),
+            artifacts_root=args.root / "llm-analysis",
+        )
+        desired["analysis"] = _native_analysis(
+            cast(dict[str, object], generated),
+            brief=cast(str, desired["brief"]),
+            headline="Выпуск после редакторского пересмотра",
+        )
+        args.llm_success_model = "gpt-5.5"
+        args.llm_success_provider = "openai"
     if args.analysis_candidate is not None:
         source_candidate = json.loads(args.analysis_candidate.read_bytes())
         native_analysis = source_candidate.get("desiredIssue", {}).get("analysis")
@@ -280,7 +299,7 @@ def main() -> int:
                 shared.append(
                     {
                         "materialId": material_id,
-                        "rowSha256": row_after_sha256(dict(zip(columns, row, strict=True))),
+                        "expectedRowHash": row_after_sha256(dict(zip(columns, row, strict=True))),
                     }
                 )
     if args.no_llm:

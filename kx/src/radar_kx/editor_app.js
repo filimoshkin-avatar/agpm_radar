@@ -19,6 +19,73 @@ function downloadObservation(value, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function issueReviewPanel(report, labels, issue, active) {
+  const panel = el("section", "card");
+  panel.dataset.issueReview = "true";
+  const content = el("div", "head"); panel.appendChild(content);
+  const removed = new Set();
+  let revision = 0;
+  const refresh = () => {
+    revision++;
+    const assessed = report.pairs.filter(pair => ["same_event", "different_event", "development", "insufficient_evidence"].includes(labels[pair.pairId]));
+    panel.hidden = !assessed.length;
+    const eligible = new Set(assessed.filter(pair => labels[pair.pairId] === "same_event")
+      .flatMap(pair => [pair.left, pair.right]).filter(card => card.issueDate === report.issueDate)
+      .map(card => card.materialId));
+    for (const id of removed) if (!eligible.has(id)) removed.delete(id);
+    content.replaceChildren(el("h3", null, "Пересмотр состава выпуска"));
+    content.appendChild(el("p", null, "Снимите отметку с карточек, которые нужно исключить. Доступны карточки с вашей оценкой «Дубль». Материалы прошлых выпусков сохраняются."));
+    for (const card of issue.materials) {
+      const line = el("p"); const label = el("label"); const box = el("input");
+      box.type = "checkbox"; box.checked = !removed.has(card.id); box.disabled = !eligible.has(card.id);
+      box.dataset.retainMaterial = card.id;
+      box.addEventListener("change", () => {if (box.checked) removed.delete(card.id); else removed.add(card.id); refresh();});
+      label.append(box, document.createTextNode(" Оставить: " + card.title)); line.appendChild(label); content.appendChild(line);
+    }
+    content.appendChild(el("p", null, `Будет оставлено ${issue.materials.length - removed.size} из ${issue.materials.length}; исключено ${removed.size}.`));
+    const preview = el("button", "act", "Предпросмотр нового состава");
+    preview.disabled = !removed.size;
+    const result = el("div"); result.setAttribute("aria-live", "polite");
+    content.append(preview, result);
+    const payload = () => ({issueDate: report.issueDate, issueHash: report.issueHash, reportId: report.reportId,
+      labels: Object.fromEntries(assessed.map(pair => [pair.pairId, labels[pair.pairId]])), removeMaterialIds: [...removed]});
+    const post = (action, value) => api("api/issue-reviews/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(value)});
+    preview.addEventListener("click", async () => {
+      const version = revision; preview.disabled = true; result.textContent = "Проверка состава…";
+      try {
+        const proposal = payload(); const checked = await post("preview", proposal);
+        if (!active() || revision !== version) return;
+        result.replaceChildren(el("h4", null, "Новый состав"));
+        for (const card of checked.retained) result.appendChild(el("p", null, "Останется: " + card.title));
+        for (const card of checked.removed) result.appendChild(el("p", null, "Будет исключено: " + card.title));
+        result.appendChild(el("p", null, "После подтверждения выпуск будет опубликован заново. Сводка выпуска и файлы отчёта будут пересобраны по новому составу."));
+        const confirm = el("button", "act", "Подтвердить и опубликовать состав"); result.appendChild(confirm);
+        confirm.addEventListener("click", async () => {
+          confirm.disabled = true;
+          try {
+            const job = await post("submit", {...proposal, confirmed: true});
+            if (!active() || revision !== version) return;
+            content.replaceChildren(el("h3", null, "Коррекция принята"));
+            const state = el("p", null, "Ожидает публикации. Выполнение начнётся в ближайшие несколько минут."); content.appendChild(state);
+            const poll = async () => {
+              if (!active()) return;
+              try {
+                const update = await api("api/issue-reviews?id=" + encodeURIComponent(job.reviewId));
+                if (!active()) return;
+                state.textContent = ({queued: "Ожидает публикации.", running: "Выпуск пересобирается и публикуется.", published: "Новый состав опубликован. Обновите отчёт для повторной проверки.", failed: "Коррекция не завершена: " + (update.detail || "проверьте актуальность выпуска.")})[update.status];
+                if (["queued", "running"].includes(update.status)) setTimeout(poll, 5000);
+              } catch {state.textContent = "Статус временно недоступен. Заявка сохранена; повторяем проверку."; setTimeout(poll, 10000);}
+            };
+            void poll();
+          } catch (error) {result.appendChild(el("p", null, "Публикация не подтверждена: " + error.message)); confirm.disabled = false;}
+        });
+      } catch (error) {result.textContent = error.message; preview.disabled = false;}
+    });
+  };
+  refresh();
+  return {panel, refresh};
+}
+
 async function showObservations() {
   current = "observations";
   const generation = ++observationGeneration;
@@ -30,7 +97,7 @@ async function showObservations() {
     if (current !== "observations" || generation !== observationGeneration) return;
     const controls = el("div", "observation-controls");
     const label = el("label", null, "Выпуск ");
-    const day = el("input"); day.type = "date"; day.value = index.issues?.[0]?.issueDate || "";
+    const day = el("input"); day.type = "date"; day.value = new URLSearchParams(location.search).get("issue") || index.issues?.[0]?.issueDate || "";
     label.appendChild(day); controls.appendChild(label);
     const load = el("button", "act", "Открыть отчёт"); controls.appendChild(load);
     const recent = el("select"); recent.setAttribute("aria-label", "Последние выпуски");
@@ -54,6 +121,14 @@ async function showObservations() {
         result.replaceChildren(el("h2", null, statuses[report.status] || (suspects.length ? `Подозрений: ${suspects.length}` : "Среди проверенных пар подозрений нет")));
         if (report.coverage) result.appendChild(el("p", null, `Карточек: ${report.coverage.currentCards}; в истории за 45 дней: ${report.coverage.historicalCards}. Проверено ${report.coverage.checkedPairs} из ${report.coverage.candidatePairs} пар. Полнота поиска ещё не измерена.`));
         for (const error of report.errors || []) result.appendChild(el("p", null, error));
+        try {
+          const history = await api("api/issue-reviews");
+          if (current !== "observations" || request !== observationGeneration) return;
+          const states = {queued: "ожидает публикации", running: "публикуется", published: "опубликована", failed: "не завершена"};
+          for (const job of (history.reviews || []).filter(job => job.issueDate === report.issueDate).slice(-3)) {
+            result.appendChild(el("p", null, `Коррекция: ${states[job.status] || job.status}. ${job.detail || ""}`));
+          }
+        } catch { result.appendChild(el("p", null, "Статус прошлых коррекций временно недоступен.")); }
         if (!report.reportId) return;
         const storeKey = "radar-observation-labels:" + report.reportId;
         let pairLabels = {}, labels = {};
@@ -62,6 +137,9 @@ async function showObservations() {
           if (!pairLabels || typeof pairLabels !== "object" || Array.isArray(pairLabels)) pairLabels = {};
           labels = {...JSON.parse(localStorage.getItem(storeKey) || "{}"), ...pairLabels};
         } catch { /* local storage can be unavailable */ }
+        const issue = await api("/api/issues/" + encodeURIComponent(report.issueDate));
+        if (current !== "observations" || request !== observationGeneration) return;
+        const review = issueReviewPanel(report, labels, issue, () => current === "observations" && request === observationGeneration);
         const notice = el("p", null, "Оценки сохраняются в этом браузере. Скачайте разметку для добавления оператором в общий набор калибровки.");
         const renderPair = pair => {
           const p = pair.prediction;
@@ -96,13 +174,14 @@ async function showObservations() {
             labels[pair.pairId] = select.value; pairLabels[pair.pairId] = select.value;
             try { localStorage.setItem(storeKey, JSON.stringify(labels)); localStorage.setItem("radar-observation-pair-labels", JSON.stringify(pairLabels)); }
             catch { notice.textContent = "Браузер не сохранил оценки. Скачайте разметку до закрытия страницы."; }
+            review.refresh();
           });
           field.appendChild(select); head.appendChild(field); return section;
         };
         for (const pair of suspects) result.appendChild(renderPair(pair));
         const other = el("details"); other.appendChild(el("summary", null, `Остальные проверенные пары · ${pairs.length - suspects.length}`));
         for (const pair of pairs.filter(pair => pair.prediction.relation === "different_event")) other.appendChild(renderPair(pair));
-        result.appendChild(other); result.appendChild(notice);
+        result.appendChild(other); result.appendChild(review.panel); result.appendChild(notice);
         const exportLabels = el("button", "act", "Скачать разметку");
         exportLabels.addEventListener("click", () => {
           const allowed = new Set(pairs.map(pair => pair.pairId));
@@ -134,7 +213,7 @@ function el(tag, className, text) {
 
 async function api(path, options) {
   const response = await fetch(path, options || {});
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) { const text = await response.text(); let message = text; try { message = JSON.parse(text).error || text; } catch {} throw new Error(message); }
   return response.json();
 }
 

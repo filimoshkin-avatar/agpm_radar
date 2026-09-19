@@ -49,6 +49,7 @@ from radar_kx.config import Settings
 from radar_kx.database import Database
 from radar_kx.editor_queues import decide as decide_in_queue
 from radar_kx.editor_queues import load_queue, queue_summary
+from radar_kx.issue_reviews import ReviewQueue, preview
 from radar_kx.markdown_render import render as render_markdown
 
 MAX_BODY_BYTES = 64 * 1024
@@ -108,6 +109,7 @@ class EditorService:
         username: str | None = None,
         password: str | None = None,
         docs_directory: Path = DOCS_DIRECTORY,
+        reviews_directory: Path = Path("/var/lib/radar-kx/issue-reviews"),
     ) -> None:
         if len(token) < 24:
             raise ValueError("the editor token must be at least 24 characters")
@@ -118,6 +120,7 @@ class EditorService:
         self.actor = actor
         self.docs_directory = docs_directory
         self.throttle = Throttle()
+        self.reviews = ReviewQueue(reviews_directory)
 
     def authorized(self, header: str | None) -> bool:
         """Bearer or basic, compared in constant time."""
@@ -165,6 +168,21 @@ class EditorService:
             raise RuntimeError("observation service unavailable") from None
         except (OSError, ValueError):
             raise RuntimeError("observation service unavailable") from None
+
+    def issue_review(self, payload: dict[str, Any], *, submit: bool = False) -> dict[str, Any]:
+        issue_date = payload.get("issueDate")
+        if not isinstance(issue_date, str):
+            raise ValueError("issue date required")
+        report = self.event_observations(issue_date)
+        request = urllib.request.Request("http://127.0.0.1:8765/api/issues/" + issue_date)
+        with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
+            issue = json.loads(response.read(2 * 1024 * 1024 + 1))
+        result = preview(payload, report, issue)
+        if submit:
+            if payload.get("confirmed") is not True:
+                raise ValueError("Подтвердите публикацию нового состава.")
+            return self.reviews.submit(result, self.actor)
+        return result
 
     def summary(self) -> dict[str, Any]:
         return {"queues": queue_summary(self.database)}
@@ -324,6 +342,12 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                         service.event_observations(next(iter(query.get("date", [])), None)),
                     )
                     return
+                if path == "/api/issue-reviews":
+                    if set(query) - {"id"} or len(query.get("id", [])) > 1:
+                        raise ValueError("invalid review query")
+                    key = next(iter(query.get("id", [])), None)
+                    self._json(HTTPStatus.OK, self.reviews_payload(key))
+                    return
                 if path == "/api/summary":
                     self._json(HTTPStatus.OK, service.summary())
                     return
@@ -353,11 +377,17 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
+        def reviews_payload(self, key: str | None) -> dict[str, Any]:
+            return service.reviews.get(key) if key else {"reviews": service.reviews.list()}
+
         def do_POST(self) -> None:
             if not self._authorize():
                 return
             path = urlsplit(self.path).path.rstrip("/")
             if path not in (
+                "/api/issue-reviews/preview",
+                "/api/issue-reviews/submit",
+                "/api/issue-reviews/status",
                 "/api/decide",
                 "/api/keys/issue",
                 "/api/keys/revoke",
@@ -365,7 +395,25 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
             ):
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            if path.startswith("/api/issue-reviews/"):
+                if (
+                    self.headers.get("Content-Type", "").split(";")[0] != "application/json"
+                    or self.headers.get("Sec-Fetch-Site") == "cross-site"
+                ):
+                    self._json(HTTPStatus.FORBIDDEN, {"error": "JSON request required"})
+                    return
+                if path.endswith("/status") and not self.headers.get(
+                    "Authorization", ""
+                ).startswith("Bearer "):
+                    self._json(HTTPStatus.FORBIDDEN, {"error": "worker credentials required"})
+                    return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length < 0:
+                    raise ValueError("invalid content length")
+            except ValueError:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid content length"})
+                return
             if length > MAX_BODY_BYTES:
                 self._json(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, {"error": "body too large"})
                 return
@@ -373,7 +421,21 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 payload = json.loads(self.rfile.read(length) or b"{}")
                 if not isinstance(payload, dict):
                     raise ValueError("body must be an object")
-                if path == "/api/decide":
+                if path in {"/api/issue-reviews/preview", "/api/issue-reviews/submit"}:
+                    self._json(
+                        HTTPStatus.OK,
+                        service.issue_review(payload, submit=path.endswith("/submit")),
+                    )
+                elif path == "/api/issue-reviews/status":
+                    self._json(
+                        HTTPStatus.OK,
+                        service.reviews.update(
+                            str(payload["reviewId"]),
+                            str(payload["status"]),
+                            str(payload.get("detail", "")),
+                        ),
+                    )
+                elif path == "/api/decide":
                     self._json(HTTPStatus.OK, service.decide(payload))
                 elif path == "/api/keys/issue":
                     self._json(HTTPStatus.OK, service.issue_key(payload))
@@ -381,6 +443,11 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                     self._json(HTTPStatus.OK, service.revoke_key(payload))
                 else:
                     self._json(HTTPStatus.OK, service.extend_key(payload))
+            except (OSError, RuntimeError):
+                self._json(
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {"error": "Коррекция временно недоступна. Повторите запрос."},
+                )
             except (KeyError, ValueError, json.JSONDecodeError) as exc:
                 self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
 

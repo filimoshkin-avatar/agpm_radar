@@ -27,6 +27,7 @@ from packages.storage.safe_files import (
 )
 
 from tools.generate_v2_analysis import WORST_CASE_SECONDS as ANALYSIS_WORST_CASE_SECONDS
+from tools.observation_summary import current_summary
 from tools.observe_issue_events import launch_observation
 from tools.v2_period_analysis import PERIODS
 from tools.v2_period_analysis import WORST_CASE_SECONDS as PERIOD_WORST_CASE_SECONDS
@@ -457,7 +458,21 @@ def main() -> int:
     if report_path.exists():
         report_content = read_regular_file(report_path, expected_mode=0o600)
         launch_observation(args)
-        print(report_content.decode("utf-8"), end="")
+        retained_report = json.loads(report_content)
+        try:
+            current_issue, _ = _fetch_json(
+                f"{args.v2_public_base.rstrip('/')}/api/issues/{args.issue_date}"
+            )
+            retained_report["eventObservation"] = current_summary(
+                args.runs_root / "event-observations", current_issue
+            )
+        except (OSError, ValueError, Stage15DualRunError):
+            retained_report["eventObservation"] = {
+                "status": "error",
+                "issueDate": args.issue_date,
+                "reviewUrl": f"https://radar.agpm.space/po/?issue={args.issue_date}#event-observations",
+            }
+        print(canonical_json_line(retained_report).decode("utf-8"), end="")
         return 0
     attempt_root = _next_attempt_root(run_root)
     legacy_bytes = read_regular_file(args.legacy_json, expected_mode=0o644)
@@ -534,6 +549,9 @@ def main() -> int:
             "status": "published",
         },
     }
+    report["eventObservation"] = cast(
+        JsonValue, current_summary(args.runs_root / "event-observations", v2)
+    )
     content = canonical_json_line(report)
     atomic_write_new(report_path, content, mode=0o600)
     launch_observation(args)
