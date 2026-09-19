@@ -48,16 +48,6 @@ paths:
         "200": {description: Published issue, headers: {X-Radar-Issue-Hash: {schema: {type: string}, description: SHA-256 of canonical public issue JSON}}, content: {application/json: {schema: {$ref: "#/components/schemas/IssueDetail"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "404": {$ref: "#/components/responses/NotFound"}
-  /api/event-observations/{issueDate}:
-    get:
-      operationId: getEventObservation
-      description: Public machine hypotheses for the exact published issue hash; never editorial labels or raw source archives.
-      parameters:
-        - {name: issueDate, in: path, required: true, schema: {type: string, format: date}}
-      responses:
-        "200": {description: Observation or explicit pending/error status, content: {application/json: {schema: {$ref: "#/components/schemas/EventObservation"}}}}
-        "400": {$ref: "#/components/responses/BadRequest"}
-        "404": {$ref: "#/components/responses/NotFound"}
   /api/materials:
     get:
       operationId: listMaterials
@@ -214,66 +204,6 @@ components:
               items: {type: array, items: {$ref: "#/components/schemas/Material"}}
               nextCursor: {type: [string, "null"]}
   schemas:
-    EventObservation:
-      type: object
-      additionalProperties: false
-      required: [issueDate, issueHash, status, pairs]
-      properties:
-        format: {const: radar-event-observation/v1}
-        issueDate: {type: string, format: date}
-        issueHash: {type: string, pattern: "^[0-9a-f]{64}$"}
-        reportId: {type: string, pattern: "^[0-9a-f]{64}$"}
-        generatedAt: {type: string, format: date-time}
-        status: {enum: [pending, complete, partial, error]}
-        model: {type: string, maxLength: 100}
-        promptVersion: {type: string, maxLength: 100}
-        historyDays: {const: 45}
-        errors: {type: array, maxItems: 100, items: {type: string, maxLength: 500}}
-        coverage:
-          type: object
-          additionalProperties: false
-          required: [currentCards, historicalCards, candidatePairs, checkedPairs]
-          properties:
-            currentCards: {type: integer, minimum: 0, maximum: 100000}
-            historicalCards: {type: integer, minimum: 0, maximum: 100000}
-            candidatePairs: {type: integer, minimum: 0, maximum: 100000}
-            checkedPairs: {type: integer, minimum: 0, maximum: 100000}
-        pairs:
-          type: array
-          maxItems: 100
-          items:
-            type: object
-            additionalProperties: false
-            required: [pairId, left, right, retrievalScore, prediction]
-            properties:
-              pairId: {type: string, pattern: "^[0-9a-f]{64}$"}
-              left: {$ref: "#/components/schemas/ObservationCard"}
-              right: {$ref: "#/components/schemas/ObservationCard"}
-              retrievalScore: {type: number, minimum: 0, maximum: 1}
-              prediction:
-                type: object
-                additionalProperties: false
-                required: [relation, confidence, commonEvent, uniqueFactsLeft, uniqueFactsRight, explanation, evidenceLeft, evidenceRight]
-                properties:
-                  relation: {enum: [same_event, different_event, development, review_overlap, insufficient_evidence]}
-                  confidence: {type: number, minimum: 0, maximum: 1}
-                  commonEvent: {type: string, maxLength: 2000}
-                  explanation: {type: string, maxLength: 2000}
-                  uniqueFactsLeft: {type: array, maxItems: 4, items: {type: string, maxLength: 500}}
-                  uniqueFactsRight: {type: array, maxItems: 4, items: {type: string, maxLength: 500}}
-                  evidenceLeft: {type: string, maxLength: 250}
-                  evidenceRight: {type: string, maxLength: 250}
-    ObservationCard:
-      type: object
-      additionalProperties: false
-      required: [issueDate, materialId, title, url, focus, contentHash]
-      properties:
-        issueDate: {type: string, format: date}
-        materialId: {type: string, maxLength: 2000}
-        title: {type: string, maxLength: 2000}
-        url: {type: string, format: uri, maxLength: 2000}
-        focus: {type: string, maxLength: 12000}
-        contentHash: {type: string, pattern: "^[0-9a-f]{64}$"}
     Error:
       type: object
       additionalProperties: false

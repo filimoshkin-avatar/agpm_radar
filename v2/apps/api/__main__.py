@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from packages.contracts.json_types import JsonValue
@@ -33,6 +34,11 @@ def main(argv: list[str] | None = None) -> int:
     """Print build identity or serve when explicit roots are supplied."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--active-root", type=Path)
+    parser.add_argument(
+        "--owner-token-file",
+        type=Path,
+        default=os.environ.get("RADAR_V2_OWNER_OBSERVATIONS_TOKEN_FILE"),
+    )
     parser.add_argument("--gazette-root", type=Path)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
@@ -44,7 +50,11 @@ def main(argv: list[str] | None = None) -> int:
         manager = ActiveDatabaseManager(arguments.active_root)
         application_root = Path(__file__).resolve().parents[2]
         application = RadarApplication(
-            RadarApi(manager, application_release_id=_application_release_id(application_root)),
+            RadarApi(
+                manager,
+                application_release_id=_application_release_id(application_root),
+                owner_token_file=arguments.owner_token_file,
+            ),
             web_root=Path(__file__).resolve().parents[1] / "web",
             gazette_root=arguments.gazette_root,
         )

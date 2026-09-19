@@ -31,10 +31,14 @@ import base64
 import binascii
 import hmac
 import json
+import re
 import secrets
 import threading
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Callable
+from datetime import date
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -133,6 +137,34 @@ class EditorService:
                 secret, self._password
             )
         return False
+
+    def event_observations(self, issue_date: str | None = None) -> dict[str, Any]:
+        """Proxy observations only after editor authentication, with server-held credentials."""
+        suffix = ""
+        if issue_date is not None:
+            if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", issue_date) is None:
+                raise ValueError("invalid issue date")
+            date.fromisoformat(issue_date)
+            suffix = "/" + issue_date
+        request = urllib.request.Request(
+            "http://127.0.0.1:8765/api/owner/event-observations" + suffix,
+            headers={"Authorization": "Bearer " + self._token},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
+                content = response.read(2 * 1024 * 1024 + 1)
+            if len(content) > 2 * 1024 * 1024:
+                raise ValueError("report exceeds limit")
+            result = json.loads(content)
+            if not isinstance(result, dict):
+                raise ValueError("invalid observation response")
+            return result
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                raise KeyError("issue not found") from None
+            raise RuntimeError("observation service unavailable") from None
+        except (OSError, ValueError):
+            raise RuntimeError("observation service unavailable") from None
 
     def summary(self) -> dict[str, Any]:
         return {"queues": queue_summary(self.database)}
@@ -284,6 +316,14 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 self._send(HTTPStatus.OK, SCRIPT.encode("utf-8"), "text/javascript; charset=utf-8")
                 return
             try:
+                if path == "/api/event-observations":
+                    if set(query) - {"date"} or len(query.get("date", [])) > 1:
+                        raise ValueError("invalid observation query")
+                    self._json(
+                        HTTPStatus.OK,
+                        service.event_observations(next(iter(query.get("date", [])), None)),
+                    )
+                    return
                 if path == "/api/summary":
                     self._json(HTTPStatus.OK, service.summary())
                     return
@@ -302,6 +342,12 @@ def make_handler(service: EditorService) -> type[BaseHTTPRequestHandler]:
                 if path == "/api/keys":
                     self._json(HTTPStatus.OK, service.keys())
                     return
+            except RuntimeError:
+                self._json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "Отчёт временно недоступен"})
+                return
+            except ValueError:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": "Некорректный запрос"})
+                return
             except KeyError as exc:
                 self._json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
                 return

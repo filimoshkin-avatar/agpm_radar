@@ -3637,16 +3637,3 @@ button.tag:focus-visible, .filter-token:focus-visible, .filter-results:focus-vis
 @media (max-width: 760px), (pointer: coarse) {
   button.tag, .filter-token, .filter-results .reset { min-height: 40px; }
 }
-/* Calibration uses the existing daily-analysis panel and palette. */
-.observation-pair select, .observation-actions button {
-  min-height: 40px;
-  max-width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-}
-.observation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.observation-pair { overflow-wrap: anywhere; }

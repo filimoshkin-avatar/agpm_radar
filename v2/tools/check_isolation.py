@@ -105,6 +105,7 @@ ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
         "fcntl",
         "gzip",
         "hashlib",
+        "hmac",
         "io",
         "html",
         "http",

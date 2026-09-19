@@ -7,6 +7,124 @@ const body = document.getElementById("body");
 const why = document.getElementById("why");
 let current = null;
 
+const observationLabels = {
+  same_event: "Дубль", different_event: "Разные события", development: "Развитие",
+  insufficient_evidence: "Недостаточно данных", review_overlap: "Пересечение обзора",
+};
+let observationGeneration = 0;
+
+function downloadObservation(value, filename) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
+  const link = el("a"); link.href = url; link.download = filename; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function showObservations() {
+  current = "observations";
+  const generation = ++observationGeneration;
+  body.replaceChildren(el("p", "empty", "Загрузка выпусков…"));
+  why.textContent = "Редакторская калибровка. Подозрения не меняют карточки и не блокируют публикацию. Сравниваются видимые тексты карточек, без проверки полного текста источников; уверенность модели ещё не откалибрована.";
+  await drawNav();
+  try {
+    const index = await api("api/event-observations");
+    if (current !== "observations" || generation !== observationGeneration) return;
+    const controls = el("div", "observation-controls");
+    const label = el("label", null, "Выпуск ");
+    const day = el("input"); day.type = "date"; day.value = index.issues?.[0]?.issueDate || "";
+    label.appendChild(day); controls.appendChild(label);
+    const load = el("button", "act", "Открыть отчёт"); controls.appendChild(load);
+    const recent = el("select"); recent.setAttribute("aria-label", "Последние выпуски");
+    for (const issue of index.issues || []) {
+      const option = el("option", null, issue.issueDate); option.value = issue.issueDate;
+      recent.appendChild(option);
+    }
+    controls.appendChild(recent);
+    const result = el("div", "observation-report");
+    body.replaceChildren(controls, result);
+    const render = async () => {
+      const request = ++observationGeneration;
+      result.replaceChildren(el("p", "empty", "Загрузка отчёта…"));
+      try {
+        const report = await api("api/event-observations?date=" + encodeURIComponent(day.value));
+        if (current !== "observations" || request !== observationGeneration) return;
+        if (report.issueDate !== day.value) throw new Error("issue mismatch");
+        const statuses = {pending: "Проверка готовится", partial: "Проверено частично", error: "Проверка не завершена"};
+        const pairs = report.pairs || [];
+        const suspects = pairs.filter(pair => pair.prediction.relation !== "different_event");
+        result.replaceChildren(el("h2", null, statuses[report.status] || (suspects.length ? `Подозрений: ${suspects.length}` : "Среди проверенных пар подозрений нет")));
+        if (report.coverage) result.appendChild(el("p", null, `Карточек: ${report.coverage.currentCards}; в истории за 45 дней: ${report.coverage.historicalCards}. Проверено ${report.coverage.checkedPairs} из ${report.coverage.candidatePairs} пар. Полнота поиска ещё не измерена.`));
+        for (const error of report.errors || []) result.appendChild(el("p", null, error));
+        if (!report.reportId) return;
+        const storeKey = "radar-observation-labels:" + report.reportId;
+        let pairLabels = {}, labels = {};
+        try {
+          pairLabels = JSON.parse(localStorage.getItem("radar-observation-pair-labels") || "{}");
+          if (!pairLabels || typeof pairLabels !== "object" || Array.isArray(pairLabels)) pairLabels = {};
+          labels = {...JSON.parse(localStorage.getItem(storeKey) || "{}"), ...pairLabels};
+        } catch { /* local storage can be unavailable */ }
+        const notice = el("p", null, "Оценки сохраняются в этом браузере. Скачайте разметку для добавления оператором в общий набор калибровки.");
+        const renderPair = pair => {
+          const p = pair.prediction;
+          const section = el("section", "card observation-pair");
+          const head = el("div", "head"); section.appendChild(head);
+          head.appendChild(el("h3", null, `${observationLabels[p.relation]} · уверенность модели ${Math.round(p.confidence * 100)}%`));
+          for (const side of ["left", "right"]) {
+            const card = pair[side]; const line = el("p");
+            const issueLink = el("a", null, card.issueDate); issueLink.href = "/issues/" + encodeURIComponent(card.issueDate);
+            issueLink.target = "_blank"; issueLink.rel = "noopener noreferrer";
+            line.appendChild(issueLink); line.appendChild(document.createTextNode(" · "));
+            const link = el("a", null, card.title);
+            if (/^https?:\/\//.test(card.url)) { link.href = card.url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
+            line.appendChild(link); head.appendChild(line);
+          }
+          if (p.commonEvent) head.appendChild(el("p", null, "Общее событие: " + p.commonEvent));
+          head.appendChild(el("p", null, p.explanation));
+          for (const side of ["Left", "Right"]) {
+            const name = side === "Left" ? "Первый материал" : "Второй материал";
+            if (p["evidence" + side]) head.appendChild(el("blockquote", null, name + ": " + p["evidence" + side]));
+            if (p["uniqueFacts" + side]?.length) head.appendChild(el("p", null, name + ", уникальные факты: " + p["uniqueFacts" + side].join("; ")));
+          }
+          const field = el("label", null, "Редакторская оценка ");
+          const select = el("select"); select.dataset.observationPair = pair.pairId;
+          const empty = el("option", null, "Не оценено"); empty.value = ""; select.appendChild(empty);
+          for (const [value, title] of Object.entries(observationLabels)) {
+            if (value === "review_overlap") continue;
+            const option = el("option", null, title); option.value = value; select.appendChild(option);
+          }
+          select.value = labels[pair.pairId] || "";
+          select.addEventListener("change", () => {
+            labels[pair.pairId] = select.value; pairLabels[pair.pairId] = select.value;
+            try { localStorage.setItem(storeKey, JSON.stringify(labels)); localStorage.setItem("radar-observation-pair-labels", JSON.stringify(pairLabels)); }
+            catch { notice.textContent = "Браузер не сохранил оценки. Скачайте разметку до закрытия страницы."; }
+          });
+          field.appendChild(select); head.appendChild(field); return section;
+        };
+        for (const pair of suspects) result.appendChild(renderPair(pair));
+        const other = el("details"); other.appendChild(el("summary", null, `Остальные проверенные пары · ${pairs.length - suspects.length}`));
+        for (const pair of pairs.filter(pair => pair.prediction.relation === "different_event")) other.appendChild(renderPair(pair));
+        result.appendChild(other); result.appendChild(notice);
+        const exportLabels = el("button", "act", "Скачать разметку");
+        exportLabels.addEventListener("click", () => {
+          const allowed = new Set(pairs.map(pair => pair.pairId));
+          const exported = Object.fromEntries(Object.entries(labels).filter(([id, value]) => allowed.has(id) && ["same_event", "different_event", "development", "insufficient_evidence"].includes(value)));
+          downloadObservation({reportId: report.reportId, labels: exported}, `radar-${report.issueDate}-event-labels.json`);
+        });
+        result.appendChild(exportLabels);
+        const exportReport = el("button", "act", "Скачать отчёт JSON");
+        exportReport.addEventListener("click", () => downloadObservation(report, `radar-${report.issueDate}-observations.json`));
+        result.appendChild(exportReport);
+      } catch {
+        if (current === "observations" && request === observationGeneration) result.replaceChildren(el("p", "empty", "Отчёт недоступен. Это не означает отсутствия повторов. Повторите загрузку."));
+      }
+    };
+    load.addEventListener("click", render);
+    recent.addEventListener("change", () => {day.value = recent.value; void render();});
+    if (day.value) await render();
+  } catch {
+    if (current === "observations") body.replaceChildren(el("p", "empty", "Список выпусков временно недоступен."));
+  }
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -43,6 +161,9 @@ async function drawNav() {
       nav.appendChild(button);
     }
   }
+  const observations = el("button", current === "observations" ? "on" : "", "Повторы выпусков");
+  observations.addEventListener("click", () => showObservations());
+  nav.appendChild(observations);
   const docs = el("button", current === "docs" ? "on" : "", "Документы");
   docs.addEventListener("click", () => showDocs());
   nav.appendChild(docs);
@@ -186,7 +307,7 @@ async function showDocs(name) {
   body.replaceChildren(back, article);
 }
 
-drawNav().then(() => show("comparison"));
+drawNav().then(() => location.hash === "#event-observations" ? showObservations() : show("comparison"));
 
 // -- Subscription keys: issued here, shown once, revoked here ------------------
 // The whole key exists only in the answer to "выдать"; the list that follows

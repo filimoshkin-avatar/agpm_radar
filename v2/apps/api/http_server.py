@@ -56,6 +56,7 @@ class RadarRequestHandler(BaseHTTPRequestHandler):
         response = server.application.handle(
             method,
             self.path,
+            authorization=self.headers.get("Authorization"),
             remote_key=remote_key(self.headers.get("X-Forwarded-For"), str(self.client_address[0])),
         )
         if method != "GET":

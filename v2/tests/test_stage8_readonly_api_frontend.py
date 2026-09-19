@@ -281,7 +281,7 @@ def _payload(response: ApiResponse) -> object:
     return json.loads(response.body)
 
 
-def test_observation_header_and_unavailable_report_preserve_public_issue(
+def test_observation_requires_owner_and_preserves_public_issue(
     stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
     tmp_path: Path,
 ) -> None:
@@ -293,15 +293,34 @@ def test_observation_header_and_unavailable_report_preserve_public_issue(
     document = cast(JsonObject, _payload(response))
     assert dict(response.headers)["X-Radar-Issue-Hash"] == issue_hash(document)
     api.observation_root = tmp_path / "observations"
-    report = cast(
-        dict[str, object], _payload(api.handle("GET", "/api/event-observations/2026-08-20"))
-    )
+    api.owner_token_file = tmp_path / "owner-token"
+    token = "owner-test-" * 4
+    api.owner_token_file.write_text(token)
+    api.owner_token_file.chmod(0o400)
+    path = "/api/owner/event-observations/2026-08-20"
+    assert api.handle("GET", "/api/event-observations/2026-08-20").status == 404
+    assert api.handle("GET", path).status == 401
+    assert api.handle("GET", path, authorization="Bearer wrong").status == 401
+    assert api.handle("GET", path + "?token=" + token).status == 401
+    auth = "Bearer " + token
+    report = cast(dict[str, object], _payload(api.handle("GET", path, authorization=auth)))
     assert report == read_observation(api.observation_root, document)
     assert report["status"] == "pending"
     assert api.handle("GET", "/api/issues/2026-08-20").body == response.body
-    assert api.handle("GET", "/api/event-observations/2026-08-99").status == 400
-    assert api.handle("GET", "/api/event-observations/2026-08-22").status == 404
-    assert api.handle("POST", "/api/event-observations/2026-08-20").status == 405
+    assert (
+        api.handle("GET", "/api/owner/event-observations/2026-08-99", authorization=auth).status
+        == 400
+    )
+    assert (
+        api.handle("GET", "/api/owner/event-observations/2026-08-22", authorization=auth).status
+        == 404
+    )
+    assert api.handle("GET", "/api/owner/event-observations", authorization=auth).status == 200
+    assert api.handle("GET", "/api/owner/event-observations").status == 401
+    api.owner_token_file.chmod(0o644)
+    assert api.handle("GET", path, authorization=auth).status == 401
+    api.owner_token_file.unlink()
+    assert api.handle("GET", path, authorization=auth).status == 401
 
 
 def test_rubric_catalog_is_independent_of_current_materials(

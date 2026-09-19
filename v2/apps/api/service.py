@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import itertools
 import json
 import re
@@ -21,6 +22,7 @@ from packages.contracts.event_observation import issue_hash
 from packages.contracts.json_types import JsonObject
 from packages.contracts.rubrics import rubric_catalog
 from packages.storage.event_observations import DEFAULT_ROOT, read_observation
+from packages.storage.safe_files import read_regular_file
 from packages.validation.public_issue import PublicIssueValidationError
 
 from apps.api.database import ActiveDatabaseManager, DatabaseIdentity, PublicDatabaseError
@@ -291,9 +293,11 @@ class RadarApi:
         application_release_id: str,
         search_limiter: SearchRateLimiter | None = None,
         observation_root: Path = DEFAULT_ROOT,
+        owner_token_file: Path | None = None,
     ) -> None:
         self.manager = manager
         self.observation_root = observation_root
+        self.owner_token_file = owner_token_file
         if _IDENTIFIER.fullmatch(application_release_id) is None:
             raise ValueError("application release id is invalid")
         self.application_release_id = application_release_id
@@ -351,9 +355,19 @@ class RadarApi:
                 "items": items,
                 "nextCursor": f"v1:issues:{next_date}" if next_date is not None else None,
             }
-        if path.startswith("/api/event-observations/"):
+        if path == "/api/owner/event-observations":
             _only(values, set())
-            issue_date = _date_value(path.removeprefix("/api/event-observations/"), "issueDate")
+            items, _next = self.manager.execute(
+                lambda connection, identity: self._repository(connection, identity).issues(
+                    limit=100, before_date=None
+                )
+            )
+            return {"issues": items}
+        if path.startswith("/api/owner/event-observations/"):
+            _only(values, set())
+            issue_date = _date_value(
+                path.removeprefix("/api/owner/event-observations/"), "issueDate"
+            )
             issue = self.manager.execute(
                 lambda connection, identity: self._repository(connection, identity).issue(
                     issue_date
@@ -485,6 +499,7 @@ class RadarApi:
         *,
         request_id: str | None = None,
         remote_key: str = "local",
+        authorization: str | None = None,
     ) -> ApiResponse:
         """Return bounded JSON for one request without exposing exception details."""
         safe_request_id = _request_id(request_id)
@@ -492,6 +507,22 @@ class RadarApi:
             return _error(405, "METHOD_NOT_ALLOWED", "Only GET is supported", safe_request_id)
         try:
             path, values = _parse_target(raw_target)
+            if path.startswith("/api/owner/"):
+                try:
+                    if self.owner_token_file is None:
+                        raise ValueError("owner token is not configured")
+                    token = read_regular_file(self.owner_token_file, expected_mode=0o400).strip()
+                    authorized = (
+                        len(token) >= 24
+                        and authorization is not None
+                        and hmac.compare_digest(authorization.encode(), b"Bearer " + token)
+                    )
+                except (OSError, RuntimeError, ValueError):
+                    authorized = False
+                if not authorized:
+                    return _error(
+                        401, "AUTH_REQUIRED", "Owner authentication required", safe_request_id
+                    )
             result = self._dispatch(path, values, remote_key)
             response = _json_response(200, result)
             if isinstance(result, dict) and "issueDate" in result and "materials" in result:

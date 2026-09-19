@@ -134,8 +134,6 @@ const state = {
   loading: false,
   issueDate: null,
   materials: [],
-  observationHash: null,
-  observationDate: null,
   viewMode: "radar",
 };
 
@@ -203,7 +201,6 @@ async function getJson(path, options) {
   const response = await fetch(API + v2Path(path), options);
   if (!response.ok) throw new Error(`${response.status} ${path}`);
   const payload = legacyPayload(path, await response.json());
-  if (payload?.issue) payload.observationHash = response.headers?.get?.("X-Radar-Issue-Hash") || null;
   return payload;
 }
 
@@ -1577,7 +1574,6 @@ function renderTheses(materials) {
     return `<div class="thesis"><span class="thesis__num">${String(index + 1).padStart(2, "0")}</span><div><strong>${escapeHtml(lead)}</strong> ${escapeHtml(rest)}</div></div>`;
   }).join("");
   renderDailyAnalysis();
-  renderEventObservations();
   renderRadarWidget(materials);
   syncIssueNav();
 }
@@ -1617,104 +1613,6 @@ function renderAnalysisText(value) {
     .join("");
 }
 
-const observationLabels = {
-  same_event: "Дубль", different_event: "Разные события", development: "Развитие",
-  insufficient_evidence: "Недостаточно данных", review_overlap: "Пересечение обзора",
-};
-let observationRequest = 0;
-
-async function renderEventObservations(force = false) {
-  const root = document.getElementById("eventObservations");
-  if (!root) return;
-  const day = activeIssueDate();
-  root.hidden = !["issue", "yesterday"].includes(state.period) || !day;
-  if (root.hidden) { observationRequest++; root.dataset.day = ""; return; }
-  const expectedHash = state.observationHash;
-  if (state.observationDate !== day) { root.hidden = true; return; }
-  if (!force && root.dataset.day === day && root.dataset.issueHash === expectedHash) return;
-  root.dataset.issueHash = expectedHash || "";
-  root.dataset.day = day;
-  const request = ++observationRequest;
-  const body = document.getElementById("eventObservationsBody");
-  const status = document.getElementById("eventObservationsStatus");
-  status.textContent = "Загрузка отчёта";
-  body.textContent = "";
-  try {
-    const response = await fetch(`${API}/api/event-observations/${day}`);
-    if (!response.ok) throw new Error("observation unavailable");
-    const report = await response.json();
-    if (request !== observationRequest) return;
-    if (!expectedHash || report.issueHash !== expectedHash) {
-      status.textContent = "Версия выпуска изменилась";
-      body.textContent = "Обновите страницу, чтобы увидеть карточки и отчёт одной версии.";
-      return;
-    }
-    const pairs = Array.isArray(report.pairs) ? report.pairs : [];
-    const suspects = pairs.filter(pair => pair.prediction.relation !== "different_event");
-    const names = { pending: "Проверка готовится", error: "Проверка не завершена", partial: "Проверено частично" };
-    status.textContent = names[report.status] || (suspects.length ? `Подозрений: ${suspects.length}` : "Среди проверенных пар подозрений нет");
-    const storeKey = `radar-observation-labels:${report.reportId}`;
-    let labels = {};
-    let pairLabels = {};
-    try {
-      pairLabels = JSON.parse(localStorage.getItem("radar-observation-pair-labels") || "{}");
-      if (!pairLabels || typeof pairLabels !== "object" || Array.isArray(pairLabels)) pairLabels = {};
-      labels = { ...JSON.parse(localStorage.getItem(storeKey) || "{}"), ...pairLabels };
-    } catch { /* storage unavailable */ }
-    if (!labels || typeof labels !== "object" || Array.isArray(labels)) labels = {};
-    const link = card => `<a href="/issues/${escapeHtml(card.issueDate)}">${escapeHtml(card.issueDate)}</a> · <a href="${escapeHtml(safeExternalUrl(card.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(card.title)}</a>`;
-    const pairMarkup = pair => {
-      const p = pair.prediction;
-      return `<section class="daily-analysis__section observation-pair">
-        <h3>${escapeHtml(observationLabels[p.relation] || p.relation)} · уверенность модели ${Math.round(p.confidence * 100)}%</h3>
-        <p>${link(pair.left)}</p><p>${link(pair.right)}</p>
-        ${p.commonEvent ? `<p><strong>Общее событие:</strong> ${escapeHtml(p.commonEvent)}</p>` : ""}
-        <p>${escapeHtml(p.explanation)}</p>
-        ${p.evidenceLeft ? `<p><strong>Фрагмент первой карточки:</strong> «${escapeHtml(p.evidenceLeft)}»</p>` : ""}
-        ${p.evidenceRight ? `<p><strong>Фрагмент второй карточки:</strong> «${escapeHtml(p.evidenceRight)}»</p>` : ""}
-        ${p.uniqueFactsLeft.length ? `<p><strong>Уникальное в первой:</strong> ${escapeHtml(p.uniqueFactsLeft.join("; "))}</p>` : ""}
-        ${p.uniqueFactsRight.length ? `<p><strong>Уникальное во второй:</strong> ${escapeHtml(p.uniqueFactsRight.join("; "))}</p>` : ""}
-        <label>Редакторская оценка <select data-observation-pair="${escapeHtml(pair.pairId)}">
-          <option value="">Не оценено</option>
-          ${Object.entries(observationLabels).filter(([value]) => value !== "review_overlap").map(([value, label]) => `<option value="${value}"${labels[pair.pairId] === value ? " selected" : ""}>${label}</option>`).join("")}
-        </select></label></section>`;
-    };
-    body.innerHTML = `<p>Гипотезы для редакторской калибровки. Они не меняют состав выпуска. Уверенность модели ещё не откалибрована.</p>
-      <p>Сравниваются опубликованные тексты карточек, без проверки полного текста источников. Внутри выпуска проверяются все пары; за 45 дней — до пяти похожих карточек на материал. Полнота поиска пока не измерена.</p>
-      ${report.coverage ? `<p>Карточек выпуска: ${report.coverage.currentCards}. В истории: ${report.coverage.historicalCards}. Проверено пар: ${report.coverage.checkedPairs} из ${report.coverage.candidatePairs} кандидатов.</p>` : ""}
-      ${(report.errors || []).map(error => `<p>${escapeHtml(error)}</p>`).join("")}
-      ${suspects.map(pairMarkup).join("")}
-      ${pairs.length > suspects.length ? `<details><summary>Остальные проверенные пары · ${pairs.length - suspects.length}</summary>${pairs.filter(pair => pair.prediction.relation === "different_event").map(pairMarkup).join("")}</details>` : ""}
-      <p id="observationLabelNotice">Оценки сохраняются в этом браузере. Скачайте разметку и передайте редактору для добавления в общий набор калибровки.</p>
-      <div class="observation-actions"><button type="button" data-observation-refresh>Обновить отчёт</button>
-      ${report.reportId ? `<button type="button" data-observation-export>Скачать разметку</button><a href="/api/event-observations/${day}" target="_blank" rel="noopener">JSON отчёта</a>` : ""}</div>`;
-    body.querySelector("[data-observation-refresh]").addEventListener("click", () => renderEventObservations(true));
-    body.querySelectorAll("[data-observation-pair]").forEach(select => select.addEventListener("change", () => {
-      if (select.value) labels[select.dataset.observationPair] = select.value;
-      else delete labels[select.dataset.observationPair];
-      if (select.value) pairLabels[select.dataset.observationPair] = select.value;
-      else pairLabels[select.dataset.observationPair] = "";
-      try {
-        localStorage.setItem(storeKey, JSON.stringify(labels));
-        localStorage.setItem("radar-observation-pair-labels", JSON.stringify(pairLabels));
-      }
-      catch { document.getElementById("observationLabelNotice").textContent = "Браузер не сохранил оценки. Скачайте разметку до закрытия страницы."; }
-    }));
-    body.querySelector("[data-observation-export]")?.addEventListener("click", () => {
-      const allowed = new Set(pairs.map(pair => pair.pairId));
-      const exported = Object.fromEntries(Object.entries(labels).filter(([key, value]) => allowed.has(key) && ["same_event", "different_event", "development", "insufficient_evidence"].includes(value)));
-      const url = URL.createObjectURL(new Blob([JSON.stringify({ reportId: report.reportId, labels: exported }, null, 2)], { type: "application/json" }));
-      const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = `radar-${day}-event-labels.json`; anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    });
-  } catch {
-    if (request !== observationRequest) return;
-    status.textContent = "Отчёт временно недоступен";
-    body.innerHTML = '<p>Это не означает отсутствия повторов. Карточки выпуска доступны.</p><button type="button">Повторить загрузку</button>';
-    body.querySelector("button").addEventListener("click", () => renderEventObservations(true));
-  }
-}
 
 function thesesTitle() {
   if (state.period === "7d") return "Что важно для AgPM за 7 дней";
@@ -2402,13 +2300,9 @@ async function loadIssueMaterials(request) {
   if (["issue", "yesterday"].includes(request.period)) {
     const issueDate = request.issueDate;
     if (!issueDate || issueDate === latest?.issue?.issue_date) {
-      request.observationHash = latest.observationHash;
-      request.observationDate = latest.issue.issue_date;
       return latest.materials;
     }
     const payload = await loadIssuePayload(issueDate);
-    request.observationHash = payload.observationHash;
-    request.observationDate = payload.issue.issue_date;
     return payload.materials || [];
   }
   const params = { period: request.period, limit: 100 };
@@ -2448,7 +2342,6 @@ async function loadIssuePayload(issueDate) {
   }
   if (!response.ok) throw new Error(`${response.status} /api/issue/${issueDate}`);
   const payload = legacyIssue(await response.json());
-  payload.observationHash = response.headers?.get?.("X-Radar-Issue-Hash") || null;
   issueCache.set(issueDate, payload);
   return payload;
 }
@@ -2530,8 +2423,6 @@ async function reload({ attempt = 0, refreshCatalog = true } = {}) {
   // by renderColumns, after which activeElement alone can no longer tell us.
   if (rubricFocusIntent && document.activeElement !== rubricFocusIntent.active) rubricFocusIntent = null;
   state.materials = materials;
-  state.observationHash = request.observationHash || null;
-  state.observationDate = request.observationDate || null;
   state.loading = false;
   radarDataCurrent = true;
   renderedRadarGeneration = generation;

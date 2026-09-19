@@ -67,6 +67,14 @@ radar.agpm.space {
 		}
 	}
 
+	# ADR-0021: observation reports are available only through authenticated /po/.
+	handle /api/event-observations/* {
+		respond "Not Found" 404
+	}
+	handle /api/owner/* {
+		respond "Not Found" 404
+	}
+
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8765 {
 			header_down -Server

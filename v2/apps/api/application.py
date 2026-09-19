@@ -209,6 +209,7 @@ class RadarApplication:
         *,
         request_id: str | None = None,
         remote_key: str = "local",
+        authorization: str | None = None,
     ) -> ApiResponse:
         """Handle one same-origin request with no SPA fallback for real file routes."""
         parsed = urlsplit(raw_target)
@@ -218,6 +219,7 @@ class RadarApplication:
                 raw_target,
                 request_id=request_id,
                 remote_key=remote_key,
+                authorization=authorization,
             )
         if (
             method != "GET"
