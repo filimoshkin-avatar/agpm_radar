@@ -13,11 +13,14 @@ from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Final
 from urllib.parse import parse_qsl, urlsplit
 
+from packages.contracts.event_observation import issue_hash
 from packages.contracts.json_types import JsonObject
 from packages.contracts.rubrics import rubric_catalog
+from packages.storage.event_observations import DEFAULT_ROOT, read_observation
 from packages.validation.public_issue import PublicIssueValidationError
 
 from apps.api.database import ActiveDatabaseManager, DatabaseIdentity, PublicDatabaseError
@@ -287,8 +290,10 @@ class RadarApi:
         *,
         application_release_id: str,
         search_limiter: SearchRateLimiter | None = None,
+        observation_root: Path = DEFAULT_ROOT,
     ) -> None:
         self.manager = manager
+        self.observation_root = observation_root
         if _IDENTIFIER.fullmatch(application_release_id) is None:
             raise ValueError("application release id is invalid")
         self.application_release_id = application_release_id
@@ -346,6 +351,15 @@ class RadarApi:
                 "items": items,
                 "nextCursor": f"v1:issues:{next_date}" if next_date is not None else None,
             }
+        if path.startswith("/api/event-observations/"):
+            _only(values, set())
+            issue_date = _date_value(path.removeprefix("/api/event-observations/"), "issueDate")
+            issue = self.manager.execute(
+                lambda connection, identity: self._repository(connection, identity).issue(
+                    issue_date
+                )
+            )
+            return read_observation(self.observation_root, issue)
         if path.startswith("/api/issues/"):
             _only(values, set())
             raw_date = path.removeprefix("/api/issues/")
@@ -478,7 +492,15 @@ class RadarApi:
             return _error(405, "METHOD_NOT_ALLOWED", "Only GET is supported", safe_request_id)
         try:
             path, values = _parse_target(raw_target)
-            return _json_response(200, self._dispatch(path, values, remote_key))
+            result = self._dispatch(path, values, remote_key)
+            response = _json_response(200, result)
+            if isinstance(result, dict) and "issueDate" in result and "materials" in result:
+                return ApiResponse(
+                    response.status,
+                    response.body,
+                    (*response.headers, ("X-Radar-Issue-Hash", issue_hash(result))),
+                )
+            return response
         except (RequestInputError, PublicDataInputError):
             return _error(400, "INVALID_REQUEST", "The request is invalid", safe_request_id)
         except PublishedResourceNotFoundError:

@@ -11,7 +11,13 @@ from typing import Final, cast
 from urllib.parse import urlsplit
 
 from packages.contracts.analysis import clean_evidence_titles
-from packages.contracts.event_dedup import ENFORCE_FROM, EventDedupError, publication_gate, url_key
+from packages.contracts.event_dedup import (
+    ENFORCE_FROM,
+    PRODUCTION_MODE,
+    EventDedupError,
+    production_gate,
+    url_key,
+)
 from packages.contracts.json_types import JsonObject, JsonValue
 from packages.contracts.title_quality import (
     title_diagnostic,
@@ -369,7 +375,7 @@ def validate_public_issue_document(value: object) -> JsonObject:
             _optional_text(material["llmAgpmAngle"], "material llmAgpmAngle", maximum=4_000)
     try:
         if issue_date >= ENFORCE_FROM:
-            publication_gate(materials)
+            production_gate(materials)
     except EventDedupError as exc:
         raise PublicIssueValidationError(str(exc)) from exc
     _scan_public_value(cast(JsonValue, issue))
@@ -652,9 +658,9 @@ def build_public_issue(
         materials.append(material_document)
 
     try:
-        evidence = issue_evidence(connection, issue_id)
+        evidence = issue_evidence(connection, issue_id) if PRODUCTION_MODE != "observe" else {}
         if evidence:
-            publication_gate(
+            production_gate(
                 [
                     {
                         **material,

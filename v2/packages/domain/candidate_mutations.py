@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Final, cast
 
-from packages.contracts.event_dedup import EventDedupError, publication_gate
+from packages.contracts.event_dedup import PRODUCTION_MODE, EventDedupError, production_gate
 from packages.domain.candidates import CandidateValidationError, validate_candidate
 from packages.domain.snapshot import JsonObject, SnapshotIdentity, canonical_json_line
 from packages.storage.event_registry import published_events
@@ -791,9 +791,13 @@ def _validate_daily_preconditions(
         raise CandidateMutationError("daily candidate issue id/date is already present")
     issue_day = datetime.strptime(cast(str, issue["issueDate"]), "%Y-%m-%d").date()
     try:
-        publication_gate(
+        production_gate(
             cast(list[dict[str, object]], issue["materials"]),
-            history=published_events(connection, str(issue["issueDate"])),
+            history=(
+                published_events(connection, str(issue["issueDate"]))
+                if PRODUCTION_MODE != "observe"
+                else []
+            ),
         )
     except EventDedupError as exc:
         raise CandidateMutationError(str(exc)) from exc
@@ -840,9 +844,13 @@ def _validate_correction_preconditions(
     if candidate["expectedIssueStateHash"] != actual_hash:
         raise CandidateMutationError("correction issue-state precondition differs")
     try:
-        publication_gate(
+        production_gate(
             cast(list[dict[str, object]], issue["materials"]),
-            history=published_events(connection, str(issue["issueDate"])),
+            history=(
+                published_events(connection, str(issue["issueDate"]))
+                if PRODUCTION_MODE != "observe"
+                else []
+            ),
         )
     except EventDedupError as exc:
         raise CandidateMutationError(str(exc)) from exc

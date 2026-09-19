@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 POLICY_VERSION = "events-v1"
+PRODUCTION_MODE = "observe"
 ENFORCE_FROM = "2026-09-19"
 REGISTRY_DAYS = 45
 WINDOW_DAYS = 7
@@ -676,3 +677,19 @@ def publication_gate(
             and left["passport"]["event_date"] == right["passport"]["event_date"]
         ):
             raise EventDedupError("EVENT_GATE: overlapping event cards (including fallback/review)")
+
+
+def production_gate(
+    cards: Sequence[Mapping[str, Any]],
+    *,
+    require_events: bool = False,
+    history: Sequence[dict[str, Any]] = (),
+) -> None:
+    """Keep identity invariants; semantic decisions are observations in production."""
+    if PRODUCTION_MODE != "observe":
+        publication_gate(cards, require_events=require_events, history=history)
+        return
+    for left, right in combinations(cards, 2):
+        reason = exact_reason(left, right)
+        if reason in {"material_id", "normalized_url"}:
+            raise EventDedupError(f"EVENT_GATE: duplicate {reason}")

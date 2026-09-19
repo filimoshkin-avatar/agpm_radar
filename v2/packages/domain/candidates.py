@@ -13,8 +13,9 @@ from urllib.parse import urlsplit
 from packages.contracts.analysis import issue_content_hash
 from packages.contracts.event_dedup import (
     ENFORCE_FROM,
+    PRODUCTION_MODE,
     EventDedupError,
-    publication_gate,
+    production_gate,
     validate_envelope,
 )
 from packages.contracts.title_quality import (
@@ -428,7 +429,8 @@ def _validate_material(value: object, index: int, global_llm: JsonObject) -> tup
     if isinstance(value, dict) and "eventDedup" in value:
         keys.add("eventDedup")
         try:
-            validate_envelope(value["eventDedup"])
+            if PRODUCTION_MODE != "observe":
+                validate_envelope(value["eventDedup"])
         except EventDedupError as exc:
             raise CandidateValidationError(str(exc)) from exc
     material = _exact(value, keys, f"desiredIssue.materials[{index}]")
@@ -541,7 +543,7 @@ def _validate_desired_issue(value: object, global_llm: JsonObject) -> dict[str, 
     if bool(materials) == (issue["emptyReason"] is not None):
         raise CandidateValidationError("emptyReason must exist exactly for an empty issue")
     try:
-        publication_gate(materials, require_events=str(issue["issueDate"]) >= ENFORCE_FROM)
+        production_gate(materials, require_events=str(issue["issueDate"]) >= ENFORCE_FROM)
     except EventDedupError as exc:
         raise CandidateValidationError(str(exc)) from exc
     _validate_analysis(issue["analysis"], materials)

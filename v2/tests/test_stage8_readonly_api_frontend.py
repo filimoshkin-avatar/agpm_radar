@@ -31,7 +31,8 @@ from apps.api import (
 from apps.api.__main__ import _application_release_id
 from apps.api.database import PUBLIC_READ_OBJECTS
 from apps.api.http_server import RadarHttpServer, remote_key
-from apps.api.public_data import _card_search_text, _date_label, _shown_texts
+from apps.api.public_data import _card_search_text, _date_label
+from packages.contracts.card_text import shown_texts as _shown_texts
 from packages.domain.snapshot import JsonObject
 from packages.publisher.local_simulation import install_initial_release, read_active_pointer
 from packages.storage.hashing import logical_state_hash, verify_database
@@ -278,6 +279,29 @@ def stage8_runtime(
 
 def _payload(response: ApiResponse) -> object:
     return json.loads(response.body)
+
+
+def test_observation_header_and_unavailable_report_preserve_public_issue(
+    stage8_runtime: tuple[ActiveDatabaseManager, RadarApi, Path],
+    tmp_path: Path,
+) -> None:
+    from packages.contracts.event_observation import issue_hash
+    from packages.storage.event_observations import read_observation
+
+    _manager, api, _active = stage8_runtime
+    response = api.handle("GET", "/api/issues/2026-08-20")
+    document = cast(JsonObject, _payload(response))
+    assert dict(response.headers)["X-Radar-Issue-Hash"] == issue_hash(document)
+    api.observation_root = tmp_path / "observations"
+    report = cast(
+        dict[str, object], _payload(api.handle("GET", "/api/event-observations/2026-08-20"))
+    )
+    assert report == read_observation(api.observation_root, document)
+    assert report["status"] == "pending"
+    assert api.handle("GET", "/api/issues/2026-08-20").body == response.body
+    assert api.handle("GET", "/api/event-observations/2026-08-99").status == 400
+    assert api.handle("GET", "/api/event-observations/2026-08-22").status == 404
+    assert api.handle("POST", "/api/event-observations/2026-08-20").status == 405
 
 
 def test_rubric_catalog_is_independent_of_current_materials(

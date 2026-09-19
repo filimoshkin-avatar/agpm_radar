@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from packages.contracts.analysis import clean_evidence_titles
-from packages.contracts.event_dedup import ENFORCE_FROM
+from packages.contracts.event_dedup import ENFORCE_FROM, PRODUCTION_MODE
 from packages.contracts.russian_prose import require_russian_script
 from packages.contracts.title_quality import (
     TitleQualityError,
@@ -359,7 +359,7 @@ def main() -> int:
                     "title": item.get("title"),
                 }
             )
-    if issue_date >= ENFORCE_FROM:
+    if PRODUCTION_MODE != "observe" and issue_date >= ENFORCE_FROM:
         attach_report_evidence(eligible, args.event_reports, issue_date)
     materials = [_material(item, index) for index, item in enumerate(eligible, 1)]
     with sqlite3.connect(f"file:{args.legacy_db}?mode=ro", uri=True) as legacy:

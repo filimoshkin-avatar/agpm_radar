@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from math import log
 from typing import Final, cast
 
+from packages.contracts.card_text import shown_texts as _shown_texts
 from packages.contracts.json_types import JsonObject, JsonValue
 from packages.contracts.rubrics import RUBRIC_LABELS
 from packages.validation.public_issue import (
@@ -222,24 +223,6 @@ def _page(items: list[JsonObject], offset: int, limit: int) -> tuple[list[JsonOb
     selected = items[offset : offset + limit]
     next_offset = offset + len(selected)
     return selected, next_offset if next_offset < len(items) else None
-
-
-def _shown_texts(item: JsonObject) -> tuple[str, str]:
-    """The description and takeaway a card shows, so search hits are always visible.
-
-    The model's texts when its analysis succeeded, the rule-based ones otherwise: the same
-    rule as cardView() in apps/web/app.mjs. The database used to carry a third copy of it,
-    in the view behind a search index nothing queried; migration 0004 removed both.
-    """
-    llm = item.get("llm")
-    succeeded = isinstance(llm, dict) and llm.get("status") == "success"
-    description = (str(item.get("llmShortText") or "") if succeeded else "") or (
-        str(item.get("brief") or "") or str(item.get("summary") or "")
-    )
-    takeaway = (str(item.get("llmAgpmAngle") or "") if succeeded else "") or str(
-        item.get("agpmTakeaway") or ""
-    )
-    return description, takeaway
 
 
 # The card's signal labels and the abbreviated Russian month names of the browser's

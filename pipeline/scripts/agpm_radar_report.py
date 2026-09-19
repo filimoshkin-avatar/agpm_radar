@@ -26,7 +26,7 @@ from radar_title_quality import (
     extract_title_candidates as shared_title_candidates, reliable_page_title,
     title_problem,
 )
-from packages.contracts.event_dedup import cheap_deduplicate, publication_gate, url_key
+from packages.contracts.event_dedup import PRODUCTION_MODE, cheap_deduplicate, production_gate as publication_gate, url_key
 from packages.storage.content_pointer import read_content_pointer
 from tools.event_pipeline import prepare_events, report_manifest
 from docx import Document
@@ -2008,16 +2008,17 @@ def main() -> int:
             if payload and payload.get("text"):
                 item["raw_excerpt"] = payload["text"]
                 item["_fulltext_status"] = payload.get("status")
-    source_root = Path(os.environ.get("RADAR_V2_SOURCE_ROOT", "/root/.openclaw-projectmanager/workspace/state/radar-v2/source"))
-    included = prepare_events(
-        included, cache=args.wiki / "data/event-inference", issue_day=stamp,
-        source_db=read_content_pointer(source_root).database_path,
-        audit_path=output_dir / f"AgPM_{args.output_prefix}_radar_{stamp}.event-audit.json",
-        use_history=args.output_prefix == "daily",
-    )
-    # The unique focus of a review must itself pass the editorial relevance gate.
-    included, focus_excluded = filter_for_report(included)
-    excluded.extend(focus_excluded)
+    if PRODUCTION_MODE != "observe":
+        source_root = Path(os.environ.get("RADAR_V2_SOURCE_ROOT", "/root/.openclaw-projectmanager/workspace/state/radar-v2/source"))
+        included = prepare_events(
+            included, cache=args.wiki / "data/event-inference", issue_day=stamp,
+            source_db=read_content_pointer(source_root).database_path,
+            audit_path=output_dir / f"AgPM_{args.output_prefix}_radar_{stamp}.event-audit.json",
+            use_history=args.output_prefix == "daily",
+        )
+        # The unique focus of a review must itself pass the editorial relevance gate.
+        included, focus_excluded = filter_for_report(included)
+        excluded.extend(focus_excluded)
     deferred_items: list[dict[str, Any]] = []
     if args.output_prefix == "daily":
         included, deferred_items = select_daily_batch(included, DAILY_REPORT_LIMIT, until)
@@ -2037,8 +2038,9 @@ def main() -> int:
     ], ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(markdown, encoding="utf-8")
     add_markdown_to_docx(markdown, docx_path)
-    manifest = report_manifest(included, md_path.read_bytes(), docx_path.read_bytes(), stamp)
-    md_path.with_suffix(".events.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    if PRODUCTION_MODE != "observe":
+        manifest = report_manifest(included, md_path.read_bytes(), docx_path.read_bytes(), stamp)
+        md_path.with_suffix(".events.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     # A failed extraction/render must not advance the deferred queue.
     if args.output_prefix == "daily":
         write_deferred_queue(queue_path, deferred_items)

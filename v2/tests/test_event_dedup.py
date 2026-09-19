@@ -22,15 +22,13 @@ from packages.contracts.event_dedup import (
     validate_passport,
 )
 from packages.domain.candidate_mutations import (
-    CandidateMutationError,
     _validate_correction_preconditions,
     issue_state_hash,
 )
 from packages.domain.candidate_package import build_candidate_package
-from packages.domain.candidates import CandidateValidationError, validate_candidate
+from packages.domain.candidates import validate_candidate
 from packages.storage.event_registry import published_events
 from packages.validation.public_issue import (
-    PublicIssueValidationError,
     build_public_issue,
     validate_public_issue_document,
 )
@@ -236,7 +234,7 @@ def test_later_article_about_old_launch_is_suppressed() -> None:
     assert any(row["reason"] == "published_in_registry" for row in audit["suppressed"])
 
 
-def test_correction_cannot_reintroduce_an_event_from_an_earlier_issue(tmp_path: Path) -> None:
+def test_observe_correction_does_not_consult_blocking_event_history(tmp_path: Path) -> None:
     source = tmp_path / "source.sqlite"
     _seed_database(source)
     cards, _ = deduplicate([material("new-url")])
@@ -255,9 +253,8 @@ def test_correction_cannot_reintroduce_an_event_from_an_earlier_issue(tmp_path: 
             "packages.domain.candidate_mutations.published_events",
             return_value=[cards[0]["event_dedup"]],
         ) as registry:
-            with pytest.raises(CandidateMutationError, match="already published"):
-                _validate_correction_preconditions(connection, candidate)
-            registry.assert_called_once_with(connection, "2026-08-19")
+            _validate_correction_preconditions(connection, candidate)
+            registry.assert_not_called()
 
 
 def test_semantic_similarity_cannot_merge_different_products() -> None:
@@ -440,7 +437,9 @@ assert report.event_key({"url":"https://a.example/a", "title":"agent orchestrati
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_event_evidence_survives_package_replay_and_blocks_renderer_bypass(tmp_path: Path) -> None:
+def test_event_evidence_survives_replay_but_does_not_block_observe_publication(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "source.sqlite"
     state_hash = _seed_database(source)
     workspace, attestation = _snapshot_workspace(tmp_path)
@@ -488,13 +487,11 @@ def test_event_evidence_survives_package_replay_and_blocks_renderer_bypass(tmp_p
             "UPDATE material_evidence SET metadata_json=? WHERE kind='event_dedup'",
             (json.dumps(metadata),),
         )
-        with pytest.raises(PublicIssueValidationError, match="selection_reason"):
-            build_public_issue(connection, issue_date="2026-08-20")
+        assert build_public_issue(connection, issue_date="2026-08-20") == public
     current = copy.deepcopy(candidate)
     current["desiredIssue"]["issueDate"] = "2026-09-19"
     current["desiredIssue"]["materials"][0].pop("eventDedup")
-    with pytest.raises(CandidateValidationError, match="missing passport"):
-        validate_candidate(current)
+    validate_candidate(current)
 
 
 def test_cheap_copies_keep_verified_body_and_discovery_links() -> None:
@@ -574,7 +571,7 @@ def test_cold_registry_is_warmed_from_published_history_and_resumes_from_cache(
         assert not cards and not audit["pending"]
 
 
-def test_archived_titles_remain_readable_but_new_publication_is_blocked() -> None:
+def test_matching_titles_are_nonblocking_in_observe_mode() -> None:
     golden = json.loads((ROOT / "fixtures/synthetic/stage6-golden.json").read_text())
     document = copy.deepcopy(
         next(
@@ -594,5 +591,4 @@ def test_archived_titles_remain_readable_but_new_publication_is_blocked() -> Non
     document["issueDate"] = "2026-09-19"
     for card in document["materials"]:
         card["issueDate"] = "2026-09-19"
-    with pytest.raises(PublicIssueValidationError, match="title_and_date"):
-        validate_public_issue_document(document)
+    validate_public_issue_document(document)
