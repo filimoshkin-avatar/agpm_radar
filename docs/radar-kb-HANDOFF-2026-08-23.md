@@ -37,7 +37,7 @@
 | Схема KX | **21** (миграции 003–021 применены; новых миграций срез не потребовал) |
 | Релиз | `radar_kx_release_20260823_4c2948698226` |
 | Юниты | ingest, backup, egress-proxy, hermes-extraction, orchestrator@, perimeter-poll, **editor** — все active |
-| Точка входа владельца | **https://radar.agpm.space/po/**, `helen` / `helen` |
+| Точка входа владельца | **https://radar.agpm.space/po/**, логин `ivan` |
 | Backup | перед каждой миграцией, в `/var/lib/postgresql/backups/` |
 
 ### Числа
@@ -113,7 +113,7 @@ kxembed compare-bindings --top 5
 ## Мелочи, о которых легко споткнуться
 
 - `v2/scripts/run_stage15_daily.sh` изменён в рабочем дереве **не этой сессией** — не трогать.
-- Пароль `helen/helen` короткий по решению владельца; добавлен троттлинг 8 попыток / 5 минут.
+- Действует вход `ivan`, настроенный владельцем 2026-09-19; троттлинг — 8 попыток / 5 минут.
   Смена — `/etc/radar-kx/editor.env` и bcrypt-хеш в `/etc/caddy/Caddyfile`.
 - Ключи GLM и MiniMax общие с контуром NRD.
 - Модельные команды только через `kxorch`, эмбеддинги только через `kxembed`, остальное `kxrun`.

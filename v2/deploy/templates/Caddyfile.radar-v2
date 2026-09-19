@@ -47,7 +47,7 @@ radar.agpm.space {
 
 	handle /po/* {
 		basic_auth {
-			helen @PO_BCRYPT@
+			ivan @PO_BCRYPT@
 		}
 		uri strip_prefix /po
 		reverse_proxy 127.0.0.1:19702 {
