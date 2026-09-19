@@ -1655,7 +1655,12 @@ async function renderEventObservations(force = false) {
     status.textContent = names[report.status] || (suspects.length ? `Подозрений: ${suspects.length}` : "Среди проверенных пар подозрений нет");
     const storeKey = `radar-observation-labels:${report.reportId}`;
     let labels = {};
-    try { labels = JSON.parse(localStorage.getItem(storeKey) || "{}"); } catch { /* storage unavailable */ }
+    let pairLabels = {};
+    try {
+      pairLabels = JSON.parse(localStorage.getItem("radar-observation-pair-labels") || "{}");
+      if (!pairLabels || typeof pairLabels !== "object" || Array.isArray(pairLabels)) pairLabels = {};
+      labels = { ...JSON.parse(localStorage.getItem(storeKey) || "{}"), ...pairLabels };
+    } catch { /* storage unavailable */ }
     if (!labels || typeof labels !== "object" || Array.isArray(labels)) labels = {};
     const link = card => `<a href="/issues/${escapeHtml(card.issueDate)}">${escapeHtml(card.issueDate)}</a> · <a href="${escapeHtml(safeExternalUrl(card.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(card.title)}</a>`;
     const pairMarkup = pair => {
@@ -1687,12 +1692,17 @@ async function renderEventObservations(force = false) {
     body.querySelectorAll("[data-observation-pair]").forEach(select => select.addEventListener("change", () => {
       if (select.value) labels[select.dataset.observationPair] = select.value;
       else delete labels[select.dataset.observationPair];
-      try { localStorage.setItem(storeKey, JSON.stringify(labels)); }
+      if (select.value) pairLabels[select.dataset.observationPair] = select.value;
+      else pairLabels[select.dataset.observationPair] = "";
+      try {
+        localStorage.setItem(storeKey, JSON.stringify(labels));
+        localStorage.setItem("radar-observation-pair-labels", JSON.stringify(pairLabels));
+      }
       catch { document.getElementById("observationLabelNotice").textContent = "Браузер не сохранил оценки. Скачайте разметку до закрытия страницы."; }
     }));
     body.querySelector("[data-observation-export]")?.addEventListener("click", () => {
       const allowed = new Set(pairs.map(pair => pair.pairId));
-      const exported = Object.fromEntries(Object.entries(labels).filter(([key]) => allowed.has(key)));
+      const exported = Object.fromEntries(Object.entries(labels).filter(([key, value]) => allowed.has(key) && ["same_event", "different_event", "development", "insufficient_evidence"].includes(value)));
       const url = URL.createObjectURL(new Blob([JSON.stringify({ reportId: report.reportId, labels: exported }, null, 2)], { type: "application/json" }));
       const anchor = document.createElement("a");
       anchor.href = url; anchor.download = `radar-${day}-event-labels.json`; anchor.click();
