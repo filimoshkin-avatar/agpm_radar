@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from packages.contracts.analysis import clean_evidence_titles
+from packages.contracts.event_dedup import ENFORCE_FROM
 from packages.contracts.russian_prose import require_russian_script
 from packages.contracts.title_quality import (
     TitleQualityError,
@@ -27,6 +28,7 @@ from packages.domain.snapshot import JsonObject, canonical_json_line, create_sna
 from packages.legacy_bridge.importer import deterministic_id
 from packages.storage.safe_files import atomic_write_new
 
+from tools.event_pipeline import attach_report_evidence
 from tools.generate_v2_analysis import V2AnalysisError, generate_v2_analysis
 from tools.v2_period_analysis import generate_period, period_blocks, strip_period_blocks
 
@@ -95,6 +97,8 @@ def _material(raw: dict[str, object], position: int) -> JsonObject:
         "url": raw["url"],
         "verdict": raw.get("verdict") if raw.get("verdict") in {"core", "adjacent"} else "adjacent",
     }
+    if "event_dedup" in raw:
+        result["eventDedup"] = raw["event_dedup"]
     for field in ("summary", "brief", "agpmTakeaway", "llmShortText", "llmAgpmAngle"):
         require_russian_script(str(result.get(field) or ""), field)
     return cast(JsonObject, result)
@@ -323,6 +327,11 @@ def main() -> int:
     parser.add_argument("--created-at", required=True)
     parser.add_argument("--published-at", required=True)
     parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument(
+        "--event-reports",
+        type=Path,
+        default=Path("/mnt/vdd/Radar/data/corpus/knowledge-agpm-radar/reports"),
+    )
     args = parser.parse_args()
     document = cast(dict[str, object], json.loads(args.legacy_json.read_bytes()))
     issue = cast(dict[str, object], document["issue"])
@@ -350,6 +359,8 @@ def main() -> int:
                     "title": item.get("title"),
                 }
             )
+    if issue_date >= ENFORCE_FROM:
+        attach_report_evidence(eligible, args.event_reports, issue_date)
     materials = [_material(item, index) for index, item in enumerate(eligible, 1)]
     with sqlite3.connect(f"file:{args.legacy_db}?mode=ro", uri=True) as legacy:
         legacy.row_factory = sqlite3.Row

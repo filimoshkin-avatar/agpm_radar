@@ -12,6 +12,7 @@ from packages.delta.engine import inspect_release_database
 from packages.domain.candidate_mutations import issue_state_hash
 from packages.domain.candidate_package import build_candidate_package
 from packages.domain.snapshot import JsonObject, canonical_json_line
+from packages.storage.event_registry import issue_evidence
 from packages.storage.replication_mutations import row_after_sha256
 from packages.storage.safe_files import atomic_write_new
 from packages.validation.public_issue import build_public_issue_from_views
@@ -53,6 +54,7 @@ def _desired_issue(
     if issue is None:
         raise ValueError(f"accepted issue is absent: {issue_date}")
     issue_id, lifecycle_status, publication_origin, empty_reason = issue
+    event_evidence = issue_evidence(connection, str(issue_id))
     materials: list[JsonObject] = []
     for raw in cast(list[dict[str, object]], public["materials"]):
         material_id = cast(str, raw["id"])
@@ -102,6 +104,8 @@ def _desired_issue(
                 },
             )
         )
+        if material_id in event_evidence:
+            materials[-1]["eventDedup"] = event_evidence[material_id]
     missing = remove_material_ids - {
         cast(str, item["id"]) for item in cast(list[dict[str, object]], public["materials"])
     }

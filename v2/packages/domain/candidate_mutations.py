@@ -10,8 +10,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Final, cast
 
+from packages.contracts.event_dedup import EventDedupError, publication_gate
 from packages.domain.candidates import CandidateValidationError, validate_candidate
 from packages.domain.snapshot import JsonObject, SnapshotIdentity, canonical_json_line
+from packages.storage.event_registry import published_events
 from packages.storage.hashing import logical_state_hash
 from packages.storage.replication_mutations import (
     TABLE_SPECS,
@@ -358,6 +360,26 @@ def _add_issue_desired_state(
                 values=material_values,
             )
         )
+        if "eventDedup" in material:
+            metadata = {"issue_id": issue_id, "event_dedup": material["eventDedup"]}
+            planner.add(
+                _make_mutation(
+                    connection,
+                    table="material_evidence",
+                    action="upsert",
+                    values={
+                        "evidence_id": "evd_"
+                        + _canonical_hash([issue_id, material_id, "event_dedup"])[:24],
+                        "material_id": material_id,
+                        "kind": "event_dedup",
+                        "content_sha256": _canonical_hash(metadata),
+                        "media_type": "application/json",
+                        "public_url": material["url"],
+                        "metadata_json": _json_text(metadata),
+                        "created_at": created_at,
+                    },
+                )
+            )
         if source_name:
             source_id = _source_id(source_name)
             source_values = {
@@ -768,6 +790,13 @@ def _validate_daily_preconditions(
     if conflict is not None:
         raise CandidateMutationError("daily candidate issue id/date is already present")
     issue_day = datetime.strptime(cast(str, issue["issueDate"]), "%Y-%m-%d").date()
+    try:
+        publication_gate(
+            cast(list[dict[str, object]], issue["materials"]),
+            history=published_events(connection, str(issue["issueDate"])),
+        )
+    except EventDedupError as exc:
+        raise CandidateMutationError(str(exc)) from exc
     earliest_day = issue_day - timedelta(days=_DAILY_CANDIDATE_LOOKBACK_DAYS)
     for material in cast(list[dict[str, object]], issue["materials"]):
         material_id = cast(str, material["materialId"])
@@ -810,6 +839,13 @@ def _validate_correction_preconditions(
     actual_hash = issue_state_hash(connection, cast(str, issue["issueId"]))
     if candidate["expectedIssueStateHash"] != actual_hash:
         raise CandidateMutationError("correction issue-state precondition differs")
+    try:
+        publication_gate(
+            cast(list[dict[str, object]], issue["materials"]),
+            history=published_events(connection, str(issue["issueDate"])),
+        )
+    except EventDedupError as exc:
+        raise CandidateMutationError(str(exc)) from exc
     for precondition in cast(list[dict[str, object]], candidate["sharedMaterialPreconditions"]):
         material = _row(
             connection,

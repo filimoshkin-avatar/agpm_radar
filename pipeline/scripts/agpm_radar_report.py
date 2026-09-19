@@ -8,6 +8,7 @@ import email.utils
 import hashlib
 import html
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -25,6 +26,9 @@ from radar_title_quality import (
     extract_title_candidates as shared_title_candidates, reliable_page_title,
     title_problem,
 )
+from packages.contracts.event_dedup import cheap_deduplicate, publication_gate, url_key
+from packages.storage.content_pointer import read_content_pointer
+from tools.event_pipeline import prepare_events, report_manifest
 from docx import Document
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.opc.constants import RELATIONSHIP_TYPE
@@ -619,77 +623,12 @@ def previous_report_urls(reports_dir: Path, current_date: datetime) -> set[str]:
     return known
 
 
-def event_key_from_text(text: str, canonical: str | None = None) -> str | None:
-    text = clean(text).lower()
-    if "meta" in text and "business" in text and "agent" in text and any(term in text for term in ["sales", "appointments", "customer service", "enterprise services", "whatsapp", "messenger", "instagram"]):
-        return "event:meta_business_agent"
-    if "microsoft" in text and any(term in text for term in ["project perception", "mai-cyber", "cyber-focused", "cybersecurity model", "vulnerability discovery", "enterprise cyber defense"]):
-        return "event:microsoft_project_perception_security"
-    if (
-        "agent" in text
-        and any(term in text for term in ["uniform governance", "one-size-fits-all", "one size fits all", "40%", "4 in 10", "rubbish bin", "enterprise failure"])
-        and ("gartner" in text or "uniform governance" in text or "one-size" in text or "one size" in text)
-    ):
-        return "event:gartner_uniform_agent_governance"
-    if "monday.com" in text and "ai agents" in text:
-        return "event:monday_ai_agents"
-    if "perplexity computer" in text:
-        return "event:perplexity_computer"
-    if "agent orchestration" in text or "multi-agent workflows" in text:
-        return "event:agent_orchestration"
-    if "agentic pmo" in text:
-        return "event:agentic_pmo"
-    if canonical:
-        return "url:" + (locale_neutral_report_url(canonical) or canonical).lower().rstrip("/")
-    return None
-
-
-def text_fingerprint_key(text: str, prefix: str, min_tokens: int = 10, max_tokens: int = 16) -> str | None:
-    normalized = re.sub(r"[^0-9a-zа-яё]+", " ", clean(text).lower())
-    tokens = [token for token in normalized.split() if len(token) > 1]
-    if len(tokens) < min_tokens:
-        return None
-    return f"{prefix}:" + "-".join(tokens[:max_tokens])
-
-
-def habr_article_event_key(item: dict[str, Any]) -> str | None:
-    source_ids = {str(hit.get("source_id") or "") for hit in item.get("source_hits", [])}
-    host = urllib.parse.urlparse(str(item.get("url") or "")).netloc.lower()
-    if host.startswith("www."):
-        host = host[4:]
-    if host not in {"habr.com", "t.me"} and not source_ids.intersection({"telegram_habr_ai", "habr_ai_hub"}):
-        return None
-    if host == "t.me" and "telegram_habr_ai" not in source_ids:
-        return None
-    return text_fingerprint_key(item_text(item), "event:habr_article")
-
-
-def previous_report_event_keys(reports_dir: Path, current_date: datetime) -> set[str]:
-    if not reports_dir.exists():
-        return set()
-    known: set[str] = set()
-    current_day = current_date.date()
-    for path in reports_dir.glob("AgPM_*_radar_*.md"):
-        stamp = report_date(path)
-        if not stamp or stamp.date() >= current_day:
-            continue
-        text = path.read_text(encoding="utf-8")
-        for block in re.split(r"\n(?=###\s+)", text):
-            if not block.startswith("### "):
-                continue
-            key = event_key_from_text(block)
-            if key and key.startswith("event:"):
-                known.add(key)
-    return known
-
-
 def filter_previously_reported(
     items: list[dict[str, Any]],
     reports_dir: Path,
     current_date: datetime,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     known = previous_report_urls(reports_dir, current_date)
-    known_events = previous_report_event_keys(reports_dir, current_date)
     if not known:
         known = set()
     fresh: list[dict[str, Any]] = []
@@ -697,8 +636,7 @@ def filter_previously_reported(
     for item in items:
         canonical = canonicalize_report_url(item.get("canonical_url") or item.get("url"))
         neutral = locale_neutral_report_url(item.get("canonical_url") or item.get("url"))
-        semantic_key = event_key(item)
-        if (canonical and canonical in known) or (neutral and neutral in known) or (semantic_key.startswith("event:") and semantic_key in known_events):
+        if (canonical and canonical in known) or (neutral and neutral in known):
             skipped.append(item)
         else:
             fresh.append(item)
@@ -1330,7 +1268,6 @@ def filter_for_report(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]]
             excluded.append(item)
         else:
             included.append(item)
-    included = merge_duplicate_events(included)
     included.sort(
         key=lambda row: (
             {"core": 2, "adjacent": 1}.get(row["_radar_review"]["verdict"], 0),
@@ -1483,6 +1420,8 @@ def aiagents_focus_text(item: dict[str, Any]) -> str:
 
 
 def aiagents_material_summary(item: dict[str, Any]) -> list[str]:
+    if item.get("original_title") and item.get("event_dedup"):
+        return [str(item["summary"])]
     text = aiagents_focus_text(item)
     title = clean(item.get("title"))
     facts, why = aiagents_summary_parts(item)
@@ -1541,6 +1480,8 @@ def aiagents_material_summary(item: dict[str, Any]) -> list[str]:
 
 
 def aiagents_agpm_analysis(item: dict[str, Any], review: dict[str, Any]) -> list[str]:
+    if item.get("original_title") and item.get("event_dedup"):
+        return [agpm_comment({**item, "title": item["title"], "summary": item["summary"]}, review)]
     text = aiagents_focus_text(item)
 
     if "durable" in text or "recovery" in text or "execution histories" in text:
@@ -1644,6 +1585,8 @@ def summary_sentences(value: str, limit: int = 2) -> list[str]:
 
 
 def general_material_summary(item: dict[str, Any]) -> list[str]:
+    if item.get("original_title") and item.get("event_dedup"):
+        return [str(item["summary"])]
     text = item_text(item)
     summary = clean(item.get("summary"))
     title = clean(item.get("title"))
@@ -1704,6 +1647,8 @@ def general_material_summary(item: dict[str, Any]) -> list[str]:
 
 
 def general_agpm_analysis(item: dict[str, Any], review: dict[str, Any]) -> list[str]:
+    if item.get("original_title") and item.get("event_dedup"):
+        return [agpm_comment({**item, "title": item["title"], "summary": item["summary"]}, review)]
     text = item_text(item)
     perimeter = review.get("perimeter")
 
@@ -1734,67 +1679,13 @@ def general_agpm_analysis(item: dict[str, Any], review: dict[str, Any]) -> list[
 
 
 def event_key(item: dict[str, Any]) -> str:
-    habr_key = habr_article_event_key(item)
-    if habr_key:
-        return habr_key
-    canonical = item.get("canonical_url") or item.get("url") or clean(item.get("title"))
-    neutral = locale_neutral_report_url(canonical) or str(canonical)
-    return event_key_from_text(item_text(item), canonical) or "url:" + neutral.lower().rstrip("/")
-
-
-def source_preference(item: dict[str, Any]) -> int:
-    host = urllib.parse.urlparse(str(item.get("url") or "")).netloc.lower()
-    if host.startswith("www."):
-        host = host[4:]
-    if host == "gartner.com":
-        return 3
-    if host == "habr.com":
-        return 2
-    if host in {"reuters.com", "marketing4ecommerce.net"}:
-        return 2
-    if host in {"theregister.com", "cloudwars.com", "techradar.com", "infosecurity-magazine.com"}:
-        return 1
-    return 0
+    # Queue identity only. Topic words must never erase a new event before extraction.
+    return "url:" + url_key(item.get("canonical_url") or item.get("url"))
 
 
 def merge_duplicate_events(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    merged: dict[str, dict[str, Any]] = {}
-    for item in items:
-        key = event_key(item)
-        if key not in merged:
-            merged[key] = item
-            continue
-        current = merged[key]
-        current_review = current["_radar_review"]
-        item_review = item["_radar_review"]
-        current_rank = (
-            {"core": 2, "adjacent": 1}.get(current_review["verdict"], 0),
-            source_preference(current),
-            int(current_review["score"]),
-            int(current.get("source_count", 0)),
-        )
-        item_rank = (
-            {"core": 2, "adjacent": 1}.get(item_review["verdict"], 0),
-            source_preference(item),
-            int(item_review["score"]),
-            int(item.get("source_count", 0)),
-        )
-        if item_rank > current_rank:
-            item, current = current, item
-            merged[key] = current
-        current_hits = current.setdefault("source_hits", [])
-        known = {(hit.get("source_id"), hit.get("hit_url")) for hit in current_hits}
-        for hit in item.get("source_hits", []):
-            marker = (hit.get("source_id"), hit.get("hit_url"))
-            if marker not in known:
-                current_hits.append(hit)
-                known.add(marker)
-        alt_links = current.setdefault("alternative_links", [])
-        if item.get("url") and item.get("url") != current.get("url") and item.get("url") not in alt_links:
-            alt_links.append(item["url"])
-        current["source_count"] = len({hit.get("source_id") for hit in current_hits if hit.get("source_id")})
-        current["hit_count"] = len(current_hits)
-    return list(merged.values())
+    # Only exact document copies are safe before event extraction.
+    return cheap_deduplicate(items)
 
 
 def top_items(items: list[dict[str, Any]], limit: int = 12) -> list[dict[str, Any]]:
@@ -1843,10 +1734,13 @@ def render_markdown(
         included, excluded = filter_for_report(items)
     else:
         included, excluded = included_override, excluded_override
+    publication_gate(included)
+    digest_ids = {id(item) for item in aiagents_digest_items(included)}
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in included:
         require_title(item.get("title"), item.get("url"))
-        grouped[item["_radar_review"]["perimeter"]].append(item)
+        if id(item) not in digest_ids:
+            grouped[item["_radar_review"]["perimeter"]].append(item)
 
     counts = Counter(item["_radar_review"]["perimeter"] for item in included)
     verdicts = Counter(item["_radar_review"]["verdict"] for item in included)
@@ -2097,23 +1991,38 @@ def main() -> int:
     else:
         period_items = [item for item in materials if in_period(item, report_since, until)]
     skipped_previous: list[dict[str, Any]] = []
-    skipped_dead_links: list[dict[str, Any]] = []
     deferred_written = 0
+    output_dir = args.output_dir or args.wiki / "reports"
+    stamp = until.date().isoformat()
     if args.output_prefix == "daily":
         queue_path = deferred_queue_path(args.wiki)
         period_items = merge_deferred_with_period(load_deferred_queue(queue_path), period_items)
-        period_items, skipped_dead_links = filter_hard_missing_web_links(period_items)
-        period_items, skipped_previous = filter_previously_reported(period_items, args.wiki / "reports", until)
-        period_items, fulltext_stats = enrich_with_fulltext_second_pass(period_items, args.wiki)
-        included, excluded = filter_for_report(period_items)
+    period_items = cheap_deduplicate(period_items)
+    period_items, skipped_dead_links = filter_hard_missing_web_links(period_items)
+    period_items, fulltext_stats = enrich_with_fulltext_second_pass(period_items, args.wiki)
+    included, excluded = filter_for_report(period_items)
+    # Every eligible card, including Directory headlines, gets a source-text attempt.
+    for item in included:
+        if item.get("_fulltext_status") != "resolved":
+            payload = fetch_fulltext(item, args.wiki)
+            if payload and payload.get("text"):
+                item["raw_excerpt"] = payload["text"]
+                item["_fulltext_status"] = payload.get("status")
+    source_root = Path(os.environ.get("RADAR_V2_SOURCE_ROOT", "/root/.openclaw-projectmanager/workspace/state/radar-v2/source"))
+    included = prepare_events(
+        included, cache=args.wiki / "data/event-inference", issue_day=stamp,
+        source_db=read_content_pointer(source_root).database_path,
+        audit_path=output_dir / f"AgPM_{args.output_prefix}_radar_{stamp}.event-audit.json",
+        use_history=args.output_prefix == "daily",
+    )
+    # The unique focus of a review must itself pass the editorial relevance gate.
+    included, focus_excluded = filter_for_report(included)
+    excluded.extend(focus_excluded)
+    deferred_items: list[dict[str, Any]] = []
+    if args.output_prefix == "daily":
         included, deferred_items = select_daily_batch(included, DAILY_REPORT_LIMIT, until)
-        write_deferred_queue(queue_path, deferred_items)
         deferred_written = len(deferred_items)
-    else:
-        period_items, skipped_dead_links = filter_hard_missing_web_links(period_items)
-        fulltext_stats = {"checked": 0, "resolved": 0, "changed": 0}
-        included = None
-        excluded = None
+    publication_gate(included, require_events=True)
 
     markdown = render_markdown(period_items, report_since, until, included, excluded, deferred_written)
     output_dir = args.output_dir or args.wiki / "reports"
@@ -2128,6 +2037,11 @@ def main() -> int:
     ], ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(markdown, encoding="utf-8")
     add_markdown_to_docx(markdown, docx_path)
+    manifest = report_manifest(included, md_path.read_bytes(), docx_path.read_bytes(), stamp)
+    md_path.with_suffix(".events.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    # A failed extraction/render must not advance the deferred queue.
+    if args.output_prefix == "daily":
+        write_deferred_queue(queue_path, deferred_items)
     print(json.dumps({"ok": True, "markdown": str(md_path), "docx": str(docx_path), "items": len(period_items), "included": len(included) if included is not None else None, "deferred_next_issue": deferred_written, "skipped_previous_issues": len(skipped_previous), "skipped_dead_links": len(skipped_dead_links), "fulltext_second_pass": fulltext_stats}, ensure_ascii=False, indent=2))
     return 0
 

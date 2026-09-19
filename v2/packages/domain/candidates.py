@@ -11,6 +11,12 @@ from typing import Final, cast
 from urllib.parse import urlsplit
 
 from packages.contracts.analysis import issue_content_hash
+from packages.contracts.event_dedup import (
+    ENFORCE_FROM,
+    EventDedupError,
+    publication_gate,
+    validate_envelope,
+)
 from packages.contracts.title_quality import (
     title_diagnostic,
     title_problem,
@@ -419,6 +425,12 @@ def _validate_material(value: object, index: int, global_llm: JsonObject) -> tup
         "llmShortText",
         "llmAgpmAngle",
     }
+    if isinstance(value, dict) and "eventDedup" in value:
+        keys.add("eventDedup")
+        try:
+            validate_envelope(value["eventDedup"])
+        except EventDedupError as exc:
+            raise CandidateValidationError(str(exc)) from exc
     material = _exact(value, keys, f"desiredIssue.materials[{index}]")
     material_id = _id(material["materialId"], "materialId")
     position = _integer(material["position"], "material position", minimum=1)
@@ -528,6 +540,10 @@ def _validate_desired_issue(value: object, global_llm: JsonObject) -> dict[str, 
         raise CandidateValidationError("material positions must be contiguous from 1")
     if bool(materials) == (issue["emptyReason"] is not None):
         raise CandidateValidationError("emptyReason must exist exactly for an empty issue")
+    try:
+        publication_gate(materials, require_events=str(issue["issueDate"]) >= ENFORCE_FROM)
+    except EventDedupError as exc:
+        raise CandidateValidationError(str(exc)) from exc
     _validate_analysis(issue["analysis"], materials)
     stats = _exact(
         issue["stats"],

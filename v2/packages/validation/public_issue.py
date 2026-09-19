@@ -8,15 +8,17 @@ import sqlite3
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from typing import Final, cast
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from packages.contracts.analysis import clean_evidence_titles
+from packages.contracts.event_dedup import ENFORCE_FROM, EventDedupError, publication_gate, url_key
 from packages.contracts.json_types import JsonObject, JsonValue
 from packages.contracts.title_quality import (
     title_diagnostic,
     title_problem,
     title_reference_problem,
 )
+from packages.storage.event_registry import issue_evidence
 from packages.storage.sqlite_profile import REQUIRED_SQLITE_PROFILE, assert_sqlite_runtime
 
 _PUBLIC_ISSUE_KEYS: Final = {
@@ -220,14 +222,7 @@ def _stats(value: object, label: str = "stats") -> dict[str, object]:
 
 
 def _canonical_url_key(value: str) -> str:
-    parsed = urlsplit(value)
-    host = cast(str, parsed.hostname).lower()
-    if parsed.port is not None:
-        host = f"{host}:{parsed.port}"
-    path = parsed.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-    return urlunsplit((parsed.scheme.lower(), host, path, parsed.query, ""))
+    return url_key(value)
 
 
 def _scan_public_value(value: JsonValue, label: str = "public issue") -> None:
@@ -372,6 +367,11 @@ def validate_public_issue_document(value: object) -> JsonObject:
             _optional_text(material["llmShortText"], "material llmShortText", maximum=4_000)
         if "llmAgpmAngle" in material:
             _optional_text(material["llmAgpmAngle"], "material llmAgpmAngle", maximum=4_000)
+    try:
+        if issue_date >= ENFORCE_FROM:
+            publication_gate(materials)
+    except EventDedupError as exc:
+        raise PublicIssueValidationError(str(exc)) from exc
     _scan_public_value(cast(JsonValue, issue))
     return cast(JsonObject, issue)
 
@@ -650,6 +650,26 @@ def build_public_issue(
             material_document["llmShortText"] = row["short_text"]
             material_document["llmAgpmAngle"] = row["agpm_angle"]
         materials.append(material_document)
+
+    try:
+        evidence = issue_evidence(connection, issue_id)
+        if evidence:
+            publication_gate(
+                [
+                    {
+                        **material,
+                        **(
+                            {"eventDedup": evidence[str(material["id"])]}
+                            if material["id"] in evidence
+                            else {}
+                        ),
+                    }
+                    for material in materials
+                ],
+                require_events=bool(evidence),
+            )
+    except EventDedupError as exc:
+        raise PublicIssueValidationError(str(exc)) from exc
 
     raw_analysis = _json(analysis_row["analysis_json"], "issue analysis")
     raw_theses = _json(analysis_row["theses_json"], "issue theses")

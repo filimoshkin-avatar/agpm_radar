@@ -1,0 +1,50 @@
+{
+  "description": "Actual independently extracted passports from the 2026-09-19 issue; missing-date action labels must not bypass arbitration.",
+  "left": {
+    "subject": "Anthropic",
+    "action": "feature",
+    "object": "Claude for Financial Advisors connects to portfolio analytics and research tools from BlackRock, Vanguard, Schwab, and iCapital",
+    "event_date": null,
+    "products": [
+      "Claude for Financial Advisors"
+    ],
+    "organizations": [
+      "Anthropic",
+      "BlackRock",
+      "Vanguard",
+      "Schwab",
+      "iCapital"
+    ],
+    "event_type": "feature",
+    "evidence": "Claude for Financial Advisors connects to portfolio analytics and research tools from firms such as BlackRock, Vanguard, Schwab, and iCapital.",
+    "facts": [
+      "Claude for Financial Advisors connects to portfolio analytics and research tools from firms such as BlackRock, Vanguard, Schwab, and iCapital."
+    ],
+    "card_title": "Anthropic добавила интеграции Claude для финансовых консультантов",
+    "card_summary": "Claude for Financial Advisors подключается к инструментам портфельной аналитики и исследований BlackRock, Vanguard, Schwab и iCapital.",
+    "strong_signal": true
+  },
+  "right": {
+    "subject": "Anthropic",
+    "action": "launch",
+    "object": "Claude for Financial Advisors with connections to Charles Schwab, BlackRock and other industry platforms",
+    "event_date": "2026-09-14",
+    "products": [
+      "Claude for Financial Advisors"
+    ],
+    "organizations": [
+      "Anthropic",
+      "Charles Schwab",
+      "BlackRock"
+    ],
+    "event_type": "launch",
+    "evidence": "Anthropic pushed Claude directly into wealth-management workflows on September 14, launching Claude for Financial Advisors with connections to Charles Schwab, BlackRock and other industry platforms.",
+    "facts": [
+      "Anthropic pushed Claude directly into wealth-management workflows on September 14, launching Claude for Financial Advisors with connections to Charles Schwab, BlackRock and other industry platforms.",
+      "It lets advisers pull client and portfolio information into Claude for meeting prep, portfolio review and documentation."
+    ],
+    "card_title": "Anthropic запустила Claude for Financial Advisors",
+    "card_summary": "Anthropic 14 сентября запустила Claude for Financial Advisors для рабочих процессов в управлении капиталом, с подключениями к Charles Schwab, BlackRock и другим отраслевым платформам.",
+    "strong_signal": true
+  }
+}

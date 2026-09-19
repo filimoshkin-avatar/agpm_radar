@@ -109,6 +109,7 @@ ALLOWED_RUNTIME_IMPORT_ROOTS: Final = frozenset(
         "html",
         "http",
         "itertools",
+        "difflib",
         "json",
         "math",
         "os",
